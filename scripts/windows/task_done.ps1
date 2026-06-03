@@ -68,13 +68,11 @@ if (Test-Path $backendTest) {
 
 Write-Host "`nAll checks passed." -ForegroundColor Green
 
-# Suggested commit
-Step "Suggested commit"
+# Suggested commit — app repo
+Step "Suggested commit (app)"
 $changed = git diff --stat HEAD 2>$null
 if (-not $changed) { $changed = git status --short 2>$null }
-if ($changed) {
-    Write-Host $changed
-}
+if ($changed) { Write-Host $changed }
 Write-Host ""
 Write-Host "  Copy and edit:" -ForegroundColor Cyan
 Write-Host @'
@@ -82,3 +80,21 @@ git commit -m "feat: <summary>
 
 - <optional detail>"
 '@
+
+# Suggested commit — vault repo
+$vault = Join-Path $root "..\whatorder-vault"
+if (Test-Path $vault) {
+    Step "Suggested commit (vault)"
+    Push-Location $vault
+    $vaultChanged = git diff --stat HEAD 2>$null
+    if (-not $vaultChanged) { $vaultChanged = git status --short 2>$null }
+    if ($vaultChanged) { Write-Host $vaultChanged }
+    Pop-Location
+    Write-Host ""
+    Write-Host "  Copy and edit:" -ForegroundColor Cyan
+    Write-Host @'
+git commit -m "chore: <summary>
+
+- <optional detail>"
+'@
+}

@@ -56,9 +56,9 @@ fi
 echo
 echo "All checks passed."
 
-# Suggested commit
+# Suggested commit — app repo
 echo
-echo "==> Suggested commit"
+echo "==> Suggested commit (app)"
 changed=$(git diff --stat HEAD 2>/dev/null || git status --short 2>/dev/null)
 [ -n "$changed" ] && echo "$changed" && echo
 cat <<'EOF'
@@ -67,3 +67,18 @@ cat <<'EOF'
 
   - <optional detail>"
 EOF
+
+# Suggested commit — vault repo
+VAULT="$ROOT/../whatorder-vault"
+if [ -d "$VAULT/.git" ]; then
+    echo
+    echo "==> Suggested commit (vault)"
+    vault_changed=$(cd "$VAULT" && { git diff --stat HEAD 2>/dev/null || git status --short 2>/dev/null; })
+    [ -n "$vault_changed" ] && echo "$vault_changed" && echo
+    cat <<'EOF'
+  Copy and edit:
+  git commit -m "chore: <summary>
+
+  - <optional detail>"
+EOF
+fi
