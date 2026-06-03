@@ -1,0 +1,53 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Backend
+backend/node_modules/
+backend/dist/
+backend/.DS_Store
+backend/*.log
+
+# Mobile (Flutter)
+mobile/.dart_tool/
+mobile/build/
+mobile/.packages
+mobile/pubspec.lock
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.idea/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+
+# Google Cloud
+*.json
+!package.json
+!tsconfig.json
+
+# Firebase
+.firebase/
+.firebaserc
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs
+dist/
+build/
+out/
