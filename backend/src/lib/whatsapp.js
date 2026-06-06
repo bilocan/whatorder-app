@@ -3,7 +3,7 @@ const axios = require('axios');
 const BASE_URL = 'https://graph.facebook.com/v18.0';
 
 async function sendText(to, body) {
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'test') {
     console.log(`\n[WhatsApp → ${to}]\n${body}\n`);
     return;
   }
