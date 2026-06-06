@@ -1,8 +1,37 @@
+import { useEffect, useState } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import type { Business } from '../types';
+
+const BUSINESS_ID = 'biz_test';
+
 export default function SettingsPage() {
+  const [business, setBusiness] = useState<Business | null>(null);
+
+  useEffect(() => {
+    getDoc(doc(db, 'businesses', BUSINESS_ID)).then((snap) => {
+      if (snap.exists()) setBusiness({ id: snap.id, ...snap.data() } as Business);
+    });
+  }, []);
+
+  if (!business) return <p>Loading...</p>;
+
   return (
-    <div>
+    <div style={{ maxWidth: 400 }}>
       <h2>Settings</h2>
-      <p>Business settings (hours, prep time) — coming soon</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {[
+          { label: 'Business name', value: business.name },
+          { label: 'WhatsApp number', value: business.whatsappNumber },
+          { label: 'Phone', value: business.phone },
+          { label: 'Status', value: business.status },
+        ].map(({ label, value }) => (
+          <div key={label}>
+            <div style={{ fontSize: '0.75rem', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>{label}</div>
+            <div style={{ fontWeight: 500, textTransform: label === 'Status' ? 'capitalize' : 'none', color: label === 'Status' && value === 'active' ? '#22c55e' : 'inherit' }}>{value}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

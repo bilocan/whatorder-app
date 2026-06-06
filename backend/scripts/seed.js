@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
 const { db } = require('../src/lib/firebase');
 
 const BUSINESS_ID = 'biz_test';
@@ -31,6 +31,78 @@ const menuItems = [
   { name: 'Cola', description: '330ml can', price: 2.50, category: 'drinks', available: true },
 ];
 
+const now = Date.now();
+const min = 60000;
+
+const orders = [
+  {
+    customerId: 'cust_001',
+    customerName: 'Mehmet K.',
+    customerPhone: '+43699111222',
+    items: [
+      { name: 'Döner', qty: 2, price: 8.50 },
+      { name: 'Ayran', qty: 2, price: 2.00 },
+    ],
+    total: 21.00,
+    status: 'pending',
+    notes: 'Extra sauce please',
+    createdAt: new Date(now - 5 * min).toISOString(),
+  },
+  {
+    customerId: 'cust_002',
+    customerName: 'Anna S.',
+    customerPhone: '+43699333444',
+    items: [
+      { name: 'Pizza Margherita', qty: 1, price: 9.00 },
+      { name: 'Cola', qty: 1, price: 2.50 },
+    ],
+    total: 11.50,
+    status: 'ready',
+    createdAt: new Date(now - 25 * min).toISOString(),
+    readyAt: new Date(now - 10 * min).toISOString(),
+  },
+  {
+    customerId: 'cust_003',
+    customerName: 'Ibrahim T.',
+    customerPhone: '+43699555666',
+    items: [
+      { name: 'Lahmacun', qty: 3, price: 5.00 },
+      { name: 'Pommes', qty: 1, price: 3.50 },
+      { name: 'Cola', qty: 2, price: 2.50 },
+    ],
+    total: 24.00,
+    status: 'completed',
+    createdAt: new Date(now - 90 * min).toISOString(),
+    readyAt: new Date(now - 70 * min).toISOString(),
+    completedAt: new Date(now - 65 * min).toISOString(),
+  },
+  {
+    customerId: 'cust_001',
+    customerName: 'Mehmet K.',
+    customerPhone: '+43699111222',
+    items: [
+      { name: 'Döner', qty: 1, price: 8.50 },
+    ],
+    total: 8.50,
+    status: 'completed',
+    createdAt: new Date(now - 120 * min).toISOString(),
+    readyAt: new Date(now - 100 * min).toISOString(),
+    completedAt: new Date(now - 95 * min).toISOString(),
+  },
+  {
+    customerId: 'cust_004',
+    customerName: 'Fatima R.',
+    customerPhone: '+43699777888',
+    items: [
+      { name: 'Pizza Margherita', qty: 2, price: 9.00 },
+      { name: 'Ayran', qty: 1, price: 2.00 },
+    ],
+    total: 20.00,
+    status: 'pending',
+    createdAt: new Date(now - 2 * min).toISOString(),
+  },
+];
+
 async function seed() {
   console.log(`Seeding business: ${BUSINESS_ID}`);
 
@@ -41,6 +113,12 @@ async function seed() {
   for (const item of menuItems) {
     await menuRef.add({ ...item, createdAt: new Date(), updatedAt: new Date() });
     console.log(`  menu item: ${item.name}`);
+  }
+
+  const ordersRef = db.collection('businesses').doc(BUSINESS_ID).collection('orders');
+  for (const order of orders) {
+    await ordersRef.add(order);
+    console.log(`  order: ${order.customerName} — ${order.status}`);
   }
 
   console.log('Done.');
