@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "predev": "taskkill /F /IM ngrok.exe 2>nul & exit /b 0",
-    "dev": "dotenv -e .env -- concurrently -n backend,dashboard,ngrok -c blue,green,yellow \"npm run dev --prefix backend\" \"npm run dev --prefix dashboard\" \"ngrok http --domain=%NGROK_DOMAIN% 3000\"",
+    "dev": "dotenv -e .env -- concurrently -n backend,dashboard,ngrok -c blue,green,yellow \"npm run dev --prefix backend\" \"npm run dev --prefix dashboard\" \"ngrok http --url=%NGROK_DOMAIN% 3000\"",
     "dev:backend": "npm run dev --prefix backend",
     "dev:dashboard": "npm run dev --prefix dashboard"
   },

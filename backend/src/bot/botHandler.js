@@ -8,7 +8,7 @@ const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', '1', 'ok', 'tamam', '
 const CANCEL  = new Set(['no', 'hayır', 'nein', 'cancel', 'iptal', '2']);
 
 async function handleMessage(businessId, { from, text, contactName }) {
-  const session = getSession(from);
+  const session = await getSession(from);
   const norm = text.trim().toLowerCase();
 
   if (session.state === 'confirming') {
@@ -19,14 +19,14 @@ async function handleMessage(businessId, { from, text, contactName }) {
         items: session.items,
         total: session.total,
       });
-      clearSession(from);
+      await clearSession(from);
       const shortId = orderId.slice(-6).toUpperCase();
       await sendText(from, `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\nHazır olduğunda size bildireceğiz. Teşekkürler! 🙏`);
       return;
     }
 
     if (CANCEL.has(norm)) {
-      clearSession(from);
+      await clearSession(from);
       const menu = await getMenu(businessId);
       await sendText(from, 'Sipariş iptal edildi.\n\n' + formatMenuText(menu));
       return;
@@ -60,7 +60,7 @@ async function handleMessage(businessId, { from, text, contactName }) {
     const total = items.reduce((sum, i) => sum + i.price * i.qty, 0);
     const summary = items.map(i => `• ${i.qty}x ${i.name} — €${(i.price * i.qty).toFixed(2)}`).join('\n');
 
-    setSession(from, { state: 'confirming', items, total });
+    await setSession(from, { state: 'confirming', items, total });
     await sendText(from, `Siparişiniz:\n\n${summary}\n\nToplam: €${total.toFixed(2)}\n\nOnaylamak için YES, iptal için NO yazın.`);
     return;
   }

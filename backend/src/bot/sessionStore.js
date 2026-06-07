@@ -1,18 +1,18 @@
-// In-memory conversation state per customer phone.
-// Survives across messages for a single server process (sufficient for MVP).
-// State machine: idle → confirming → idle
-const sessions = new Map();
+const { db } = require('../lib/firebase');
 
-function getSession(phone) {
-  return sessions.get(phone) ?? { state: 'idle' };
+const col = () => db.collection('sessions');
+
+async function getSession(phone) {
+  const doc = await col().doc(phone).get();
+  return doc.exists ? doc.data() : { state: 'idle' };
 }
 
-function setSession(phone, data) {
-  sessions.set(phone, data);
+async function setSession(phone, data) {
+  await col().doc(phone).set({ ...data, updatedAt: new Date() });
 }
 
-function clearSession(phone) {
-  sessions.delete(phone);
+async function clearSession(phone) {
+  await col().doc(phone).delete();
 }
 
 module.exports = { getSession, setSession, clearSession };
