@@ -3,7 +3,6 @@ if (process.env.NODE_ENV !== 'production') {
 }
 const express = require('express');
 const cors = require('cors');
-const { waitUntil } = require('@vercel/functions');
 const { handleMessage } = require('./bot/botHandler');
 
 const app = express();
@@ -28,15 +27,15 @@ app.get('/webhooks/whatsapp', (req, res) => {
 });
 
 // WhatsApp webhook receiver
-app.post('/webhooks/whatsapp', (req, res) => {
-  // Ack immediately — WhatsApp requires response within 5s
-  res.status(200).json({ status: 'success' });
-
+app.post('/webhooks/whatsapp', async (req, res) => {
   const entry = req.body?.entry?.[0];
   const change = entry?.changes?.[0]?.value;
   const msg = change?.messages?.[0];
 
-  if (!msg) return;
+  if (!msg) {
+    res.status(200).json({ status: 'ok' });
+    return;
+  }
 
   const from = msg.from;
   const contactName = change?.contacts?.[0]?.profile?.name ?? null;
@@ -53,17 +52,21 @@ app.post('/webhooks/whatsapp', (req, res) => {
       const br = msg.interactive.button_reply;
       message = { type: 'button_reply', id: br.id, title: br.title };
     } else {
+      res.status(200).json({ status: 'ok' });
       return;
     }
   } else {
+    res.status(200).json({ status: 'ok' });
     return;
   }
 
-  waitUntil(
-    handleMessage(BUSINESS_ID, { from, contactName, ...message }).catch(err =>
-      console.error('Bot error:', err)
-    )
-  );
+  try {
+    await handleMessage(BUSINESS_ID, { from, contactName, ...message });
+  } catch (err) {
+    console.error('Bot error:', err);
+  }
+
+  res.status(200).json({ status: 'success' });
 });
 
 if (require.main === module) {
