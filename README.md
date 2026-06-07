@@ -2,10 +2,9 @@
 
 WhatsApp-based order management platform for small restaurants, döner shops, and food businesses in Vienna.
 
-**Architecture:** Hybrid (Cloud + Local)
+**Architecture:** Cloud + Web
 - Cloud backend (Firebase): Receives WhatsApp messages, stores orders
-- Flutter mobile app (iOS/Android): Owner views/manages orders, works offline
-- Web dashboard: Touchscreen device at restaurant
+- React web dashboard: Owner views/manages orders from any device (browser)
 - Data export: Owner can backup/export orders anytime
 
 ## Project Structure
@@ -22,14 +21,7 @@ WhatOrder/
 │   ├── package.json
 │   └── .env                   # Secrets (WhatsApp API keys)
 │
-├── mobile/                     # Flutter (iOS + Android)
-│   ├── lib/
-│   │   ├── screens/           # UI screens
-│   │   ├── models/            # Data models
-│   │   ├── services/          # Firebase, API calls
-│   │   ├── widgets/           # Reusable widgets
-│   │   └── main.dart          # Entry point
-│   └── pubspec.yaml
+├── dashboard/                  # React + Vite + TypeScript
 │
 ├── docs/                       # Documentation
 │   ├── API.md                 # API endpoints
@@ -50,11 +42,11 @@ cp .env.example .env
 npm start
 ```
 
-### 2. Mobile Setup (Flutter)
+### 2. Dashboard Setup (React)
 ```bash
-cd mobile
-flutter pub get
-flutter run
+cd dashboard
+npm install
+npm run dev
 ```
 
 ## Tech Stack
@@ -65,10 +57,9 @@ flutter run
 - Google Cloud Run (hosting)
 - WhatsApp Business API
 
-**Mobile:**
-- Flutter (iOS + Android)
-- Firebase (authentication, real-time sync)
-- Offline-first architecture
+**Dashboard:**
+- React + Vite + TypeScript
+- Firebase JS SDK (real-time sync)
 
 ## MVP Timeline
 
