@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-const BASE_URL = 'https://graph.facebook.com/v18.0';
+const BASE_URL = 'https://graph.facebook.com/v21.0';
 
 async function sendText(to, body) {
   if (process.env.NODE_ENV === 'test') {
