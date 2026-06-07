@@ -3,6 +3,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 const express = require('express');
 const cors = require('cors');
+const { waitUntil } = require('@vercel/functions');
 const { handleMessage } = require('./bot/botHandler');
 
 const app = express();
@@ -58,8 +59,10 @@ app.post('/webhooks/whatsapp', (req, res) => {
     return;
   }
 
-  handleMessage(BUSINESS_ID, { from, contactName, ...message }).catch(err =>
-    console.error('Bot error:', err)
+  waitUntil(
+    handleMessage(BUSINESS_ID, { from, contactName, ...message }).catch(err =>
+      console.error('Bot error:', err)
+    )
   );
 });
 
