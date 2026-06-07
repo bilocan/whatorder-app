@@ -1,15 +1,36 @@
-const { getSession, setSession, clearSession } = require('./sessionStore');
+const { getSession, setSession } = require('./sessionStore');
 const { parseOrderText } = require('./orderParser');
-const { getMenu, formatMenuText, matchMenuItem } = require('./menuService');
+const { getMenu, getBusinessInfo, formatMenuText, matchMenuItem } = require('./menuService');
 const { createOrder } = require('./orderService');
 const { sendText } = require('../lib/whatsapp');
+const { detectLanguage, getOverride } = require('./languageDetector');
+const { t } = require('./templates');
 
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', '1', 'ok', 'tamam', 'confirm']);
-const CANCEL  = new Set(['no', 'hayır', 'nein', 'cancel', 'iptal', '2']);
+const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal', '2']);
 
 async function handleMessage(businessId, { from, text, contactName }) {
   const session = await getSession(from);
   const norm = text.trim().toLowerCase();
+
+  // Language override: "english" / "deutsch" / "türkçe"
+  const overrideLang = getOverride(norm);
+  if (overrideLang) {
+    await setSession(from, { ...session, language: overrideLang });
+    await sendText(from, t('langChanged', overrideLang));
+    return;
+  }
+
+  // First message: detect language, send greeting
+  if (!session.language) {
+    const lang = detectLanguage(text);
+    const info = await getBusinessInfo(businessId);
+    await setSession(from, { state: 'idle', language: lang });
+    await sendText(from, t('greeting', lang, info.name));
+    return;
+  }
+
+  const lang = session.language;
 
   if (session.state === 'confirming') {
     if (CONFIRM.has(norm)) {
@@ -19,20 +40,20 @@ async function handleMessage(businessId, { from, text, contactName }) {
         items: session.items,
         total: session.total,
       });
-      await clearSession(from);
       const shortId = orderId.slice(-6).toUpperCase();
-      await sendText(from, `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\nHazır olduğunda size bildireceğiz. Teşekkürler! 🙏`);
+      await setSession(from, { state: 'idle', language: lang });
+      await sendText(from, t('orderConfirmed', lang, shortId));
       return;
     }
 
     if (CANCEL.has(norm)) {
-      await clearSession(from);
       const menu = await getMenu(businessId);
-      await sendText(from, 'Sipariş iptal edildi.\n\n' + formatMenuText(menu));
+      await setSession(from, { state: 'idle', language: lang });
+      await sendText(from, t('orderCancelled', lang) + '\n\n' + formatMenuText(menu, lang));
       return;
     }
 
-    await sendText(from, 'Onaylamak için YES, iptal etmek için NO yazın.');
+    await sendText(from, t('yesNoOnly', lang));
     return;
   }
 
@@ -53,21 +74,21 @@ async function handleMessage(businessId, { from, text, contactName }) {
     }
 
     if (unrecognized.length > 0) {
-      await sendText(from, `❌ Menüde bulunamadı: ${unrecognized.join(', ')}\n\n${formatMenuText(menu)}`);
+      await sendText(from, t('itemNotFound', lang, unrecognized.join(', ')) + '\n\n' + formatMenuText(menu, lang));
       return;
     }
 
     const total = items.reduce((sum, i) => sum + i.price * i.qty, 0);
     const summary = items.map(i => `• ${i.qty}x ${i.name} — €${(i.price * i.qty).toFixed(2)}`).join('\n');
 
-    await setSession(from, { state: 'confirming', items, total });
-    await sendText(from, `Siparişiniz:\n\n${summary}\n\nToplam: €${total.toFixed(2)}\n\nOnaylamak için YES, iptal için NO yazın.`);
+    await setSession(from, { state: 'confirming', language: lang, items, total });
+    await sendText(from, `${t('orderSummaryHeader', lang)}\n\n${summary}\n\n${t('orderTotal', lang, total.toFixed(2))}\n\n${t('confirmPrompt', lang)}`);
     return;
   }
 
   // Default: show menu
   const menu = await getMenu(businessId);
-  await sendText(from, formatMenuText(menu));
+  await sendText(from, formatMenuText(menu, lang));
 }
 
 module.exports = { handleMessage };

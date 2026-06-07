@@ -1,14 +1,20 @@
-const { menuRef } = require('../lib/collections');
+const { menuRef, businessRef } = require('../lib/collections');
+const { t } = require('./templates');
 
 async function getMenu(businessId) {
   const snap = await menuRef(businessId).where('available', '==', true).get();
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-function formatMenuText(items) {
-  if (!items.length) return 'Şu an menümüzde ürün yok.';
+async function getBusinessInfo(businessId) {
+  const snap = await businessRef(businessId).get();
+  return snap.exists ? snap.data() : { name: 'Restaurant', avgPrepTime: 30 };
+}
+
+function formatMenuText(items, lang = 'tr') {
+  if (!items.length) return t('menuEmpty', lang);
   const lines = items.map(i => `• ${i.name} — €${Number(i.price).toFixed(2)}`);
-  return `Menümüz:\n\n${lines.join('\n')}\n\nSipariş vermek için yazın:\nÖrnek: 2x Döner + 1 Cola`;
+  return `${t('menuHeader', lang)}\n\n${lines.join('\n')}\n\n${t('menuExample', lang)}`;
 }
 
 // Strip diacritics for accent-insensitive matching ("doner" matches "Doner" / "Döner")
@@ -31,4 +37,4 @@ function matchMenuItem(rawName, menuItems) {
   );
 }
 
-module.exports = { getMenu, formatMenuText, matchMenuItem };
+module.exports = { getMenu, getBusinessInfo, formatMenuText, matchMenuItem };
