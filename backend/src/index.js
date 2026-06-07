@@ -1,4 +1,6 @@
-require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
+}
 const express = require('express');
 const cors = require('cors');
 const { handleMessage } = require('./bot/botHandler');

@@ -2,6 +2,12 @@
 .env
 .env.local
 .env.*.local
+.env.dev
+.env.prod
+backend/.env.dev
+backend/.env.prod
+dashboard/.env.dev
+dashboard/.env.prod
 
 # Backend
 backend/node_modules/
