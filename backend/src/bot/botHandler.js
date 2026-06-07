@@ -1,55 +1,153 @@
 const { getSession, setSession } = require('./sessionStore');
-const { parseOrderText } = require('./orderParser');
-const { getMenu, getBusinessInfo, formatMenuText, matchMenuItem } = require('./menuService');
+const { getMenu, getBusinessInfo } = require('./menuService');
 const { createOrder } = require('./orderService');
-const { sendText } = require('../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage } = require('../lib/whatsapp');
 const { detectLanguage, getOverride } = require('./languageDetector');
-const { t } = require('./templates');
+const { t, tCategory } = require('./templates');
 
-const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', '1', 'ok', 'tamam', 'confirm']);
+const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', '1', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal', '2']);
+const BASKET_KEYWORDS = new Set(['basket', 'sepet', 'warenkorb']);
 
-async function handleMessage(businessId, { from, text, contactName }) {
-  const session = await getSession(from);
-  const norm = text.trim().toLowerCase();
+// --- Helpers ---
 
-  // Language override: "english" / "deutsch" / "türkçe"
-  const overrideLang = getOverride(norm);
-  if (overrideLang) {
-    await setSession(from, { ...session, language: overrideLang });
-    await sendText(from, t('langChanged', overrideLang));
+function buildMenuSections(menu, lang) {
+  const grouped = {};
+  for (const item of menu) {
+    const cat = item.category || 'other';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(item);
+  }
+  return Object.entries(grouped).map(([cat, items]) => ({
+    title: tCategory(cat, lang).slice(0, 24),
+    rows: items.slice(0, 10).map(item => ({
+      id: `item_${item.id}`,
+      title: item.name.slice(0, 24),
+      description: `€${Number(item.price).toFixed(2)}${item.description ? ` · ${item.description}` : ''}`.slice(0, 72),
+    })),
+  }));
+}
+
+function buildBasketText(basket, lang) {
+  const lines = basket.map(i => `• ${i.qty}x ${i.name} — €${(i.price * i.qty).toFixed(2)}`);
+  const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  return `${t('basketHeader', lang)}\n\n${lines.join('\n')}\n\n${t('orderTotal', lang, total.toFixed(2))}`;
+}
+
+async function sendMenu(to, lang, businessId, bodyOverride) {
+  const [info, menu] = await Promise.all([getBusinessInfo(businessId), getMenu(businessId)]);
+  if (!menu.length) {
+    await sendText(to, t('menuEmpty', lang));
     return;
   }
+  await sendListMessage(to, {
+    header: t('menuListHeader', lang, info.name),
+    body: bodyOverride ?? t('menuListBody', lang),
+    footer: t('menuListFooter', lang),
+    buttonLabel: t('viewMenuBtn', lang),
+    sections: buildMenuSections(menu, lang),
+  });
+}
 
-  // First message: detect language, send greeting
+// --- Main handler ---
+
+// message shape:
+//   { type: 'text', text }
+//   { type: 'list_reply', id, title }
+//   { type: 'button_reply', id, title }
+async function handleMessage(businessId, { from, contactName, type, text, id }) {
+  const session = await getSession(from);
+  const norm = (text ?? '').trim().toLowerCase();
+
+  // Language override (text only)
+  if (type === 'text') {
+    const overrideLang = getOverride(norm);
+    if (overrideLang) {
+      await setSession(from, { ...session, language: overrideLang });
+      await sendText(from, t('langChanged', overrideLang));
+      return;
+    }
+  }
+
+  // First message (or session missing language) — detect language, open menu
   if (!session.language) {
-    const lang = detectLanguage(text);
-    const info = await getBusinessInfo(businessId);
-    await setSession(from, { state: 'idle', language: lang });
-    await sendText(from, t('greeting', lang, info.name));
+    const lang = type === 'text' ? detectLanguage(text) : 'tr';
+    const basket = session.basket ?? [];
+    const state = session.state ?? 'browsing';
+    await setSession(from, { state, language: lang, basket });
+    await sendMenu(from, lang, businessId);
     return;
   }
 
   const lang = session.language;
+  const basket = session.basket ?? [];
 
+  // ── State: selecting (waiting for quantity) ──────────────────────────────
+  if (session.state === 'selecting') {
+    let qty = null;
+
+    if (type === 'button_reply' && id?.startsWith('qty_')) {
+      qty = parseInt(id.split('_')[1], 10);
+    } else if (type === 'text' && /^\d+$/.test(norm)) {
+      qty = Math.min(99, Math.max(1, parseInt(norm, 10)));
+    }
+
+    if (qty && session.pendingItem) {
+      const { name, price } = session.pendingItem;
+      const existing = basket.find(i => i.name === name);
+      const newBasket = existing
+        ? basket.map(i => i.name === name ? { ...i, qty: i.qty + qty } : i)
+        : [...basket, { name, qty, price }];
+
+      const totalItems = newBasket.reduce((s, i) => s + i.qty, 0);
+      const totalPrice = newBasket.reduce((s, i) => s + i.price * i.qty, 0);
+
+      await setSession(from, { state: 'browsing', language: lang, basket: newBasket });
+      await sendButtonMessage(from, {
+        body: t('itemAdded', lang, qty, name, totalItems, totalPrice.toFixed(2)),
+        buttons: [
+          { id: 'btn_add_more',    title: t('addMoreBtn', lang) },
+          { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },
+          { id: 'btn_done',        title: t('doneBtn', lang) },
+        ],
+      });
+      return;
+    }
+
+    // Didn't understand — re-show qty buttons
+    if (session.pendingItem) {
+      const { name, price } = session.pendingItem;
+      await sendButtonMessage(from, {
+        body: t('qtyBody', lang, name, price.toFixed(2)),
+        buttons: [
+          { id: 'qty_1', title: '1' },
+          { id: 'qty_2', title: '2' },
+          { id: 'qty_3', title: '3' },
+        ],
+      });
+    }
+    return;
+  }
+
+  // ── State: confirming (waiting for YES / NO) ─────────────────────────────
   if (session.state === 'confirming') {
     if (CONFIRM.has(norm)) {
+      const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
       const orderId = await createOrder(businessId, {
         customerPhone: from,
         customerName: contactName || null,
-        items: session.items,
-        total: session.total,
+        items: basket,
+        total,
       });
       const shortId = orderId.slice(-6).toUpperCase();
-      await setSession(from, { state: 'idle', language: lang });
+      await setSession(from, { state: 'browsing', language: lang, basket: [] });
       await sendText(from, t('orderConfirmed', lang, shortId));
       return;
     }
 
     if (CANCEL.has(norm)) {
-      const menu = await getMenu(businessId);
-      await setSession(from, { state: 'idle', language: lang });
-      await sendText(from, t('orderCancelled', lang) + '\n\n' + formatMenuText(menu, lang));
+      await setSession(from, { state: 'browsing', language: lang, basket: [] });
+      await sendMenu(from, lang, businessId, t('orderCancelled', lang));
       return;
     }
 
@@ -57,38 +155,88 @@ async function handleMessage(businessId, { from, text, contactName }) {
     return;
   }
 
-  // Try to parse as an order
-  const parsed = parseOrderText(text);
-  if (parsed.length > 0) {
+  // ── State: browsing ───────────────────────────────────────────────────────
+
+  // Item selected from list
+  if (type === 'list_reply') {
+    const itemId = id.replace('item_', '');
     const menu = await getMenu(businessId);
-    const items = [];
-    const unrecognized = [];
-
-    for (const { qty, rawName } of parsed) {
-      const match = matchMenuItem(rawName, menu);
-      if (match) {
-        items.push({ name: match.name, qty, price: match.price });
-      } else {
-        unrecognized.push(rawName);
-      }
+    const item = menu.find(i => i.id === itemId);
+    if (!item) {
+      await sendMenu(from, lang, businessId);
+      return;
     }
+    await setSession(from, { ...session, state: 'selecting', pendingItem: { name: item.name, price: item.price } });
+    await sendButtonMessage(from, {
+      body: t('qtyBody', lang, item.name, item.price.toFixed(2)),
+      buttons: [
+        { id: 'qty_1', title: '1' },
+        { id: 'qty_2', title: '2' },
+        { id: 'qty_3', title: '3' },
+      ],
+    });
+    return;
+  }
 
-    if (unrecognized.length > 0) {
-      await sendText(from, t('itemNotFound', lang, unrecognized.join(', ')) + '\n\n' + formatMenuText(menu, lang));
+  // Action buttons (post-add or basket preview)
+  if (type === 'button_reply') {
+    if (id === 'btn_add_more') {
+      await sendMenu(from, lang, businessId);
       return;
     }
 
-    const total = items.reduce((sum, i) => sum + i.price * i.qty, 0);
-    const summary = items.map(i => `• ${i.qty}x ${i.name} — €${(i.price * i.qty).toFixed(2)}`).join('\n');
+    if (id === 'btn_view_basket') {
+      if (!basket.length) {
+        await sendMenu(from, lang, businessId, t('basketEmpty', lang));
+        return;
+      }
+      await sendButtonMessage(from, {
+        body: buildBasketText(basket, lang),
+        buttons: [
+          { id: 'btn_add_more',      title: t('addMoreBtn', lang) },
+          { id: 'btn_clear_basket',  title: t('clearBasketBtn', lang) },
+          { id: 'btn_confirm',       title: t('confirmBtn', lang) },
+        ],
+      });
+      return;
+    }
 
-    await setSession(from, { state: 'confirming', language: lang, items, total });
-    await sendText(from, `${t('orderSummaryHeader', lang)}\n\n${summary}\n\n${t('orderTotal', lang, total.toFixed(2))}\n\n${t('confirmPrompt', lang)}`);
+    if (id === 'btn_clear_basket') {
+      await setSession(from, { ...session, basket: [] });
+      await sendMenu(from, lang, businessId);
+      return;
+    }
+
+    if (id === 'btn_done' || id === 'btn_confirm') {
+      if (!basket.length) {
+        await sendMenu(from, lang, businessId, t('basketEmpty', lang));
+        return;
+      }
+      await setSession(from, { ...session, state: 'confirming' });
+      await sendText(from, `${buildBasketText(basket, lang)}\n\n${t('confirmPrompt', lang)}`);
+      return;
+    }
+  }
+
+  // Text: "basket" / "sepet" / "warenkorb"
+  if (type === 'text' && BASKET_KEYWORDS.has(norm)) {
+    if (!basket.length) {
+      await sendMenu(from, lang, businessId, t('basketEmpty', lang));
+      return;
+    }
+    await sendButtonMessage(from, {
+      body: buildBasketText(basket, lang),
+      buttons: [
+        { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
+        { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },
+        { id: 'btn_confirm',      title: t('confirmBtn', lang) },
+      ],
+    });
     return;
   }
 
   // Default: show menu
-  const menu = await getMenu(businessId);
-  await sendText(from, formatMenuText(menu, lang));
+  await sendMenu(from, lang, businessId);
 }
 
 module.exports = { handleMessage };

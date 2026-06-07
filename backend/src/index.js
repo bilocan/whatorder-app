@@ -33,13 +33,30 @@ app.post('/webhooks/whatsapp', (req, res) => {
   const change = entry?.changes?.[0]?.value;
   const msg = change?.messages?.[0];
 
-  if (!msg || msg.type !== 'text') return;
+  if (!msg) return;
 
   const from = msg.from;
-  const text = msg.text?.body ?? '';
   const contactName = change?.contacts?.[0]?.profile?.name ?? null;
 
-  handleMessage(BUSINESS_ID, { from, text, contactName }).catch(err =>
+  let message;
+  if (msg.type === 'text') {
+    message = { type: 'text', text: msg.text?.body ?? '' };
+  } else if (msg.type === 'interactive') {
+    const iType = msg.interactive?.type;
+    if (iType === 'list_reply') {
+      const lr = msg.interactive.list_reply;
+      message = { type: 'list_reply', id: lr.id, title: lr.title };
+    } else if (iType === 'button_reply') {
+      const br = msg.interactive.button_reply;
+      message = { type: 'button_reply', id: br.id, title: br.title };
+    } else {
+      return;
+    }
+  } else {
+    return;
+  }
+
+  handleMessage(BUSINESS_ID, { from, contactName, ...message }).catch(err =>
     console.error('Bot error:', err)
   );
 });
