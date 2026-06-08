@@ -18,14 +18,21 @@ function buildMenuSections(menu, lang) {
     if (!grouped[cat]) grouped[cat] = [];
     grouped[cat].push(item);
   }
-  return Object.entries(grouped).map(([cat, items]) => ({
-    title: tCategory(cat, lang).slice(0, 24),
-    rows: items.slice(0, 10).map(item => ({
+  // WhatsApp List Message: max 10 rows total across all sections
+  const sections = [];
+  let totalRows = 0;
+  for (const [cat, items] of Object.entries(grouped)) {
+    if (totalRows >= 10) break;
+    const allowed = Math.min(items.length, 10 - totalRows);
+    const rows = items.slice(0, allowed).map(item => ({
       id: `item_${item.id}`,
       title: item.name.slice(0, 24),
       description: `€${Number(item.price).toFixed(2)}${item.description ? ` · ${item.description}` : ''}`.slice(0, 72),
-    })),
-  }));
+    }));
+    totalRows += rows.length;
+    sections.push({ title: tCategory(cat, lang).slice(0, 24), rows });
+  }
+  return sections;
 }
 
 function buildBasketText(basket, lang) {
