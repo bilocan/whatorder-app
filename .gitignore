@@ -39,6 +39,7 @@ Thumbs.db
 *.json
 !package.json
 !tsconfig.json
+!tsconfig.*.json
 !vercel.json
 
 # Firebase
