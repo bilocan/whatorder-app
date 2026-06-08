@@ -29,8 +29,8 @@ export default function LoginPage() {
       }
       confirmRef.current = await signInWithPhoneNumber(auth, phone, recaptchaRef.current);
       setStep('otp');
-    } catch (err: any) {
-      setError(err.message ?? 'Failed to send code. Check the phone number and try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send code. Check the phone number and try again.');
       recaptchaRef.current?.clear();
       recaptchaRef.current = null;
     } finally {

@@ -1,18 +1,71 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 7, 6);
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isOwnerOf(businessId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/owners/$(request.auth.uid))
+        && get(/databases/$(database)/documents/owners/$(request.auth.uid)).data.businessId == businessId;
+    }
+
+    // Each authenticated user reads their own record to discover their businessId.
+    // Admins can manage all owner records.
+    match /owners/{uid} {
+      allow read: if request.auth.uid == uid || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Each user can check whether they are an admin (AuthContext reads this doc).
+    // No client writes — manage via Firebase Console or Admin SDK only.
+    match /admins/{uid} {
+      allow read: if request.auth.uid == uid || isAdmin();
+      allow write: if false;
+    }
+
+    match /businesses/{businessId} {
+      allow read: if isOwnerOf(businessId) || isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isOwnerOf(businessId) || isAdmin();
+
+      // Orders are created and updated by the backend (Admin SDK bypasses rules).
+      // Dashboard reads orders; mark-ready goes through the backend API.
+      match /orders/{orderId} {
+        allow read: if isOwnerOf(businessId) || isAdmin();
+        allow write: if false;
+      }
+
+      // Menu is managed by admins via the admin panel.
+      // Restaurant owners view their menu read-only from the dashboard.
+      match /menu/{itemId} {
+        allow read: if isOwnerOf(businessId) || isAdmin();
+        allow write: if isAdmin();
+      }
+
+      // Customers are written by the backend only.
+      match /customers/{customerId} {
+        allow read: if isOwnerOf(businessId) || isAdmin();
+        allow write: if false;
+      }
+    }
+
+    // Phone-number-ID → businessId routing. Admin panel only.
+    match /phoneRouting/{phoneId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Bot sessions. Backend (Admin SDK) only — no client access.
+    match /sessions/{sessionId} {
+      allow read, write: if false;
     }
   }
 }
