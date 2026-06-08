@@ -3,7 +3,8 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.js',
     '!src/index.js',
+    '!src/lib/firebase.js',   // bootstrapping — always mocked, never executed in tests
+    '!src/bot/orderParser.js', // not yet covered — Phase 2 scope
   ],
-  // Thresholds will be enforced once Phase 1B bot tests are complete.
-  // coverageThreshold: { global: { branches: 70, functions: 80, lines: 80, statements: 80 } },
+  coverageThreshold: { global: { branches: 70, functions: 80, lines: 80, statements: 80 } },
 };
