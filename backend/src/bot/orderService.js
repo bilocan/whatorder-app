@@ -3,7 +3,7 @@ const { admin } = require('../lib/firebase');
 const { sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 
-async function createOrder(businessId, { customerPhone, customerName, items, total, language }) {
+async function createOrder(businessId, { customerPhone, customerName, items, total, language, pickupTime }) {
   const ref = ordersRef(businessId).doc();
   await ref.set({
     id: ref.id,
@@ -15,6 +15,7 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
     language: language || 'en',
     status: 'pending',
     source: 'whatsapp',
+    pickupTime: pickupTime || null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
