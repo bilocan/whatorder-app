@@ -12,4 +12,8 @@ const ordersRef = (businessId) =>
 const customersRef = (businessId) =>
   businessRef(businessId).collection('customers');
 
-module.exports = { businessRef, menuRef, ordersRef, customersRef };
+// phoneRouting/{phoneNumberId} → { businessId }
+const phoneRoutingRef = (phoneNumberId) =>
+  db.collection('phoneRouting').doc(phoneNumberId);
+
+module.exports = { businessRef, menuRef, ordersRef, customersRef, phoneRoutingRef };

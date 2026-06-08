@@ -2,26 +2,27 @@ import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
 import type { Order } from '../types';
+import { toDate } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-const BUSINESS_ID = 'biz_test';
-
 export default function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
+  const { businessId } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
 
   useEffect(() => {
-    if (!orderId) return;
-    getDoc(doc(db, 'businesses', BUSINESS_ID, 'orders', orderId)).then((snap) => {
+    if (!orderId || !businessId) return;
+    getDoc(doc(db, 'businesses', businessId, 'orders', orderId)).then((snap) => {
       if (snap.exists()) setOrder({ id: snap.id, ...snap.data() } as Order);
     });
-  }, [orderId]);
+  }, [orderId, businessId]);
 
   async function markReady() {
-    if (!orderId || !order) return;
-    const res = await fetch(`${API_URL}/orders/${orderId}/ready`, { method: 'POST' });
+    if (!orderId || !order || !businessId) return;
+    const res = await fetch(`${API_URL}/businesses/${businessId}/orders/${orderId}/ready`, { method: 'POST' });
     if (!res.ok) {
       console.error('Mark ready failed:', await res.text());
       return;
@@ -65,7 +66,7 @@ export default function OrderDetailPage() {
       )}
 
       <p style={{ color: '#999', fontSize: '0.85rem' }}>
-        Ordered at {new Date(order.createdAt).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}
+        Ordered at {toDate(order.createdAt).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}
       </p>
 
       {order.status === 'pending' && (

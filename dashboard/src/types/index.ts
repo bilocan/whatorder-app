@@ -1,3 +1,5 @@
+import type { Timestamp } from 'firebase/firestore';
+
 export type OrderStatus = 'pending' | 'ready' | 'completed';
 
 export interface OrderItem {
@@ -15,7 +17,7 @@ export interface Order {
   total: number;
   status: OrderStatus;
   notes?: string;
-  createdAt: string;
+  createdAt: Timestamp | string;
   readyAt?: string;
   completedAt?: string;
   pickupTime?: string;
@@ -47,4 +49,8 @@ export interface Business {
   timezone: string;
   avgPrepTime: number;
   status: 'active' | 'paused';
+}
+
+export function toDate(v: Timestamp | string): Date {
+  return typeof v === 'string' ? new Date(v) : v.toDate();
 }

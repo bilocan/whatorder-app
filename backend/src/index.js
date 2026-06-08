@@ -5,10 +5,10 @@ const express = require('express');
 const cors = require('cors');
 const { handleMessage } = require('./bot/botHandler');
 const { markOrderReady } = require('./bot/orderService');
+const { phoneRoutingRef } = require('./lib/collections');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const BUSINESS_ID = process.env.BUSINESS_ID || 'biz_test';
 
 app.use(cors());
 app.use(express.json());
@@ -16,6 +16,16 @@ app.use(express.json());
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
+
+// Resolve which business owns a given WhatsApp phone number ID.
+// Looks up phoneRouting/{phoneNumberId} first; falls back to BUSINESS_ID env var.
+async function resolveBusinessId(phoneNumberId) {
+  if (phoneNumberId) {
+    const snap = await phoneRoutingRef(phoneNumberId).get();
+    if (snap.exists) return snap.data().businessId;
+  }
+  return process.env.BUSINESS_ID || 'biz_test';
+}
 
 // WhatsApp webhook verification
 app.get('/webhooks/whatsapp', (req, res) => {
@@ -40,6 +50,8 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 
   const from = msg.from;
   const contactName = change?.contacts?.[0]?.profile?.name ?? null;
+  const phoneNumberId = change?.metadata?.phone_number_id ?? null;
+  console.log(`[webhook] phone_number_id=${phoneNumberId} from=${from}`);
 
   let message;
   if (msg.type === 'text') {
@@ -62,7 +74,8 @@ app.post('/webhooks/whatsapp', async (req, res) => {
   }
 
   try {
-    await handleMessage(BUSINESS_ID, { from, contactName, ...message });
+    const businessId = await resolveBusinessId(phoneNumberId);
+    await handleMessage(businessId, { from, contactName, ...message });
   } catch (err) {
     console.error('Bot error:', err);
   }
@@ -70,10 +83,26 @@ app.post('/webhooks/whatsapp', async (req, res) => {
   res.status(200).json({ status: 'success' });
 });
 
+// Mark order ready — businessId in path because orders live in a subcollection
+app.post('/businesses/:businessId/orders/:orderId/ready', async (req, res) => {
+  const { businessId, orderId } = req.params;
+  try {
+    await markOrderReady(businessId, orderId);
+    res.json({ status: 'ok' });
+  } catch (err) {
+    const status = err.message === 'Order not found' ? 404
+      : err.message === 'Order is not pending' ? 409
+      : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// Legacy alias — kept for backward compat with any existing clients
 app.post('/orders/:orderId/ready', async (req, res) => {
   const { orderId } = req.params;
+  const businessId = process.env.BUSINESS_ID || 'biz_test';
   try {
-    await markOrderReady(BUSINESS_ID, orderId);
+    await markOrderReady(businessId, orderId);
     res.json({ status: 'ok' });
   } catch (err) {
     const status = err.message === 'Order not found' ? 404

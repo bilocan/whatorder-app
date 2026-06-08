@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
 import type { Order } from '../types';
-
-const BUSINESS_ID = 'biz_test';
+import { toDate } from '../types';
 
 const statusColor: Record<string, string> = {
   pending: '#f59e0b',
@@ -13,17 +13,19 @@ const statusColor: Record<string, string> = {
 };
 
 export default function OrdersPage() {
+  const { businessId } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
 
   useEffect(() => {
+    if (!businessId) return;
     const q = query(
-      collection(db, 'businesses', BUSINESS_ID, 'orders'),
+      collection(db, 'businesses', businessId, 'orders'),
       orderBy('createdAt', 'desc'),
     );
     return onSnapshot(q, (snap) => {
       setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
     });
-  }, []);
+  }, [businessId]);
 
   return (
     <div>
@@ -66,7 +68,7 @@ export default function OrdersPage() {
                 </span>
               </td>
               <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', color: '#666' }}>
-                {new Date(order.createdAt).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}
+                {toDate(order.createdAt).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}
               </td>
             </tr>
           ))}

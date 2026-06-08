@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
 import type { Order } from '../types';
-
-const BUSINESS_ID = 'biz_test';
+import { toDate } from '../types';
 
 export default function IncomePage() {
+  const { businessId } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
 
   useEffect(() => {
-    getDocs(collection(db, 'businesses', BUSINESS_ID, 'orders')).then((snap) => {
+    if (!businessId) return;
+    getDocs(collection(db, 'businesses', businessId, 'orders')).then((snap) => {
       setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
     });
-  }, []);
+  }, [businessId]);
 
   const today = new Date().toDateString();
-  const todayOrders = orders.filter((o) => new Date(o.createdAt).toDateString() === today);
+  const todayOrders = orders.filter((o) => toDate(o.createdAt).toDateString() === today);
   const earned = todayOrders.filter((o) => o.status === 'completed').reduce((s, o) => s + o.total, 0);
   const pending = todayOrders.filter((o) => o.status !== 'completed').reduce((s, o) => s + o.total, 0);
 
@@ -42,7 +44,7 @@ export default function IncomePage() {
           <div>
             <span style={{ fontWeight: 600 }}>{order.customerName}</span>
             <span style={{ color: '#999', fontSize: '0.85rem', marginLeft: '0.5rem' }}>
-              {new Date(order.createdAt).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}
+              {toDate(order.createdAt).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
           <span>€{order.total.toFixed(2)}</span>
