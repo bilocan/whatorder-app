@@ -12,7 +12,7 @@ export default function IncomePage() {
   useEffect(() => {
     if (!businessId) return;
     getDocs(collection(db, 'businesses', businessId, 'orders')).then((snap) => {
-      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
+      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) } as Order)));
     });
   }, [businessId]);
 
@@ -44,7 +44,7 @@ export default function IncomePage() {
           <div>
             <span style={{ fontWeight: 600 }}>{order.customerName}</span>
             <span style={{ color: '#999', fontSize: '0.85rem', marginLeft: '0.5rem' }}>
-              {toDate(order.createdAt).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}
+              {toDate(order.createdAt).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
           <span>€{order.total.toFixed(2)}</span>

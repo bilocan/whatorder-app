@@ -23,7 +23,7 @@ export default function OrdersPage() {
       orderBy('createdAt', 'desc'),
     );
     return onSnapshot(q, (snap) => {
-      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
+      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) } as Order)));
     });
   }, [businessId]);
 
@@ -68,7 +68,7 @@ export default function OrdersPage() {
                 </span>
               </td>
               <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', color: '#666' }}>
-                {toDate(order.createdAt).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}
+                {toDate(order.createdAt).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
               </td>
             </tr>
           ))}
