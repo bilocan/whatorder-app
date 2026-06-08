@@ -1,3 +1,9 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
+  "buildCommand": "npm run build --prefix dashboard",
+  "outputDirectory": "dashboard/dist",
+  "rewrites": [
+    { "source": "/webhooks/:path*", "destination": "/api/index" },
+    { "source": "/health", "destination": "/api/index" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
