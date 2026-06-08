@@ -103,6 +103,11 @@ const orders = [
   },
 ];
 
+async function clearCollection(ref) {
+  const snap = await ref.get();
+  await Promise.all(snap.docs.map(d => d.ref.delete()));
+}
+
 async function seed() {
   console.log(`Seeding business: ${BUSINESS_ID}`);
 
@@ -110,12 +115,15 @@ async function seed() {
   console.log('  business created');
 
   const menuRef = db.collection('businesses').doc(BUSINESS_ID).collection('menu');
+  await clearCollection(menuRef);
   for (const item of menuItems) {
-    await menuRef.add({ ...item, createdAt: new Date(), updatedAt: new Date() });
+    const id = item.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    await menuRef.doc(id).set({ ...item, createdAt: new Date(), updatedAt: new Date() });
     console.log(`  menu item: ${item.name}`);
   }
 
   const ordersRef = db.collection('businesses').doc(BUSINESS_ID).collection('orders');
+  await clearCollection(ordersRef);
   for (const order of orders) {
     await ordersRef.add(order);
     console.log(`  order: ${order.customerName} — ${order.status}`);
