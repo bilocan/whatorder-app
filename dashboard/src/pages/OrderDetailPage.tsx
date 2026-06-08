@@ -16,7 +16,7 @@ export default function OrderDetailPage() {
   useEffect(() => {
     if (!orderId || !businessId) return;
     getDoc(doc(db, 'businesses', businessId, 'orders', orderId)).then((snap) => {
-      if (snap.exists()) setOrder({ id: snap.id, ...snap.data() } as Order);
+      if (snap.exists()) setOrder({ id: snap.id, ...snap.data({ serverTimestamps: 'estimate' }) } as Order);
     });
   }, [orderId, businessId]);
 
@@ -66,7 +66,7 @@ export default function OrderDetailPage() {
       )}
 
       <p style={{ color: '#999', fontSize: '0.85rem' }}>
-        Ordered at {toDate(order.createdAt).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}
+        Ordered at {toDate(order.createdAt).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
       </p>
 
       {order.status === 'pending' && (

@@ -17,7 +17,7 @@ export interface Order {
   total: number;
   status: OrderStatus;
   notes?: string;
-  createdAt: Timestamp | string;
+  createdAt: Timestamp | string | null;
   readyAt?: string;
   completedAt?: string;
   pickupTime?: string;
@@ -67,6 +67,12 @@ export interface Customer {
   lastOrderDate: string;
 }
 
-export function toDate(v: Timestamp | string): Date {
-  return typeof v === 'string' ? new Date(v) : v.toDate();
+export function toDate(v: Timestamp | string | null | undefined): Date {
+  if (!v) return new Date(0);
+  if (typeof v === 'string') return new Date(v);
+  if (typeof (v as Timestamp).toDate === 'function') return (v as Timestamp).toDate();
+  // Plain {seconds, nanoseconds} — Firestore Timestamp serialized to plain object
+  const secs = (v as unknown as { seconds?: number }).seconds;
+  if (typeof secs === 'number') return new Date(secs * 1000);
+  return new Date(0);
 }
