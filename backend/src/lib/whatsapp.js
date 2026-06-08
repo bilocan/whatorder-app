@@ -14,17 +14,23 @@ function normalizePhone(phone) {
   return String(phone).replace(/^\+/, '');
 }
 
+async function send(payload) {
+  try {
+    await axios.post(apiUrl(), payload, { headers: headers() });
+  } catch (err) {
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    console.error(`[WA] ${err.response?.status ?? 'ERR'} to=${payload.to} type=${payload.type} — ${detail}`);
+    throw err;
+  }
+}
+
 async function sendText(to, body) {
   const normalized = normalizePhone(to);
   if (process.env.NODE_ENV === 'test') {
     console.log(`\n[WA TEXT → ${normalized}]\n${body}\n`);
     return;
   }
-  await axios.post(
-    apiUrl(),
-    { messaging_product: 'whatsapp', to: normalized, type: 'text', text: { body } },
-    { headers: headers() }
-  );
+  await send({ messaging_product: 'whatsapp', to: normalized, type: 'text', text: { body } });
 }
 
 // sections: [{ title, rows: [{ id, title, description? }] }]
@@ -43,11 +49,7 @@ async function sendListMessage(to, { header, body, footer, buttonLabel, sections
     action: { button: buttonLabel, sections },
   };
   if (footer) interactive.footer = { text: footer };
-  await axios.post(
-    apiUrl(),
-    { messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive },
-    { headers: headers() }
-  );
+  await send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive });
 }
 
 // buttons: [{ id, title }] — max 3
@@ -65,11 +67,7 @@ async function sendButtonMessage(to, { body, footer, buttons }) {
     },
   };
   if (footer) interactive.footer = { text: footer };
-  await axios.post(
-    apiUrl(),
-    { messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive },
-    { headers: headers() }
-  );
+  await send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive });
 }
 
 module.exports = { sendText, sendListMessage, sendButtonMessage };
