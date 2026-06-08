@@ -28,4 +28,6 @@ module.exports = {
   orderCancelled: () => 'Order cancelled.',
 
   menuEmpty: () => 'No items available right now.',
+
+  orderReady: (shortId) => `✅ Your order #${shortId} is ready for pickup! See you soon 🙏`,
 };

@@ -138,6 +138,7 @@ async function handleMessage(businessId, { from, contactName, type, text, id }) 
         customerName: contactName || null,
         items: basket,
         total,
+        language: lang,
       });
       const shortId = orderId.slice(-6).toUpperCase();
       await setSession(from, { state: 'browsing', language: lang, basket: [] });

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import type { Order } from '../types';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const BUSINESS_ID = 'biz_test';
 
@@ -19,10 +21,11 @@ export default function OrderDetailPage() {
 
   async function markReady() {
     if (!orderId || !order) return;
-    await updateDoc(doc(db, 'businesses', BUSINESS_ID, 'orders', orderId), {
-      status: 'ready',
-      readyAt: new Date().toISOString(),
-    });
+    const res = await fetch(`${API_URL}/orders/${orderId}/ready`, { method: 'POST' });
+    if (!res.ok) {
+      console.error('Mark ready failed:', await res.text());
+      return;
+    }
     setOrder((o) => o ? { ...o, status: 'ready' } : o);
   }
 

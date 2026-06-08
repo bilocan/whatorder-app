@@ -28,4 +28,6 @@ module.exports = {
   orderCancelled: () => 'Sipariş iptal edildi.',
 
   menuEmpty: () => 'Şu an menümüzde ürün yok.',
+
+  orderReady: (shortId) => `✅ Siparişiniz #${shortId} hazır! Sizi bekliyoruz 🙏`,
 };

@@ -4,6 +4,7 @@ if (process.env.NODE_ENV !== 'production') {
 const express = require('express');
 const cors = require('cors');
 const { handleMessage } = require('./bot/botHandler');
+const { markOrderReady } = require('./bot/orderService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -67,6 +68,19 @@ app.post('/webhooks/whatsapp', async (req, res) => {
   }
 
   res.status(200).json({ status: 'success' });
+});
+
+app.post('/orders/:orderId/ready', async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    await markOrderReady(BUSINESS_ID, orderId);
+    res.json({ status: 'ok' });
+  } catch (err) {
+    const status = err.message === 'Order not found' ? 404
+      : err.message === 'Order is not pending' ? 409
+      : 500;
+    res.status(status).json({ error: err.message });
+  }
 });
 
 if (require.main === module) {

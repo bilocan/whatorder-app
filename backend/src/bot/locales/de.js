@@ -28,4 +28,6 @@ module.exports = {
   orderCancelled: () => 'Bestellung abgebrochen.',
 
   menuEmpty: () => 'Aktuell keine Artikel verfügbar.',
+
+  orderReady: (shortId) => `✅ Ihre Bestellung #${shortId} ist abholbereit! Bis gleich 🙏`,
 };
