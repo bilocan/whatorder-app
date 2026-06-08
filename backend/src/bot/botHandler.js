@@ -129,16 +129,39 @@ async function handleMessage(businessId, { from, contactName, type, text, id }) 
     return;
   }
 
-  // ── State: confirming (waiting for YES / NO) ─────────────────────────────
+  // ── State: awaiting_name ─────────────────────────────────────────────────
+  if (session.state === 'awaiting_name') {
+    if (type === 'text' && norm.length > 0) {
+      const name = text.trim().slice(0, 60);
+      const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
+      await setSession(from, { ...session, state: 'confirming', customerName: name });
+      await sendButtonMessage(from, {
+        body: t('finalConfirmBody', lang, name, total.toFixed(2), session.pickupTime),
+        buttons: [
+          { id: 'btn_place_order', title: t('confirmOrderBtn', lang) },
+          { id: 'btn_cancel_order', title: t('cancelOrderBtn', lang) },
+        ],
+      });
+      return;
+    }
+    await sendText(from, t('confirmSummary', lang, buildBasketText(basket, lang), session.prepMins, session.pickupTime));
+    return;
+  }
+
+  // ── State: confirming (waiting for button reply or YES/NO text) ──────────
   if (session.state === 'confirming') {
-    if (CONFIRM.has(norm)) {
+    const isConfirm = (type === 'button_reply' && id === 'btn_place_order') || CONFIRM.has(norm);
+    const isCancel  = (type === 'button_reply' && id === 'btn_cancel_order') || CANCEL.has(norm);
+
+    if (isConfirm) {
       const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
       const orderId = await createOrder(businessId, {
         customerPhone: from,
-        customerName: contactName || null,
+        customerName: session.customerName || contactName || null,
         items: basket,
         total,
         language: lang,
+        pickupTime: session.pickupTime || null,
       });
       const shortId = orderId.slice(-6).toUpperCase();
       await setSession(from, { state: 'browsing', language: lang, basket: [] });
@@ -146,7 +169,7 @@ async function handleMessage(businessId, { from, contactName, type, text, id }) 
       return;
     }
 
-    if (CANCEL.has(norm)) {
+    if (isCancel) {
       await setSession(from, { state: 'browsing', language: lang, basket: [] });
       await sendMenu(from, lang, businessId, t('orderCancelled', lang));
       return;
@@ -213,8 +236,12 @@ async function handleMessage(businessId, { from, contactName, type, text, id }) 
         await sendMenu(from, lang, businessId, t('basketEmpty', lang));
         return;
       }
-      await setSession(from, { ...session, state: 'confirming' });
-      await sendText(from, `${buildBasketText(basket, lang)}\n\n${t('confirmPrompt', lang)}`);
+      const info = await getBusinessInfo(businessId);
+      const prepMins = info.avgPrepTime || 30;
+      const pickupTime = new Date(Date.now() + prepMins * 60000)
+        .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+      await setSession(from, { ...session, state: 'awaiting_name', pickupTime, prepMins });
+      await sendText(from, t('confirmSummary', lang, buildBasketText(basket, lang), prepMins, pickupTime));
       return;
     }
   }

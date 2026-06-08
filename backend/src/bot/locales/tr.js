@@ -22,6 +22,10 @@ module.exports = {
   confirmBtn: () => 'Onayla',
 
   orderTotal: (total) => `Toplam: €${total}`,
+  confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Tahmini hazırlık: ~${prepMins} dk (saat ${pickupTime} civarı)\n\nAdınızı yazar mısınız?`,
+  finalConfirmBody: (name, total, pickupTime) => `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n⏱️ Hazır saat: ~${pickupTime}\n\nSiparişi onaylıyor musunuz?`,
+  confirmOrderBtn: () => 'Onayla ✅',
+  cancelOrderBtn: () => 'İptal ❌',
   confirmPrompt: () => 'Onaylamak için YES, iptal için NO yazın.',
   yesNoOnly: () => 'Lütfen YES veya NO yazın.',
   orderConfirmed: (shortId) => `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\nHazır olduğunda size bildireceğiz. Teşekkürler! 🙏`,

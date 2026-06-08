@@ -22,6 +22,10 @@ module.exports = {
   confirmBtn: () => 'Bestätigen',
 
   orderTotal: (total) => `Gesamt: €${total}`,
+  confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Fertig in ~${prepMins} Min. (gegen ${pickupTime})\n\nWie lautet Ihr Name?`,
+  finalConfirmBody: (name, total, pickupTime) => `✅ Fast fertig!\n\n👤 ${name}\n💶 Gesamt: €${total}\n⏱️ Fertig gegen ${pickupTime}\n\nBestellung bestätigen?`,
+  confirmOrderBtn: () => 'Bestätigen ✅',
+  cancelOrderBtn: () => 'Abbrechen ❌',
   confirmPrompt: () => 'YES zum Bestätigen, NO zum Abbrechen.',
   yesNoOnly: () => 'Bitte YES oder NO schreiben.',
   orderConfirmed: (shortId) => `✅ Bestellung erhalten! Bestellnr.: #${shortId}\n\nWir benachrichtigen Sie wenn sie fertig ist. Danke! 🙏`,
