@@ -62,3 +62,7 @@ node_modules/
 dist/
 build/
 out/
+
+# Test coverage (generated output — uploaded to Codecov by CI)
+coverage/
+**/coverage/
