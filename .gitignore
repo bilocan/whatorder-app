@@ -8,6 +8,8 @@ backend/.env.dev
 backend/.env.prod
 dashboard/.env.dev
 dashboard/.env.prod
+dashboard/.env.production
+dashboard/.env.staging
 
 # Backend
 backend/node_modules/
