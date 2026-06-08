@@ -33,22 +33,38 @@ export interface MenuItem {
   available: boolean;
 }
 
+export interface Business {
+  id: string;
+  name: string;
+  phone: string;
+  whatsappNumber?: string;
+  timezone?: string;
+  avgPrepTime?: number;
+  status: 'active' | 'paused';
+  createdAt?: string;
+}
+
+export interface PhoneRouting {
+  id: string;           // the Meta phone_number_id (document ID)
+  businessId: string;
+  displayNumber?: string;
+}
+
+export interface Owner {
+  uid: string;          // Firebase UID (document ID)
+  businessId: string;
+}
+
+export interface Admin {
+  uid: string;          // Firebase UID (document ID)
+}
+
 export interface Customer {
   phone: string;
   name: string;
   totalSpent: number;
   orderCount: number;
   lastOrderDate: string;
-}
-
-export interface Business {
-  id: string;
-  name: string;
-  phone: string;
-  whatsappNumber: string;
-  timezone: string;
-  avgPrepTime: number;
-  status: 'active' | 'paused';
 }
 
 export function toDate(v: Timestamp | string): Date {

@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
 import type { Business } from '../types';
 
-const BUSINESS_ID = 'biz_test';
-
 export default function SettingsPage() {
+  const { businessId } = useAuth();
   const [business, setBusiness] = useState<Business | null>(null);
 
   useEffect(() => {
-    getDoc(doc(db, 'businesses', BUSINESS_ID)).then((snap) => {
+    if (!businessId) return;
+    getDoc(doc(db, 'businesses', businessId)).then((snap) => {
       if (snap.exists()) setBusiness({ id: snap.id, ...snap.data() } as Business);
     });
-  }, []);
+  }, [businessId]);
 
   if (!business) return <p>Loading...</p>;
 

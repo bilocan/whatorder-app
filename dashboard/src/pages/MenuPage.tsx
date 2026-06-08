@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
 import type { MenuItem } from '../types';
 
-const BUSINESS_ID = 'biz_test';
 const CATEGORY_ORDER = ['mains', 'sides', 'drinks'] as const;
 
 export default function MenuPage() {
+  const { businessId } = useAuth();
   const [items, setItems] = useState<MenuItem[]>([]);
 
   useEffect(() => {
-    getDocs(query(collection(db, 'businesses', BUSINESS_ID, 'menu'), orderBy('category'))).then((snap) => {
+    if (!businessId) return;
+    getDocs(query(collection(db, 'businesses', businessId, 'menu'), orderBy('category'))).then((snap) => {
       setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() } as MenuItem)));
     });
-  }, []);
+  }, [businessId]);
 
   const grouped = CATEGORY_ORDER
     .map((cat) => ({ cat, items: items.filter((i) => i.category === cat) }))

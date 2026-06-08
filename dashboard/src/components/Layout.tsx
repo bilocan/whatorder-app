@@ -9,7 +9,7 @@ const navItems = [
 ];
 
 export default function Layout() {
-  const { signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -31,6 +31,34 @@ export default function Layout() {
               {label}
             </NavLink>
           ))}
+          {isAdmin && (
+            <>
+              <div style={{ borderTop: '1px solid #eee', margin: '0.75rem 0' }} />
+              <NavLink
+                to="/admin"
+                style={({ isActive }) => ({
+                  display: 'block',
+                  padding: '0.5rem 0',
+                  color: isActive ? '#6366f1' : '#666',
+                  fontWeight: isActive ? 600 : 400,
+                  textDecoration: 'none',
+                  fontSize: '0.9rem',
+                })}
+              >
+                Admin
+              </NavLink>
+            </>
+          )}
+        </div>
+        <div style={{ marginBottom: '0.5rem' }}>
+          <div style={{ fontSize: '0.7rem', color: '#ccc', marginBottom: '0.15rem' }}>UID</div>
+          <div
+            title={user?.uid}
+            style={{ fontSize: '0.7rem', color: '#bbb', fontFamily: 'monospace', cursor: 'pointer', wordBreak: 'break-all' }}
+            onClick={() => user?.uid && navigator.clipboard.writeText(user.uid)}
+          >
+            {user?.uid?.slice(0, 16)}…
+          </div>
         </div>
         <button
           onClick={signOut}
