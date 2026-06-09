@@ -1,12 +1,33 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
+const https = require('https');
 const { db } = require('../src/lib/firebase');
 
 const BUSINESS_ID = 'biz_test';
 
+async function fetchBusinessPhone() {
+  const id = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!id || !token) return null;
+  return new Promise((resolve) => {
+    const url = `https://graph.facebook.com/v21.0/${id}?fields=display_phone_number&access_token=${token}`;
+    https.get(url, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          const raw = parsed.display_phone_number;
+          resolve(raw ? '+' + raw.replace(/\D/g, '') : null);
+        } catch { resolve(null); }
+      });
+    }).on('error', () => resolve(null));
+  });
+}
+
 const business = {
   name: 'Döner Palace',
-  phone: '+43699123456',
-  whatsappNumber: '+43699123456',
+  phone: null,
+  whatsappNumber: null,
   timezone: 'Europe/Vienna',
   avgPrepTime: 20,
   businessHours: {
@@ -110,6 +131,15 @@ async function clearCollection(ref) {
 
 async function seed() {
   console.log(`Seeding business: ${BUSINESS_ID}`);
+
+  const phone = await fetchBusinessPhone();
+  if (phone) {
+    business.phone = phone;
+    business.whatsappNumber = phone;
+    console.log(`  resolved business phone: ${phone}`);
+  } else {
+    console.warn('  could not resolve business phone from API — phone fields will be null');
+  }
 
   await db.collection('businesses').doc(BUSINESS_ID).set(business);
   console.log('  business created');
