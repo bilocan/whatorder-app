@@ -46,4 +46,10 @@ module.exports = {
   restaurantPickerButton: () => 'See restaurants',
   restaurantPickerFooter: () => 'Tap a name to open its menu',
   switchConfirmed: () => '🔄 Switching restaurants. Your basket has been cleared.',
+
+  orderConfirmedWithChoice: (shortId, name) => `✅ Order received! Order #${shortId}\n\nOrder again from ${name}?`,
+  orderCancelledWithChoice: (name) => `❌ Order cancelled.\n\nOrder again from ${name}?`,
+  orderAgainPrompt: (name) => `Ordering from ${name}?\n\nContinue here or choose a different restaurant.`,
+  orderAgainBtn: () => 'Order here again',
+  chooseRestaurantBtn: () => 'Choose restaurant',
 };
