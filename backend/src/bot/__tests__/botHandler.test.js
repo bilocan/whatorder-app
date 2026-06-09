@@ -8,7 +8,7 @@ const { handleMessage } = require('../botHandler');
 const { getSession, setSession } = require('../sessionStore');
 const { getMenu, getBusinessInfo } = require('../menuService');
 const { createOrder } = require('../orderService');
-const { sendText, sendButtonMessage, sendCatalogMessage } = require('../../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage } = require('../../lib/whatsapp');
 
 const BIZ = 'biz_test';
 const FROM = '+43699000001';
@@ -26,6 +26,7 @@ beforeEach(() => {
   getBusinessInfo.mockResolvedValue(BIZ_INFO);
   createOrder.mockResolvedValue('order_abc123');
   sendText.mockResolvedValue();
+  sendListMessage.mockResolvedValue();
   sendButtonMessage.mockResolvedValue();
   sendCatalogMessage.mockResolvedValue();
 });
@@ -42,7 +43,7 @@ describe('Full flow: language detection → catalog → cart → special request
     await handleMessage(BIZ, msg({ text: 'Merhaba' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'tr', state: 'browsing' }));
-    expect(sendCatalogMessage).toHaveBeenCalledWith(FROM, 'cat_123', expect.stringContaining('Döner Palace'));
+    expect(sendCatalogMessage).toHaveBeenCalledWith(FROM, 'cat_123', expect.stringContaining('Döner Palace'), 'item_1');
   });
 
   test('Step 2: cart_submitted moves to awaiting_special_requests and shows prompt', async () => {
@@ -55,7 +56,7 @@ describe('Full flow: language detection → catalog → cart → special request
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_special_requests',
-      pendingCart: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
       pickupTime: expect.any(String),
       prepMins: 20,
     }));
@@ -69,7 +70,7 @@ describe('Full flow: language detection → catalog → cart → special request
   test('Step 3a: text special request moves to awaiting_name', async () => {
     getSession.mockResolvedValue({
       language: 'tr', state: 'awaiting_special_requests',
-      pendingCart: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
       pickupTime: '14:30', prepMins: 20,
     });
 
@@ -85,7 +86,7 @@ describe('Full flow: language detection → catalog → cart → special request
   test('Step 3b: btn_skip_requests moves to awaiting_name with empty notes', async () => {
     getSession.mockResolvedValue({
       language: 'tr', state: 'awaiting_special_requests',
-      pendingCart: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
       pickupTime: '14:30', prepMins: 20,
     });
 
@@ -100,7 +101,7 @@ describe('Full flow: language detection → catalog → cart → special request
   test('Step 4: user sends name → shows final confirm button message', async () => {
     getSession.mockResolvedValue({
       language: 'tr', state: 'awaiting_name',
-      pendingCart: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
       pickupTime: '14:30', prepMins: 20,
       specialRequests: '',
     });
@@ -123,7 +124,7 @@ describe('Full flow: language detection → catalog → cart → special request
   test('Step 5: btn_place_order creates order with notes and sends confirmation', async () => {
     getSession.mockResolvedValue({
       language: 'tr', state: 'confirming',
-      pendingCart: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
       customerName: 'Ahmet',
       pickupTime: '14:30',
       specialRequests: 'Extra spicy',
@@ -148,7 +149,7 @@ describe('Cancel flow', () => {
   test('btn_cancel_order clears state and shows catalog', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'confirming',
-      pendingCart: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
       customerName: 'John',
     });
 
@@ -184,13 +185,14 @@ describe('Edge cases', () => {
     expect(setSession).not.toHaveBeenCalled();
   });
 
-  test('catalogUnavailable shown when business has no catalogId', async () => {
+  test('no catalogId falls back to list menu', async () => {
     getBusinessInfo.mockResolvedValue({ name: 'Test', avgPrepTime: 30 }); // no catalogId
     getSession.mockResolvedValue({});
 
     await handleMessage(BIZ, msg({ text: 'Hello' }));
 
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('catalog'));
+    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendCatalogMessage).not.toHaveBeenCalled();
   });
 
   test('unknown productId falls back to productId as name', async () => {
@@ -202,7 +204,7 @@ describe('Edge cases', () => {
     }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      pendingCart: [{ name: 'unknown_99', qty: 1, price: 5.00 }],
+      basket: [{ name: 'unknown_99', qty: 1, price: 5.00 }],
     }));
   });
 
@@ -212,5 +214,14 @@ describe('Edge cases', () => {
     await handleMessage(BIZ, msg({ text: 'something random' }));
 
     expect(sendCatalogMessage).toHaveBeenCalled();
+  });
+
+  test('catalog failure falls back to list menu', async () => {
+    sendCatalogMessage.mockRejectedValue(new Error('API error'));
+    getSession.mockResolvedValue({});
+
+    await handleMessage(BIZ, msg({ text: 'Hello' }));
+
+    expect(sendListMessage).toHaveBeenCalled();
   });
 });

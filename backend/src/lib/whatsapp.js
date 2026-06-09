@@ -71,7 +71,8 @@ async function sendButtonMessage(to, { body, footer, buttons }) {
 }
 
 // catalogId: Meta Commerce Manager catalog ID for the business
-async function sendCatalogMessage(to, catalogId, bodyText) {
+// thumbnailProductId: retailer ID of the product to show as thumbnail (required by WhatsApp API)
+async function sendCatalogMessage(to, catalogId, bodyText, thumbnailProductId) {
   const normalized = normalizePhone(to);
   if (process.env.NODE_ENV === 'test') {
     console.log(`\n[WA CATALOG → ${normalized}]\ncatalogId=${catalogId}\n${bodyText}\n`);
@@ -84,7 +85,7 @@ async function sendCatalogMessage(to, catalogId, bodyText) {
     interactive: {
       type: 'catalog_message',
       body: { text: bodyText },
-      action: { name: 'catalog_message', parameters: { thumbnail_product_retailer_id: '' } },
+      action: { name: 'catalog_message', parameters: { thumbnail_product_retailer_id: thumbnailProductId } },
     },
   });
 }
