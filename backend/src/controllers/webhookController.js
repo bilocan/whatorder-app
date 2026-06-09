@@ -48,6 +48,14 @@ async function receiveWebhook(req, res) {
       res.status(200).json({ status: 'ok' });
       return;
     }
+  } else if (msg.type === 'order') {
+    const items = (msg.order?.product_items ?? []).map(p => ({
+      productId: p.product_retailer_id,
+      qty: p.quantity,
+      price: p.item_price,
+      currency: p.currency,
+    }));
+    message = { type: 'cart_submitted', items };
   } else {
     res.status(200).json({ status: 'ok' });
     return;

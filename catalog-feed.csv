@@ -1,0 +1,7 @@
+"id","title","description","availability","condition","price","link","image_link","brand"
+"ayran","Ayran","Yogurt drink","in stock","new","2.00 EUR","https://whatorder.app","https://whatorder.app/placeholder.png","Döner Palace"
+"cola","Cola","330ml can","in stock","new","2.50 EUR","https://whatorder.app","https://whatorder.app/placeholder.png","Döner Palace"
+"dner","Döner","Chicken or lamb with salad and sauce","in stock","new","8.50 EUR","https://whatorder.app","https://whatorder.app/placeholder.png","Döner Palace"
+"lahmacun","Lahmacun","Turkish flatbread with minced meat","in stock","new","5.00 EUR","https://whatorder.app","https://whatorder.app/placeholder.png","Döner Palace"
+"pizza_margherita","Pizza Margherita","Tomato, mozzarella, basil","in stock","new","9.00 EUR","https://whatorder.app","https://whatorder.app/placeholder.png","Döner Palace"
+"pommes","Pommes","French fries","in stock","new","3.50 EUR","https://whatorder.app","https://whatorder.app/placeholder.png","Döner Palace"

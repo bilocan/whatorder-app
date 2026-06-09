@@ -3,9 +3,9 @@ const { admin } = require('../lib/firebase');
 const { sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 
-async function createOrder(businessId, { customerPhone, customerName, items, total, language, pickupTime }) {
+async function createOrder(businessId, { customerPhone, customerName, items, total, language, pickupTime, notes }) {
   const ref = ordersRef(businessId).doc();
-  await ref.set({
+  const doc = {
     id: ref.id,
     customerId: customerPhone,
     customerPhone,
@@ -17,7 +17,9 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
     source: 'whatsapp',
     pickupTime: pickupTime || null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  };
+  if (notes) doc.notes = notes;
+  await ref.set(doc);
 
   // Notify owner
   try {

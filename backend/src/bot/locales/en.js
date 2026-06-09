@@ -33,5 +33,12 @@ module.exports = {
 
   menuEmpty: () => 'No items available right now.',
 
+  catalogBody: (name) => `👋 Welcome to ${name}!\n\nBrowse the menu and tap "Add to Cart" on items you'd like to order. When you're done, send your cart.`,
+  catalogUnavailable: () => 'Our catalog is not set up yet. Please contact us directly to order.',
+
+  specialRequestsPrompt: () => 'Any special requests, allergies, or notes?\n\nType them here, or tap Skip if none.',
+  skipBtn: () => 'Skip',
+  askName: () => "What's your name for the order?",
+
   orderReady: (shortId) => `✅ Your order #${shortId} is ready for pickup! See you soon 🙏`,
 };
