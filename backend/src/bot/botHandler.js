@@ -9,6 +9,7 @@ const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', '1', 'ok', 'tamam', '
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal', '2']);
 const BASKET_KEYWORDS = new Set(['basket', 'sepet', 'warenkorb']);
 const SWITCH_KEYWORDS = new Set(['switch', 'change', 'restaurants', 'back', 'home', 'wechseln', 'zurück', 'zuruck', 'değiştir', 'degistir', 'restoranlar', 'start']);
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsing sessions
 
 function buildMenuSections(menu, lang) {
   const grouped = {};
@@ -113,10 +114,18 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     }
   }
 
-  // First message OR multi-restaurant with no restaurant selected yet
+  // TTL safety net: abandoned browsing session (no order placed, idle 8h+)
+  const lastActive = session.updatedAt?.toDate?.() ?? null;
+  const isIdleBrowsing = session.state === 'browsing'
+    && (session.basket ?? []).length === 0
+    && !!session.businessId;
+  const sessionExpiredForPicker = isMulti && isIdleBrowsing && lastActive
+    && (Date.now() - lastActive.getTime() > SESSION_TTL_MS);
+
+  // First message OR multi-restaurant with no restaurant selected yet OR TTL expired
   // (skip if already in selecting_restaurant — let the state machine handle the reply)
-  if (!session.language || (isMulti && !session.businessId && session.state !== 'selecting_restaurant')) {
-    const lang = type === 'text' ? detectLanguage(text) : 'tr';
+  if (!session.language || (isMulti && !session.businessId && session.state !== 'selecting_restaurant') || sessionExpiredForPicker) {
+    const lang = session.language || (type === 'text' ? detectLanguage(text) : 'tr');
     if (isMulti) {
       const businesses = await getBusinessesInfo(routing.businessIds);
       await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null });
@@ -158,6 +167,32 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     // Any other input while picking: re-show the picker
     const businesses = await getBusinessesInfo(routing.businessIds);
     await sendRestaurantPicker(from, businesses, lang);
+    return;
+  }
+
+  // ── State: awaiting_restaurant_choice ────────────────────────────────────
+  if (isMulti && session.state === 'awaiting_restaurant_choice') {
+    if (type === 'button_reply') {
+      if (id === 'btn_order_again') {
+        await setSession(from, { ...session, state: 'browsing' });
+        await sendCatalog(from, lang, businessId);
+        return;
+      }
+      if (id === 'btn_choose_restaurant') {
+        const businesses = await getBusinessesInfo(routing.businessIds);
+        await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null });
+        await sendRestaurantPicker(from, businesses, lang);
+        return;
+      }
+    }
+    const info = await getBusinessInfo(businessId);
+    await sendButtonMessage(from, {
+      body: t('orderAgainPrompt', lang, info.name),
+      buttons: [
+        { id: 'btn_order_again',       title: t('orderAgainBtn', lang) },
+        { id: 'btn_choose_restaurant', title: t('chooseRestaurantBtn', lang) },
+      ],
+    });
     return;
   }
 
@@ -260,14 +295,38 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
         notes: session.specialRequests || null,
       });
       const shortId = orderId.slice(-6).toUpperCase();
-      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId });
-      await sendText(from, t('orderConfirmed', lang, shortId));
+      if (isMulti) {
+        const info = await getBusinessInfo(businessId);
+        await setSession(from, { state: 'awaiting_restaurant_choice', language: lang, basket: [], businessId });
+        await sendButtonMessage(from, {
+          body: t('orderConfirmedWithChoice', lang, shortId, info.name),
+          buttons: [
+            { id: 'btn_order_again',       title: t('orderAgainBtn', lang) },
+            { id: 'btn_choose_restaurant', title: t('chooseRestaurantBtn', lang) },
+          ],
+        });
+      } else {
+        await setSession(from, { state: 'browsing', language: lang, basket: [], businessId });
+        await sendText(from, t('orderConfirmed', lang, shortId));
+      }
       return;
     }
 
     if (isCancel) {
-      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId });
-      await sendCatalog(from, lang, businessId, t('orderCancelled', lang));
+      if (isMulti) {
+        const info = await getBusinessInfo(businessId);
+        await setSession(from, { state: 'awaiting_restaurant_choice', language: lang, basket: [], businessId });
+        await sendButtonMessage(from, {
+          body: t('orderCancelledWithChoice', lang, info.name),
+          buttons: [
+            { id: 'btn_order_again',       title: t('orderAgainBtn', lang) },
+            { id: 'btn_choose_restaurant', title: t('chooseRestaurantBtn', lang) },
+          ],
+        });
+      } else {
+        await setSession(from, { state: 'browsing', language: lang, basket: [], businessId });
+        await sendCatalog(from, lang, businessId, t('orderCancelled', lang));
+      }
       return;
     }
 
@@ -369,8 +428,20 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     }
 
     if (id === 'btn_cancel_order') {
-      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId });
-      await sendCatalog(from, lang, businessId, t('orderCancelled', lang));
+      if (isMulti) {
+        const info = await getBusinessInfo(businessId);
+        await setSession(from, { state: 'awaiting_restaurant_choice', language: lang, basket: [], businessId });
+        await sendButtonMessage(from, {
+          body: t('orderCancelledWithChoice', lang, info.name),
+          buttons: [
+            { id: 'btn_order_again',       title: t('orderAgainBtn', lang) },
+            { id: 'btn_choose_restaurant', title: t('chooseRestaurantBtn', lang) },
+          ],
+        });
+      } else {
+        await setSession(from, { state: 'browsing', language: lang, basket: [], businessId });
+        await sendCatalog(from, lang, businessId, t('orderCancelled', lang));
+      }
       return;
     }
   }

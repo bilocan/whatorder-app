@@ -46,4 +46,10 @@ module.exports = {
   restaurantPickerButton: () => 'Restaurants',
   restaurantPickerFooter: () => 'Tippen Sie auf einen Namen um die Karte zu öffnen',
   switchConfirmed: () => '🔄 Restaurant wird gewechselt. Ihr Warenkorb wurde geleert.',
+
+  orderConfirmedWithChoice: (shortId, name) => `✅ Bestellung erhalten! Bestellnr.: #${shortId}\n\nNochmals bei ${name} bestellen?`,
+  orderCancelledWithChoice: (name) => `❌ Bestellung abgebrochen.\n\nNochmals bei ${name} bestellen?`,
+  orderAgainPrompt: (name) => `Bestellen Sie bei ${name}?\n\nHier weitermachen oder anderes Restaurant wählen.`,
+  orderAgainBtn: () => 'Hier bestellen',
+  chooseRestaurantBtn: () => 'Restaurant wählen',
 };

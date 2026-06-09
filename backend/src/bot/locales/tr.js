@@ -46,4 +46,10 @@ module.exports = {
   restaurantPickerButton: () => 'Restoranlar',
   restaurantPickerFooter: () => 'Menüyü açmak için bir isme dokunun',
   switchConfirmed: () => '🔄 Restoran değiştiriliyor. Sepetiniz temizlendi.',
+
+  orderConfirmedWithChoice: (shortId, name) => `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\n${name}'dan tekrar sipariş vermek ister misiniz?`,
+  orderCancelledWithChoice: (name) => `❌ Sipariş iptal edildi.\n\n${name}'dan tekrar sipariş vermek ister misiniz?`,
+  orderAgainPrompt: (name) => `${name}'dan mı sipariş veriyorsunuz?\n\nBuraya devam edin veya başka bir restoran seçin.`,
+  orderAgainBtn: () => 'Buradan sipariş ver',
+  chooseRestaurantBtn: () => 'Restoran seç',
 };
