@@ -42,6 +42,9 @@ export interface Business {
   avgPrepTime?: number;
   status: 'active' | 'paused';
   createdAt?: string;
+  address?: string;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface PhoneRouting {

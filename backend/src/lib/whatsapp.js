@@ -90,4 +90,22 @@ async function sendCatalogMessage(to, catalogId, bodyText, thumbnailProductId) {
   });
 }
 
-module.exports = { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage };
+async function sendLocationRequest(to, bodyText) {
+  const normalized = normalizePhone(to);
+  if (process.env.NODE_ENV === 'test') {
+    console.log(`\n[WA LOCATION REQUEST → ${normalized}]\n${bodyText}\n`);
+    return;
+  }
+  await send({
+    messaging_product: 'whatsapp',
+    to: normalized,
+    type: 'interactive',
+    interactive: {
+      type: 'location_request_message',
+      body: { text: bodyText },
+      action: { name: 'send_location' },
+    },
+  });
+}
+
+module.exports = { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendLocationRequest };

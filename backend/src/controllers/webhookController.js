@@ -72,6 +72,9 @@ async function receiveWebhook(req, res) {
       currency: p.currency,
     }));
     message = { type: 'cart_submitted', items };
+  } else if (msg.type === 'location') {
+    const loc = msg.location;
+    message = { type: 'location', latitude: loc?.latitude ?? null, longitude: loc?.longitude ?? null };
   } else {
     res.status(200).json({ status: 'ok' });
     return;

@@ -42,6 +42,7 @@ module.exports = {
 
   orderReady: (shortId) => `✅ Your order #${shortId} is ready for pickup! See you soon 🙏`,
 
+  locationRequestBody: () => '📍 Share your location and we\'ll show the nearest restaurants first.\n\nOr just reply with anything to see all restaurants.',
   restaurantPickerBody: () => 'Which restaurant would you like to order from?',
   restaurantPickerButton: () => 'See restaurants',
   restaurantPickerFooter: () => 'Tap a name to open its menu',
