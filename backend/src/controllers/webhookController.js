@@ -24,6 +24,12 @@ async function receiveWebhook(req, res) {
   const msg = change?.messages?.[0];
 
   if (!msg) {
+    const statuses = change?.statuses;
+    if (statuses) {
+      console.log(`[webhook] status update: ${statuses.map(s => `${s.status}/${s.id}`).join(', ')}`);
+    } else {
+      console.log('[webhook] non-message event received', JSON.stringify(req.body?.entry?.[0]?.changes?.[0]?.field ?? req.body));
+    }
     res.status(200).json({ status: 'ok' });
     return;
   }
@@ -31,7 +37,7 @@ async function receiveWebhook(req, res) {
   const from = msg.from;
   const contactName = change?.contacts?.[0]?.profile?.name ?? null;
   const phoneNumberId = change?.metadata?.phone_number_id ?? null;
-  console.log(`[webhook] phone_number_id=${phoneNumberId} from=${from}`);
+  console.log(`[webhook] message type=${msg.type} phone_number_id=${phoneNumberId} from=${from}`);
 
   let message;
   if (msg.type === 'text') {
