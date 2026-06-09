@@ -65,7 +65,8 @@ async function receiveWebhook(req, res) {
     const businessId = await resolveBusinessId(phoneNumberId);
     await handleMessage(businessId, { from, contactName, ...message });
   } catch (err) {
-    console.error('Bot error:', err);
+    const metaError = err.response?.data ? JSON.stringify(err.response.data) : null;
+    console.error('Bot error:', metaError ?? err.message ?? err);
   }
 
   res.status(200).json({ status: 'success' });
