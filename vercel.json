@@ -1,9 +1,9 @@
 {
   "buildCommand": "cd dashboard && npm install --include=dev && npm run build",
   "outputDirectory": "dashboard/dist",
-  "rewrites": [
-    { "source": "/webhooks/whatsapp", "destination": "/api/webhooks/whatsapp" },
-    { "source": "/health", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "routes": [
+    { "src": "/webhooks/whatsapp", "dest": "/api/webhooks/whatsapp" },
+    { "src": "/health", "dest": "/api/index" },
+    { "src": "/(.*)", "dest": "/index.html", "methods": ["GET", "HEAD"] }
   ]
 }
