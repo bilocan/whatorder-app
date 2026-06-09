@@ -1,12 +1,21 @@
 const { handleMessage } = require('../bot/botHandler');
 const { phoneRoutingRef } = require('../lib/collections');
 
-async function resolveBusinessId(phoneNumberId) {
+async function resolveRouting(phoneNumberId) {
   if (phoneNumberId) {
     const snap = await phoneRoutingRef(phoneNumberId).get();
-    if (snap.exists) return snap.data().businessId;
+    if (snap.exists) {
+      const data = snap.data();
+      if (data.businessIds) {
+        return { businessIds: data.businessIds, defaultBusinessId: data.defaultBusinessId ?? null };
+      }
+      if (data.businessId) {
+        return { businessIds: [data.businessId], defaultBusinessId: data.businessId };
+      }
+    }
   }
-  return process.env.BUSINESS_ID || 'biz_test';
+  const fallback = process.env.BUSINESS_ID || 'biz_test';
+  return { businessIds: [fallback], defaultBusinessId: fallback };
 }
 
 function verifyWebhook(req, res) {
@@ -69,8 +78,8 @@ async function receiveWebhook(req, res) {
   }
 
   try {
-    const businessId = await resolveBusinessId(phoneNumberId);
-    await handleMessage(businessId, { from, contactName, ...message });
+    const routing = await resolveRouting(phoneNumberId);
+    await handleMessage(routing, { from, contactName, ...message });
   } catch (err) {
     const metaError = err.response?.data ? JSON.stringify(err.response.data) : null;
     console.error('Bot error:', metaError ?? err.message ?? err);

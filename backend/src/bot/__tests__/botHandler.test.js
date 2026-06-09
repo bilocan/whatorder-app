@@ -11,6 +11,7 @@ const { createOrder } = require('../orderService');
 const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage } = require('../../lib/whatsapp');
 
 const BIZ = 'biz_test';
+const ROUTING = { businessIds: [BIZ], defaultBusinessId: BIZ };
 const FROM = '+43699000001';
 
 const MENU = [
@@ -40,7 +41,7 @@ describe('Full flow: language detection → catalog → cart → special request
   test('Step 1: first message triggers language detection and shows catalog', async () => {
     getSession.mockResolvedValue({});
 
-    await handleMessage(BIZ, msg({ text: 'Merhaba' }));
+    await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'tr', state: 'browsing' }));
     expect(sendCatalogMessage).toHaveBeenCalledWith(FROM, 'cat_123', expect.stringContaining('Döner Palace'), 'item_1');
@@ -49,7 +50,7 @@ describe('Full flow: language detection → catalog → cart → special request
   test('Step 2: cart_submitted moves to awaiting_special_requests and shows prompt', async () => {
     getSession.mockResolvedValue({ language: 'tr', state: 'browsing' });
 
-    await handleMessage(BIZ, msg({
+    await handleMessage(ROUTING, msg({
       type: 'cart_submitted',
       items: [{ productId: 'item_1', qty: 2, price: 8.50, currency: 'EUR' }],
     }));
@@ -74,7 +75,7 @@ describe('Full flow: language detection → catalog → cart → special request
       pickupTime: '14:30', prepMins: 20,
     });
 
-    await handleMessage(BIZ, msg({ text: 'No onions please' }));
+    await handleMessage(ROUTING, msg({ text: 'No onions please' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_name',
@@ -90,7 +91,7 @@ describe('Full flow: language detection → catalog → cart → special request
       pickupTime: '14:30', prepMins: 20,
     });
 
-    await handleMessage(BIZ, msg({ type: 'button_reply', id: 'btn_skip_requests', title: 'Atla' }));
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_skip_requests', title: 'Atla' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_name',
@@ -106,7 +107,7 @@ describe('Full flow: language detection → catalog → cart → special request
       specialRequests: '',
     });
 
-    await handleMessage(BIZ, msg({ text: 'Ahmet' }));
+    await handleMessage(ROUTING, msg({ text: 'Ahmet' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
@@ -130,7 +131,7 @@ describe('Full flow: language detection → catalog → cart → special request
       specialRequests: 'Extra spicy',
     });
 
-    await handleMessage(BIZ, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Onayla ✅' }));
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Onayla ✅' }));
 
     expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({
       customerName: 'Ahmet',
@@ -153,7 +154,7 @@ describe('Cancel flow', () => {
       customerName: 'John',
     });
 
-    await handleMessage(BIZ, msg({ type: 'button_reply', id: 'btn_cancel_order', title: 'Cancel ❌' }));
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_cancel_order', title: 'Cancel ❌' }));
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
@@ -169,7 +170,7 @@ describe('Language detection', () => {
   ])('"%s" detects language "%s"', async (text, expectedLang) => {
     getSession.mockResolvedValue({});
 
-    await handleMessage(BIZ, msg({ text }));
+    await handleMessage(ROUTING, msg({ text }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: expectedLang }));
   });
@@ -179,7 +180,7 @@ describe('Edge cases', () => {
   test('empty cart_submitted shows catalog', async () => {
     getSession.mockResolvedValue({ language: 'en', state: 'browsing' });
 
-    await handleMessage(BIZ, msg({ type: 'cart_submitted', items: [] }));
+    await handleMessage(ROUTING, msg({ type: 'cart_submitted', items: [] }));
 
     expect(sendCatalogMessage).toHaveBeenCalled();
     expect(setSession).not.toHaveBeenCalled();
@@ -189,7 +190,7 @@ describe('Edge cases', () => {
     getBusinessInfo.mockResolvedValue({ name: 'Test', avgPrepTime: 30 }); // no catalogId
     getSession.mockResolvedValue({});
 
-    await handleMessage(BIZ, msg({ text: 'Hello' }));
+    await handleMessage(ROUTING, msg({ text: 'Hello' }));
 
     expect(sendListMessage).toHaveBeenCalled();
     expect(sendCatalogMessage).not.toHaveBeenCalled();
@@ -198,7 +199,7 @@ describe('Edge cases', () => {
   test('unknown productId falls back to productId as name', async () => {
     getSession.mockResolvedValue({ language: 'en', state: 'browsing' });
 
-    await handleMessage(BIZ, msg({
+    await handleMessage(ROUTING, msg({
       type: 'cart_submitted',
       items: [{ productId: 'unknown_99', qty: 1, price: 5.00, currency: 'EUR' }],
     }));
@@ -211,7 +212,7 @@ describe('Edge cases', () => {
   test('default text in browsing state shows catalog', async () => {
     getSession.mockResolvedValue({ language: 'en', state: 'browsing' });
 
-    await handleMessage(BIZ, msg({ text: 'something random' }));
+    await handleMessage(ROUTING, msg({ text: 'something random' }));
 
     expect(sendCatalogMessage).toHaveBeenCalled();
   });
@@ -220,7 +221,7 @@ describe('Edge cases', () => {
     sendCatalogMessage.mockRejectedValue(new Error('API error'));
     getSession.mockResolvedValue({});
 
-    await handleMessage(BIZ, msg({ text: 'Hello' }));
+    await handleMessage(ROUTING, msg({ text: 'Hello' }));
 
     expect(sendListMessage).toHaveBeenCalled();
   });

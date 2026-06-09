@@ -71,14 +71,30 @@ describe('receiveWebhook', () => {
     expect(handleMessage).not.toHaveBeenCalled();
   });
 
-  test('resolves businessId from Firestore when snap exists', async () => {
+  test('resolves routing from Firestore when snap exists (old schema)', async () => {
     phoneRoutingRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({ exists: true, data: () => ({ businessId: 'biz_firestore' }) }),
     });
     const req = { body: webhookBody() };
     const res = makeRes();
     await receiveWebhook(req, res);
-    expect(handleMessage).toHaveBeenCalledWith('biz_firestore', expect.any(Object));
+    expect(handleMessage).toHaveBeenCalledWith(
+      { businessIds: ['biz_firestore'], defaultBusinessId: 'biz_firestore' },
+      expect.any(Object),
+    );
+  });
+
+  test('resolves routing from Firestore when snap exists (new schema)', async () => {
+    phoneRoutingRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({ exists: true, data: () => ({ businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null }) }),
+    });
+    const req = { body: webhookBody() };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(handleMessage).toHaveBeenCalledWith(
+      { businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null },
+      expect.any(Object),
+    );
   });
 
   test('falls back to BUSINESS_ID env when snap does not exist', async () => {
@@ -89,7 +105,10 @@ describe('receiveWebhook', () => {
     const req = { body: webhookBody() };
     const res = makeRes();
     await receiveWebhook(req, res);
-    expect(handleMessage).toHaveBeenCalledWith('biz_env', expect.any(Object));
+    expect(handleMessage).toHaveBeenCalledWith(
+      { businessIds: ['biz_env'], defaultBusinessId: 'biz_env' },
+      expect.any(Object),
+    );
     delete process.env.BUSINESS_ID;
   });
 
@@ -101,7 +120,10 @@ describe('receiveWebhook', () => {
     const req = { body: webhookBody() };
     const res = makeRes();
     await receiveWebhook(req, res);
-    expect(handleMessage).toHaveBeenCalledWith('biz_test', expect.any(Object));
+    expect(handleMessage).toHaveBeenCalledWith(
+      { businessIds: ['biz_test'], defaultBusinessId: 'biz_test' },
+      expect.any(Object),
+    );
   });
 
   test('processes text message and returns success', async () => {
@@ -110,7 +132,7 @@ describe('receiveWebhook', () => {
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(handleMessage).toHaveBeenCalledWith(
-      expect.any(String),
+      expect.any(Object),
       expect.objectContaining({ type: 'text', text: 'Hello', from: '+43123', contactName: 'Test User' }),
     );
     expect(res.json).toHaveBeenCalledWith({ status: 'success' });
@@ -125,7 +147,7 @@ describe('receiveWebhook', () => {
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(handleMessage).toHaveBeenCalledWith(
-      expect.any(String),
+      expect.any(Object),
       expect.objectContaining({ type: 'list_reply', id: 'item_1', title: 'Döner' }),
     );
   });
@@ -139,7 +161,7 @@ describe('receiveWebhook', () => {
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(handleMessage).toHaveBeenCalledWith(
-      expect.any(String),
+      expect.any(Object),
       expect.objectContaining({ type: 'button_reply', id: 'btn_yes', title: 'Confirm' }),
     );
   });
@@ -166,7 +188,7 @@ describe('receiveWebhook', () => {
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(handleMessage).toHaveBeenCalledWith(
-      expect.any(String),
+      expect.any(Object),
       expect.objectContaining({
         type: 'cart_submitted',
         items: [{ productId: 'item_1', qty: 2, price: 8.50, currency: 'EUR' }],

@@ -35,7 +35,7 @@ describe('getSession', () => {
     });
 
     const result = await getSession('+43699000001');
-    expect(result).toEqual({ state: 'browsing', language: null, basket: [] });
+    expect(result).toEqual({ state: 'browsing', language: null, basket: [], businessId: null });
   });
 
   test('looks up the "sessions" collection with the given phone', async () => {

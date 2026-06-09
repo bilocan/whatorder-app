@@ -41,4 +41,9 @@ module.exports = {
   askName: () => "What's your name for the order?",
 
   orderReady: (shortId) => `✅ Your order #${shortId} is ready for pickup! See you soon 🙏`,
+
+  restaurantPickerBody: () => 'Which restaurant would you like to order from?',
+  restaurantPickerButton: () => 'See restaurants',
+  restaurantPickerFooter: () => 'Tap a name to open its menu',
+  switchConfirmed: () => '🔄 Switching restaurants. Your basket has been cleared.',
 };

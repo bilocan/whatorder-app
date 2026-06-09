@@ -41,4 +41,9 @@ module.exports = {
   askName: () => 'Wie lautet Ihr Name für die Bestellung?',
 
   orderReady: (shortId) => `✅ Ihre Bestellung #${shortId} ist abholbereit! Bis gleich 🙏`,
+
+  restaurantPickerBody: () => 'Bei welchem Restaurant möchten Sie bestellen?',
+  restaurantPickerButton: () => 'Restaurants',
+  restaurantPickerFooter: () => 'Tippen Sie auf einen Namen um die Karte zu öffnen',
+  switchConfirmed: () => '🔄 Restaurant wird gewechselt. Ihr Warenkorb wurde geleert.',
 };
