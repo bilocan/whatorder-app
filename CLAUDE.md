@@ -17,6 +17,12 @@ Save implementation plans and decisions to the vault, not to Claude's memory sys
 - `specs/mvp-spec.md` — what is and isn't in scope
 - `specs/build-roadmap.md` — current phase and what's next
 
+## Firestore collections sync rule
+When adding or changing a Firestore collection:
+1. Add/update the ref in `backend/src/lib/collections.js`
+2. Update the "Firestore Collections Schema" section in `specs/technical-architecture.md`
+All collections must be accessed through `collections.js` — no direct `db.collection()` calls elsewhere.
+
 ## Workflow rules
 - When the user says "task done", run the vault task-done workflow: check unreleased.md → update release log → update Asana → check commit messages
 - Asana project GID: `1215389891247928` (WhatOrder MVP) — use directly, never look it up

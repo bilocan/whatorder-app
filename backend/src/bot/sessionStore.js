@@ -1,18 +1,16 @@
-const { db } = require('../lib/firebase');
-
-const col = () => db.collection('sessions');
+const { sessionRef } = require('../lib/collections');
 
 async function getSession(phone) {
-  const doc = await col().doc(phone).get();
+  const doc = await sessionRef(phone).get();
   return doc.exists ? doc.data() : { state: 'browsing', language: null, basket: [], businessId: null };
 }
 
 async function setSession(phone, data) {
-  await col().doc(phone).set({ ...data, updatedAt: new Date() });
+  await sessionRef(phone).set({ ...data, updatedAt: new Date() });
 }
 
 async function clearSession(phone) {
-  await col().doc(phone).delete();
+  await sessionRef(phone).delete();
 }
 
 module.exports = { getSession, setSession, clearSession };
