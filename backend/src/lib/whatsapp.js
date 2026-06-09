@@ -70,4 +70,23 @@ async function sendButtonMessage(to, { body, footer, buttons }) {
   await send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive });
 }
 
-module.exports = { sendText, sendListMessage, sendButtonMessage };
+// catalogId: Meta Commerce Manager catalog ID for the business
+async function sendCatalogMessage(to, catalogId, bodyText) {
+  const normalized = normalizePhone(to);
+  if (process.env.NODE_ENV === 'test') {
+    console.log(`\n[WA CATALOG → ${normalized}]\ncatalogId=${catalogId}\n${bodyText}\n`);
+    return;
+  }
+  await send({
+    messaging_product: 'whatsapp',
+    to: normalized,
+    type: 'interactive',
+    interactive: {
+      type: 'catalog_message',
+      body: { text: bodyText },
+      action: { name: 'catalog_message', parameters: { thumbnail_product_retailer_id: '' } },
+    },
+  });
+}
+
+module.exports = { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage };

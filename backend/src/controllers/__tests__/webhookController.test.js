@@ -152,6 +152,29 @@ describe('receiveWebhook', () => {
     expect(handleMessage).not.toHaveBeenCalled();
   });
 
+  test('processes order (cart) message as cart_submitted', async () => {
+    phoneRoutingRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+    const req = { body: webhookBody({
+      type: 'order',
+      order: {
+        catalog_id: 'cat_123',
+        product_items: [
+          { product_retailer_id: 'item_1', quantity: 2, item_price: 8.50, currency: 'EUR' },
+        ],
+      },
+    }) };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(handleMessage).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        type: 'cart_submitted',
+        items: [{ productId: 'item_1', qty: 2, price: 8.50, currency: 'EUR' }],
+      }),
+    );
+    expect(res.json).toHaveBeenCalledWith({ status: 'success' });
+  });
+
   test('200 ok for unknown message type (e.g. image)', async () => {
     const req = { body: webhookBody({ type: 'image' }) };
     const res = makeRes();

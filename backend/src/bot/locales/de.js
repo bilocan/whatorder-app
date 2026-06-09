@@ -33,5 +33,12 @@ module.exports = {
 
   menuEmpty: () => 'Aktuell keine Artikel verfügbar.',
 
+  catalogBody: (name) => `👋 Willkommen bei ${name}!\n\nStöbern Sie im Menü und tippen Sie auf "In den Warenkorb". Wenn Sie fertig sind, senden Sie Ihren Warenkorb.`,
+  catalogUnavailable: () => 'Unser Katalog ist noch nicht eingerichtet. Bitte kontaktieren Sie uns direkt.',
+
+  specialRequestsPrompt: () => 'Haben Sie besondere Wünsche, Allergien oder Anmerkungen?\n\nTippen Sie diese hier ein oder tippen Sie auf Überspringen.',
+  skipBtn: () => 'Überspringen',
+  askName: () => 'Wie lautet Ihr Name für die Bestellung?',
+
   orderReady: (shortId) => `✅ Ihre Bestellung #${shortId} ist abholbereit! Bis gleich 🙏`,
 };

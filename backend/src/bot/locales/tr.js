@@ -33,5 +33,12 @@ module.exports = {
 
   menuEmpty: () => 'Şu an menümüzde ürün yok.',
 
+  catalogBody: (name) => `👋 ${name}'a hoş geldiniz!\n\nMenüye göz atın ve istediğiniz ürünleri sepete ekleyin. Hazır olduğunuzda sepetinizi gönderin.`,
+  catalogUnavailable: () => 'Kataloğumuz henüz hazır değil. Sipariş için lütfen bize doğrudan ulaşın.',
+
+  specialRequestsPrompt: () => 'Özel isteğiniz, alerji durumunuz veya notunuz var mı?\n\nBuraya yazabilirsiniz, yoksa Atla tuşuna basın.',
+  skipBtn: () => 'Atla',
+  askName: () => 'Sipariş için adınızı yazar mısınız?',
+
   orderReady: (shortId) => `✅ Siparişiniz #${shortId} hazır! Sizi bekliyoruz 🙏`,
 };
