@@ -4,6 +4,7 @@
   "routes": [
     { "src": "/webhooks/whatsapp", "dest": "/api/webhooks/whatsapp" },
     { "src": "/health", "dest": "/api/index" },
+    { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/index.html", "methods": ["GET", "HEAD"] }
   ]
 }
