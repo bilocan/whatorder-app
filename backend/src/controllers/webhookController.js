@@ -19,6 +19,7 @@ function verifyWebhook(req, res) {
 }
 
 async function receiveWebhook(req, res) {
+  console.log('[webhook] POST received', req.method, req.url);
   const entry = req.body?.entry?.[0];
   const change = entry?.changes?.[0]?.value;
   const msg = change?.messages?.[0];
