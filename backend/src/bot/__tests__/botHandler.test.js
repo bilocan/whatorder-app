@@ -535,3 +535,421 @@ describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 });
+
+// ─── Language override ────────────────────────────────────────────────────────
+
+describe('Language override via keyword', () => {
+  test('"english" switches session language to en', async () => {
+    getSession.mockResolvedValue({ language: 'tr', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: 'english' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'en' }));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('English'));
+  });
+
+  test('"deutsch" switches session language to de', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: 'deutsch' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'de' }));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Deutsch'));
+  });
+});
+
+// ─── Empty menu ───────────────────────────────────────────────────────────────
+
+describe('Empty menu', () => {
+  test('shows menuEmpty text when no items in menu', async () => {
+    getBusinessInfo.mockResolvedValue({ name: 'Empty Bistro', avgPrepTime: 20 }); // no catalogId → falls to sendMenu
+    getMenu.mockResolvedValue([]);
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: 'anything' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('No items'));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+});
+
+// ─── selecting_restaurant state ───────────────────────────────────────────────
+
+describe('Multi-restaurant: selecting_restaurant state handling', () => {
+  beforeEach(() => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO)
+    );
+  });
+
+  test('valid restaurant list_reply → browsing state and catalog for selected restaurant', async () => {
+    getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_biz_b' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      businessId: 'biz_b',
+    }));
+    expect(sendCatalogMessage).toHaveBeenCalledWith(FROM, 'cat_b', expect.any(String), expect.any(String));
+  });
+
+  test('invalid restaurant id in list_reply → re-shows picker without state change', async () => {
+    getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_unknown_999' }));
+
+    expect(setSession).not.toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: [expect.objectContaining({ rows: expect.any(Array) })],
+    }));
+  });
+
+  test('non-list_reply input while selecting_restaurant → re-shows picker', async () => {
+    getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'what are my options?' }));
+
+    expect(setSession).not.toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+});
+
+// ─── selecting state (list-menu qty flow) ────────────────────────────────────
+
+describe('Selecting state: quantity selection flow', () => {
+  const pendingItem = { name: 'Döner', price: 8.50 };
+
+  test('qty button adds item to empty basket and shows post-add buttons', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'selecting', businessId: BIZ, basket: [],
+      pendingItem,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'qty_2', title: '2' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_add_more' }),
+        expect.objectContaining({ id: 'btn_view_basket' }),
+        expect.objectContaining({ id: 'btn_done' }),
+      ]),
+    }));
+  });
+
+  test('text number adds item to basket', async () => {
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'selecting', businessId: BIZ, basket: [],
+      pendingItem: { name: 'Ayran', price: 2.00 },
+    });
+
+    await handleMessage(ROUTING, msg({ text: '3' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [{ name: 'Ayran', qty: 3, price: 2.00 }],
+    }));
+  });
+
+  test('qty merges into existing basket item', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'selecting', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      pendingItem,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'qty_1', title: '1' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+    }));
+  });
+
+  test('non-numeric text re-shows qty buttons without changing session', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'selecting', businessId: BIZ, basket: [],
+      pendingItem,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'I want one please' }));
+
+    expect(setSession).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'qty_1' })]),
+    }));
+  });
+});
+
+// ─── List-reply in browsing state ────────────────────────────────────────────
+
+describe('Browsing state: list_reply item selection', () => {
+  test('valid item list_reply transitions to selecting state', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'item_item_1' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'selecting',
+      pendingItem: { name: 'Döner', price: 8.50 },
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'qty_1' }),
+        expect.objectContaining({ id: 'qty_2' }),
+        expect.objectContaining({ id: 'qty_3' }),
+      ]),
+    }));
+  });
+
+  test('unknown item id shows catalog', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'item_unknown_999' }));
+
+    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(setSession).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Browsing state button actions ───────────────────────────────────────────
+
+describe('Browsing state: button actions', () => {
+  test('btn_add_more shows catalog', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_add_more', title: 'Add more' }));
+
+    expect(sendCatalogMessage).toHaveBeenCalled();
+  });
+
+  test('btn_view_basket with items shows basket text and action buttons', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_view_basket', title: 'View basket' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_clear_basket' }),
+        expect.objectContaining({ id: 'btn_confirm' }),
+      ]),
+    }));
+  });
+
+  test('btn_view_basket with empty basket shows catalog', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_view_basket', title: 'View basket' }));
+
+    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+  });
+
+  test('btn_clear_basket clears basket and shows catalog', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_clear_basket', title: 'Clear' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ basket: [] }));
+    expect(sendCatalogMessage).toHaveBeenCalled();
+  });
+
+  test('btn_done with items transitions to awaiting_special_requests', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_done', title: 'Done' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_special_requests',
+      pickupTime: expect.any(String),
+      prepMins: 20,
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: [expect.objectContaining({ id: 'btn_skip_requests' })],
+    }));
+  });
+
+  test('btn_done with empty basket shows catalog', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_done', title: 'Done' }));
+
+    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(setSession).not.toHaveBeenCalled();
+  });
+
+  test('btn_confirm with items transitions to awaiting_special_requests', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Ayran', qty: 2, price: 2.00 }],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm', title: 'Confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_special_requests',
+    }));
+  });
+
+  test('btn_cancel_order in browsing (single) clears basket and shows catalog', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_cancel_order', title: 'Cancel' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
+    expect(sendCatalogMessage).toHaveBeenCalled();
+  });
+});
+
+// ─── Browsing state: basket keyword ──────────────────────────────────────────
+
+describe('Browsing state: basket keyword', () => {
+  test('"basket" with items shows basket text', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }, { name: 'Ayran', qty: 2, price: 2.00 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'basket' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_clear_basket' }),
+        expect.objectContaining({ id: 'btn_confirm' }),
+      ]),
+    }));
+  });
+
+  test('"sepet" keyword with empty basket shows catalog', async () => {
+    getSession.mockResolvedValue({ language: 'tr', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: 'sepet' }));
+
+    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+  });
+
+  test('"warenkorb" keyword with items shows basket text', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'warenkorb' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+    }));
+  });
+});
+
+// ─── awaiting_special_requests fallback ──────────────────────────────────────
+
+describe('awaiting_special_requests: invalid input re-prompts', () => {
+  test('button_reply other than btn_skip_requests re-prompts for special requests', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'awaiting_special_requests',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      pickupTime: '14:30', prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_other', title: 'Other' }));
+
+    expect(setSession).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: [expect.objectContaining({ id: 'btn_skip_requests' })],
+    }));
+  });
+
+  test('empty text re-prompts for special requests', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'awaiting_special_requests',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      pickupTime: '14:30', prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ text: '' }));
+
+    expect(setSession).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: [expect.objectContaining({ id: 'btn_skip_requests' })],
+    }));
+  });
+});
+
+// ─── awaiting_name fallback ───────────────────────────────────────────────────
+
+describe('awaiting_name: non-text input shows order summary', () => {
+  test('button_reply in awaiting_name shows confirmSummary with basket text', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'awaiting_name',
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      pickupTime: '14:30', prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'some_btn', title: 'Something' }));
+
+    expect(setSession).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Döner'));
+  });
+});
+
+// ─── confirming state: ambiguous input ───────────────────────────────────────
+
+describe('Confirming state: ambiguous input', () => {
+  test('unrecognized text sends yesNoOnly and does not create order', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'confirming',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'maybe later' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('YES or NO'));
+  });
+
+  test('text "yes" confirms order (text-path CONFIRM keyword)', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'confirming',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John', pickupTime: '14:30', specialRequests: '',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'yes' }));
+
+    expect(createOrder).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
+  });
+
+  test('text "no" cancels order (text-path CANCEL keyword)', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'confirming',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'no' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
+    expect(sendCatalogMessage).toHaveBeenCalled();
+  });
+});
