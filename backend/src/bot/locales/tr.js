@@ -41,4 +41,9 @@ module.exports = {
   askName: () => 'Sipariş için adınızı yazar mısınız?',
 
   orderReady: (shortId) => `✅ Siparişiniz #${shortId} hazır! Sizi bekliyoruz 🙏`,
+
+  restaurantPickerBody: () => 'Hangi restorandan sipariş vermek istersiniz?',
+  restaurantPickerButton: () => 'Restoranlar',
+  restaurantPickerFooter: () => 'Menüyü açmak için bir isme dokunun',
+  switchConfirmed: () => '🔄 Restoran değiştiriliyor. Sepetiniz temizlendi.',
 };

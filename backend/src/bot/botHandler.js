@@ -8,6 +8,7 @@ const { t, tCategory } = require('./templates');
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', '1', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal', '2']);
 const BASKET_KEYWORDS = new Set(['basket', 'sepet', 'warenkorb']);
+const SWITCH_KEYWORDS = new Set(['switch', 'change', 'restaurants', 'back', 'home', 'wechseln', 'zurück', 'zuruck', 'değiştir', 'degistir', 'restoranlar', 'start']);
 
 function buildMenuSections(menu, lang) {
   const grouped = {};
@@ -67,14 +68,40 @@ async function sendCatalog(to, lang, businessId, bodyOverride) {
   }
 }
 
+async function getBusinessesInfo(businessIds) {
+  return Promise.all(businessIds.map(async bid => {
+    const info = await getBusinessInfo(bid);
+    return { id: bid, name: info.name, tagline: info.tagline || info.cuisine || '' };
+  }));
+}
+
+async function sendRestaurantPicker(to, businesses, lang) {
+  await sendListMessage(to, {
+    header: 'WhatOrder',
+    body: t('restaurantPickerBody', lang),
+    footer: t('restaurantPickerFooter', lang),
+    buttonLabel: t('restaurantPickerButton', lang),
+    sections: [{
+      title: 'Restaurants',
+      rows: businesses.map(b => ({
+        id: `restaurant_${b.id}`,
+        title: b.name.slice(0, 24),
+        description: b.tagline.slice(0, 72),
+      })),
+    }],
+  });
+}
+
+// routing: { businessIds: string[], defaultBusinessId: string|null }
 // message shape:
 //   { type: 'text', text }
-//   { type: 'list_reply', id, title }       — list menu (fallback flow)
+//   { type: 'list_reply', id, title }       — list menu or restaurant picker
 //   { type: 'button_reply', id, title }
 //   { type: 'cart_submitted', items: [{ productId, qty, price, currency }] } — catalog flow
-async function handleMessage(businessId, { from, contactName, type, text, id, items }) {
+async function handleMessage(routing, { from, contactName, type, text, id, items }) {
   const session = await getSession(from);
   const norm = (text ?? '').trim().toLowerCase();
+  const isMulti = routing.businessIds.length > 1;
 
   // Language override (text only)
   if (type === 'text') {
@@ -86,16 +113,53 @@ async function handleMessage(businessId, { from, contactName, type, text, id, it
     }
   }
 
-  // First message — detect language, open catalog (with list fallback)
-  if (!session.language) {
+  // First message OR multi-restaurant with no restaurant selected yet
+  // (skip if already in selecting_restaurant — let the state machine handle the reply)
+  if (!session.language || (isMulti && !session.businessId && session.state !== 'selecting_restaurant')) {
     const lang = type === 'text' ? detectLanguage(text) : 'tr';
-    await setSession(from, { state: 'browsing', language: lang, basket: [] });
-    await sendCatalog(from, lang, businessId);
+    if (isMulti) {
+      const businesses = await getBusinessesInfo(routing.businessIds);
+      await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null });
+      await sendRestaurantPicker(from, businesses, lang);
+      return;
+    }
+    const bid = routing.defaultBusinessId || routing.businessIds[0];
+    await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid });
+    await sendCatalog(from, lang, bid);
     return;
   }
 
   const lang = session.language;
+  const businessId = session.businessId || routing.defaultBusinessId || routing.businessIds[0];
   const basket = session.basket ?? [];
+
+  // Switch restaurant command — available from any state (multi only)
+  if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {
+    const businesses = await getBusinessesInfo(routing.businessIds);
+    await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null });
+    await sendText(from, t('switchConfirmed', lang));
+    await sendRestaurantPicker(from, businesses, lang);
+    return;
+  }
+
+  // ── State: selecting_restaurant ───────────────────────────────────────────
+  if (session.state === 'selecting_restaurant') {
+    if (type === 'list_reply' && id?.startsWith('restaurant_')) {
+      const selectedBid = id.replace('restaurant_', '');
+      if (!routing.businessIds.includes(selectedBid)) {
+        const businesses = await getBusinessesInfo(routing.businessIds);
+        await sendRestaurantPicker(from, businesses, lang);
+        return;
+      }
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: selectedBid });
+      await sendCatalog(from, lang, selectedBid);
+      return;
+    }
+    // Any other input while picking: re-show the picker
+    const businesses = await getBusinessesInfo(routing.businessIds);
+    await sendRestaurantPicker(from, businesses, lang);
+    return;
+  }
 
   // ── State: selecting (list flow — waiting for qty) ────────────────────────
   if (session.state === 'selecting') {
@@ -117,7 +181,7 @@ async function handleMessage(businessId, { from, contactName, type, text, id, it
       const totalItems = newBasket.reduce((s, i) => s + i.qty, 0);
       const totalPrice = newBasket.reduce((s, i) => s + i.price * i.qty, 0);
 
-      await setSession(from, { state: 'browsing', language: lang, basket: newBasket });
+      await setSession(from, { state: 'browsing', language: lang, basket: newBasket, businessId });
       await sendButtonMessage(from, {
         body: t('itemAdded', lang, qty, name, totalItems, totalPrice.toFixed(2)),
         buttons: [
@@ -196,13 +260,13 @@ async function handleMessage(businessId, { from, contactName, type, text, id, it
         notes: session.specialRequests || null,
       });
       const shortId = orderId.slice(-6).toUpperCase();
-      await setSession(from, { state: 'browsing', language: lang, basket: [] });
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId });
       await sendText(from, t('orderConfirmed', lang, shortId));
       return;
     }
 
     if (isCancel) {
-      await setSession(from, { state: 'browsing', language: lang, basket: [] });
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId });
       await sendCatalog(from, lang, businessId, t('orderCancelled', lang));
       return;
     }
@@ -229,7 +293,7 @@ async function handleMessage(businessId, { from, contactName, type, text, id, it
     const pickupTime = new Date(Date.now() + prepMins * 60000)
       .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
 
-    await setSession(from, { state: 'awaiting_special_requests', language: lang, basket: newBasket, pickupTime, prepMins });
+    await setSession(from, { state: 'awaiting_special_requests', language: lang, basket: newBasket, pickupTime, prepMins, businessId });
     await sendButtonMessage(from, {
       body: t('specialRequestsPrompt', lang),
       buttons: [{ id: 'btn_skip_requests', title: t('skipBtn', lang) }],
@@ -305,7 +369,7 @@ async function handleMessage(businessId, { from, contactName, type, text, id, it
     }
 
     if (id === 'btn_cancel_order') {
-      await setSession(from, { state: 'browsing', language: lang, basket: [] });
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId });
       await sendCatalog(from, lang, businessId, t('orderCancelled', lang));
       return;
     }
