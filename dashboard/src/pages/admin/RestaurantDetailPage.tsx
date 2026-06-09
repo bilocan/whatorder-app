@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../../lib/firebase';
+import { geocodeAddress } from '../../lib/geocode';
 import type { Business, MenuItem, PhoneRouting, Owner } from '../../types';
 
 type Tab = 'details' | 'menu' | 'routing' | 'owners';
@@ -59,7 +60,12 @@ export default function RestaurantDetailPage() {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editStatus, setEditStatus] = useState<'active' | 'paused'>('active');
+  const [editAddress, setEditAddress] = useState('');
+  const [editLat, setEditLat] = useState('');
+  const [editLng, setEditLng] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeError, setGeocodeError] = useState(false);
 
   // Menu
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -90,6 +96,9 @@ export default function RestaurantDetailPage() {
       setEditName(data.name);
       setEditPhone(data.phone);
       setEditStatus(data.status);
+      setEditAddress(data.address ?? '');
+      setEditLat(data.lat != null ? String(data.lat) : '');
+      setEditLng(data.lng != null ? String(data.lng) : '');
     });
 
     const menuUnsub = onSnapshot(collection(db, 'businesses', id, 'menu'), (snap) => {
@@ -109,12 +118,39 @@ export default function RestaurantDetailPage() {
     return () => { menuUnsub(); routingUnsub(); ownersUnsub(); };
   }, [id]);
 
+  async function handleLookupCoords() {
+    if (!editAddress.trim()) return;
+    setGeocoding(true);
+    setGeocodeError(false);
+    try {
+      const result = await geocodeAddress(editAddress);
+      if (!result) { setGeocodeError(true); return; }
+      setEditLat(String(result.lat));
+      setEditLng(String(result.lng));
+    } catch {
+      setGeocodeError(true);
+    } finally {
+      setGeocoding(false);
+    }
+  }
+
   async function saveDetails(e: React.FormEvent) {
     e.preventDefault();
     if (!id) return;
+    const parsedLat = editLat === '' ? null : parseFloat(editLat);
+    const parsedLng = editLng === '' ? null : parseFloat(editLng);
+    if (parsedLat != null && (parsedLat < -90 || parsedLat > 90)) return;
+    if (parsedLng != null && (parsedLng < -180 || parsedLng > 180)) return;
     setSavingDetails(true);
-    await updateDoc(doc(db, 'businesses', id), { name: editName, phone: editPhone, status: editStatus });
-    setBusiness((b) => b ? { ...b, name: editName, phone: editPhone, status: editStatus } : b);
+    await updateDoc(doc(db, 'businesses', id), {
+      name: editName,
+      phone: editPhone,
+      status: editStatus,
+      address: editAddress || null,
+      lat: parsedLat,
+      lng: parsedLng,
+    });
+    setBusiness((b) => b ? { ...b, name: editName, phone: editPhone, status: editStatus, address: editAddress || undefined, lat: parsedLat, lng: parsedLng } : b);
     setSavingDetails(false);
     setEditing(false);
   }
@@ -223,6 +259,8 @@ export default function RestaurantDetailPage() {
               <Field label="Notification phone" value={business.phone} />
               <Field label="Status" value={business.status} />
               <Field label="Business ID" value={business.id} mono />
+              <Field label="Address" value={business.address ?? '—'} />
+              <Field label="Coordinates" value={business.lat != null && business.lng != null ? `${business.lat}, ${business.lng}` : '—'} mono />
               <button onClick={() => setEditing(true)} style={btnPrimary}>Edit</button>
             </div>
           ) : (
@@ -239,6 +277,50 @@ export default function RestaurantDetailPage() {
                   <option value="active">Active</option>
                   <option value="paused">Paused</option>
                 </select>
+              </div>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <label style={labelStyle}>Address</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    value={editAddress}
+                    onChange={(e) => { setEditAddress(e.target.value); setGeocodeError(false); }}
+                    placeholder="e.g. Margaretenstrasse 42, 1050 Wien"
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleLookupCoords}
+                    disabled={geocoding || !editAddress.trim()}
+                    style={{ ...btnSecondary, whiteSpace: 'nowrap', opacity: !editAddress.trim() ? 0.5 : 1 }}
+                  >
+                    {geocoding ? 'Looking up…' : 'Look up coords'}
+                  </button>
+                </div>
+                {geocodeError && <div style={{ fontSize: '0.78rem', color: '#ef4444', marginTop: '0.25rem' }}>Address not found — try a more specific address.</div>}
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Latitude</label>
+                  <input
+                    type="number"
+                    value={editLat}
+                    onChange={(e) => setEditLat(e.target.value)}
+                    placeholder="e.g. 48.2093"
+                    step="any"
+                    style={inputStyle}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Longitude</label>
+                  <input
+                    type="number"
+                    value={editLng}
+                    onChange={(e) => setEditLng(e.target.value)}
+                    placeholder="e.g. 16.3621"
+                    step="any"
+                    style={inputStyle}
+                  />
+                </div>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button type="submit" disabled={savingDetails} style={{ ...btnPrimary, opacity: savingDetails ? 0.6 : 1 }}>
@@ -454,11 +536,11 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   );
 }
 
-function FormField({ label, value, onChange, required }: { label: string; value: string; onChange: (v: string) => void; required?: boolean }) {
+function FormField({ label, value, onChange, required, placeholder }: { label: string; value: string; onChange: (v: string) => void; required?: boolean; placeholder?: string }) {
   return (
     <div style={{ marginBottom: '0.75rem' }}>
       <label style={labelStyle}>{label}</label>
-      <input value={value} onChange={(e) => onChange(e.target.value)} required={required} style={inputStyle} />
+      <input value={value} onChange={(e) => onChange(e.target.value)} required={required} placeholder={placeholder} style={inputStyle} />
     </div>
   );
 }

@@ -42,6 +42,7 @@ module.exports = {
 
   orderReady: (shortId) => `✅ Siparişiniz #${shortId} hazır! Sizi bekliyoruz 🙏`,
 
+  locationRequestBody: () => '📍 Konumunuzu paylaşın, en yakın restoranları önce gösterelim.\n\nYa da herhangi bir şey yazarak tüm restoranları görebilirsiniz.',
   restaurantPickerBody: () => 'Hangi restorandan sipariş vermek istersiniz?',
   restaurantPickerButton: () => 'Restoranlar',
   restaurantPickerFooter: () => 'Menüyü açmak için bir isme dokunun',
