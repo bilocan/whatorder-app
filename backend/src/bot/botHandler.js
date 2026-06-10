@@ -268,7 +268,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       const totalItems = newBasket.reduce((s, i) => s + i.qty, 0);
       const totalPrice = newBasket.reduce((s, i) => s + i.price * i.qty, 0);
 
-      await setSession(from, { state: 'browsing', language: lang, basket: newBasket, businessId });
+      await setSession(from, { state: 'browsing', language: lang, basket: newBasket, businessId, ...(session.flow ? { flow: session.flow } : {}) });
       await sendButtonMessage(from, {
         body: t('itemAdded', lang, qty, name, totalItems, totalPrice.toFixed(2)),
         buttons: [
@@ -421,7 +421,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       await sendCatalog(from, lang, businessId);
       return;
     }
-    await setSession(from, { ...session, state: 'selecting', pendingItem: { name: item.name, price: item.price } });
+    await setSession(from, { ...session, state: 'selecting', flow: 'list', pendingItem: { name: item.name, price: item.price } });
     await sendButtonMessage(from, {
       body: t('qtyBody', lang, item.name, item.price.toFixed(2)),
       buttons: [
@@ -436,7 +436,11 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   // Action buttons (post-add or basket view)
   if (type === 'button_reply') {
     if (id === 'btn_add_more') {
-      await sendCatalog(from, lang, businessId);
+      if (session.flow === 'list') {
+        await sendMenu(from, lang, businessId);
+      } else {
+        await sendCatalog(from, lang, businessId);
+      }
       return;
     }
 

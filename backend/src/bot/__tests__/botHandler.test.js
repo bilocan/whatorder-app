@@ -847,12 +847,22 @@ describe('Browsing state: list_reply item selection', () => {
 // ─── Browsing state button actions ───────────────────────────────────────────
 
 describe('Browsing state: button actions', () => {
-  test('btn_add_more shows catalog', async () => {
+  test('btn_add_more shows catalog when flow is not list', async () => {
     getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_add_more', title: 'Add more' }));
 
     expect(sendCatalogMessage).toHaveBeenCalled();
+  });
+
+  test('btn_add_more shows list menu when flow is list', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', flow: 'list', businessId: BIZ, basket: [] });
+    getBusinessInfo.mockResolvedValue({ name: 'Döner Palace', avgPrepTime: 20 }); // no catalogId → list fallback
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_add_more', title: 'Add more' }));
+
+    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendCatalogMessage).not.toHaveBeenCalled();
   });
 
   test('btn_view_basket with items shows basket text and action buttons', async () => {
