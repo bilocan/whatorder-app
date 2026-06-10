@@ -29,6 +29,8 @@ module.exports = {
   confirmPrompt: () => 'Onaylamak için YES, iptal için NO yazın.',
   yesNoOnly: () => 'Lütfen YES veya NO yazın.',
   orderConfirmed: (shortId) => `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\nHazır olduğunda size bildireceğiz. Teşekkürler! 🙏`,
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName) =>
+    `✅ Sipariş #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nToplam: €${total}\nHazır: ${pickupTime}\n\nTeşekkürler, ${customerName}! 🙏`,
   orderCancelled: () => 'Sipariş iptal edildi.',
 
   menuEmpty: () => 'Şu an menümüzde ürün yok.',

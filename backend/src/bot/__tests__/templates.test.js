@@ -11,7 +11,7 @@ const FUNCTION_KEYS = [
   'basketHeader', 'basketEmpty', 'clearBasketBtn', 'confirmBtn',
   'orderTotal', 'confirmSummary', 'finalConfirmBody',
   'confirmOrderBtn', 'cancelOrderBtn', 'confirmPrompt', 'yesNoOnly',
-  'orderConfirmed', 'orderCancelled',
+  'orderConfirmed', 'orderCancelled', 'orderReceipt',
   'menuEmpty',
   'orderReady',
 ];

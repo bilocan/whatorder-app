@@ -29,6 +29,8 @@ module.exports = {
   confirmPrompt: () => 'Type YES to confirm, NO to cancel.',
   yesNoOnly: () => 'Please type YES or NO.',
   orderConfirmed: (shortId) => `✅ Order received! Order #${shortId}\n\nWe'll notify you when it's ready. Thank you! 🙏`,
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName) =>
+    `✅ Order #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nTotal: €${total}\nReady by: ${pickupTime}\n\nThanks, ${customerName}! 🙏`,
   orderCancelled: () => 'Order cancelled.',
 
   menuEmpty: () => 'No items available right now.',
