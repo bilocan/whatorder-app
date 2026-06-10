@@ -1045,3 +1045,97 @@ describe('Confirming state: ambiguous input', () => {
     expect(sendCatalogMessage).toHaveBeenCalled();
   });
 });
+
+// ─── Newly added restaurant appears in picker ─────────────────────────────────
+
+describe('Multi-restaurant: newly added restaurant appears in picker', () => {
+  const BIZ_C_INFO = { name: 'Sushi Garden', tagline: 'Fresh sushi', avgPrepTime: 30, catalogId: 'cat_c' };
+  const ROUTING_3 = { businessIds: ['biz_a', 'biz_b', 'biz_c'], defaultBusinessId: null };
+
+  beforeEach(() => {
+    getBusinessInfo.mockImplementation(id => {
+      if (id === 'biz_a') return Promise.resolve(BIZ_A_INFO);
+      if (id === 'biz_b') return Promise.resolve(BIZ_B_INFO);
+      return Promise.resolve(BIZ_C_INFO);
+    });
+  });
+
+  test('picker lists all 3 restaurants including newly added one', async () => {
+    getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
+
+    await handleMessage(ROUTING_3, msg({ text: 'skip' }));
+
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: [expect.objectContaining({
+        rows: expect.arrayContaining([
+          expect.objectContaining({ id: 'restaurant_biz_a' }),
+          expect.objectContaining({ id: 'restaurant_biz_b' }),
+          expect.objectContaining({ id: 'restaurant_biz_c' }),
+        ]),
+      })],
+    }));
+    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
+    expect(rows).toHaveLength(3);
+  });
+
+  test('newly added restaurant (biz_c) is selectable and opens its catalog', async () => {
+    getSession.mockResolvedValue({ state: 'selecting_restaurant', language: 'en', basket: [], businessId: null });
+
+    await handleMessage(ROUTING_3, msg({ type: 'list_reply', id: 'restaurant_biz_c' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      businessId: 'biz_c',
+    }));
+    expect(sendCatalogMessage).toHaveBeenCalledWith(FROM, 'cat_c', expect.any(String), expect.any(String));
+  });
+
+  test('picker row title shows newly added restaurant name', async () => {
+    getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
+
+    await handleMessage(ROUTING_3, msg({ text: 'skip' }));
+
+    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
+    const bizCRow = rows.find(r => r.id === 'restaurant_biz_c');
+    expect(bizCRow).toBeDefined();
+    expect(bizCRow.title).toBe('Sushi Garden');
+  });
+});
+
+// ─── Removed restaurant absent from picker ───────────────────────────────────
+
+describe('Multi-restaurant: removed restaurant absent from picker', () => {
+  const ROUTING_AFTER_REMOVAL = { businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null };
+
+  beforeEach(() => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO),
+    );
+  });
+
+  test('picker shows only 2 restaurants after biz_c was removed', async () => {
+    getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
+
+    await handleMessage(ROUTING_AFTER_REMOVAL, msg({ text: 'skip' }));
+
+    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
+    expect(rows).toHaveLength(2);
+    expect(rows.map(r => r.id)).not.toContain('restaurant_biz_c');
+  });
+
+  test('removed restaurant id in list_reply is rejected and re-shows picker', async () => {
+    getSession.mockResolvedValue({ state: 'selecting_restaurant', language: 'en', basket: [], businessId: null });
+
+    await handleMessage(ROUTING_AFTER_REMOVAL, msg({ type: 'list_reply', id: 'restaurant_biz_c' }));
+
+    expect(setSession).not.toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: [expect.objectContaining({
+        rows: expect.arrayContaining([
+          expect.objectContaining({ id: 'restaurant_biz_a' }),
+          expect.objectContaining({ id: 'restaurant_biz_b' }),
+        ]),
+      })],
+    }));
+  });
+});

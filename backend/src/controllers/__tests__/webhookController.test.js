@@ -71,20 +71,7 @@ describe('receiveWebhook', () => {
     expect(handleMessage).not.toHaveBeenCalled();
   });
 
-  test('resolves routing from Firestore when snap exists (old schema)', async () => {
-    phoneRoutingRef.mockReturnValue({
-      get: jest.fn().mockResolvedValue({ exists: true, data: () => ({ businessId: 'biz_firestore' }) }),
-    });
-    const req = { body: webhookBody() };
-    const res = makeRes();
-    await receiveWebhook(req, res);
-    expect(handleMessage).toHaveBeenCalledWith(
-      { businessIds: ['biz_firestore'], defaultBusinessId: 'biz_firestore' },
-      expect.any(Object),
-    );
-  });
-
-  test('resolves routing from Firestore when snap exists (new schema)', async () => {
+  test('resolves routing from Firestore when snap exists', async () => {
     phoneRoutingRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({ exists: true, data: () => ({ businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null }) }),
     });
@@ -95,6 +82,41 @@ describe('receiveWebhook', () => {
       { businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null },
       expect.any(Object),
     );
+  });
+
+  test('newly added restaurant appears when businessIds array grows to 3 entries', async () => {
+    phoneRoutingRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({ businessIds: ['biz_a', 'biz_b', 'biz_c'], defaultBusinessId: 'biz_a' }),
+      }),
+    });
+    const req = { body: webhookBody() };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(handleMessage).toHaveBeenCalledWith(
+      { businessIds: ['biz_a', 'biz_b', 'biz_c'], defaultBusinessId: 'biz_a' },
+      expect.any(Object),
+    );
+  });
+
+  test('removed restaurant is absent when businessIds array shrinks back to 1', async () => {
+    phoneRoutingRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({ businessIds: ['biz_a'], defaultBusinessId: 'biz_a' }),
+      }),
+    });
+    const req = { body: webhookBody() };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(handleMessage).toHaveBeenCalledWith(
+      { businessIds: ['biz_a'], defaultBusinessId: 'biz_a' },
+      expect.any(Object),
+    );
+    const routing = handleMessage.mock.calls[0][0];
+    expect(routing.businessIds).not.toContain('biz_b');
+    expect(routing.businessIds).not.toContain('biz_c');
   });
 
   test('falls back to BUSINESS_ID env when snap does not exist', async () => {
