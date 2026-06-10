@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
-import { db } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import type { Business } from '../../types';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 
 function generateId(name: string): string {
@@ -29,6 +31,7 @@ export default function RestaurantsPage() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [saving, setSaving] = useState(false);
+  const [createError, setCreateError] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -57,23 +60,43 @@ export default function RestaurantsPage() {
 
   async function createRestaurant(e: React.FormEvent) {
     e.preventDefault();
+    setCreateError('');
     setSaving(true);
-    const id = generateId(name);
-    await setDoc(doc(db, 'businesses', id), {
-      id,
-      name,
-      phone,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    });
-    if (PHONE_NUMBER_ID) {
-      await setDoc(doc(db, 'phoneRouting', PHONE_NUMBER_ID), { businessIds: arrayUnion(id) }, { merge: true });
+    try {
+      const id = generateId(name);
+      await setDoc(doc(db, 'businesses', id), {
+        id,
+        name,
+        phone,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      });
+      if (PHONE_NUMBER_ID) {
+        await setDoc(doc(db, 'phoneRouting', PHONE_NUMBER_ID), { businessIds: arrayUnion(id) }, { merge: true });
+      }
+      // Link the owner by phone so they can sign in immediately
+      const token = await auth.currentUser?.getIdToken();
+      const ownerRes = await fetch(`${API_URL}/admin/owners`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ phone, businessId: id }),
+      });
+      if (!ownerRes.ok) {
+        const body = await ownerRes.json().catch(() => ({}));
+        setCreateError(`Restaurant created but owner link failed: ${body.error ?? 'unknown error'}`);
+        setSaving(false);
+        return;
+      }
+      setShowForm(false);
+      setName('');
+      setPhone('');
+      navigate(`/admin/restaurants/${id}`);
+    } catch (err) {
+      setCreateError('Unexpected error — check console');
+      console.error('[createRestaurant]', err);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setShowForm(false);
-    setName('');
-    setPhone('');
-    navigate(`/admin/restaurants/${id}`);
   }
 
   return (
@@ -98,6 +121,7 @@ export default function RestaurantsPage() {
 
       {showForm && (
         <form onSubmit={createRestaurant} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10, marginBottom: '1.5rem' }}>
+          {createError && <div style={{ fontSize: '0.82rem', color: '#ef4444', marginBottom: '0.75rem' }}>{createError}</div>}
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ flex: 1, minWidth: 180 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.3rem' }}>Name</label>

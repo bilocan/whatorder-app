@@ -107,6 +107,11 @@ async function sendRestaurantPicker(to, businesses, lang) {
 //   { type: 'button_reply', id, title }
 //   { type: 'cart_submitted', items: [{ productId, qty, price, currency }] } — catalog flow
 async function handleMessage(routing, { from, contactName, type, text, id, items, latitude, longitude }) {
+  if (!routing.businessIds.length) {
+    console.warn(`[bot] no restaurants routed for this WhatsApp number — ignoring message from ${from}`);
+    return;
+  }
+
   const session = await getSession(from);
   const norm = (text ?? '').trim().toLowerCase();
   const isMulti = routing.businessIds.length > 1;
@@ -145,7 +150,12 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   }
 
   const lang = session.language;
-  const businessId = session.businessId || routing.defaultBusinessId || routing.businessIds[0];
+  // Validate session.businessId is still in the current routing — prevents stale sessions
+  // from locking a customer to a restaurant that's been removed or replaced.
+  const sessionBidValid = session.businessId && routing.businessIds.includes(session.businessId);
+  const businessId = sessionBidValid
+    ? session.businessId
+    : (routing.defaultBusinessId || routing.businessIds[0]);
   const basket = session.basket ?? [];
 
   // Switch restaurant command — available from any state (multi only)

@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const webhookRouter = require('./routes/webhook');
 const ordersRouter = require('./routes/orders');
+const adminRouter = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,6 +19,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/webhooks/whatsapp', webhookRouter);
+app.use('/admin', adminRouter);
 app.use('/', ordersRouter);
 
 if (require.main === module) {

@@ -5,9 +5,11 @@ import {
   query, where, setDoc, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
 import { useParams, Link } from 'react-router-dom';
-import { db } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import { geocodeAddress } from '../../lib/geocode';
 import type { Business, MenuItem, Owner } from '../../types';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 type Tab = 'details' | 'menu' | 'owners';
 
@@ -83,7 +85,8 @@ export default function RestaurantDetailPage() {
   // Owners
   const [owners, setOwners] = useState<Owner[]>([]);
   const [showOwnerForm, setShowOwnerForm] = useState(false);
-  const [newUid, setNewUid] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [ownerError, setOwnerError] = useState('');
   const [savingOwner, setSavingOwner] = useState(false);
 
   useEffect(() => {
@@ -204,16 +207,43 @@ export default function RestaurantDetailPage() {
 
   async function addOwner(e: React.FormEvent) {
     e.preventDefault();
+    setOwnerError('');
     setSavingOwner(true);
-    await setDoc(doc(db, 'owners', newUid.trim()), { businessId: id });
-    setNewUid('');
-    setShowOwnerForm(false);
-    setSavingOwner(false);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch(`${API_URL}/admin/owners`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ phone: newPhone.trim(), businessId: id }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setOwnerError(body.error ?? 'Failed to add owner');
+        return;
+      }
+      setNewPhone('');
+      setShowOwnerForm(false);
+    } catch {
+      setOwnerError('Network error — is the backend running?');
+    } finally {
+      setSavingOwner(false);
+    }
   }
 
   async function deleteOwner(uid: string) {
     if (!confirm('Remove this owner?')) return;
-    await deleteDoc(doc(db, 'owners', uid));
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      await fetch(`${API_URL}/admin/owners/${uid}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      await deleteDoc(doc(db, 'owners', uid));
+    }
   }
 
   const tabs: Tab[] = ['details', 'menu', 'owners'];
@@ -449,23 +479,21 @@ export default function RestaurantDetailPage() {
       {/* ── Owners ── */}
       {tab === 'owners' && (
         <div>
-          <p style={{ fontSize: '0.85rem', color: '#666', marginTop: 0 }}>
-            Firebase UID — found in Firebase Console → Authentication → Users after the owner logs in once.
-          </p>
-
           {owners.length === 0 && !showOwnerForm && <p style={{ color: '#999' }}>No owners linked yet.</p>}
           {owners.length > 0 && (
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
-                  <th style={{ padding: '0.5rem' }}>UID</th>
+                  <th style={{ padding: '0.5rem' }}>Phone</th>
+                  <th style={{ padding: '0.5rem', color: '#bbb', fontWeight: 400, fontSize: '0.8rem' }}>UID</th>
                   <th style={{ padding: '0.5rem' }} />
                 </tr>
               </thead>
               <tbody>
                 {owners.map((owner) => (
                   <tr key={owner.uid} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '0.65rem 0.5rem', fontFamily: 'monospace', fontSize: '0.85rem' }}>{owner.uid}</td>
+                    <td style={{ padding: '0.65rem 0.5rem', fontWeight: 500 }}>{owner.phone ?? '—'}</td>
+                    <td style={{ padding: '0.65rem 0.5rem', fontFamily: 'monospace', fontSize: '0.78rem', color: '#bbb' }}>{owner.uid}</td>
                     <td style={{ padding: '0.65rem 0.5rem', textAlign: 'right' }}>
                       <button onClick={() => deleteOwner(owner.uid)} style={btnDanger}>Remove</button>
                     </td>
@@ -479,15 +507,22 @@ export default function RestaurantDetailPage() {
             <form onSubmit={addOwner} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10, marginTop: '0.5rem' }}>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
                 <div style={{ flex: 1, minWidth: 220 }}>
-                  <label style={labelStyle}>Firebase UID</label>
-                  <input value={newUid} onChange={(e) => setNewUid(e.target.value)} required placeholder="abc123xyz..." style={inputStyle} />
+                  <label style={labelStyle}>Owner phone number</label>
+                  <input
+                    value={newPhone}
+                    onChange={(e) => { setNewPhone(e.target.value); setOwnerError(''); }}
+                    required
+                    placeholder="+43 699 123 456"
+                    style={inputStyle}
+                  />
                 </div>
               </div>
+              {ownerError && <div style={{ fontSize: '0.82rem', color: '#ef4444', marginBottom: '0.5rem' }}>{ownerError}</div>}
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button type="submit" disabled={savingOwner} style={{ ...btnPrimary, opacity: savingOwner ? 0.6 : 1 }}>
                   {savingOwner ? 'Adding...' : 'Add'}
                 </button>
-                <button type="button" onClick={() => setShowOwnerForm(false)} style={btnSecondary}>Cancel</button>
+                <button type="button" onClick={() => { setShowOwnerForm(false); setOwnerError(''); }} style={btnSecondary}>Cancel</button>
               </div>
             </form>
           ) : (
