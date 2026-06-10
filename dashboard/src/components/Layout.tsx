@@ -9,14 +9,15 @@ const navItems = [
 ];
 
 export default function Layout() {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, businessId, isAdmin, signOut } = useAuth();
+  const showTenantNav = !!businessId;
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <nav style={{ width: 200, padding: '1rem', borderRight: '1px solid #eee', display: 'flex', flexDirection: 'column' }}>
         <div style={{ fontWeight: 'bold', marginBottom: '1.5rem' }}>WhatOrder</div>
         <div style={{ flex: 1 }}>
-          {navItems.map(({ to, label }) => (
+          {showTenantNav && navItems.map(({ to, label }) => (
             <NavLink
               key={to}
               to={to}
