@@ -284,7 +284,7 @@ describe('Multi-restaurant: awaiting_location state', () => {
     // Customer is closer to biz_b (48.1980, 16.3730) than biz_a (48.2093, 16.3621)
     await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
 
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'selecting_restaurant' }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'selecting_restaurant', lat: 48.1980, lng: 16.3730 }));
     expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       sections: [expect.objectContaining({
         rows: expect.arrayContaining([
@@ -313,7 +313,7 @@ describe('Multi-restaurant: awaiting_location state', () => {
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'skip' }));
 
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'selecting_restaurant' }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'selecting_restaurant', lat: null, lng: null }));
     expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       sections: [expect.objectContaining({
         rows: expect.arrayContaining([
@@ -322,8 +322,7 @@ describe('Multi-restaurant: awaiting_location state', () => {
         ]),
       })],
     }));
-    // No distance label when location was skipped (coords are null for businesses without lat/lng)
-    // Actually BIZ_A_WITH_COORDS has coords, but sortByDistance was NOT called, so distanceKm is undefined
+    // No distance label when location was skipped — sortByDistance was NOT called so distanceKm is undefined
     const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
     rows.forEach(r => expect(r.description).not.toMatch(/📍/));
   });
@@ -351,11 +350,12 @@ describe('Multi-restaurant: late location share in selecting_restaurant', () => 
     );
   });
 
-  test('location message re-shows picker sorted by distance', async () => {
+  test('location message re-shows picker sorted by distance and saves coords to session', async () => {
     getSession.mockResolvedValue({ state: 'selecting_restaurant', language: 'en', basket: [], businessId: null });
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
 
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ lat: 48.1980, lng: 16.3730 }));
     expect(sendListMessage).toHaveBeenCalled();
     const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
     expect(rows[0].id).toBe('restaurant_biz_b');
@@ -466,23 +466,38 @@ describe('Multi-restaurant: awaiting_restaurant_choice state interactions', () =
     expect(sendCatalogMessage).toHaveBeenCalledWith(FROM, 'cat_a', expect.any(String), expect.any(String));
   });
 
-  test('btn_choose_restaurant → selecting_restaurant state and shows full picker', async () => {
+  test('btn_choose_restaurant without stored location → location request', async () => {
     getSession.mockResolvedValue(multiSession({ state: 'awaiting_restaurant_choice' }));
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_choose_restaurant', title: 'Choose restaurant' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_location',
+      businessId: null,
+    }));
+    expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.any(String));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('btn_choose_restaurant with stored location → sorted picker', async () => {
+    const BIZ_A_WITH_COORDS = { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 };
+    const BIZ_B_WITH_COORDS = { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 };
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a' ? BIZ_A_WITH_COORDS : BIZ_B_WITH_COORDS)
+    );
+    getSession.mockResolvedValue(multiSession({ state: 'awaiting_restaurant_choice', lat: 48.1980, lng: 16.3730 }));
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_choose_restaurant', title: 'Choose restaurant' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'selecting_restaurant',
       businessId: null,
+      lat: 48.1980,
+      lng: 16.3730,
     }));
-    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      sections: [expect.objectContaining({
-        rows: expect.arrayContaining([
-          expect.objectContaining({ id: 'restaurant_biz_a' }),
-          expect.objectContaining({ id: 'restaurant_biz_b' }),
-        ]),
-      })],
-    }));
+    expect(sendListMessage).toHaveBeenCalled();
+    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
+    expect(rows[0].id).toBe('restaurant_biz_b'); // closer to customer
   });
 
   test('random text re-shows the choice prompt without changing state', async () => {
@@ -517,16 +532,39 @@ describe('Multi-restaurant: awaiting_restaurant_choice state interactions', () =
     expect(sendCatalogMessage).not.toHaveBeenCalled();
   });
 
-  test('switch keyword from awaiting_restaurant_choice shows picker (keyword shortcut still works)', async () => {
+  test('switch keyword without stored location → location request', async () => {
     getSession.mockResolvedValue(multiSession({ state: 'awaiting_restaurant_choice' }));
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'switch' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Switching'));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_location',
+      businessId: null,
+    }));
+    expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.any(String));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('switch keyword with stored location → sorted picker', async () => {
+    const BIZ_A_WITH_COORDS = { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 };
+    const BIZ_B_WITH_COORDS = { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 };
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a' ? BIZ_A_WITH_COORDS : BIZ_B_WITH_COORDS)
+    );
+    getSession.mockResolvedValue(multiSession({ state: 'browsing', lat: 48.1980, lng: 16.3730 }));
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'switch' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'selecting_restaurant',
       businessId: null,
+      lat: 48.1980,
+      lng: 16.3730,
     }));
     expect(sendListMessage).toHaveBeenCalled();
+    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
+    expect(rows[0].id).toBe('restaurant_biz_b');
   });
 });
 
