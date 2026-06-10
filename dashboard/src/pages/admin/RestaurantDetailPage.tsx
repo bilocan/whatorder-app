@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import {
   doc, getDoc, updateDoc,
   collection, onSnapshot, addDoc, deleteDoc,
-  query, where, setDoc,
+  query, where, setDoc, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../../lib/firebase';
 import { geocodeAddress } from '../../lib/geocode';
-import type { Business, MenuItem, PhoneRouting, Owner } from '../../types';
+import type { Business, MenuItem, Owner } from '../../types';
 
-type Tab = 'details' | 'menu' | 'routing' | 'owners';
+type Tab = 'details' | 'menu' | 'owners';
 
 const inputStyle: React.CSSProperties = {
   padding: '0.55rem 0.75rem',
@@ -52,6 +52,8 @@ const btnDanger: React.CSSProperties = {
 
 export default function RestaurantDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const phoneNumberId = import.meta.env.VITE_WHATSAPP_PHONE_NUMBER_ID as string | undefined;
+
   const [business, setBusiness] = useState<Business | null>(null);
   const [tab, setTab] = useState<Tab>('details');
 
@@ -67,18 +69,16 @@ export default function RestaurantDetailPage() {
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState(false);
 
+  // Bot toggle
+  const [botEnabled, setBotEnabled] = useState(false);
+  const [botLoading, setBotLoading] = useState(!!phoneNumberId);
+  const [togglingBot, setTogglingBot] = useState(false);
+
   // Menu
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [newItem, setNewItem] = useState({ name: '', price: '', category: 'mains' as MenuItem['category'], description: '', available: true });
   const [savingMenu, setSavingMenu] = useState(false);
-
-  // Routing
-  const [routingEntries, setRoutingEntries] = useState<PhoneRouting[]>([]);
-  const [showRoutingForm, setShowRoutingForm] = useState(false);
-  const [newPhoneId, setNewPhoneId] = useState('');
-  const [newDisplayNumber, setNewDisplayNumber] = useState('');
-  const [savingRouting, setSavingRouting] = useState(false);
 
   // Owners
   const [owners, setOwners] = useState<Owner[]>([]);
@@ -105,18 +105,29 @@ export default function RestaurantDetailPage() {
       setMenuItems(snap.docs.map((d) => ({ id: d.id, ...d.data() } as MenuItem)));
     });
 
-    const routingUnsub = onSnapshot(
-      query(collection(db, 'phoneRouting'), where('businessIds', 'array-contains', id)),
-      (snap) => setRoutingEntries(snap.docs.map((d) => ({ id: d.id, ...d.data() } as PhoneRouting))),
-    );
+    let botUnsub: (() => void) | undefined;
+    if (phoneNumberId) {
+      botUnsub = onSnapshot(
+        doc(db, 'phoneRouting', phoneNumberId),
+        (snap) => {
+          const ids: string[] = snap.exists() ? (snap.data().businessIds ?? []) : [];
+          setBotEnabled(ids.includes(id));
+          setBotLoading(false);
+        },
+        (err) => {
+          console.error('[bot] routing read failed:', err.code, err.message);
+          setBotLoading(false);
+        },
+      );
+    }
 
     const ownersUnsub = onSnapshot(
       query(collection(db, 'owners'), where('businessId', '==', id)),
       (snap) => setOwners(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as Owner))),
     );
 
-    return () => { menuUnsub(); routingUnsub(); ownersUnsub(); };
-  }, [id]);
+    return () => { menuUnsub(); botUnsub?.(); ownersUnsub(); };
+  }, [id, phoneNumberId]);
 
   async function handleLookupCoords() {
     if (!editAddress.trim()) return;
@@ -155,6 +166,21 @@ export default function RestaurantDetailPage() {
     setEditing(false);
   }
 
+  async function toggleBot() {
+    if (!id || !phoneNumberId) return;
+    setTogglingBot(true);
+    try {
+      const routingRef = doc(db, 'phoneRouting', phoneNumberId);
+      if (botEnabled) {
+        await setDoc(routingRef, { businessIds: arrayRemove(id) }, { merge: true });
+      } else {
+        await setDoc(routingRef, { businessIds: arrayUnion(id) }, { merge: true });
+      }
+    } finally {
+      setTogglingBot(false);
+    }
+  }
+
   async function addMenuItem(e: React.FormEvent) {
     e.preventDefault();
     if (!id) return;
@@ -176,55 +202,6 @@ export default function RestaurantDetailPage() {
     await deleteDoc(doc(db, 'businesses', id, 'menu', itemId));
   }
 
-  async function addRouting(e: React.FormEvent) {
-    e.preventDefault();
-    setSavingRouting(true);
-    const phoneId = newPhoneId.trim();
-    const displayNumber = newDisplayNumber.trim() || null;
-    const existingSnap = await getDoc(doc(db, 'phoneRouting', phoneId));
-    if (existingSnap.exists()) {
-      const data = existingSnap.data();
-      const existingIds: string[] = data.businessIds ?? [];
-      if (!existingIds.includes(id!)) {
-        const newIds = [...existingIds, id!];
-        await setDoc(doc(db, 'phoneRouting', phoneId), {
-          businessIds: newIds,
-          defaultBusinessId: data.defaultBusinessId ?? existingIds[0],
-          displayNumber: displayNumber ?? data.displayNumber ?? null,
-        });
-      }
-    } else {
-      await setDoc(doc(db, 'phoneRouting', phoneId), { businessIds: [id], defaultBusinessId: id, displayNumber });
-    }
-    setNewPhoneId('');
-    setNewDisplayNumber('');
-    setShowRoutingForm(false);
-    setSavingRouting(false);
-  }
-
-  async function deleteRouting(phoneNumberId: string) {
-    if (!confirm('Remove this phone number?')) return;
-    const snap = await getDoc(doc(db, 'phoneRouting', phoneNumberId));
-    if (!snap.exists()) return;
-    const data = snap.data();
-    const existingIds: string[] = data.businessIds ?? [];
-    const remaining = existingIds.filter((bid) => bid !== id);
-    if (remaining.length === 0) {
-      await deleteDoc(doc(db, 'phoneRouting', phoneNumberId));
-    } else if (remaining.length === 1) {
-      await setDoc(doc(db, 'phoneRouting', phoneNumberId), {
-        businessIds: remaining,
-        defaultBusinessId: remaining[0],
-        displayNumber: data.displayNumber ?? null,
-      });
-    } else {
-      await updateDoc(doc(db, 'phoneRouting', phoneNumberId), {
-        businessIds: remaining,
-        defaultBusinessId: data.defaultBusinessId === id ? remaining[0] : (data.defaultBusinessId ?? remaining[0]),
-      });
-    }
-  }
-
   async function addOwner(e: React.FormEvent) {
     e.preventDefault();
     setSavingOwner(true);
@@ -239,7 +216,7 @@ export default function RestaurantDetailPage() {
     await deleteDoc(doc(db, 'owners', uid));
   }
 
-  const tabs: Tab[] = ['details', 'menu', 'routing', 'owners'];
+  const tabs: Tab[] = ['details', 'menu', 'owners'];
 
   if (!business) return <p style={{ padding: '1rem', color: '#999' }}>Loading...</p>;
 
@@ -267,12 +244,9 @@ export default function RestaurantDetailPage() {
               fontSize: '0.95rem',
             }}
           >
-            {t === 'routing' ? 'Phone Numbers' : t}
+            {t}
             {t === 'menu' && menuItems.length > 0 && (
               <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#999' }}>{menuItems.length}</span>
-            )}
-            {t === 'routing' && routingEntries.length > 0 && (
-              <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#999' }}>{routingEntries.length}</span>
             )}
             {t === 'owners' && owners.length > 0 && (
               <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#999' }}>{owners.length}</span>
@@ -284,10 +258,42 @@ export default function RestaurantDetailPage() {
       {/* ── Details ── */}
       {tab === 'details' && (
         <div style={{ maxWidth: 400 }}>
+          {/* Bot toggle — saves immediately, independent of the edit form */}
+          {phoneNumberId && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.85rem', background: '#f9fafb', border: '1px solid #eee', borderRadius: 8, marginBottom: '1.25rem' }}>
+              <div>
+                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>WhatsApp bot</div>
+                <div style={{ fontSize: '0.9rem', color: botLoading ? '#bbb' : botEnabled ? '#22c55e' : '#999', fontWeight: 500 }}>
+                  {botLoading ? 'Loading…' : botEnabled ? 'On' : 'Off'}
+                </div>
+              </div>
+              {!botLoading && (
+                <button
+                  type="button"
+                  onClick={toggleBot}
+                  disabled={togglingBot}
+                  style={{
+                    padding: '0.4rem 0.9rem',
+                    background: botEnabled ? 'none' : '#000',
+                    color: botEnabled ? '#666' : '#fff',
+                    border: botEnabled ? '1px solid #ddd' : 'none',
+                    borderRadius: 7,
+                    cursor: togglingBot ? 'default' : 'pointer',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    opacity: togglingBot ? 0.5 : 1,
+                  }}
+                >
+                  {togglingBot ? 'Saving…' : botEnabled ? 'Turn off' : 'Turn on'}
+                </button>
+              )}
+            </div>
+          )}
+
           {!editing ? (
             <div>
               <Field label="Name" value={business.name} />
-              <Field label="Notification phone" value={business.phone} />
+              <Field label="Owner alert number" value={business.phone} />
               <Field label="Status" value={business.status} />
               <Field label="Business ID" value={business.id} mono />
               <Field label="Address" value={business.address ?? '—'} />
@@ -297,7 +303,7 @@ export default function RestaurantDetailPage() {
           ) : (
             <form onSubmit={saveDetails}>
               <FormField label="Name" value={editName} onChange={setEditName} required />
-              <FormField label="Notification phone" value={editPhone} onChange={setEditPhone} required />
+              <FormField label="Owner alert number" value={editPhone} onChange={setEditPhone} required />
               <div style={{ marginBottom: '0.75rem' }}>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.3rem' }}>Status</label>
                 <select
@@ -436,62 +442,6 @@ export default function RestaurantDetailPage() {
             </form>
           ) : (
             <button onClick={() => setShowMenuForm(true)} style={{ ...btnPrimary, marginTop: '0.25rem' }}>+ Add item</button>
-          )}
-        </div>
-      )}
-
-      {/* ── Phone Numbers (Routing) ── */}
-      {tab === 'routing' && (
-        <div>
-          <p style={{ fontSize: '0.85rem', color: '#666', marginTop: 0 }}>
-            The Phone Number ID is the numeric ID from Meta Business Manager → WhatsApp → Phone numbers (not the display number like +43...).
-          </p>
-
-          {routingEntries.length === 0 && !showRoutingForm && <p style={{ color: '#999' }}>No phone numbers linked yet.</p>}
-          {routingEntries.length > 0 && (
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
-                  <th style={{ padding: '0.5rem' }}>Phone Number ID</th>
-                  <th style={{ padding: '0.5rem' }}>Display number</th>
-                  <th style={{ padding: '0.5rem' }} />
-                </tr>
-              </thead>
-              <tbody>
-                {routingEntries.map((entry) => (
-                  <tr key={entry.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '0.65rem 0.5rem', fontFamily: 'monospace', fontSize: '0.85rem' }}>{entry.id}</td>
-                    <td style={{ padding: '0.65rem 0.5rem', color: '#666' }}>{entry.displayNumber ?? '—'}</td>
-                    <td style={{ padding: '0.65rem 0.5rem', textAlign: 'right' }}>
-                      <button onClick={() => deleteRouting(entry.id)} style={btnDanger}>Remove</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          {showRoutingForm ? (
-            <form onSubmit={addRouting} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10, marginTop: '0.5rem' }}>
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                <div style={{ flex: 1, minWidth: 180 }}>
-                  <label style={labelStyle}>Phone Number ID</label>
-                  <input value={newPhoneId} onChange={(e) => setNewPhoneId(e.target.value)} required placeholder="107900892432001" style={inputStyle} />
-                </div>
-                <div style={{ flex: 1, minWidth: 180 }}>
-                  <label style={labelStyle}>Display number (optional)</label>
-                  <input value={newDisplayNumber} onChange={(e) => setNewDisplayNumber(e.target.value)} placeholder="+43 660 123 4567" style={inputStyle} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button type="submit" disabled={savingRouting} style={{ ...btnPrimary, opacity: savingRouting ? 0.6 : 1 }}>
-                  {savingRouting ? 'Adding...' : 'Add'}
-                </button>
-                <button type="button" onClick={() => setShowRoutingForm(false)} style={btnSecondary}>Cancel</button>
-              </div>
-            </form>
-          ) : (
-            <button onClick={() => setShowRoutingForm(true)} style={{ ...btnPrimary, marginTop: '0.25rem' }}>+ Add phone number</button>
           )}
         </div>
       )}

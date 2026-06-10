@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/firebase';
 import type { Business } from '../../types';
+
 
 function generateId(name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 20);
@@ -19,8 +20,11 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
+const PHONE_NUMBER_ID = import.meta.env.VITE_WHATSAPP_PHONE_NUMBER_ID as string | undefined;
+
 export default function RestaurantsPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [routedIds, setRoutedIds] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -28,14 +32,27 @@ export default function RestaurantsPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    return onSnapshot(collection(db, 'businesses'), (snap) => {
+    const bizUnsub = onSnapshot(collection(db, 'businesses'), (snap) => {
       setBusinesses(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Business)));
     });
+
+    let routingUnsub: (() => void) | undefined;
+    if (PHONE_NUMBER_ID) {
+      routingUnsub = onSnapshot(doc(db, 'phoneRouting', PHONE_NUMBER_ID), (snap) => {
+        const ids: string[] = snap.exists() ? (snap.data().businessIds ?? []) : [];
+        setRoutedIds(new Set(ids));
+      });
+    }
+
+    return () => { bizUnsub(); routingUnsub?.(); };
   }, []);
 
   async function deleteRestaurant(id: string, name: string) {
     if (!confirm(`Delete "${name}"? This only removes the business document — orders and menu items are not deleted.`)) return;
     await deleteDoc(doc(db, 'businesses', id));
+    if (PHONE_NUMBER_ID) {
+      await setDoc(doc(db, 'phoneRouting', PHONE_NUMBER_ID), { businessIds: arrayRemove(id) }, { merge: true });
+    }
   }
 
   async function createRestaurant(e: React.FormEvent) {
@@ -49,6 +66,9 @@ export default function RestaurantsPage() {
       status: 'active',
       createdAt: new Date().toISOString(),
     });
+    if (PHONE_NUMBER_ID) {
+      await setDoc(doc(db, 'phoneRouting', PHONE_NUMBER_ID), { businessIds: arrayUnion(id) }, { merge: true });
+    }
     setSaving(false);
     setShowForm(false);
     setName('');
@@ -58,15 +78,23 @@ export default function RestaurantsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: !PHONE_NUMBER_ID ? '0.75rem' : '1.5rem' }}>
         <h2 style={{ margin: 0 }}>Restaurants</h2>
         <button
           onClick={() => setShowForm(!showForm)}
-          style={{ padding: '0.5rem 1rem', background: '#000', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+          disabled={!PHONE_NUMBER_ID}
+          title={!PHONE_NUMBER_ID ? 'Set VITE_WHATSAPP_PHONE_NUMBER_ID in your env first' : undefined}
+          style={{ padding: '0.5rem 1rem', background: '#000', color: '#fff', border: 'none', borderRadius: 8, cursor: !PHONE_NUMBER_ID ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: !PHONE_NUMBER_ID ? 0.4 : 1 }}
         >
           + New Restaurant
         </button>
       </div>
+
+      {!PHONE_NUMBER_ID && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.6rem 0.85rem', marginBottom: '1.5rem', fontSize: '0.85rem', color: '#92400e' }}>
+          <strong>WhatsApp bot not configured.</strong> Set <code>VITE_WHATSAPP_PHONE_NUMBER_ID</code> in your env to enable restaurant creation.
+        </div>
+      )}
 
       {showForm && (
         <form onSubmit={createRestaurant} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10, marginBottom: '1.5rem' }}>
@@ -100,6 +128,7 @@ export default function RestaurantsPage() {
             <th style={{ padding: '0.5rem' }}>ID</th>
             <th style={{ padding: '0.5rem' }}>Phone</th>
             <th style={{ padding: '0.5rem' }}>Status</th>
+            <th style={{ padding: '0.5rem' }}>Bot</th>
             <th style={{ padding: '0.5rem' }} />
           </tr>
         </thead>
@@ -122,6 +151,20 @@ export default function RestaurantsPage() {
                 }}>
                   {b.status}
                 </span>
+              </td>
+              <td style={{ padding: '0.75rem 0.5rem' }}>
+                {routedIds.has(b.id) ? (
+                  <span style={{ fontSize: '0.8rem', color: '#22c55e', fontWeight: 600 }}>On</span>
+                ) : (
+                  <span
+                    title={PHONE_NUMBER_ID
+                      ? 'Not connected to the WhatsApp bot. Open the restaurant and turn on the bot toggle.'
+                      : 'WhatsApp bot not configured. Set VITE_WHATSAPP_PHONE_NUMBER_ID in your env first.'}
+                    style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: 600, cursor: 'default' }}
+                  >
+                    No bot
+                  </span>
+                )}
               </td>
               <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
                 <button
