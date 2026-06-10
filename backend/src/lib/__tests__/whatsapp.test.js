@@ -235,6 +235,7 @@ describe('production paths (NODE_ENV overridden)', () => {
       expect.stringContaining('wamid.test999'),
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: 'Bearer TOKEN' }),
+        data: { messaging_product: 'whatsapp' },
       }),
     );
   });
@@ -244,7 +245,7 @@ describe('production paths (NODE_ENV overridden)', () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
     await expect(deleteMessage('wamid.gone')).resolves.toBeUndefined();
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('wamid.gone'), expect.anything());
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('wamid.gone'));
 
     warnSpy.mockRestore();
   });
