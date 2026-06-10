@@ -237,7 +237,7 @@ export default function RestaurantDetailPage() {
     if (!confirm('Remove this owner?')) return;
     try {
       const token = await auth.currentUser?.getIdToken();
-      await fetch(`${API_URL}/admin/owners/${uid}`, {
+      await fetch(`${API_URL}/admin/owners?uid=${encodeURIComponent(uid)}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

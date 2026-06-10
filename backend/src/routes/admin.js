@@ -65,9 +65,10 @@ router.post('/owners', requireAdmin, async (req, res) => {
   res.json({ uid, phone: normalizedPhone });
 });
 
-// DELETE /admin/owners/:uid
-router.delete('/owners/:uid', requireAdmin, async (req, res) => {
-  const { uid } = req.params;
+// DELETE /admin/owners?uid=<uid>
+router.delete('/owners', requireAdmin, async (req, res) => {
+  const uid = req.query.uid;
+  if (!uid) return res.status(400).json({ error: 'uid query param required' });
   await ownerRef(uid).delete();
   res.json({ ok: true });
 });
