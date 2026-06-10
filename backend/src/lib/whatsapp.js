@@ -127,8 +127,7 @@ async function deleteMessage(messageId) {
       headers: headers(),
     });
   } catch (err) {
-    const errDetail = err.response ? `HTTP ${err.response.status} — ${JSON.stringify(err.response.data)}` : err.message;
-    console.warn(`[WA] delete failed for ${messageId}: ${errDetail}`);
+    console.warn(`[WA-DEL] status=${err.response?.status ?? 'NET'} code=${err.response?.data?.error?.code} type=${err.response?.data?.error?.type} msg=${err.response?.data?.error?.message ?? err.message}`);
   }
 }
 
