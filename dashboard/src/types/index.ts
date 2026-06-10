@@ -48,9 +48,10 @@ export interface Business {
 }
 
 export interface PhoneRouting {
-  id: string;           // the Meta phone_number_id (document ID)
-  businessId: string;
-  displayNumber?: string;
+  id: string;             // Meta phone_number_id — numeric ID from Business Manager, used as document ID
+  businessIds?: string[]; // all restaurants reachable via this phone number
+  defaultBusinessId?: string; // bot uses this as fallback when the customer's session has no restaurant selected yet
+  displayNumber?: string; // human-readable "+43 660 …" shown in admin UI; the document ID alone is an opaque numeric Meta ID
 }
 
 export interface Owner {

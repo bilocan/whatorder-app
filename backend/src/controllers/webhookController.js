@@ -9,9 +9,6 @@ async function resolveRouting(phoneNumberId) {
       if (data.businessIds) {
         return { businessIds: data.businessIds, defaultBusinessId: data.defaultBusinessId ?? null };
       }
-      if (data.businessId) {
-        return { businessIds: [data.businessId], defaultBusinessId: data.businessId };
-      }
     }
   }
   const fallback = process.env.BUSINESS_ID || 'biz_test';

@@ -106,7 +106,7 @@ export default function RestaurantDetailPage() {
     });
 
     const routingUnsub = onSnapshot(
-      query(collection(db, 'phoneRouting'), where('businessId', '==', id)),
+      query(collection(db, 'phoneRouting'), where('businessIds', 'array-contains', id)),
       (snap) => setRoutingEntries(snap.docs.map((d) => ({ id: d.id, ...d.data() } as PhoneRouting))),
     );
 
@@ -179,10 +179,23 @@ export default function RestaurantDetailPage() {
   async function addRouting(e: React.FormEvent) {
     e.preventDefault();
     setSavingRouting(true);
-    await setDoc(doc(db, 'phoneRouting', newPhoneId.trim()), {
-      businessId: id,
-      displayNumber: newDisplayNumber.trim() || null,
-    });
+    const phoneId = newPhoneId.trim();
+    const displayNumber = newDisplayNumber.trim() || null;
+    const existingSnap = await getDoc(doc(db, 'phoneRouting', phoneId));
+    if (existingSnap.exists()) {
+      const data = existingSnap.data();
+      const existingIds: string[] = data.businessIds ?? [];
+      if (!existingIds.includes(id!)) {
+        const newIds = [...existingIds, id!];
+        await setDoc(doc(db, 'phoneRouting', phoneId), {
+          businessIds: newIds,
+          defaultBusinessId: data.defaultBusinessId ?? existingIds[0],
+          displayNumber: displayNumber ?? data.displayNumber ?? null,
+        });
+      }
+    } else {
+      await setDoc(doc(db, 'phoneRouting', phoneId), { businessIds: [id], defaultBusinessId: id, displayNumber });
+    }
     setNewPhoneId('');
     setNewDisplayNumber('');
     setShowRoutingForm(false);
@@ -191,7 +204,25 @@ export default function RestaurantDetailPage() {
 
   async function deleteRouting(phoneNumberId: string) {
     if (!confirm('Remove this phone number?')) return;
-    await deleteDoc(doc(db, 'phoneRouting', phoneNumberId));
+    const snap = await getDoc(doc(db, 'phoneRouting', phoneNumberId));
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const existingIds: string[] = data.businessIds ?? [];
+    const remaining = existingIds.filter((bid) => bid !== id);
+    if (remaining.length === 0) {
+      await deleteDoc(doc(db, 'phoneRouting', phoneNumberId));
+    } else if (remaining.length === 1) {
+      await setDoc(doc(db, 'phoneRouting', phoneNumberId), {
+        businessIds: remaining,
+        defaultBusinessId: remaining[0],
+        displayNumber: data.displayNumber ?? null,
+      });
+    } else {
+      await updateDoc(doc(db, 'phoneRouting', phoneNumberId), {
+        businessIds: remaining,
+        defaultBusinessId: data.defaultBusinessId === id ? remaining[0] : (data.defaultBusinessId ?? remaining[0]),
+      });
+    }
   }
 
   async function addOwner(e: React.FormEvent) {
