@@ -4,6 +4,7 @@
   "rewrites": [
     { "source": "/webhooks/whatsapp", "destination": "/api/webhooks/whatsapp" },
     { "source": "/health", "destination": "/api/index" },
+    { "source": "/admin/owners", "destination": "/api/admin/owners" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
