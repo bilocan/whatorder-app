@@ -81,6 +81,8 @@ export default function RestaurantDetailPage() {
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [newItem, setNewItem] = useState({ name: '', price: '', category: 'mains' as MenuItem['category'], description: '', available: true });
   const [savingMenu, setSavingMenu] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editItem, setEditItem] = useState({ name: '', price: '', category: 'mains' as MenuItem['category'], description: '', available: true });
 
   // Owners
   const [owners, setOwners] = useState<Owner[]>([]);
@@ -200,8 +202,30 @@ export default function RestaurantDetailPage() {
     setSavingMenu(false);
   }
 
+  function startEditItem(item: MenuItem) {
+    setEditingItemId(item.id);
+    setEditItem({ name: item.name, price: String(item.price), category: item.category, description: item.description ?? '', available: item.available });
+    setShowMenuForm(false);
+  }
+
+  async function saveMenuItem(e: React.FormEvent) {
+    e.preventDefault();
+    if (!id || !editingItemId) return;
+    setSavingMenu(true);
+    await updateDoc(doc(db, 'businesses', id, 'menu', editingItemId), {
+      name: editItem.name,
+      price: parseFloat(editItem.price),
+      category: editItem.category,
+      description: editItem.description,
+      available: editItem.available,
+    });
+    setSavingMenu(false);
+    setEditingItemId(null);
+  }
+
   async function deleteMenuItem(itemId: string) {
     if (!id || !confirm('Delete this item?')) return;
+    if (editingItemId === itemId) setEditingItemId(null);
     await deleteDoc(doc(db, 'businesses', id, 'menu', itemId));
   }
 
@@ -417,17 +441,61 @@ export default function RestaurantDetailPage() {
               </thead>
               <tbody>
                 {menuItems.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '0.65rem 0.5rem', fontWeight: 500 }}>{item.name}</td>
-                    <td style={{ padding: '0.65rem 0.5rem', fontSize: '0.85rem', color: '#666', textTransform: 'capitalize' }}>{item.category}</td>
-                    <td style={{ padding: '0.65rem 0.5rem' }}>€{Number(item.price).toFixed(2)}</td>
-                    <td style={{ padding: '0.65rem 0.5rem', fontSize: '0.85rem', color: item.available ? '#22c55e' : '#999' }}>
-                      {item.available ? 'Yes' : 'No'}
-                    </td>
-                    <td style={{ padding: '0.65rem 0.5rem', textAlign: 'right' }}>
-                      <button onClick={() => deleteMenuItem(item.id)} style={btnDanger}>Delete</button>
-                    </td>
-                  </tr>
+                  editingItemId === item.id ? (
+                    <tr key={item.id}>
+                      <td colSpan={5} style={{ padding: '0.5rem' }}>
+                        <form onSubmit={saveMenuItem} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                            <div>
+                              <label style={labelStyle}>Name</label>
+                              <input value={editItem.name} onChange={(e) => setEditItem({ ...editItem, name: e.target.value })} required style={inputStyle} />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Price (€)</label>
+                              <input type="number" step="0.01" min="0" value={editItem.price} onChange={(e) => setEditItem({ ...editItem, price: e.target.value })} required style={inputStyle} />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Category</label>
+                              <select value={editItem.category} onChange={(e) => setEditItem({ ...editItem, category: e.target.value as MenuItem['category'] })} style={{ ...inputStyle, width: '100%' }}>
+                                <option value="mains">Mains</option>
+                                <option value="sides">Sides</option>
+                                <option value="drinks">Drinks</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Description (optional)</label>
+                              <input value={editItem.description} onChange={(e) => setEditItem({ ...editItem, description: e.target.value })} style={inputStyle} />
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                              <input type="checkbox" checked={editItem.available} onChange={(e) => setEditItem({ ...editItem, available: e.target.checked })} />
+                              Available
+                            </label>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button type="submit" disabled={savingMenu} style={{ ...btnPrimary, opacity: savingMenu ? 0.6 : 1 }}>
+                              {savingMenu ? 'Saving...' : 'Save'}
+                            </button>
+                            <button type="button" onClick={() => setEditingItemId(null)} style={btnSecondary}>Cancel</button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '0.65rem 0.5rem', fontWeight: 500 }}>{item.name}</td>
+                      <td style={{ padding: '0.65rem 0.5rem', fontSize: '0.85rem', color: '#666', textTransform: 'capitalize' }}>{item.category}</td>
+                      <td style={{ padding: '0.65rem 0.5rem' }}>€{Number(item.price).toFixed(2)}</td>
+                      <td style={{ padding: '0.65rem 0.5rem', fontSize: '0.85rem', color: item.available ? '#22c55e' : '#999' }}>
+                        {item.available ? 'Yes' : 'No'}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.5rem', textAlign: 'right', display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                        <button onClick={() => startEditItem(item)} style={btnSecondary}>Edit</button>
+                        <button onClick={() => deleteMenuItem(item.id)} style={btnDanger}>Delete</button>
+                      </td>
+                    </tr>
+                  )
                 ))}
               </tbody>
             </table>
