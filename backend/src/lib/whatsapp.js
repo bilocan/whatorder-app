@@ -123,9 +123,8 @@ async function deleteMessage(messageId) {
     return;
   }
   try {
-    await axios.delete(apiUrl(), {
+    await axios.delete(`${BASE_URL}/${messageId}`, {
       headers: headers(),
-      data: { messaging_product: 'whatsapp', message_id: messageId },
     });
   } catch (err) {
     console.warn(`[WA] delete failed for ${messageId}:`, err.response?.data ?? err.message);

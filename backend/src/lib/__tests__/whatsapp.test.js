@@ -232,10 +232,9 @@ describe('production paths (NODE_ENV overridden)', () => {
     await deleteMessage('wamid.test999');
 
     expect(axios.delete).toHaveBeenCalledWith(
-      expect.stringContaining('PHONE_ID/messages'),
+      expect.stringContaining('wamid.test999'),
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: 'Bearer TOKEN' }),
-        data: { messaging_product: 'whatsapp', message_id: 'wamid.test999' },
       }),
     );
   });
