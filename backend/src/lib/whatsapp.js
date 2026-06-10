@@ -125,9 +125,10 @@ async function deleteMessage(messageId) {
   try {
     await axios.delete(`${BASE_URL}/${messageId}`, {
       headers: headers(),
+      data: { messaging_product: 'whatsapp' },
     });
   } catch (err) {
-    console.warn(`[WA-DEL] status=${err.response?.status ?? 'NET'} code=${err.response?.data?.error?.code} type=${err.response?.data?.error?.type} msg=${err.response?.data?.error?.message ?? err.message}`);
+    console.warn(`[WA-DEL] id=${messageId} status=${err.response?.status ?? 'NET'} code=${err.response?.data?.error?.code} type=${err.response?.data?.error?.type} msg=${err.response?.data?.error?.message ?? err.message}`);
   }
 }
 
