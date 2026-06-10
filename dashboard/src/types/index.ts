@@ -58,6 +58,7 @@ export interface Owner {
   uid: string;          // Firebase UID (document ID)
   businessId: string;
   phone?: string;
+  name?: string;
 }
 
 export interface Admin {
