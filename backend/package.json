@@ -10,6 +10,7 @@
     "seed": "node scripts/seed.js"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
     "axios": "^1.6.0",
     "body-parser": "^1.20.0",
     "cors": "^2.8.5",

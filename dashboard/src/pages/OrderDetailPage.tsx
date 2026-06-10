@@ -12,6 +12,8 @@ export default function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const { businessId } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
+  const [markReadyError, setMarkReadyError] = useState('');
+  const [markingReady, setMarkingReady] = useState(false);
 
   useEffect(() => {
     if (!orderId || !businessId) return;
@@ -22,12 +24,21 @@ export default function OrderDetailPage() {
 
   async function markReady() {
     if (!orderId || !order || !businessId) return;
-    const res = await fetch(`${API_URL}/businesses/${businessId}/orders/${orderId}/ready`, { method: 'POST' });
-    if (!res.ok) {
-      console.error('Mark ready failed:', await res.text());
-      return;
+    setMarkingReady(true);
+    setMarkReadyError('');
+    try {
+      const res = await fetch(`${API_URL}/businesses/${businessId}/orders/${orderId}/ready`, { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setMarkReadyError(body.error ?? `Request failed (${res.status})`);
+        return;
+      }
+      setOrder((o) => o ? { ...o, status: 'ready' } : o);
+    } catch (err) {
+      setMarkReadyError('Network error — is the backend running?');
+    } finally {
+      setMarkingReady(false);
     }
-    setOrder((o) => o ? { ...o, status: 'ready' } : o);
   }
 
   if (!order) return <p style={{ padding: '1rem' }}>Loading...</p>;
@@ -70,12 +81,18 @@ export default function OrderDetailPage() {
       </p>
 
       {order.status === 'pending' && (
-        <button
-          onClick={markReady}
-          style={{ marginTop: '0.5rem', padding: '0.7rem 2rem', background: '#000', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '1rem' }}
-        >
-          Mark as Ready
-        </button>
+        <>
+          <button
+            onClick={markReady}
+            disabled={markingReady}
+            style={{ marginTop: '0.5rem', padding: '0.7rem 2rem', background: '#000', color: '#fff', border: 'none', borderRadius: 8, cursor: markingReady ? 'default' : 'pointer', fontWeight: 600, fontSize: '1rem', opacity: markingReady ? 0.6 : 1 }}
+          >
+            {markingReady ? 'Saving…' : 'Mark as Ready'}
+          </button>
+          {markReadyError && (
+            <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{markReadyError}</p>
+          )}
+        </>
       )}
       {order.status === 'ready' && (
         <p style={{ color: '#3b82f6', fontWeight: 600 }}>Ready for pickup</p>
