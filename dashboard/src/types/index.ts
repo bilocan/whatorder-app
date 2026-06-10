@@ -57,6 +57,7 @@ export interface PhoneRouting {
 export interface Owner {
   uid: string;          // Firebase UID (document ID)
   businessId: string;
+  phone?: string;
 }
 
 export interface Admin {

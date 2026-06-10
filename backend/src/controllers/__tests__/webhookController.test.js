@@ -119,8 +119,7 @@ describe('receiveWebhook', () => {
     expect(routing.businessIds).not.toContain('biz_c');
   });
 
-  test('falls back to BUSINESS_ID env when snap does not exist', async () => {
-    process.env.BUSINESS_ID = 'biz_env';
+  test('returns empty routing when phoneRouting snap does not exist', async () => {
     phoneRoutingRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({ exists: false }),
     });
@@ -128,22 +127,7 @@ describe('receiveWebhook', () => {
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(handleMessage).toHaveBeenCalledWith(
-      { businessIds: ['biz_env'], defaultBusinessId: 'biz_env' },
-      expect.any(Object),
-    );
-    delete process.env.BUSINESS_ID;
-  });
-
-  test('falls back to biz_test when no env and snap missing', async () => {
-    delete process.env.BUSINESS_ID;
-    phoneRoutingRef.mockReturnValue({
-      get: jest.fn().mockResolvedValue({ exists: false }),
-    });
-    const req = { body: webhookBody() };
-    const res = makeRes();
-    await receiveWebhook(req, res);
-    expect(handleMessage).toHaveBeenCalledWith(
-      { businessIds: ['biz_test'], defaultBusinessId: 'biz_test' },
+      { businessIds: [], defaultBusinessId: null },
       expect.any(Object),
     );
   });

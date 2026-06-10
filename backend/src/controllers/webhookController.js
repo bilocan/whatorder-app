@@ -6,13 +6,11 @@ async function resolveRouting(phoneNumberId) {
     const snap = await phoneRoutingRef(phoneNumberId).get();
     if (snap.exists) {
       const data = snap.data();
-      if (data.businessIds) {
-        return { businessIds: data.businessIds, defaultBusinessId: data.defaultBusinessId ?? null };
-      }
+      const ids = Array.isArray(data.businessIds) ? data.businessIds : [];
+      return { businessIds: ids, defaultBusinessId: data.defaultBusinessId ?? null };
     }
   }
-  const fallback = process.env.BUSINESS_ID || 'biz_test';
-  return { businessIds: [fallback], defaultBusinessId: fallback };
+  return { businessIds: [], defaultBusinessId: null };
 }
 
 function verifyWebhook(req, res) {
