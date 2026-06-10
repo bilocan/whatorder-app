@@ -88,8 +88,11 @@ export default function RestaurantDetailPage() {
   const [owners, setOwners] = useState<Owner[]>([]);
   const [showOwnerForm, setShowOwnerForm] = useState(false);
   const [newPhone, setNewPhone] = useState('');
+  const [newOwnerName, setNewOwnerName] = useState('');
   const [ownerError, setOwnerError] = useState('');
   const [savingOwner, setSavingOwner] = useState(false);
+  const [editingOwnerId, setEditingOwnerId] = useState<string | null>(null);
+  const [editOwner, setEditOwner] = useState({ phone: '', name: '' });
 
   useEffect(() => {
     if (!id) return;
@@ -248,13 +251,35 @@ export default function RestaurantDetailPage() {
         setOwnerError(body.error ?? 'Failed to add owner');
         return;
       }
+      const body = await res.json().catch(() => ({}));
+      if (body.uid && newOwnerName.trim()) {
+        await updateDoc(doc(db, 'owners', body.uid), { name: newOwnerName.trim() });
+      }
       setNewPhone('');
+      setNewOwnerName('');
       setShowOwnerForm(false);
     } catch {
       setOwnerError('Network error — is the backend running?');
     } finally {
       setSavingOwner(false);
     }
+  }
+
+  function startEditOwner(owner: Owner) {
+    setEditingOwnerId(owner.uid);
+    setEditOwner({ phone: owner.phone ?? '', name: owner.name ?? '' });
+  }
+
+  async function saveOwner(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingOwnerId) return;
+    setSavingOwner(true);
+    await updateDoc(doc(db, 'owners', editingOwnerId), {
+      phone: editOwner.phone.trim() || null,
+      name: editOwner.name.trim() || null,
+    });
+    setSavingOwner(false);
+    setEditingOwnerId(null);
   }
 
   async function deleteOwner(uid: string) {
@@ -552,20 +577,56 @@ export default function RestaurantDetailPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
+                  <th style={{ padding: '0.5rem' }}>Name</th>
                   <th style={{ padding: '0.5rem' }}>Phone</th>
-                  <th style={{ padding: '0.5rem', color: '#bbb', fontWeight: 400, fontSize: '0.8rem' }}>UID</th>
                   <th style={{ padding: '0.5rem' }} />
                 </tr>
               </thead>
               <tbody>
                 {owners.map((owner) => (
-                  <tr key={owner.uid} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '0.65rem 0.5rem', fontWeight: 500 }}>{owner.phone ?? '—'}</td>
-                    <td style={{ padding: '0.65rem 0.5rem', fontFamily: 'monospace', fontSize: '0.78rem', color: '#bbb' }}>{owner.uid}</td>
-                    <td style={{ padding: '0.65rem 0.5rem', textAlign: 'right' }}>
-                      <button onClick={() => deleteOwner(owner.uid)} style={btnDanger}>Remove</button>
-                    </td>
-                  </tr>
+                  editingOwnerId === owner.uid ? (
+                    <tr key={owner.uid}>
+                      <td colSpan={3} style={{ padding: '0.5rem' }}>
+                        <form onSubmit={saveOwner} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10 }}>
+                          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                            <div style={{ flex: 1, minWidth: 180 }}>
+                              <label style={labelStyle}>Name</label>
+                              <input
+                                value={editOwner.name}
+                                onChange={(e) => setEditOwner({ ...editOwner, name: e.target.value })}
+                                placeholder="e.g. Ali Yilmaz"
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 180 }}>
+                              <label style={labelStyle}>Phone</label>
+                              <input
+                                value={editOwner.phone}
+                                onChange={(e) => setEditOwner({ ...editOwner, phone: e.target.value })}
+                                placeholder="+43 699 123 456"
+                                style={inputStyle}
+                              />
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button type="submit" disabled={savingOwner} style={{ ...btnPrimary, opacity: savingOwner ? 0.6 : 1 }}>
+                              {savingOwner ? 'Saving...' : 'Save'}
+                            </button>
+                            <button type="button" onClick={() => setEditingOwnerId(null)} style={btnSecondary}>Cancel</button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={owner.uid} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '0.65rem 0.5rem', fontWeight: 500 }}>{owner.name ?? <span style={{ color: '#bbb' }}>—</span>}</td>
+                      <td style={{ padding: '0.65rem 0.5rem' }}>{owner.phone ?? <span style={{ color: '#bbb' }}>—</span>}</td>
+                      <td style={{ padding: '0.65rem 0.5rem', textAlign: 'right', display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                        <button onClick={() => startEditOwner(owner)} style={btnSecondary}>Edit</button>
+                        <button onClick={() => deleteOwner(owner.uid)} style={btnDanger}>Remove</button>
+                      </td>
+                    </tr>
+                  )
                 ))}
               </tbody>
             </table>
@@ -574,13 +635,22 @@ export default function RestaurantDetailPage() {
           {showOwnerForm ? (
             <form onSubmit={addOwner} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10, marginTop: '0.5rem' }}>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ flex: 1, minWidth: 180 }}>
                   <label style={labelStyle}>Owner phone number</label>
                   <input
                     value={newPhone}
                     onChange={(e) => { setNewPhone(e.target.value); setOwnerError(''); }}
                     required
                     placeholder="+43 699 123 456"
+                    style={inputStyle}
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <label style={labelStyle}>Name (optional)</label>
+                  <input
+                    value={newOwnerName}
+                    onChange={(e) => setNewOwnerName(e.target.value)}
+                    placeholder="e.g. Ali Yilmaz"
                     style={inputStyle}
                   />
                 </div>
