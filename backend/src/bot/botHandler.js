@@ -150,20 +150,28 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
 
   // Switch restaurant command — available from any state (multi only)
   if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {
-    const businesses = await getBusinessesInfo(routing.businessIds);
-    await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null });
     await sendText(from, t('switchConfirmed', lang));
-    await sendRestaurantPicker(from, businesses, lang);
+    if (session.lat != null && session.lng != null) {
+      const businesses = sortByDistance(await getBusinessesInfo(routing.businessIds), session.lat, session.lng);
+      await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null, lat: session.lat, lng: session.lng });
+      await sendRestaurantPicker(from, businesses, lang);
+    } else {
+      await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null });
+      await sendLocationRequest(from, t('locationRequestBody', lang));
+    }
     return;
   }
 
   // ── State: awaiting_location ──────────────────────────────────────────────
   if (session.state === 'awaiting_location') {
     let businesses = await getBusinessesInfo(routing.businessIds);
+    let lat = null, lng = null;
     if (type === 'location' && latitude != null && longitude != null) {
-      businesses = sortByDistance(businesses, latitude, longitude);
+      lat = latitude;
+      lng = longitude;
+      businesses = sortByDistance(businesses, lat, lng);
     }
-    await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null });
+    await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null, lat, lng });
     await sendRestaurantPicker(from, businesses, lang);
     return;
   }
@@ -171,14 +179,18 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   // ── State: selecting_restaurant ───────────────────────────────────────────
   if (session.state === 'selecting_restaurant') {
     if (type === 'location' && latitude != null && longitude != null) {
-      const businesses = await getBusinessesInfo(routing.businessIds);
-      await sendRestaurantPicker(from, sortByDistance(businesses, latitude, longitude), lang);
+      const businesses = sortByDistance(await getBusinessesInfo(routing.businessIds), latitude, longitude);
+      await setSession(from, { ...session, lat: latitude, lng: longitude });
+      await sendRestaurantPicker(from, businesses, lang);
       return;
     }
     if (type === 'list_reply' && id?.startsWith('restaurant_')) {
       const selectedBid = id.replace('restaurant_', '');
       if (!routing.businessIds.includes(selectedBid)) {
-        const businesses = await getBusinessesInfo(routing.businessIds);
+        let businesses = await getBusinessesInfo(routing.businessIds);
+        if (session.lat != null && session.lng != null) {
+          businesses = sortByDistance(businesses, session.lat, session.lng);
+        }
         await sendRestaurantPicker(from, businesses, lang);
         return;
       }
@@ -186,8 +198,11 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       await sendCatalog(from, lang, selectedBid);
       return;
     }
-    // Any other input while picking: re-show the picker
-    const businesses = await getBusinessesInfo(routing.businessIds);
+    // Any other input while picking: re-show the picker (sorted if location known)
+    let businesses = await getBusinessesInfo(routing.businessIds);
+    if (session.lat != null && session.lng != null) {
+      businesses = sortByDistance(businesses, session.lat, session.lng);
+    }
     await sendRestaurantPicker(from, businesses, lang);
     return;
   }
@@ -201,9 +216,14 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
         return;
       }
       if (id === 'btn_choose_restaurant') {
-        const businesses = await getBusinessesInfo(routing.businessIds);
-        await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null });
-        await sendRestaurantPicker(from, businesses, lang);
+        if (session.lat != null && session.lng != null) {
+          const businesses = sortByDistance(await getBusinessesInfo(routing.businessIds), session.lat, session.lng);
+          await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null, lat: session.lat, lng: session.lng });
+          await sendRestaurantPicker(from, businesses, lang);
+        } else {
+          await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null });
+          await sendLocationRequest(from, t('locationRequestBody', lang));
+        }
         return;
       }
     }
