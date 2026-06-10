@@ -4,7 +4,7 @@
 // axios so the real API call code is also exercised.
 jest.mock('axios');
 
-const { sendText, sendListMessage, sendButtonMessage } = require('../whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, deleteMessage } = require('../whatsapp');
 
 let consoleSpy;
 
@@ -17,8 +17,8 @@ afterEach(() => {
 });
 
 describe('sendText', () => {
-  test('resolves without calling API', async () => {
-    await expect(sendText('+43123456789', 'Hello')).resolves.toBeUndefined();
+  test('resolves without calling API and returns stub wamid', async () => {
+    await expect(sendText('+43123456789', 'Hello')).resolves.toMatch(/^test-wamid-/);
   });
 
   test('strips leading + from phone number', async () => {
@@ -55,8 +55,8 @@ describe('sendListMessage', () => {
     ],
   };
 
-  test('resolves without calling API', async () => {
-    await expect(sendListMessage('+43123456789', payload)).resolves.toBeUndefined();
+  test('resolves without calling API and returns stub wamid', async () => {
+    await expect(sendListMessage('+43123456789', payload)).resolves.toMatch(/^test-wamid-/);
   });
 
   test('includes header and item titles in output', async () => {
@@ -68,7 +68,7 @@ describe('sendListMessage', () => {
 
   test('works without optional footer', async () => {
     const { footer: _omit, ...noFooter } = payload;
-    await expect(sendListMessage('+43123456789', noFooter)).resolves.toBeUndefined();
+    await expect(sendListMessage('+43123456789', noFooter)).resolves.toMatch(/^test-wamid-/);
   });
 });
 
@@ -82,8 +82,8 @@ describe('sendButtonMessage', () => {
     ],
   };
 
-  test('resolves without calling API', async () => {
-    await expect(sendButtonMessage('+43123456789', payload)).resolves.toBeUndefined();
+  test('resolves without calling API and returns stub wamid', async () => {
+    await expect(sendButtonMessage('+43123456789', payload)).resolves.toMatch(/^test-wamid-/);
   });
 
   test('includes body and button titles in output', async () => {
@@ -95,7 +95,21 @@ describe('sendButtonMessage', () => {
 
   test('works without optional footer', async () => {
     const { footer: _omit, ...noFooter } = payload;
-    await expect(sendButtonMessage('+43123456789', noFooter)).resolves.toBeUndefined();
+    await expect(sendButtonMessage('+43123456789', noFooter)).resolves.toMatch(/^test-wamid-/);
+  });
+});
+
+describe('deleteMessage', () => {
+  test('logs message ID in test mode and resolves', async () => {
+    await expect(deleteMessage('wamid.abc123')).resolves.toBeUndefined();
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('wamid.abc123'));
+  });
+
+  test('no-ops when messageId is falsy', async () => {
+    await expect(deleteMessage(null)).resolves.toBeUndefined();
+    await expect(deleteMessage(undefined)).resolves.toBeUndefined();
+    await expect(deleteMessage('')).resolves.toBeUndefined();
+    expect(consoleSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -210,5 +224,29 @@ describe('production paths (NODE_ENV overridden)', () => {
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('ERR'));
 
     consoleSpy.mockRestore();
+  });
+
+  test('deleteMessage DELETEs the message via the API', async () => {
+    axios.delete.mockResolvedValue({});
+
+    await deleteMessage('wamid.test999');
+
+    expect(axios.delete).toHaveBeenCalledWith(
+      expect.stringContaining('PHONE_ID/messages'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer TOKEN' }),
+        data: { messaging_product: 'whatsapp', message_id: 'wamid.test999' },
+      }),
+    );
+  });
+
+  test('deleteMessage is non-fatal — swallows API error', async () => {
+    axios.delete.mockRejectedValue(new Error('Not found'));
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(deleteMessage('wamid.gone')).resolves.toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('wamid.gone'), expect.anything());
+
+    warnSpy.mockRestore();
   });
 });

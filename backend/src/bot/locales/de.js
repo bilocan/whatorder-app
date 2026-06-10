@@ -29,6 +29,8 @@ module.exports = {
   confirmPrompt: () => 'YES zum Bestätigen, NO zum Abbrechen.',
   yesNoOnly: () => 'Bitte YES oder NO schreiben.',
   orderConfirmed: (shortId) => `✅ Bestellung erhalten! Bestellnr.: #${shortId}\n\nWir benachrichtigen Sie wenn sie fertig ist. Danke! 🙏`,
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName) =>
+    `✅ Bestellung #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nGesamt: €${total}\nFertig um: ${pickupTime}\n\nDanke, ${customerName}! 🙏`,
   orderCancelled: () => 'Bestellung abgebrochen.',
 
   menuEmpty: () => 'Aktuell keine Artikel verfügbar.',

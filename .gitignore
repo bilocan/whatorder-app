@@ -69,3 +69,4 @@ out/
 # Test coverage (generated output — uploaded to Codecov by CI)
 coverage/
 **/coverage/
+.vercel
