@@ -26,6 +26,9 @@ mobile/.flutter-plugins
 mobile/.flutter-plugins-dependencies
 mobile/.idea/
 
+# Claude Code local overrides
+.claude/CLAUDE.local.md
+
 # IDE
 .vscode/
 .idea/
