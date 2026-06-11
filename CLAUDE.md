@@ -13,9 +13,16 @@ Save implementation plans and decisions to the vault, not to Claude's memory sys
 
 ## Key specs to read before making structural changes
 - `specs/technical-architecture.md` — system overview, Firestore schema, data flow
+- `specs/bot-state-machine.md` — **all bot states, transitions, session schema** (read before touching `botHandler.js` or `sessionStore.js`)
 - `specs/security-multitenant.md` — tenant isolation rules (read before touching data model)
 - `specs/mvp-spec.md` — what is and isn't in scope
 - `specs/build-roadmap.md` — current phase and what's next
+
+## Bot state machine sync rule
+`specs/bot-state-machine.md` and `backend/src/bot/botHandler.js` are co-authoritative.
+When adding or changing any state, transition, or session field:
+1. Update `specs/bot-state-machine.md` first (or in the same commit)
+2. Keep the Mermaid diagram, transition table, and session schema section in sync
 
 ## Firestore collections sync rule
 When adding or changing a Firestore collection:
