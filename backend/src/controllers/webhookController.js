@@ -75,6 +75,9 @@ async function receiveWebhook(req, res) {
     return;
   }
 
+  // Respond immediately — Meta retries if no 200 within ~20s, causing duplicate processing
+  res.status(200).json({ status: 'success' });
+
   try {
     const routing = await resolveRouting(phoneNumberId);
     await handleMessage(routing, { from, contactName, ...message });
@@ -82,8 +85,6 @@ async function receiveWebhook(req, res) {
     const metaError = err.response?.data ? JSON.stringify(err.response.data) : null;
     console.error('Bot error:', metaError ?? err.message ?? err);
   }
-
-  res.status(200).json({ status: 'success' });
 }
 
 module.exports = { verifyWebhook, receiveWebhook };
