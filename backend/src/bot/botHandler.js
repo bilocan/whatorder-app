@@ -194,7 +194,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   if (type === 'text') {
     const overrideLang = getOverride(norm);
     if (overrideLang) {
-      await setSession(from, { ...session, language: overrideLang });
+      await setSession(from, { ...session, language: overrideLang, pendingDeleteIds: [] });
       await sendText(from, t('langChanged', overrideLang));
       return;
     }

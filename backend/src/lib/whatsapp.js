@@ -128,6 +128,9 @@ async function deleteMessage(messageId) {
       data: { messaging_product: 'whatsapp' },
     });
   } catch (err) {
+    // code=100 (GraphMethodException) means the message type doesn't support deletion
+    // (interactive/catalog/button messages). This is a permanent API limitation — skip silently.
+    if (err.response?.data?.error?.code === 100) return;
     console.warn(`[WA-DEL] id=${messageId} status=${err.response?.status ?? 'NET'} code=${err.response?.data?.error?.code} type=${err.response?.data?.error?.type} msg=${err.response?.data?.error?.message ?? err.message}`);
   }
 }
