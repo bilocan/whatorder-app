@@ -67,7 +67,7 @@ export default function RestaurantsPage() {
       await setDoc(doc(db, 'businesses', id), {
         id,
         name,
-        phone,
+        alertPhone: phone,
         status: 'active',
         createdAt: new Date().toISOString(),
       });

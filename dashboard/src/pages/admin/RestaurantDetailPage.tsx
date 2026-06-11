@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  doc, getDoc, updateDoc,
+  doc, updateDoc,
   collection, onSnapshot, addDoc, deleteDoc,
   query, where, setDoc, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
@@ -97,12 +97,12 @@ export default function RestaurantDetailPage() {
   useEffect(() => {
     if (!id) return;
 
-    getDoc(doc(db, 'businesses', id)).then((snap) => {
+    const bizUnsub = onSnapshot(doc(db, 'businesses', id), (snap) => {
       if (!snap.exists()) return;
       const data = { id: snap.id, ...snap.data() } as Business;
       setBusiness(data);
       setEditName(data.name);
-      setEditPhone(data.phone);
+      setEditPhone(data.alertPhone ?? '');
       setEditStatus(data.status);
       setEditAddress(data.address ?? '');
       setEditLat(data.lat != null ? String(data.lat) : '');
@@ -134,7 +134,7 @@ export default function RestaurantDetailPage() {
       (snap) => setOwners(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as Owner))),
     );
 
-    return () => { menuUnsub(); botUnsub?.(); ownersUnsub(); };
+    return () => { bizUnsub(); menuUnsub(); botUnsub?.(); ownersUnsub(); };
   }, [id, phoneNumberId]);
 
   async function handleLookupCoords() {
@@ -163,13 +163,13 @@ export default function RestaurantDetailPage() {
     setSavingDetails(true);
     await updateDoc(doc(db, 'businesses', id), {
       name: editName,
-      phone: editPhone,
+      alertPhone: editPhone,
       status: editStatus,
       address: editAddress || null,
       lat: parsedLat,
       lng: parsedLng,
     });
-    setBusiness((b) => b ? { ...b, name: editName, phone: editPhone, status: editStatus, address: editAddress || undefined, lat: parsedLat, lng: parsedLng } : b);
+    setBusiness((b) => b ? { ...b, name: editName, alertPhone: editPhone, status: editStatus, address: editAddress || undefined, lat: parsedLat, lng: parsedLng } : b);
     setSavingDetails(false);
     setEditing(false);
   }
@@ -372,7 +372,7 @@ export default function RestaurantDetailPage() {
           {!editing ? (
             <div>
               <Field label="Name" value={business.name} />
-              <Field label="Owner alert number" value={business.phone} />
+              <Field label="Owner alert number" value={business.alertPhone ?? '—'} />
               <Field label="Status" value={business.status} />
               <Field label="Business ID" value={business.id} mono />
               <Field label="Address" value={business.address ?? '—'} />

@@ -101,8 +101,7 @@ export default function SettingsPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {[
           { label: 'Business name', value: business.name },
-          { label: 'WhatsApp number', value: business.whatsappNumber },
-          { label: 'Phone', value: business.phone },
+          { label: 'Alert number', value: business.alertPhone },
           { label: 'Status', value: business.status },
         ].map(({ label, value }) => (
           <div key={label}>

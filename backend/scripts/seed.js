@@ -26,8 +26,7 @@ async function fetchBusinessPhone() {
 
 const business = {
   name: 'Döner Palace',
-  phone: null,
-  whatsappNumber: null,
+  alertPhone: null,
   timezone: 'Europe/Vienna',
   avgPrepTime: 20,
   businessHours: {
@@ -134,11 +133,10 @@ async function seed() {
 
   const phone = await fetchBusinessPhone();
   if (phone) {
-    business.phone = phone;
-    business.whatsappNumber = phone;
-    console.log(`  resolved business phone: ${phone}`);
+    business.alertPhone = phone;
+    console.log(`  resolved business alertPhone: ${phone}`);
   } else {
-    console.warn('  could not resolve business phone from API — phone fields will be null');
+    console.warn('  could not resolve business phone from API — alertPhone will be null');
   }
 
   await db.collection('businesses').doc(BUSINESS_ID).set(business);
