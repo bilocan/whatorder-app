@@ -23,14 +23,21 @@ module.exports = {
 
   orderTotal: (total) => `Total: €${total}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Ready in ~${prepMins} min (around ${pickupTime})\n\nWhat's your name for the order?`,
-  finalConfirmBody: (name, total, pickupTime) => `✅ Almost done!\n\n👤 ${name}\n💶 Total: €${total}\n⏱️ Ready around ${pickupTime}\n\nConfirm your order?`,
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress) => {
+    const detail = deliveryAddress
+      ? `🚚 Delivery to: ${deliveryAddress}`
+      : `⏱️ Ready around ${pickupTime}`;
+    return `✅ Almost done!\n\n👤 ${name}\n💶 Total: €${total}\n${detail}\n\nConfirm your order?`;
+  },
   confirmOrderBtn: () => 'Confirm ✅',
   cancelOrderBtn: () => 'Cancel ❌',
   confirmPrompt: () => 'Type YES to confirm, NO to cancel.',
   yesNoOnly: () => 'Please type YES or NO.',
   orderConfirmed: (shortId) => `✅ Order received! Order #${shortId}\n\nWe'll notify you when it's ready. Thank you! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName) =>
-    `✅ Order #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nTotal: €${total}\nReady by: ${pickupTime}\n\nThanks, ${customerName}! 🙏`,
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress) => {
+    const detail = deliveryAddress ? `Delivery to: ${deliveryAddress}` : `Ready by: ${pickupTime}`;
+    return `✅ Order #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nTotal: €${total}\n${detail}\n\nThanks, ${customerName}! 🙏`;
+  },
   orderCancelled: () => 'Order cancelled.',
 
   menuEmpty: () => 'No items available right now.',
@@ -43,6 +50,12 @@ module.exports = {
   askName: () => "What's your name for the order?",
 
   orderReady: (shortId) => `✅ Your order #${shortId} is ready for pickup! See you soon 🙏`,
+
+  askOrderType: (fee) => `How would you like to receive your order?\n\nDelivery fee: €${Number(fee).toFixed(2)}`,
+  pickupBtn: () => 'Pickup',
+  deliveryBtn: () => 'Delivery',
+  askDeliveryAddress: () => '📍 Share your location or type your delivery address.',
+  deliveryOutOfZone: () => "Sorry, we don't deliver to that area. Please choose pickup instead.",
 
   locationRequestBody: () => '📍 Share your location and we\'ll show the nearest restaurants first.\n\nOr just reply with anything to see all restaurants.',
   restaurantPickerBody: () => 'Which restaurant would you like to order from?',

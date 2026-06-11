@@ -46,8 +46,20 @@ export default function OrderDetailPage() {
   return (
     <div style={{ maxWidth: 480 }}>
       <Link to="/orders" style={{ fontSize: '0.9rem', color: '#666', textDecoration: 'none' }}>← Back to orders</Link>
-      <h2 style={{ marginTop: '0.75rem', marginBottom: '0.25rem' }}>{order.customerName}</h2>
-      <p style={{ color: '#999', margin: 0, marginBottom: '1.5rem' }}>{order.customerPhone}</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', marginBottom: '0.1rem' }}>
+        <h2 style={{ margin: 0 }}>{order.customerName}</h2>
+        {order.orderType === 'delivery' && (
+          <span style={{ background: '#0ea5e922', color: '#0ea5e9', padding: '0.15rem 0.6rem', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.02em' }}>
+            DELIVERY
+          </span>
+        )}
+      </div>
+      <p style={{ color: '#999', margin: 0, marginBottom: order.orderType === 'delivery' ? '0.25rem' : '1.5rem' }}>{order.customerPhone}</p>
+      {order.orderType === 'delivery' && order.deliveryAddress && (
+        <p style={{ color: '#0ea5e9', fontSize: '0.85rem', margin: '0 0 1.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.25rem' }}>
+          🚚 {order.deliveryAddress}
+        </p>
+      )}
 
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
         <thead>
@@ -68,6 +80,11 @@ export default function OrderDetailPage() {
         </tbody>
       </table>
 
+      {order.orderType === 'delivery' && order.deliveryFee ? (
+        <p style={{ fontSize: '0.85rem', color: '#999', textAlign: 'right', margin: '0.25rem 0 0' }}>
+          Delivery fee: €{order.deliveryFee.toFixed(2)}
+        </p>
+      ) : null}
       <p style={{ fontWeight: 700, fontSize: '1.1rem', textAlign: 'right' }}>Total: €{order.total.toFixed(2)}</p>
 
       {order.notes && (

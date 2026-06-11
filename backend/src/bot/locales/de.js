@@ -23,14 +23,21 @@ module.exports = {
 
   orderTotal: (total) => `Gesamt: €${total}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Fertig in ~${prepMins} Min. (gegen ${pickupTime})\n\nWie lautet Ihr Name?`,
-  finalConfirmBody: (name, total, pickupTime) => `✅ Fast fertig!\n\n👤 ${name}\n💶 Gesamt: €${total}\n⏱️ Fertig gegen ${pickupTime}\n\nBestellung bestätigen?`,
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress) => {
+    const detail = deliveryAddress
+      ? `🚚 Lieferung an: ${deliveryAddress}`
+      : `⏱️ Fertig gegen ${pickupTime}`;
+    return `✅ Fast fertig!\n\n👤 ${name}\n💶 Gesamt: €${total}\n${detail}\n\nBestellung bestätigen?`;
+  },
   confirmOrderBtn: () => 'Bestätigen ✅',
   cancelOrderBtn: () => 'Abbrechen ❌',
   confirmPrompt: () => 'YES zum Bestätigen, NO zum Abbrechen.',
   yesNoOnly: () => 'Bitte YES oder NO schreiben.',
   orderConfirmed: (shortId) => `✅ Bestellung erhalten! Bestellnr.: #${shortId}\n\nWir benachrichtigen Sie wenn sie fertig ist. Danke! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName) =>
-    `✅ Bestellung #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nGesamt: €${total}\nFertig um: ${pickupTime}\n\nDanke, ${customerName}! 🙏`,
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress) => {
+    const detail = deliveryAddress ? `Lieferung an: ${deliveryAddress}` : `Fertig um: ${pickupTime}`;
+    return `✅ Bestellung #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nGesamt: €${total}\n${detail}\n\nDanke, ${customerName}! 🙏`;
+  },
   orderCancelled: () => 'Bestellung abgebrochen.',
 
   menuEmpty: () => 'Aktuell keine Artikel verfügbar.',
@@ -43,6 +50,12 @@ module.exports = {
   askName: () => 'Wie lautet Ihr Name für die Bestellung?',
 
   orderReady: (shortId) => `✅ Ihre Bestellung #${shortId} ist abholbereit! Bis gleich 🙏`,
+
+  askOrderType: (fee) => `Wie möchten Sie Ihre Bestellung erhalten?\n\nLiefergebühr: €${Number(fee).toFixed(2)}`,
+  pickupBtn: () => 'Abholung',
+  deliveryBtn: () => 'Lieferung',
+  askDeliveryAddress: () => '📍 Teilen Sie Ihren Standort oder geben Sie Ihre Lieferadresse ein.',
+  deliveryOutOfZone: () => 'Es tut uns leid, in dieses Gebiet liefern wir nicht. Bitte wählen Sie Abholung.',
 
   locationRequestBody: () => '📍 Teilen Sie Ihren Standort und wir zeigen Ihnen die nächsten Restaurants zuerst.\n\nOder schreiben Sie einfach etwas, um alle Restaurants zu sehen.',
   restaurantPickerBody: () => 'Bei welchem Restaurant möchten Sie bestellen?',

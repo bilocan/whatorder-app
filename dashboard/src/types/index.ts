@@ -21,6 +21,9 @@ export interface Order {
   readyAt?: string;
   completedAt?: string;
   pickupTime?: string;
+  orderType?: 'pickup' | 'delivery';
+  deliveryAddress?: string;
+  deliveryFee?: number;
 }
 
 export interface MenuItem {
@@ -45,6 +48,9 @@ export interface Business {
   address?: string;
   lat?: number | null;
   lng?: number | null;
+  deliveryEnabled?: boolean;
+  deliveryFee?: number;
+  deliveryZone?: string;
 }
 
 export interface PhoneRouting {
