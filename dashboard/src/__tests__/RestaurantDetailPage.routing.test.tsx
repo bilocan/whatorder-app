@@ -6,7 +6,6 @@ import RestaurantDetailPage from '../pages/admin/RestaurantDetailPage';
 // ── hoisted mocks ──────────────────────────────────────────────────────────
 
 const mockSetDoc = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-const mockGetDoc = vi.hoisted(() => vi.fn());
 const mockOnSnapshot = vi.hoisted(() => vi.fn(() => vi.fn()));
 const mockArrayUnion = vi.hoisted(() => vi.fn((v) => ({ type: 'arrayUnion', value: v })));
 const mockArrayRemove = vi.hoisted(() => vi.fn((v) => ({ type: 'arrayRemove', value: v })));
@@ -14,7 +13,6 @@ const mockArrayRemove = vi.hoisted(() => vi.fn((v) => ({ type: 'arrayRemove', va
 vi.mock('firebase/firestore', () => ({
   doc: vi.fn((_db, ...segments) => ({ path: segments.join('/') })),
   collection: vi.fn((_db, ...segments) => ({ path: segments.join('/') })),
-  getDoc: mockGetDoc,
   updateDoc: vi.fn().mockResolvedValue(undefined),
   addDoc: vi.fn().mockResolvedValue({ id: 'new-item-id' }),
   deleteDoc: vi.fn().mockResolvedValue(undefined),
@@ -35,14 +33,12 @@ const BUSINESS_ID = 'biz_123';
 const PHONE_NUMBER_ID = 'phone_456';
 
 function setupMocks({ botActive = false }: { botActive?: boolean } = {}) {
-  mockGetDoc.mockResolvedValue({
-    exists: () => true,
-    id: BUSINESS_ID,
-    data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', phone: '+43660123456', status: 'active' }),
-  });
-
-  // onSnapshot call order: 1=menu, 2=phoneRouting (bot), 3=owners
+  // onSnapshot call order: 1=business, 2=menu, 3=phoneRouting (bot), 4=owners
   mockOnSnapshot
+    .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
+      cb({ exists: () => true, id: BUSINESS_ID, data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', alertPhone: '+43660123456', status: 'active' }) });
+      return vi.fn();
+    })
     .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
       cb({ docs: [] });
       return vi.fn();
@@ -162,15 +158,15 @@ describe('RestaurantDetailPage — bot toggle', () => {
   });
 
   it('hides the bot toggle entirely when VITE_WHATSAPP_PHONE_NUMBER_ID is not set', async () => {
-    mockGetDoc.mockResolvedValue({
-      exists: () => true,
-      id: BUSINESS_ID,
-      data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', phone: '+43660123456', status: 'active' }),
-    });
-    mockOnSnapshot.mockImplementation((_: unknown, cb: (s: unknown) => void) => {
-      cb({ docs: [] });
-      return vi.fn();
-    });
+    mockOnSnapshot
+      .mockImplementationOnce((_: unknown, cb: (s: unknown) => void) => {
+        cb({ exists: () => true, id: BUSINESS_ID, data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', alertPhone: '+43660123456', status: 'active' }) });
+        return vi.fn();
+      })
+      .mockImplementation((_: unknown, cb: (s: unknown) => void) => {
+        cb({ docs: [] });
+        return vi.fn();
+      });
 
     renderPage('');
     await waitForLoad();

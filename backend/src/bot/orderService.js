@@ -55,13 +55,13 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
   try {
     const bizSnap = await businessRef(businessId).get();
     const biz = bizSnap.exists ? bizSnap.data() : null;
-    if (biz?.phone) {
+    if (biz?.alertPhone) {
       const shortId = ref.id.slice(-6).toUpperCase();
       const itemLines = items.map(i => `• ${i.qty}x ${i.name} — €${(i.price * i.qty).toFixed(2)}`).join('\n');
       const typeLabel = doc.orderType === 'delivery' ? '🚚 Delivery' : '🛍️ Pickup';
       const addressLine = doc.deliveryAddress ? `\nAddress: ${doc.deliveryAddress}` : '';
       const ownerMsg = `🔔 New Order #${shortId} (${typeLabel})\n\n${itemLines}\n\nTotal: €${doc.total.toFixed(2)}${addressLine}\nCustomer: ${resolvedName} (${customerPhone})`;
-      await sendText(biz.phone, ownerMsg);
+      await sendText(biz.alertPhone, ownerMsg);
     }
   } catch (err) {
     console.error('Owner notification failed:', err.message);

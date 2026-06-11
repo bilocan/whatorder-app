@@ -39,8 +39,7 @@ export interface MenuItem {
 export interface Business {
   id: string;
   name: string;
-  phone: string;
-  whatsappNumber?: string;
+  alertPhone: string;
   timezone?: string;
   avgPrepTime?: number;
   status: 'active' | 'paused';

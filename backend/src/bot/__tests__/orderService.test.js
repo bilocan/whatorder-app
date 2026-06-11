@@ -79,7 +79,7 @@ describe('createOrder', () => {
     businessRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({
         exists: true,
-        data: () => ({ phone: '+4312345678', name: 'Döner Palace' }),
+        data: () => ({ alertPhone: '+4312345678', name: 'Döner Palace' }),
       }),
     });
 
@@ -96,7 +96,7 @@ describe('createOrder', () => {
     businessRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({
         exists: true,
-        data: () => ({ phone: '+4312345678' }),
+        data: () => ({ alertPhone: '+4312345678' }),
       }),
     });
 
@@ -113,7 +113,7 @@ describe('createOrder', () => {
     businessRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({
         exists: true,
-        data: () => ({ phone: '+4312345678' }),
+        data: () => ({ alertPhone: '+4312345678' }),
       }),
     });
 
@@ -122,12 +122,12 @@ describe('createOrder', () => {
     expect(sendText).toHaveBeenCalledWith('+4312345678', expect.stringContaining('ABC123'));
   });
 
-  test('does not send owner notification when business has no phone', async () => {
+  test('does not send owner notification when business has no alertPhone', async () => {
     makeOrdersRef();
     businessRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({
         exists: true,
-        data: () => ({ name: 'Döner Palace' }), // no phone field
+        data: () => ({ name: 'Döner Palace' }), // no alertPhone field
       }),
     });
 
@@ -138,7 +138,7 @@ describe('createOrder', () => {
   test('does not throw when owner notification fails', async () => {
     makeOrdersRef();
     businessRef.mockReturnValue({
-      get: jest.fn().mockResolvedValue({ exists: true, data: () => ({ phone: '+4312345678' }) }),
+      get: jest.fn().mockResolvedValue({ exists: true, data: () => ({ alertPhone: '+4312345678' }) }),
     });
     sendText.mockRejectedValue(new Error('WhatsApp down'));
 
@@ -271,7 +271,7 @@ describe('createOrder', () => {
     businessRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({
         exists: true,
-        data: () => ({ phone: '+4312345678', name: 'Döner Palace' }),
+        data: () => ({ alertPhone: '+4312345678', name: 'Döner Palace' }),
       }),
     });
 
