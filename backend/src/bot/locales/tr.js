@@ -57,6 +57,15 @@ module.exports = {
   askDeliveryAddress: () => '📍 Konumunuzu paylaşın veya teslimat adresinizi yazın.',
   deliveryOutOfZone: () => 'Üzgünüz, bu bölgeye teslimat yapamıyoruz. Lütfen gel-al seçeneğini seçin.',
 
+  deliveryAddrPickerHeader: () => '📍 Teslimat adresi',
+  deliveryAddrPickerBody:   () => 'Siparişinizi nereye teslim edelim?',
+  deliveryAddrPickerBtn:    () => 'Adres seç',
+  deliveryAddrSection:      () => 'Adresleriniz',
+  deliveryLocStart:         () => '📍 Paylaştığınız konum',
+  deliverySavedAddr:        () => '🏠 Son adresiniz',
+  deliveryNewAddr:          () => '✏️ Yeni adres girin',
+  deliveryShareLoc:         () => '📡 Konum paylaş',
+
   locationRequestBody: () => '📍 Konumunuzu paylaşın, en yakın restoranları önce gösterelim.\n\nYa da herhangi bir şey yazarak tüm restoranları görebilirsiniz.',
   restaurantPickerBody: () => 'Hangi restorandan sipariş vermek istersiniz?',
   restaurantPickerButton: () => 'Restoranlar',

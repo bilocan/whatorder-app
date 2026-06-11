@@ -57,6 +57,15 @@ module.exports = {
   askDeliveryAddress: () => '📍 Teilen Sie Ihren Standort oder geben Sie Ihre Lieferadresse ein.',
   deliveryOutOfZone: () => 'Es tut uns leid, in dieses Gebiet liefern wir nicht. Bitte wählen Sie Abholung.',
 
+  deliveryAddrPickerHeader: () => '📍 Lieferadresse',
+  deliveryAddrPickerBody:   () => 'Wohin sollen wir Ihre Bestellung liefern?',
+  deliveryAddrPickerBtn:    () => 'Adresse wählen',
+  deliveryAddrSection:      () => 'Ihre Adressen',
+  deliveryLocStart:         () => '📍 Geteilter Standort',
+  deliverySavedAddr:        () => '🏠 Letzte Adresse',
+  deliveryNewAddr:          () => '✏️ Adresse eingeben',
+  deliveryShareLoc:         () => '📡 Standort senden',
+
   locationRequestBody: () => '📍 Teilen Sie Ihren Standort und wir zeigen Ihnen die nächsten Restaurants zuerst.\n\nOder schreiben Sie einfach etwas, um alle Restaurants zu sehen.',
   restaurantPickerBody: () => 'Bei welchem Restaurant möchten Sie bestellen?',
   restaurantPickerButton: () => 'Restaurants',

@@ -4,6 +4,7 @@ jest.mock('../menuService');
 jest.mock('../orderService');
 jest.mock('../../lib/whatsapp');
 jest.mock('../../lib/geocode');
+jest.mock('../../lib/collections', () => ({ customersRef: jest.fn() }));
 
 const { handleMessage } = require('../botHandler');
 const { getSession, setSession } = require('../sessionStore');
@@ -11,6 +12,7 @@ const { getMenu, getBusinessInfo } = require('../menuService');
 const { createOrder } = require('../orderService');
 const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendLocationRequest } = require('../../lib/whatsapp');
 const { reverseGeocode } = require('../../lib/geocode');
+const { customersRef } = require('../../lib/collections');
 
 const BIZ = 'biz_test';
 const ROUTING = { businessIds: [BIZ], defaultBusinessId: BIZ };
@@ -23,17 +25,22 @@ const MENU = [
 
 const BIZ_INFO = { name: 'Döner Palace', avgPrepTime: 20, catalogId: 'cat_123' };
 
+function mockCustomerProfile(data) {
+  customersRef.mockReturnValue({ doc: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue({ data: () => data }) }) });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   getMenu.mockResolvedValue(MENU);
   getBusinessInfo.mockResolvedValue(BIZ_INFO);
   createOrder.mockResolvedValue('order_abc123');
   sendText.mockResolvedValue();
-  sendListMessage.mockResolvedValue();
+  sendListMessage.mockResolvedValue('list_msg_id');
   sendButtonMessage.mockResolvedValue();
   sendCatalogMessage.mockResolvedValue();
   sendLocationRequest.mockResolvedValue();
   reverseGeocode.mockResolvedValue(null);
+  mockCustomerProfile(null); // no saved address by default
 });
 
 function msg(overrides) {
@@ -1244,7 +1251,7 @@ describe('Delivery flow: awaiting_order_type', () => {
     }));
   });
 
-  test('btn_delivery transitions to awaiting_delivery_address with orderType delivery', async () => {
+  test('btn_delivery with no known addresses goes straight to awaiting_delivery_address', async () => {
     getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_order_type' });
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_delivery' }));
@@ -1252,6 +1259,51 @@ describe('Delivery flow: awaiting_order_type', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_delivery_address',
       orderType: 'delivery',
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('btn_delivery with session lat/lng shows address picker', async () => {
+    reverseGeocode.mockResolvedValue('Mariahilfer Str. 10, 1060 Wien');
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_order_type', lat: 48.1975, lng: 16.3599 });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_delivery' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address_choice',
+      orderType: 'delivery',
+    }));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([
+            expect.objectContaining({ id: 'delivery_loc_start', description: 'Mariahilfer Str. 10, 1060 Wien' }),
+            expect.objectContaining({ id: 'delivery_addr_new' }),
+            expect.objectContaining({ id: 'delivery_addr_share' }),
+          ]),
+        }),
+      ]),
+    }));
+  });
+
+  test('btn_delivery with saved profile address shows address picker', async () => {
+    mockCustomerProfile({ lastDeliveryAddress: 'Naschmarkt 5, 1040 Wien' });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_order_type' });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_delivery' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address_choice',
+      orderType: 'delivery',
+    }));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([
+            expect.objectContaining({ id: 'delivery_addr_saved', description: 'Naschmarkt 5, 1040 Wien' }),
+          ]),
+        }),
+      ]),
     }));
   });
 
@@ -1354,6 +1406,152 @@ describe('Delivery flow: confirming → createOrder', () => {
       deliveryAddress: null,
       deliveryFee: 0,
       pickupTime: '14:30',
+    }));
+  });
+});
+
+const ADDR_CHOICE_SESSION = {
+  ...BASE_SESSION,
+  state: 'awaiting_delivery_address_choice',
+  orderType: 'delivery',
+  lat: 48.1975,
+  lng: 16.3599,
+};
+
+describe('Delivery flow: awaiting_delivery_address_choice', () => {
+  test('delivery_loc_start geocodes session lat/lng and transitions to awaiting_name', async () => {
+    reverseGeocode.mockResolvedValue('Mariahilfer Str. 10, 1060 Wien');
+    getSession.mockResolvedValue(ADDR_CHOICE_SESSION);
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'delivery_loc_start' }));
+
+    expect(reverseGeocode).toHaveBeenCalledWith(48.1975, 16.3599);
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+      deliveryAddress: 'Mariahilfer Str. 10, 1060 Wien',
+    }));
+  });
+
+  test('delivery_loc_start falls back to coordinate string when geocode fails', async () => {
+    reverseGeocode.mockResolvedValue(null);
+    getSession.mockResolvedValue(ADDR_CHOICE_SESSION);
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'delivery_loc_start' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+      deliveryAddress: '48.1975, 16.3599',
+    }));
+  });
+
+  test('delivery_addr_saved fetches profile address and transitions to awaiting_name', async () => {
+    mockCustomerProfile({ lastDeliveryAddress: 'Naschmarkt 5, 1040 Wien' });
+    getSession.mockResolvedValue(ADDR_CHOICE_SESSION);
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'delivery_addr_saved' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+      deliveryAddress: 'Naschmarkt 5, 1040 Wien',
+    }));
+  });
+
+  test('delivery_addr_new asks for typed address and transitions to awaiting_delivery_address', async () => {
+    getSession.mockResolvedValue(ADDR_CHOICE_SESSION);
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'delivery_addr_new' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.any(String));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address',
+    }));
+  });
+
+  test('delivery_addr_share sends location request and transitions to awaiting_delivery_address', async () => {
+    getSession.mockResolvedValue(ADDR_CHOICE_SESSION);
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'delivery_addr_share' }));
+
+    expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.any(String));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address',
+    }));
+  });
+
+  test('unrecognised input re-shows the address picker', async () => {
+    reverseGeocode.mockResolvedValue('Mariahilfer Str. 10, 1060 Wien');
+    getSession.mockResolvedValue(ADDR_CHOICE_SESSION);
+
+    await handleMessage(ROUTING, msg({ text: 'huh?' }));
+
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([expect.objectContaining({ id: 'delivery_loc_start' })]),
+        }),
+      ]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address_choice',
+    }));
+  });
+});
+
+describe('Known-name skip: awaiting_name bypassed for returning customers', () => {
+  test('returning customer (name in profile) skips awaiting_name and jumps to confirming', async () => {
+    mockCustomerProfile({ name: 'Ahmet' });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_special_requests' });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_skip_requests' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      customerName: 'Ahmet',
+    }));
+    expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('name'));
+  });
+
+  test('new customer (no profile name) still asks for name', async () => {
+    mockCustomerProfile(null);
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_special_requests' });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_skip_requests' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_name' }));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.any(String));
+  });
+
+  test('anonymous fallback name ("WhatsApp Customer") is treated as no name — still asks', async () => {
+    mockCustomerProfile({ name: 'WhatsApp Customer' });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_special_requests' });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_skip_requests' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_name' }));
+  });
+
+  test('returning customer choosing pickup skips awaiting_name', async () => {
+    mockCustomerProfile({ name: 'Bilal' });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_order_type' });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_pickup' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      customerName: 'Bilal',
+    }));
+  });
+
+  test('returning customer providing typed delivery address skips awaiting_name', async () => {
+    mockCustomerProfile({ name: 'Bilal' });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_delivery_address', orderType: 'delivery' });
+
+    await handleMessage(ROUTING, msg({ text: 'Naschmarkt 5, 1040 Wien' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      customerName: 'Bilal',
+      deliveryAddress: 'Naschmarkt 5, 1040 Wien',
     }));
   });
 });
