@@ -23,14 +23,21 @@ module.exports = {
 
   orderTotal: (total) => `Toplam: €${total}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Tahmini hazırlık: ~${prepMins} dk (saat ${pickupTime} civarı)\n\nAdınızı yazar mısınız?`,
-  finalConfirmBody: (name, total, pickupTime) => `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n⏱️ Hazır saat: ~${pickupTime}\n\nSiparişi onaylıyor musunuz?`,
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress) => {
+    const detail = deliveryAddress
+      ? `🚚 Teslimat adresi: ${deliveryAddress}`
+      : `⏱️ Hazır saat: ~${pickupTime}`;
+    return `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n${detail}\n\nSiparişi onaylıyor musunuz?`;
+  },
   confirmOrderBtn: () => 'Onayla ✅',
   cancelOrderBtn: () => 'İptal ❌',
   confirmPrompt: () => 'Onaylamak için YES, iptal için NO yazın.',
   yesNoOnly: () => 'Lütfen YES veya NO yazın.',
   orderConfirmed: (shortId) => `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\nHazır olduğunda size bildireceğiz. Teşekkürler! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName) =>
-    `✅ Sipariş #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nToplam: €${total}\nHazır: ${pickupTime}\n\nTeşekkürler, ${customerName}! 🙏`,
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress) => {
+    const detail = deliveryAddress ? `Teslimat: ${deliveryAddress}` : `Hazır: ${pickupTime}`;
+    return `✅ Sipariş #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nToplam: €${total}\n${detail}\n\nTeşekkürler, ${customerName}! 🙏`;
+  },
   orderCancelled: () => 'Sipariş iptal edildi.',
 
   menuEmpty: () => 'Şu an menümüzde ürün yok.',
@@ -43,6 +50,12 @@ module.exports = {
   askName: () => 'Sipariş için adınızı yazar mısınız?',
 
   orderReady: (shortId) => `✅ Siparişiniz #${shortId} hazır! Sizi bekliyoruz 🙏`,
+
+  askOrderType: (fee) => `Siparişinizi nasıl almak istersiniz?\n\nTeslimat ücreti: €${Number(fee).toFixed(2)}`,
+  pickupBtn: () => 'Gel Al',
+  deliveryBtn: () => 'Teslimat',
+  askDeliveryAddress: () => '📍 Konumunuzu paylaşın veya teslimat adresinizi yazın.',
+  deliveryOutOfZone: () => 'Üzgünüz, bu bölgeye teslimat yapamıyoruz. Lütfen gel-al seçeneğini seçin.',
 
   locationRequestBody: () => '📍 Konumunuzu paylaşın, en yakın restoranları önce gösterelim.\n\nYa da herhangi bir şey yazarak tüm restoranları görebilirsiniz.',
   restaurantPickerBody: () => 'Hangi restorandan sipariş vermek istersiniz?',

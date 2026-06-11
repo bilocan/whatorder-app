@@ -45,15 +45,32 @@ export default function OrdersPage() {
           {orders.map((order) => (
             <tr key={order.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
               <td style={{ padding: '0.75rem 0.5rem' }}>
-                <Link to={`/orders/${order.id}`} style={{ fontWeight: 600, color: '#000', textDecoration: 'none' }}>
-                  {order.customerName}
-                </Link>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <Link to={`/orders/${order.id}`} style={{ fontWeight: 600, color: '#000', textDecoration: 'none' }}>
+                    {order.customerName}
+                  </Link>
+                  {order.orderType === 'delivery' && (
+                    <span style={{ background: '#0ea5e922', color: '#0ea5e9', padding: '0.1rem 0.5rem', borderRadius: 999, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.02em' }}>
+                      DELIVERY
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontSize: '0.8rem', color: '#999' }}>{order.customerPhone}</div>
+                {order.orderType === 'delivery' && order.deliveryAddress && (
+                  <div style={{ fontSize: '0.75rem', color: '#0ea5e9', marginTop: '0.1rem' }}>
+                    🚚 {order.deliveryAddress}
+                  </div>
+                )}
               </td>
               <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.9rem' }}>
                 {order.items.map((i) => `${i.qty}x ${i.name}`).join(', ')}
               </td>
-              <td style={{ padding: '0.75rem 0.5rem', fontWeight: 600 }}>€{order.total.toFixed(2)}</td>
+              <td style={{ padding: '0.75rem 0.5rem', fontWeight: 600 }}>
+                €{order.total.toFixed(2)}
+                {order.orderType === 'delivery' && order.deliveryFee ? (
+                  <div style={{ fontSize: '0.72rem', color: '#999', fontWeight: 400 }}>+€{order.deliveryFee.toFixed(2)} delivery</div>
+                ) : null}
+              </td>
               <td style={{ padding: '0.75rem 0.5rem' }}>
                 <span style={{
                   background: statusColor[order.status] + '22',

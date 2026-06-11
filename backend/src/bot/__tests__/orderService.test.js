@@ -2,7 +2,11 @@ jest.mock('../../lib/collections');
 jest.mock('../../lib/firebase', () => ({
   admin: {
     firestore: {
-      FieldValue: { serverTimestamp: jest.fn().mockReturnValue('__serverTimestamp__') },
+      FieldValue: {
+        serverTimestamp: jest.fn().mockReturnValue('__serverTimestamp__'),
+        increment: jest.fn((n) => ({ __increment: n })),
+        arrayUnion: jest.fn((v) => ({ __arrayUnion: v })),
+      },
     },
   },
 }));
@@ -10,7 +14,7 @@ jest.mock('../../lib/whatsapp');
 jest.mock('../templates');
 
 const { createOrder, markOrderReady } = require('../orderService');
-const { ordersRef, businessRef } = require('../../lib/collections');
+const { ordersRef, businessRef, customersRef } = require('../../lib/collections');
 const { sendText } = require('../../lib/whatsapp');
 const { t } = require('../templates');
 
@@ -25,10 +29,17 @@ const ORDER_PARAMS = {
   pickupTime: '14:30',
 };
 
+const mockCustomerSet = jest.fn().mockResolvedValue(undefined);
+const mockCustomerUpdate = jest.fn().mockResolvedValue(undefined);
+const mockCustomerDoc = { set: mockCustomerSet, update: mockCustomerUpdate };
+
 beforeEach(() => {
   jest.clearAllMocks();
   sendText.mockResolvedValue(undefined);
   t.mockReturnValue('Your order is ready!');
+  mockCustomerSet.mockResolvedValue(undefined);
+  mockCustomerUpdate.mockResolvedValue(undefined);
+  customersRef.mockReturnValue({ doc: jest.fn().mockReturnValue(mockCustomerDoc) });
 });
 
 // ---------------------------------------------------------------------------
@@ -159,6 +170,122 @@ describe('createOrder', () => {
     await createOrder(BIZ, { ...ORDER_PARAMS, pickupTime: undefined });
 
     expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ pickupTime: null }));
+  });
+
+  // ── Customer profile upsert ────────────────────────────────────────────────
+
+  test('upserts customer profile with phone, name and timestamps', async () => {
+    makeOrdersRef();
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+
+    await createOrder(BIZ, ORDER_PARAMS);
+
+    expect(mockCustomerSet).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: '+43699000001', name: 'Ahmet' }),
+      { merge: true },
+    );
+  });
+
+  test('increments orderCount and totalSpent on customer profile', async () => {
+    makeOrdersRef();
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+
+    await createOrder(BIZ, ORDER_PARAMS);
+
+    expect(mockCustomerUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ orderCount: { __increment: 1 }, totalSpent: { __increment: 17 } }),
+    );
+  });
+
+  test('does not throw when customer profile upsert fails', async () => {
+    makeOrdersRef('order_abc123');
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+    mockCustomerSet.mockRejectedValue(new Error('Firestore offline'));
+
+    await expect(createOrder(BIZ, ORDER_PARAMS)).resolves.toBe('order_abc123');
+  });
+
+  // ── Delivery order ─────────────────────────────────────────────────────────
+
+  test('delivery order stores orderType, deliveryAddress, deliveryFee and adds fee to total', async () => {
+    const { mockSet } = makeOrdersRef('order_del123');
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+
+    await createOrder(BIZ, {
+      ...ORDER_PARAMS,
+      orderType: 'delivery',
+      deliveryAddress: 'Mariahilfer Str. 10, 1060 Wien',
+      deliveryFee: 2.5,
+    });
+
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({
+      orderType: 'delivery',
+      deliveryAddress: 'Mariahilfer Str. 10, 1060 Wien',
+      deliveryFee: 2.5,
+      total: 19.5,
+    }));
+  });
+
+  test('delivery order totalSpent increment includes delivery fee', async () => {
+    makeOrdersRef();
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+
+    await createOrder(BIZ, { ...ORDER_PARAMS, orderType: 'delivery', deliveryAddress: 'Somestr. 1', deliveryFee: 2.5 });
+
+    expect(mockCustomerUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ totalSpent: { __increment: 19.5 } }),
+    );
+  });
+
+  test('delivery order saves lastDeliveryAddress and savedAddresses to customer profile', async () => {
+    makeOrdersRef();
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+
+    await createOrder(BIZ, {
+      ...ORDER_PARAMS,
+      orderType: 'delivery',
+      deliveryAddress: 'Mariahilfer Str. 10, 1060 Wien',
+      deliveryFee: 2,
+    });
+
+    expect(mockCustomerUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      lastDeliveryAddress: 'Mariahilfer Str. 10, 1060 Wien',
+      savedAddresses: { __arrayUnion: 'Mariahilfer Str. 10, 1060 Wien' },
+    }));
+  });
+
+  test('pickup order does not write delivery address to customer profile', async () => {
+    makeOrdersRef();
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+
+    await createOrder(BIZ, { ...ORDER_PARAMS, orderType: 'pickup' });
+
+    const deliveryCalls = mockCustomerUpdate.mock.calls.filter(
+      ([arg]) => arg.lastDeliveryAddress !== undefined,
+    );
+    expect(deliveryCalls).toHaveLength(0);
+  });
+
+  test('owner notification for delivery order includes address and Delivery label', async () => {
+    makeOrdersRef('order_del123');
+    businessRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({ phone: '+4312345678', name: 'Döner Palace' }),
+      }),
+    });
+
+    await createOrder(BIZ, {
+      ...ORDER_PARAMS,
+      orderType: 'delivery',
+      deliveryAddress: 'Mariahilfer Str. 10',
+      deliveryFee: 2.5,
+    });
+
+    const msg = sendText.mock.calls[0][1];
+    expect(msg).toContain('Delivery');
+    expect(msg).toContain('Mariahilfer Str. 10');
+    expect(msg).toContain('€19.50');
   });
 });
 

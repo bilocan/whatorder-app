@@ -5,6 +5,7 @@ const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendLo
 const { sortByDistance } = require('../lib/distance');
 const { detectLanguage, getOverride } = require('./languageDetector');
 const { t, tCategory } = require('./templates');
+const { reverseGeocode } = require('../lib/geocode');
 
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', '1', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal', '2']);
@@ -309,8 +310,20 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     const notes = isSkip ? '' : (type === 'text' && norm.length > 0 ? text.trim() : null);
 
     if (notes !== null) {
-      const askId = await sendText(from, t('askName', lang));
-      await setSession(from, { ...session, state: 'awaiting_name', specialRequests: notes, pendingDeleteIds: askId ? [askId] : [] });
+      const info = await getBusinessInfo(businessId);
+      if (info.deliveryEnabled) {
+        const typeId = await sendButtonMessage(from, {
+          body: t('askOrderType', lang, info.deliveryFee ?? 0),
+          buttons: [
+            { id: 'btn_pickup',   title: t('pickupBtn', lang) },
+            { id: 'btn_delivery', title: t('deliveryBtn', lang) },
+          ],
+        });
+        await setSession(from, { ...session, state: 'awaiting_order_type', specialRequests: notes, pendingDeleteIds: typeId ? [typeId] : [] });
+      } else {
+        const askId = await sendText(from, t('askName', lang));
+        await setSession(from, { ...session, state: 'awaiting_name', specialRequests: notes, pendingDeleteIds: askId ? [askId] : [] });
+      }
       return;
     }
     await sendButtonMessage(from, {
@@ -320,13 +333,62 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     return;
   }
 
+  // ── State: awaiting_order_type ────────────────────────────────────────────
+  if (session.state === 'awaiting_order_type') {
+    if (type === 'button_reply') {
+      if (id === 'btn_pickup') {
+        const askId = await sendText(from, t('askName', lang));
+        await setSession(from, { ...session, state: 'awaiting_name', orderType: 'pickup', pendingDeleteIds: askId ? [askId] : [] });
+        return;
+      }
+      if (id === 'btn_delivery') {
+        const askId = await sendText(from, t('askDeliveryAddress', lang));
+        await setSession(from, { ...session, state: 'awaiting_delivery_address', orderType: 'delivery', pendingDeleteIds: askId ? [askId] : [] });
+        return;
+      }
+    }
+    const info = await getBusinessInfo(businessId);
+    await sendButtonMessage(from, {
+      body: t('askOrderType', lang, info.deliveryFee ?? 0),
+      buttons: [
+        { id: 'btn_pickup',   title: t('pickupBtn', lang) },
+        { id: 'btn_delivery', title: t('deliveryBtn', lang) },
+      ],
+    });
+    return;
+  }
+
+  // ── State: awaiting_delivery_address ──────────────────────────────────────
+  if (session.state === 'awaiting_delivery_address') {
+    let deliveryAddress = null;
+    if (type === 'location' && latitude != null && longitude != null) {
+      const geocoded = await reverseGeocode(latitude, longitude);
+      deliveryAddress = geocoded || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    } else if (type === 'text' && norm.length > 0) {
+      deliveryAddress = text.trim();
+    }
+
+    if (deliveryAddress) {
+      const askId = await sendText(from, t('askName', lang));
+      await setSession(from, { ...session, state: 'awaiting_name', deliveryAddress, pendingDeleteIds: askId ? [askId] : [] });
+      return;
+    }
+    await sendText(from, t('askDeliveryAddress', lang));
+    return;
+  }
+
   // ── State: awaiting_name ──────────────────────────────────────────────────
   if (session.state === 'awaiting_name') {
     if (type === 'text' && norm.length > 0) {
       const name = text.trim().slice(0, 60);
-      const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
+      const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+      let displayTotal = subtotal;
+      if (session.orderType === 'delivery') {
+        const info = await getBusinessInfo(businessId);
+        displayTotal = subtotal + (info.deliveryFee || 0);
+      }
       const confirmId = await sendButtonMessage(from, {
-        body: t('finalConfirmBody', lang, name, total.toFixed(2), session.pickupTime),
+        body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null),
         buttons: [
           { id: 'btn_place_order',  title: t('confirmOrderBtn', lang) },
           { id: 'btn_cancel_order', title: t('cancelOrderBtn', lang) },
@@ -345,18 +407,24 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     const isCancel  = (type === 'button_reply' && id === 'btn_cancel_order') || CANCEL.has(norm);
 
     if (isConfirm) {
-      const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
+      const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+      const info = await getBusinessInfo(businessId);
+      const isDelivery = session.orderType === 'delivery';
+      const deliveryFee = isDelivery ? (info.deliveryFee || 0) : 0;
       const orderId = await createOrder(businessId, {
         customerPhone: from,
         customerName: session.customerName || contactName || null,
         items: basket,
-        total,
+        total: subtotal,
         language: lang,
-        pickupTime: session.pickupTime || null,
+        pickupTime: isDelivery ? null : (session.pickupTime || null),
         notes: session.specialRequests || null,
+        orderType: session.orderType || 'pickup',
+        deliveryAddress: session.deliveryAddress || null,
+        deliveryFee,
       });
       const shortId = orderId.slice(-6).toUpperCase();
-      const info = await getBusinessInfo(businessId);
+      const orderTotal = isDelivery ? subtotal + deliveryFee : subtotal;
       if (isMulti) {
         await setSession(from, { state: 'awaiting_restaurant_choice', language: lang, basket: [], businessId, pendingDeleteIds: [] });
         await sendButtonMessage(from, {
@@ -369,7 +437,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       } else {
         const itemLines = basket.map(i => `• ${i.qty}× ${i.name} — €${(i.price * i.qty).toFixed(2)}`).join('\n');
         await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [] });
-        await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName));
+        await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, orderTotal.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null));
       }
       return;
     }
