@@ -76,7 +76,9 @@ export interface Customer {
   name: string;
   totalSpent: number;
   orderCount: number;
-  lastOrderDate: string;
+  lastOrderDate: Timestamp | string | null;
+  lastDeliveryAddress?: string;
+  savedAddresses?: string[];
 }
 
 export function toDate(v: Timestamp | string | null | undefined): Date {
