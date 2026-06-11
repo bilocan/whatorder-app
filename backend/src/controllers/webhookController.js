@@ -75,9 +75,8 @@ async function receiveWebhook(req, res) {
     return;
   }
 
-  // Respond immediately — Meta retries if no 200 within ~20s, causing duplicate processing
-  res.status(200).json({ status: 'success' });
-
+  // Process before responding — Vercel terminates the function as soon as res.json() is called,
+  // so any async work after res.send() is silently dropped. Normal processing is well under Meta's 20s retry threshold.
   try {
     const routing = await resolveRouting(phoneNumberId);
     await handleMessage(routing, { from, contactName, ...message });
@@ -85,6 +84,8 @@ async function receiveWebhook(req, res) {
     const metaError = err.response?.data ? JSON.stringify(err.response.data) : null;
     console.error('Bot error:', metaError ?? err.message ?? err);
   }
+
+  res.status(200).json({ status: 'success' });
 }
 
 module.exports = { verifyWebhook, receiveWebhook };
