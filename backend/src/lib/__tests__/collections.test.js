@@ -9,7 +9,10 @@ jest.mock('../firebase', () => {
 });
 
 const { db } = require('../firebase');
-const { businessRef, menuRef, ordersRef, customersRef, phoneRoutingRef } = require('../collections');
+const {
+  businessRef, menuRef, ordersRef, customersRef, phoneRoutingRef,
+  ownerRef, adminRef, processedMessageRef,
+} = require('../collections');
 
 beforeEach(() => {
   db.collection.mockClear();
@@ -60,5 +63,29 @@ describe('phoneRoutingRef', () => {
     phoneRoutingRef('12345678');
     expect(db.collection).toHaveBeenCalledWith('phoneRouting');
     expect(db.doc).toHaveBeenCalledWith('12345678');
+  });
+});
+
+describe('ownerRef', () => {
+  test('builds path: owners/{uid}', () => {
+    ownerRef('uid_abc');
+    expect(db.collection).toHaveBeenCalledWith('owners');
+    expect(db.doc).toHaveBeenCalledWith('uid_abc');
+  });
+});
+
+describe('adminRef', () => {
+  test('builds path: admins/{uid}', () => {
+    adminRef('uid_abc');
+    expect(db.collection).toHaveBeenCalledWith('admins');
+    expect(db.doc).toHaveBeenCalledWith('uid_abc');
+  });
+});
+
+describe('processedMessageRef', () => {
+  test('builds path: processedMessages/{wamid}', () => {
+    processedMessageRef('wamid_xyz');
+    expect(db.collection).toHaveBeenCalledWith('processedMessages');
+    expect(db.doc).toHaveBeenCalledWith('wamid_xyz');
   });
 });
