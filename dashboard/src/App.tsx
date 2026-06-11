@@ -10,6 +10,7 @@ import OrderDetailPage from './pages/OrderDetailPage';
 import MenuPage from './pages/MenuPage';
 import IncomePage from './pages/IncomePage';
 import SettingsPage from './pages/SettingsPage';
+import CustomersPage from './pages/CustomersPage';
 import RestaurantsPage from './pages/admin/RestaurantsPage';
 import RestaurantDetailPage from './pages/admin/RestaurantDetailPage';
 
@@ -28,6 +29,7 @@ export default function App() {
             <Route index element={<DefaultRedirect />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="orders/:orderId" element={<OrderDetailPage />} />
+            <Route path="customers" element={<CustomersPage />} />
             <Route path="income" element={<IncomePage />} />
             <Route path="menu" element={<MenuPage />} />
             <Route path="settings" element={<SettingsPage />} />
