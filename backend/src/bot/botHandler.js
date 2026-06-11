@@ -6,6 +6,7 @@ const { sortByDistance } = require('../lib/distance');
 const { detectLanguage, getOverride } = require('./languageDetector');
 const { t, tCategory } = require('./templates');
 const { reverseGeocode } = require('../lib/geocode');
+const { customersRef } = require('../lib/collections');
 
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', '1', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal', '2']);
@@ -99,6 +100,70 @@ async function sendRestaurantPicker(to, businesses, lang) {
         return { id: `restaurant_${b.id}`, title: b.name.slice(0, 24), description };
       }),
     }],
+  });
+}
+
+// Returns the customer's saved name if one exists (and isn't the anonymous fallback), otherwise null.
+async function getKnownName(phone, businessId) {
+  try {
+    const snap = await customersRef(businessId).doc(phone).get();
+    const name = snap.data()?.name;
+    return (name && name !== 'WhatsApp Customer') ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+// Sends the final confirmation message and sets state to 'confirming'.
+// Call instead of transitioning to awaiting_name when a known name is available.
+async function transitionToConfirming(from, session, lang, businessId, basket, name) {
+  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  let displayTotal = subtotal;
+  if (session.orderType === 'delivery') {
+    const info = await getBusinessInfo(businessId);
+    displayTotal = subtotal + (info.deliveryFee || 0);
+  }
+  const confirmId = await sendButtonMessage(from, {
+    body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null),
+    buttons: [
+      { id: 'btn_place_order',  title: t('confirmOrderBtn', lang) },
+      { id: 'btn_cancel_order', title: t('cancelOrderBtn', lang) },
+    ],
+  });
+  await setSession(from, { ...session, state: 'confirming', customerName: name, pendingDeleteIds: confirmId ? [confirmId] : [] });
+}
+
+// Returns rows array when known addresses exist (lat/lng or saved profile address), null to skip picker.
+async function getDeliveryAddressRows(session, phone, businessId, lang) {
+  const rows = [];
+
+  if (session.lat != null && session.lng != null) {
+    const geocoded = await reverseGeocode(session.lat, session.lng);
+    const label = geocoded || `${session.lat.toFixed(4)}, ${session.lng.toFixed(4)}`;
+    rows.push({ id: 'delivery_loc_start', title: t('deliveryLocStart', lang), description: label.slice(0, 72) });
+  }
+
+  try {
+    const snap = await customersRef(businessId).doc(phone).get();
+    const saved = snap.data()?.lastDeliveryAddress;
+    if (saved) {
+      rows.push({ id: 'delivery_addr_saved', title: t('deliverySavedAddr', lang), description: saved.slice(0, 72) });
+    }
+  } catch { /* new customer or Firestore read error — skip saved option */ }
+
+  if (!rows.length) return null;
+
+  rows.push({ id: 'delivery_addr_new',   title: t('deliveryNewAddr',  lang) });
+  rows.push({ id: 'delivery_addr_share', title: t('deliveryShareLoc', lang) });
+  return rows;
+}
+
+async function sendDeliveryAddressPicker(to, rows, lang) {
+  return sendListMessage(to, {
+    header:      t('deliveryAddrPickerHeader', lang),
+    body:        t('deliveryAddrPickerBody',   lang),
+    buttonLabel: t('deliveryAddrPickerBtn',    lang),
+    sections: [{ title: t('deliveryAddrSection', lang), rows }],
   });
 }
 
@@ -321,8 +386,14 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
         });
         await setSession(from, { ...session, state: 'awaiting_order_type', specialRequests: notes, pendingDeleteIds: typeId ? [typeId] : [] });
       } else {
-        const askId = await sendText(from, t('askName', lang));
-        await setSession(from, { ...session, state: 'awaiting_name', specialRequests: notes, pendingDeleteIds: askId ? [askId] : [] });
+        const newSession = { ...session, specialRequests: notes };
+        const knownName = await getKnownName(from, businessId);
+        if (knownName) {
+          await transitionToConfirming(from, newSession, lang, businessId, basket, knownName);
+        } else {
+          const askId = await sendText(from, t('askName', lang));
+          await setSession(from, { ...newSession, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
+        }
       }
       return;
     }
@@ -337,13 +408,25 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   if (session.state === 'awaiting_order_type') {
     if (type === 'button_reply') {
       if (id === 'btn_pickup') {
-        const askId = await sendText(from, t('askName', lang));
-        await setSession(from, { ...session, state: 'awaiting_name', orderType: 'pickup', pendingDeleteIds: askId ? [askId] : [] });
+        const newSession = { ...session, orderType: 'pickup' };
+        const knownName = await getKnownName(from, businessId);
+        if (knownName) {
+          await transitionToConfirming(from, newSession, lang, businessId, basket, knownName);
+        } else {
+          const askId = await sendText(from, t('askName', lang));
+          await setSession(from, { ...newSession, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
+        }
         return;
       }
       if (id === 'btn_delivery') {
-        const askId = await sendText(from, t('askDeliveryAddress', lang));
-        await setSession(from, { ...session, state: 'awaiting_delivery_address', orderType: 'delivery', pendingDeleteIds: askId ? [askId] : [] });
+        const rows = await getDeliveryAddressRows(session, from, businessId, lang);
+        if (rows) {
+          const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
+          await setSession(from, { ...session, state: 'awaiting_delivery_address_choice', orderType: 'delivery', pendingDeleteIds: pickerId ? [pickerId] : [] });
+        } else {
+          const askId = await sendText(from, t('askDeliveryAddress', lang));
+          await setSession(from, { ...session, state: 'awaiting_delivery_address', orderType: 'delivery', pendingDeleteIds: askId ? [askId] : [] });
+        }
         return;
       }
     }
@@ -358,6 +441,60 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     return;
   }
 
+  // ── State: awaiting_delivery_address_choice ───────────────────────────────
+  if (session.state === 'awaiting_delivery_address_choice') {
+    if (type === 'list_reply') {
+      if (id === 'delivery_loc_start' && session.lat != null && session.lng != null) {
+        const geocoded = await reverseGeocode(session.lat, session.lng);
+        const deliveryAddress = geocoded || `${session.lat.toFixed(4)}, ${session.lng.toFixed(4)}`;
+        const newSession = { ...session, deliveryAddress };
+        const knownName = await getKnownName(from, businessId);
+        if (knownName) {
+          await transitionToConfirming(from, newSession, lang, businessId, basket, knownName);
+        } else {
+          const askId = await sendText(from, t('askName', lang));
+          await setSession(from, { ...newSession, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
+        }
+        return;
+      }
+      if (id === 'delivery_addr_saved') {
+        try {
+          const snap = await customersRef(businessId).doc(from).get();
+          const profileData = snap.data();
+          const deliveryAddress = profileData?.lastDeliveryAddress;
+          if (deliveryAddress) {
+            const newSession = { ...session, deliveryAddress };
+            const knownName = profileData?.name && profileData.name !== 'WhatsApp Customer' ? profileData.name : null;
+            if (knownName) {
+              await transitionToConfirming(from, newSession, lang, businessId, basket, knownName);
+            } else {
+              const askId = await sendText(from, t('askName', lang));
+              await setSession(from, { ...newSession, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
+            }
+            return;
+          }
+        } catch { /* fall through to re-show picker */ }
+      }
+      if (id === 'delivery_addr_new') {
+        const askId = await sendText(from, t('askDeliveryAddress', lang));
+        await setSession(from, { ...session, state: 'awaiting_delivery_address', pendingDeleteIds: askId ? [askId] : [] });
+        return;
+      }
+      if (id === 'delivery_addr_share') {
+        const locId = await sendLocationRequest(from, t('askDeliveryAddress', lang));
+        await setSession(from, { ...session, state: 'awaiting_delivery_address', pendingDeleteIds: locId ? [locId] : [] });
+        return;
+      }
+    }
+    // Re-show picker for any unrecognised input
+    const rows = await getDeliveryAddressRows(session, from, businessId, lang);
+    if (rows) {
+      const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
+      await setSession(from, { ...session, pendingDeleteIds: pickerId ? [pickerId] : [] });
+    }
+    return;
+  }
+
   // ── State: awaiting_delivery_address ──────────────────────────────────────
   if (session.state === 'awaiting_delivery_address') {
     let deliveryAddress = null;
@@ -369,8 +506,14 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     }
 
     if (deliveryAddress) {
-      const askId = await sendText(from, t('askName', lang));
-      await setSession(from, { ...session, state: 'awaiting_name', deliveryAddress, pendingDeleteIds: askId ? [askId] : [] });
+      const newSession = { ...session, deliveryAddress };
+      const knownName = await getKnownName(from, businessId);
+      if (knownName) {
+        await transitionToConfirming(from, newSession, lang, businessId, basket, knownName);
+      } else {
+        const askId = await sendText(from, t('askName', lang));
+        await setSession(from, { ...newSession, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
+      }
       return;
     }
     await sendText(from, t('askDeliveryAddress', lang));
@@ -381,20 +524,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   if (session.state === 'awaiting_name') {
     if (type === 'text' && norm.length > 0) {
       const name = text.trim().slice(0, 60);
-      const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
-      let displayTotal = subtotal;
-      if (session.orderType === 'delivery') {
-        const info = await getBusinessInfo(businessId);
-        displayTotal = subtotal + (info.deliveryFee || 0);
-      }
-      const confirmId = await sendButtonMessage(from, {
-        body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null),
-        buttons: [
-          { id: 'btn_place_order',  title: t('confirmOrderBtn', lang) },
-          { id: 'btn_cancel_order', title: t('cancelOrderBtn', lang) },
-        ],
-      });
-      await setSession(from, { ...session, state: 'confirming', customerName: name, pendingDeleteIds: confirmId ? [confirmId] : [] });
+      await transitionToConfirming(from, session, lang, businessId, basket, name);
       return;
     }
     await sendText(from, t('confirmSummary', lang, buildBasketText(basket, lang), session.prepMins, session.pickupTime));

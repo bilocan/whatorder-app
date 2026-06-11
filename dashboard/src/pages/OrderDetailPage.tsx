@@ -34,7 +34,7 @@ export default function OrderDetailPage() {
         return;
       }
       setOrder((o) => o ? { ...o, status: 'ready' } : o);
-    } catch (err) {
+    } catch {
       setMarkReadyError('Network error — is the backend running?');
     } finally {
       setMarkingReady(false);
