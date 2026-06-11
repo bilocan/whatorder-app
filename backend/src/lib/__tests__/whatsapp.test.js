@@ -249,4 +249,16 @@ describe('production paths (NODE_ENV overridden)', () => {
 
     warnSpy.mockRestore();
   });
+
+  test('deleteMessage is silent for code=100 (GraphMethodException — unsupported type)', async () => {
+    const err = new Error('GraphMethodException');
+    err.response = { status: 400, data: { error: { code: 100, type: 'GraphMethodException', message: 'Unsupported delete request.' } } };
+    axios.delete.mockRejectedValue(err);
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(deleteMessage('wamid.interactive')).resolves.toBeUndefined();
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
 });
