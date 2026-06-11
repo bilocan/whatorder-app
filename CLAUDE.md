@@ -31,11 +31,7 @@ When adding or changing a Firestore collection:
 All collections must be accessed through `collections.js` — no direct `db.collection()` calls elsewhere.
 
 ## Workflow rules
-- When the user says "task done", run the vault task-done workflow:
-  1. **Build verification** — run `cd dashboard && npx tsc -b` and `cd backend && npm test -- --passWithNoTests` (fail fast: stop and report if either fails before proceeding)
-  2. Check unreleased.md → update release log
-  3. Update Asana
-  4. **Suggest commit messages** — output two copy-paste-ready commit blocks: one for `whatorder-app`, one for `whatorder-vault` (always both — vault always gets an unreleased.md update)
+- When the user says "task done", follow the **Definition of Done** exactly as defined in `whatorder-vault/Projects/WhatOrder/definition-of-done.md` (imported via `.claude/CLAUDE.local.md`). Do not skip or reorder steps.
 - Asana project GID: `1215389891247928` (WhatOrder MVP) — use directly, never look it up
 - Never touch any HalalScan assets or Asana projects
 
