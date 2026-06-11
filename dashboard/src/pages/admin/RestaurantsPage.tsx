@@ -163,7 +163,7 @@ export default function RestaurantsPage() {
                 <Link to={`/admin/restaurants/${b.id}`} style={{ fontWeight: 600, color: '#000', textDecoration: 'none' }}>{b.name}</Link>
               </td>
               <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.82rem', color: '#999', fontFamily: 'monospace' }}>{b.id}</td>
-              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.9rem' }}>{b.phone}</td>
+              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.9rem' }}>{b.alertPhone}</td>
               <td style={{ padding: '0.75rem 0.5rem' }}>
                 <span style={{
                   background: b.status === 'active' ? '#22c55e22' : '#99999922',
