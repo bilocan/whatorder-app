@@ -36,19 +36,26 @@ export default function Layout() {
           {isAdmin && (
             <>
               <div style={{ borderTop: '1px solid #eee', margin: '0.75rem 0' }} />
-              <NavLink
-                to="/admin"
-                style={({ isActive }) => ({
-                  display: 'block',
-                  padding: '0.5rem 0',
-                  color: isActive ? '#6366f1' : '#666',
-                  fontWeight: isActive ? 600 : 400,
-                  textDecoration: 'none',
-                  fontSize: '0.9rem',
-                })}
-              >
-                Admin
-              </NavLink>
+              {[
+                { to: '/admin', label: 'Admin' },
+                { to: '/admin/earnings', label: 'Earnings' },
+              ].map(({ to, label }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={to === '/admin'}
+                  style={({ isActive }) => ({
+                    display: 'block',
+                    padding: '0.5rem 0',
+                    color: isActive ? '#6366f1' : '#666',
+                    fontWeight: isActive ? 600 : 400,
+                    textDecoration: 'none',
+                    fontSize: '0.9rem',
+                  })}
+                >
+                  {label}
+                </NavLink>
+              ))}
             </>
           )}
         </div>
