@@ -13,6 +13,7 @@ import SettingsPage from './pages/SettingsPage';
 import CustomersPage from './pages/CustomersPage';
 import RestaurantsPage from './pages/admin/RestaurantsPage';
 import RestaurantDetailPage from './pages/admin/RestaurantDetailPage';
+import EarningsPage from './pages/admin/EarningsPage';
 
 function DefaultRedirect() {
   const { isAdmin } = useAuth();
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="settings" element={<SettingsPage />} />
             <Route path="admin" element={<AdminGuard><RestaurantsPage /></AdminGuard>} />
             <Route path="admin/restaurants/:id" element={<AdminGuard><RestaurantDetailPage /></AdminGuard>} />
+            <Route path="admin/earnings" element={<AdminGuard><EarningsPage /></AdminGuard>} />
           </Route>
         </Routes>
       </BrowserRouter>
