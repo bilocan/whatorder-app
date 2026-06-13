@@ -3,7 +3,7 @@ const { getMenu, getBusinessInfo } = require('./menuService');
 const { createOrder } = require('./orderService');
 const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendLocationRequest, deleteMessage } = require('../lib/whatsapp');
 const { sortByDistance } = require('../lib/distance');
-const { detectLanguage, getOverride } = require('./languageDetector');
+const { detectLanguage, scoreLanguage, getOverride } = require('./languageDetector');
 const { t, tCategory } = require('./templates');
 const { reverseGeocode } = require('../lib/geocode');
 const { customersRef } = require('../lib/collections');
@@ -184,7 +184,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     return;
   }
 
-  const session = await getSession(from);
+  let session = await getSession(from);
   const norm = (text ?? '').trim().toLowerCase();
   const isMulti = routing.businessIds.length > 1;
 
@@ -200,6 +200,16 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     }
   }
 
+  // Re-detect language mid-conversation on clear signal (≥2 keyword hits), to prevent
+  // flipping on a single borrowed word (e.g. "ok" or "ja" in a Turkish message).
+  if (type === 'text' && session.language) {
+    const { lang: reDetected, score } = scoreLanguage(text ?? '');
+    if (score >= 2 && reDetected !== session.language) {
+      session = { ...session, language: reDetected };
+      await setSession(from, session);
+    }
+  }
+
   // TTL safety net: abandoned browsing session (no order placed, idle 8h+)
   const lastActive = session.updatedAt?.toDate?.() ?? null;
   const isIdleBrowsing = session.state === 'browsing'
@@ -211,7 +221,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   // First message OR multi-restaurant with no restaurant selected yet OR TTL expired
   // (skip if already in selecting_restaurant — let the state machine handle the reply)
   if (!session.language || (isMulti && !session.businessId && session.state !== 'selecting_restaurant' && session.state !== 'awaiting_location') || sessionExpiredForPicker) {
-    const lang = session.language || (type === 'text' ? detectLanguage(text) : 'tr');
+    const lang = session.language || (type === 'text' ? detectLanguage(text) : 'en');
     if (isMulti) {
       const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
       await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: locId ? [locId] : [] });
