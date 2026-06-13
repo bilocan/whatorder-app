@@ -589,7 +589,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       if (isMulti) {
         await setSession(from, { state: 'awaiting_restaurant_choice', language: lang, basket: [], businessId, pendingDeleteIds: [] });
         await sendButtonMessage(from, {
-          body: t('orderConfirmedWithChoice', lang, shortId, info.name),
+          body: t('orderConfirmedWithChoice', lang, shortId, info.name, info.alertPhone || null, info.address || null),
           buttons: [
             { id: 'btn_order_again',       title: t('orderAgainBtn', lang) },
             { id: 'btn_choose_restaurant', title: t('chooseRestaurantBtn', lang) },
@@ -598,7 +598,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       } else {
         const itemLines = basket.map(i => `• ${i.qty}× ${i.name} — €${(i.price * i.qty).toFixed(2)}`).join('\n');
         await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [] });
-        await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, orderTotal.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null));
+        await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, orderTotal.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, info.alertPhone || null, info.address || null));
       }
       return;
     }

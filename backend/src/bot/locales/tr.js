@@ -34,9 +34,11 @@ module.exports = {
   confirmPrompt: () => 'Onaylamak için YES, iptal için NO yazın.',
   yesNoOnly: () => 'Lütfen YES veya NO yazın.',
   orderConfirmed: (shortId) => `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\nHazır olduğunda size bildireceğiz. Teşekkürler! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress) => {
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, alertPhone, address) => {
+    const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
+    const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Teslimat: ${deliveryAddress}` : `Hazır: ${pickupTime}`;
-    return `✅ Sipariş #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nToplam: €${total}\n${detail}\n\nTeşekkürler, ${customerName}! 🙏`;
+    return `✅ Sipariş #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}\n${detail}\n\nTeşekkürler, ${customerName}! 🙏`;
   },
   orderCancelled: () => 'Sipariş iptal edildi.',
 
@@ -79,7 +81,11 @@ module.exports = {
   restaurantPickerFooter: () => 'Menüyü açmak için bir isme dokunun',
   switchConfirmed: () => '🔄 Restoran değiştiriliyor. Sepetiniz temizlendi.',
 
-  orderConfirmedWithChoice: (shortId, name) => `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\n${name}'dan tekrar sipariş vermek ister misiniz?`,
+  orderConfirmedWithChoice: (shortId, name, alertPhone, address) => {
+    const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
+    const contactBlock = contactLines ? `\n\n${name}\n${contactLines}` : '';
+    return `✅ Siparişiniz alındı! Sipariş no: #${shortId}${contactBlock}\n\n${name}'dan tekrar sipariş vermek ister misiniz?`;
+  },
   orderCancelledWithChoice: (name) => `❌ Sipariş iptal edildi.\n\n${name}'dan tekrar sipariş vermek ister misiniz?`,
   orderAgainPrompt: (name) => `${name}'dan mı sipariş veriyorsunuz?\n\nBuraya devam edin veya başka bir restoran seçin.`,
   orderAgainBtn: () => 'Buradan sipariş ver',
