@@ -23,7 +23,7 @@ const MENU = [
   { id: 'item_2', name: 'Ayran',  price: 2.00, category: 'drinks', description: 'Yogurt drink', available: true },
 ];
 
-const BIZ_INFO = { name: 'Döner Palace', avgPrepTime: 20, catalogId: 'cat_123', alertPhone: '+43699123456', address: 'Musterstrasse 1, 1010 Wien' };
+const BIZ_INFO = { name: 'Döner Palace', avgPrepTime: 20, catalogId: 'cat_123', alertPhone: '+43699123456', address: 'Musterstrasse 1, 1010 Wien', botLanguage: 'de' };
 
 function mockCustomerProfile(data) {
   customersRef.mockReturnValue({ doc: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue({ data: () => data }) }) });
@@ -186,7 +186,17 @@ describe('Language detection', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: expectedLang }));
   });
 
-  test('non-text first message defaults to "en" (not "tr")', async () => {
+  test('non-text first message uses botLanguage from business (not text-detect)', async () => {
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ type: 'image', text: undefined }));
+
+    // BIZ_INFO.botLanguage = 'de', so non-text first message defaults to 'de'
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'de' }));
+  });
+
+  test('non-text first message uses botLanguage "en" when configured', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, botLanguage: 'en' });
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ type: 'image', text: undefined }));

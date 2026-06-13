@@ -39,6 +39,8 @@ export default function SettingsPage() {
   });
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [scheduleSaveStatus, setScheduleSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [botLanguage, setBotLanguage] = useState<'de' | 'tr' | 'en'>('de');
+  const [langSaveStatus, setLangSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
     if (!businessId) return;
@@ -52,6 +54,7 @@ export default function SettingsPage() {
         setDeliveryEnabled(data.deliveryEnabled ?? false);
         setDeliveryFee(data.deliveryFee != null ? String(data.deliveryFee) : '');
         setDeliveryZone(data.deliveryZone ?? '');
+        if (data.botLanguage) setBotLanguage(data.botLanguage);
         if (data.schedule) {
           setDayMap(prev => {
             const next = { ...prev };
@@ -113,6 +116,18 @@ export default function SettingsPage() {
       setTimeout(() => setDeliverySaveStatus('idle'), 2500);
     } catch {
       setDeliverySaveStatus('error');
+    }
+  }
+
+  async function handleSaveBotLanguage() {
+    if (!businessId) return;
+    setLangSaveStatus('saving');
+    try {
+      await updateDoc(doc(db, 'businesses', businessId), { botLanguage });
+      setLangSaveStatus('saved');
+      setTimeout(() => setLangSaveStatus('idle'), 2500);
+    } catch {
+      setLangSaveStatus('error');
     }
   }
 
@@ -233,6 +248,35 @@ export default function SettingsPage() {
             </button>
             {deliverySaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>Saved</span>}
             {deliverySaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>Invalid fee value</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* Bot Language */}
+      <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
+        <h3 style={{ margin: '0 0 0.25rem' }}>Bot Language</h3>
+        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>
+          Default language for new customers. They can override it at any time by typing "Deutsch", "English" or "Türkçe".
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div>
+            <div style={LABEL_STYLE}>Default language</div>
+            <select
+              value={botLanguage}
+              onChange={e => setBotLanguage(e.target.value as 'de' | 'tr' | 'en')}
+              style={{ width: '100%', padding: '0.4rem 0.6rem', background: '#1a1a1a', border: '1px solid #444', borderRadius: 4, color: '#fff', fontSize: '0.9rem' }}
+            >
+              <option value="de">Deutsch</option>
+              <option value="en">English</option>
+              <option value="tr">Türkçe</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button onClick={handleSaveBotLanguage} disabled={langSaveStatus === 'saving'} style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: langSaveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
+              {langSaveStatus === 'saving' ? 'Saving…' : 'Save language'}
+            </button>
+            {langSaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>Saved</span>}
+            {langSaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>Error saving</span>}
           </div>
         </div>
       </div>
