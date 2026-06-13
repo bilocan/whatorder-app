@@ -67,3 +67,21 @@ describe('en locale — previously uncovered', () => {
   test('catalogUnavailable', () => expect(str(en.catalogUnavailable())).toBe(true));
   test('deliveryOutOfZone', () => expect(str(en.deliveryOutOfZone())).toBe(true));
 });
+
+const STATUS_NOTIFY_KEYS = [
+  'orderApproved', 'orderPreparing', 'orderReady',
+  'orderOnTheWay', 'orderPickedUp', 'orderDelivered',
+  'orderRejected', 'orderCancelled',
+];
+
+describe('order status notification keys — all locales', () => {
+  test.each(STATUS_NOTIFY_KEYS)('en.%s(shortId)', (key) => {
+    expect(str(en[key]('ABC123'))).toBe(true);
+  });
+  test.each(STATUS_NOTIFY_KEYS)('de.%s(shortId)', (key) => {
+    expect(str(de[key]('ABC123'))).toBe(true);
+  });
+  test.each(STATUS_NOTIFY_KEYS)('tr.%s(shortId)', (key) => {
+    expect(str(tr[key]('ABC123'))).toBe(true);
+  });
+});

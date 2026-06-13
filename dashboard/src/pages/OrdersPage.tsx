@@ -7,9 +7,16 @@ import type { Order } from '../types';
 import { toDate } from '../types';
 
 const statusColor: Record<string, string> = {
-  pending: '#f59e0b',
-  ready: '#3b82f6',
-  completed: '#22c55e',
+  pending:    '#f59e0b',
+  approved:   '#a855f7',
+  preparing:  '#f97316',
+  ready:      '#3b82f6',
+  on_the_way: '#06b6d4',
+  picked_up:  '#22c55e',
+  delivered:  '#22c55e',
+  rejected:   '#ef4444',
+  cancelled:  '#6b7280',
+  completed:  '#22c55e',
 };
 
 export default function OrdersPage() {

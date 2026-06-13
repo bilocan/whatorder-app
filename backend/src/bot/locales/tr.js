@@ -49,7 +49,14 @@ module.exports = {
   skipBtn: () => 'Atla',
   askName: () => 'Sipariş için adınızı yazar mısınız?',
 
-  orderReady: (shortId) => `✅ Siparişiniz #${shortId} hazır! Sizi bekliyoruz 🙏`,
+  orderApproved:  (shortId) => `✅ Sipariş #${shortId} onaylandı! Kısa süre içinde hazırlanmaya başlanacak.`,
+  orderPreparing: (shortId) => `👨‍🍳 Sipariş #${shortId} hazırlanıyor!`,
+  orderReady:     (shortId) => `✅ Siparişiniz #${shortId} hazır! Sizi bekliyoruz 🙏`,
+  orderOnTheWay:  (shortId) => `🚚 Sipariş #${shortId} yola çıktı!`,
+  orderPickedUp:  (shortId) => `✅ Sipariş #${shortId} teslim alındı. Afiyet olsun! 🙏`,
+  orderDelivered: (shortId) => `✅ Sipariş #${shortId} teslim edildi. Afiyet olsun! 🙏`,
+  orderRejected:  (shortId) => `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Lütfen bize ulaşın.`,
+  orderCancelled: (shortId) => `❌ Sipariş #${shortId} iptal edildi.`,
 
   askOrderType: (fee) => `Siparişinizi nasıl almak istersiniz?\n\nTeslimat ücreti: €${Number(fee).toFixed(2)}`,
   pickupBtn: () => 'Gel Al',

@@ -3,17 +3,67 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import type { Order } from '../types';
+import type { Order, OrderStatus } from '../types';
 import { toDate } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+type ActionButton = { label: string; action: string; style?: React.CSSProperties };
+
+function getActionButtons(status: OrderStatus, orderType?: string): ActionButton[] {
+  switch (status) {
+    case 'pending':
+      return [
+        { label: 'Approve', action: 'approve', style: { background: '#000' } },
+        { label: 'Reject',  action: 'reject',  style: { background: '#ef4444' } },
+      ];
+    case 'approved':
+      return [{ label: 'Start Preparation', action: 'prepare', style: { background: '#f97316' } }];
+    case 'preparing':
+      return orderType === 'delivery'
+        ? [{ label: 'Out for Delivery', action: 'on-the-way', style: { background: '#06b6d4' } }]
+        : [{ label: 'Mark Ready',       action: 'ready',      style: { background: '#3b82f6' } }];
+    case 'ready':
+      return [{ label: 'Mark Picked Up', action: 'picked-up', style: { background: '#22c55e' } }];
+    case 'on_the_way':
+      return [{ label: 'Mark Delivered', action: 'delivered', style: { background: '#22c55e' } }];
+    default:
+      return [];
+  }
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  pending:    'Pending',
+  approved:   'Approved',
+  preparing:  'Preparing',
+  ready:      'Ready for pickup',
+  on_the_way: 'Out for delivery',
+  picked_up:  'Picked up',
+  delivered:  'Delivered',
+  rejected:   'Rejected',
+  cancelled:  'Cancelled',
+  completed:  'Completed',
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  pending:    '#f59e0b',
+  approved:   '#a855f7',
+  preparing:  '#f97316',
+  ready:      '#3b82f6',
+  on_the_way: '#06b6d4',
+  picked_up:  '#22c55e',
+  delivered:  '#22c55e',
+  rejected:   '#ef4444',
+  cancelled:  '#6b7280',
+  completed:  '#22c55e',
+};
 
 export default function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const { businessId } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
-  const [markReadyError, setMarkReadyError] = useState('');
-  const [markingReady, setMarkingReady] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!orderId || !businessId) return;
@@ -22,26 +72,39 @@ export default function OrderDetailPage() {
     });
   }, [orderId, businessId]);
 
-  async function markReady() {
+  async function doAction(action: string) {
     if (!orderId || !order || !businessId) return;
-    setMarkingReady(true);
-    setMarkReadyError('');
+    setLoading(true);
+    setActionError('');
     try {
-      const res = await fetch(`${API_URL}/businesses/${businessId}/orders/${orderId}/ready`, { method: 'POST' });
+      const res = await fetch(`${API_URL}/businesses/${businessId}/orders/${orderId}/${action}`, { method: 'POST' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setMarkReadyError(body.error ?? `Request failed (${res.status})`);
+        setActionError(body.error ?? `Request failed (${res.status})`);
         return;
       }
-      setOrder((o) => o ? { ...o, status: 'ready' } : o);
+      const nextStatus: Record<string, OrderStatus> = {
+        approve:    'approved',
+        reject:     'rejected',
+        prepare:    'preparing',
+        ready:      'ready',
+        'on-the-way': 'on_the_way',
+        'picked-up':  'picked_up',
+        delivered:  'delivered',
+        cancel:     'cancelled',
+      };
+      if (nextStatus[action]) setOrder((o) => o ? { ...o, status: nextStatus[action] } : o);
     } catch {
-      setMarkReadyError('Network error — is the backend running?');
+      setActionError('Network error — is the backend running?');
     } finally {
-      setMarkingReady(false);
+      setLoading(false);
     }
   }
 
   if (!order) return <p style={{ padding: '1rem' }}>Loading...</p>;
+
+  const buttons = getActionButtons(order.status, order.orderType);
+  const color = STATUS_COLOR[order.status] ?? '#999';
 
   return (
     <div style={{ maxWidth: 480 }}>
@@ -97,25 +160,36 @@ export default function OrderDetailPage() {
         Ordered at {toDate(order.createdAt).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
       </p>
 
-      {order.status === 'pending' && (
-        <>
-          <button
-            onClick={markReady}
-            disabled={markingReady}
-            style={{ marginTop: '0.5rem', padding: '0.7rem 2rem', background: '#000', color: '#fff', border: 'none', borderRadius: 8, cursor: markingReady ? 'default' : 'pointer', fontWeight: 600, fontSize: '1rem', opacity: markingReady ? 0.6 : 1 }}
-          >
-            {markingReady ? 'Saving…' : 'Mark as Ready'}
-          </button>
-          {markReadyError && (
-            <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{markReadyError}</p>
-          )}
-        </>
+      <p style={{ fontWeight: 600, color }}>
+        {STATUS_LABEL[order.status] ?? order.status}
+      </p>
+
+      {buttons.length > 0 && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+          {buttons.map(({ label, action, style }) => (
+            <button
+              key={action}
+              onClick={() => doAction(action)}
+              disabled={loading}
+              style={{
+                padding: '0.7rem 1.5rem',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                cursor: loading ? 'default' : 'pointer',
+                fontWeight: 600,
+                fontSize: '0.95rem',
+                opacity: loading ? 0.6 : 1,
+                ...style,
+              }}
+            >
+              {loading ? 'Saving…' : label}
+            </button>
+          ))}
+        </div>
       )}
-      {order.status === 'ready' && (
-        <p style={{ color: '#3b82f6', fontWeight: 600 }}>Ready for pickup</p>
-      )}
-      {order.status === 'completed' && (
-        <p style={{ color: '#22c55e', fontWeight: 600 }}>Completed</p>
+      {actionError && (
+        <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{actionError}</p>
       )}
     </div>
   );

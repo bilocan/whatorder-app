@@ -3,6 +3,40 @@ const { admin } = require('../lib/firebase');
 const { sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 
+// Valid source states for each target status
+const VALID_FROM = {
+  approved:   ['pending'],
+  rejected:   ['pending'],
+  preparing:  ['approved'],
+  ready:      ['preparing'],
+  on_the_way: ['preparing'],
+  picked_up:  ['ready'],
+  delivered:  ['on_the_way'],
+  cancelled:  ['pending', 'approved', 'preparing'],
+};
+
+const STATUS_TS_FIELD = {
+  approved:   'approvedAt',
+  rejected:   'rejectedAt',
+  preparing:  'preparingAt',
+  ready:      'readyAt',
+  on_the_way: 'onTheWayAt',
+  picked_up:  'pickedUpAt',
+  delivered:  'deliveredAt',
+  cancelled:  'cancelledAt',
+};
+
+const STATUS_NOTIFY_KEY = {
+  approved:   'orderApproved',
+  rejected:   'orderRejected',
+  preparing:  'orderPreparing',
+  ready:      'orderReady',
+  on_the_way: 'orderOnTheWay',
+  picked_up:  'orderPickedUp',
+  delivered:  'orderDelivered',
+  cancelled:  'orderCancelled',
+};
+
 async function createOrder(businessId, { customerPhone, customerName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee }) {
   const ref = ordersRef(businessId).doc();
   const resolvedName = customerName || 'WhatsApp Customer';
@@ -70,27 +104,48 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
   return ref.id;
 }
 
-async function markOrderReady(businessId, orderId) {
+async function transitionOrder(businessId, orderId, toStatus) {
   const ref = ordersRef(businessId).doc(orderId);
   const snap = await ref.get();
   if (!snap.exists) throw new Error('Order not found');
 
   const order = snap.data();
-  if (order.status !== 'pending') throw new Error('Order is not pending');
+  const validFrom = VALID_FROM[toStatus];
+  if (!validFrom || !validFrom.includes(order.status)) {
+    throw new Error(`Invalid transition: ${order.status} → ${toStatus}`);
+  }
 
   await ref.update({
-    status: 'ready',
-    readyAt: new Date().toISOString(),
+    status: toStatus,
+    [STATUS_TS_FIELD[toStatus]]: new Date().toISOString(),
   });
 
-  // Notify customer
   try {
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
-    await sendText(order.customerPhone, t('orderReady', lang, shortId));
+    await sendText(order.customerPhone, t(STATUS_NOTIFY_KEY[toStatus], lang, shortId));
   } catch (err) {
     console.error('Customer notification failed:', err.message);
   }
 }
 
-module.exports = { createOrder, markOrderReady };
+const approveOrder      = (bid, oid) => transitionOrder(bid, oid, 'approved');
+const rejectOrder       = (bid, oid) => transitionOrder(bid, oid, 'rejected');
+const startPreparation  = (bid, oid) => transitionOrder(bid, oid, 'preparing');
+const markReady         = (bid, oid) => transitionOrder(bid, oid, 'ready');
+const markOnTheWay      = (bid, oid) => transitionOrder(bid, oid, 'on_the_way');
+const markPickedUp      = (bid, oid) => transitionOrder(bid, oid, 'picked_up');
+const markDelivered     = (bid, oid) => transitionOrder(bid, oid, 'delivered');
+const cancelOrder       = (bid, oid) => transitionOrder(bid, oid, 'cancelled');
+
+module.exports = {
+  createOrder,
+  approveOrder,
+  rejectOrder,
+  startPreparation,
+  markReady,
+  markOnTheWay,
+  markPickedUp,
+  markDelivered,
+  cancelOrder,
+};

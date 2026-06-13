@@ -55,10 +55,12 @@ const now = Date.now();
 const min = 60000;
 
 const orders = [
+  // pending — Approve / Reject butonları görünmeli
   {
     customerId: 'cust_001',
     customerName: 'Mehmet K.',
     customerPhone: '+43699111222',
+    orderType: 'pickup',
     items: [
       { name: 'Döner', qty: 2, price: 8.50 },
       { name: 'Ayran', qty: 2, price: 2.00 },
@@ -68,51 +70,13 @@ const orders = [
     notes: 'Extra sauce please',
     createdAt: new Date(now - 5 * min).toISOString(),
   },
-  {
-    customerId: 'cust_002',
-    customerName: 'Anna S.',
-    customerPhone: '+43699333444',
-    items: [
-      { name: 'Pizza Margherita', qty: 1, price: 9.00 },
-      { name: 'Cola', qty: 1, price: 2.50 },
-    ],
-    total: 11.50,
-    status: 'ready',
-    createdAt: new Date(now - 25 * min).toISOString(),
-    readyAt: new Date(now - 10 * min).toISOString(),
-  },
-  {
-    customerId: 'cust_003',
-    customerName: 'Ibrahim T.',
-    customerPhone: '+43699555666',
-    items: [
-      { name: 'Lahmacun', qty: 3, price: 5.00 },
-      { name: 'Pommes', qty: 1, price: 3.50 },
-      { name: 'Cola', qty: 2, price: 2.50 },
-    ],
-    total: 24.00,
-    status: 'completed',
-    createdAt: new Date(now - 90 * min).toISOString(),
-    readyAt: new Date(now - 70 * min).toISOString(),
-    completedAt: new Date(now - 65 * min).toISOString(),
-  },
-  {
-    customerId: 'cust_001',
-    customerName: 'Mehmet K.',
-    customerPhone: '+43699111222',
-    items: [
-      { name: 'Döner', qty: 1, price: 8.50 },
-    ],
-    total: 8.50,
-    status: 'completed',
-    createdAt: new Date(now - 120 * min).toISOString(),
-    readyAt: new Date(now - 100 * min).toISOString(),
-    completedAt: new Date(now - 95 * min).toISOString(),
-  },
+  // pending delivery — Approve / Reject butonları
   {
     customerId: 'cust_004',
     customerName: 'Fatima R.',
     customerPhone: '+43699777888',
+    orderType: 'delivery',
+    deliveryAddress: 'Mariahilfer Str. 10, 1060 Wien',
     items: [
       { name: 'Pizza Margherita', qty: 2, price: 9.00 },
       { name: 'Ayran', qty: 1, price: 2.00 },
@@ -120,6 +84,106 @@ const orders = [
     total: 20.00,
     status: 'pending',
     createdAt: new Date(now - 2 * min).toISOString(),
+  },
+  // approved — Start Preparation butonu görünmeli
+  {
+    customerId: 'cust_002',
+    customerName: 'Anna S.',
+    customerPhone: '+43699333444',
+    orderType: 'pickup',
+    items: [
+      { name: 'Pizza Margherita', qty: 1, price: 9.00 },
+      { name: 'Cola', qty: 1, price: 2.50 },
+    ],
+    total: 11.50,
+    status: 'approved',
+    approvedAt: new Date(now - 12 * min).toISOString(),
+    createdAt: new Date(now - 15 * min).toISOString(),
+  },
+  // preparing + pickup — Mark Ready butonu görünmeli
+  {
+    customerId: 'cust_003',
+    customerName: 'Ibrahim T.',
+    customerPhone: '+43699555666',
+    orderType: 'pickup',
+    items: [
+      { name: 'Lahmacun', qty: 3, price: 5.00 },
+      { name: 'Pommes', qty: 1, price: 3.50 },
+    ],
+    total: 18.50,
+    status: 'preparing',
+    approvedAt: new Date(now - 30 * min).toISOString(),
+    preparingAt: new Date(now - 20 * min).toISOString(),
+    createdAt: new Date(now - 35 * min).toISOString(),
+  },
+  // preparing + delivery — Out for Delivery butonu görünmeli
+  {
+    customerId: 'cust_005',
+    customerName: 'Lena M.',
+    customerPhone: '+43699888999',
+    orderType: 'delivery',
+    deliveryAddress: 'Naschmarkt 5, 1040 Wien',
+    items: [
+      { name: 'Döner', qty: 1, price: 8.50 },
+      { name: 'Cola', qty: 2, price: 2.50 },
+    ],
+    total: 13.50,
+    status: 'preparing',
+    approvedAt: new Date(now - 40 * min).toISOString(),
+    preparingAt: new Date(now - 25 * min).toISOString(),
+    createdAt: new Date(now - 45 * min).toISOString(),
+  },
+  // ready (pickup) — Mark Picked Up butonu görünmeli
+  {
+    customerId: 'cust_001',
+    customerName: 'Mehmet K.',
+    customerPhone: '+43699111222',
+    orderType: 'pickup',
+    items: [
+      { name: 'Döner', qty: 1, price: 8.50 },
+    ],
+    total: 8.50,
+    status: 'ready',
+    approvedAt: new Date(now - 60 * min).toISOString(),
+    preparingAt: new Date(now - 55 * min).toISOString(),
+    readyAt: new Date(now - 45 * min).toISOString(),
+    createdAt: new Date(now - 65 * min).toISOString(),
+  },
+  // on_the_way (delivery) — Mark Delivered butonu görünmeli
+  {
+    customerId: 'cust_006',
+    customerName: 'Can Y.',
+    customerPhone: '+43699000111',
+    orderType: 'delivery',
+    deliveryAddress: 'Graben 21, 1010 Wien',
+    items: [
+      { name: 'Pizza Margherita', qty: 1, price: 9.00 },
+    ],
+    total: 9.00,
+    status: 'on_the_way',
+    approvedAt: new Date(now - 80 * min).toISOString(),
+    preparingAt: new Date(now - 75 * min).toISOString(),
+    onTheWayAt: new Date(now - 60 * min).toISOString(),
+    createdAt: new Date(now - 85 * min).toISOString(),
+  },
+  // delivered — buton yok, tamamlandı
+  {
+    customerId: 'cust_002',
+    customerName: 'Anna S.',
+    customerPhone: '+43699333444',
+    orderType: 'delivery',
+    deliveryAddress: 'Ringstrasse 1, 1010 Wien',
+    items: [
+      { name: 'Lahmacun', qty: 2, price: 5.00 },
+      { name: 'Ayran', qty: 1, price: 2.00 },
+    ],
+    total: 12.00,
+    status: 'delivered',
+    approvedAt: new Date(now - 120 * min).toISOString(),
+    preparingAt: new Date(now - 115 * min).toISOString(),
+    onTheWayAt: new Date(now - 100 * min).toISOString(),
+    deliveredAt: new Date(now - 90 * min).toISOString(),
+    createdAt: new Date(now - 125 * min).toISOString(),
   },
 ];
 
