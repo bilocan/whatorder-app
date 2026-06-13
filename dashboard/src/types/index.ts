@@ -71,6 +71,7 @@ export interface Business {
   deliveryFee?: number;
   deliveryZone?: string;
   schedule?: BusinessSchedule;
+  botLanguage?: 'de' | 'tr' | 'en';
 }
 
 export interface PhoneRouting {

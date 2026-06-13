@@ -223,14 +223,16 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   // First message OR multi-restaurant with no restaurant selected yet OR TTL expired
   // (skip if already in selecting_restaurant — let the state machine handle the reply)
   if (!session.language || (isMulti && !session.businessId && session.state !== 'selecting_restaurant' && session.state !== 'awaiting_location') || sessionExpiredForPicker) {
-    const lang = session.language || (type === 'text' ? detectLanguage(text) : 'en');
     if (isMulti) {
+      const lang = session.language || (type === 'text' ? detectLanguage(text) : 'en');
       const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
       await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: locId ? [locId] : [] });
       return;
     }
     const bid = routing.defaultBusinessId || routing.businessIds[0];
     const bidInfo = await getBusinessInfo(bid);
+    // Text → detect from message; non-text first message → fall back to owner-configured language
+    const lang = session.language || (type === 'text' ? detectLanguage(text) : null) || bidInfo.botLanguage || 'de';
     if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
       const _w0 = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
       await sendText(from, t('restaurantClosed', lang, bidInfo.name, _w0?.firstOrderTime ?? null, _w0?.lastOrderTime ?? null));
