@@ -158,6 +158,15 @@
       "4": "Perşembe",
       "5": "Cuma",
       "6": "Cumartesi"
+    },
+    "daysShort": {
+      "0": "Paz",
+      "1": "Pzt",
+      "2": "Sal",
+      "3": "Çar",
+      "4": "Per",
+      "5": "Cum",
+      "6": "Cmt"
     }
   },
   "login": {
