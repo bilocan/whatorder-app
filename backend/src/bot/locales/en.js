@@ -49,7 +49,14 @@ module.exports = {
   skipBtn: () => 'Skip',
   askName: () => "What's your name for the order?",
 
-  orderReady: (shortId) => `✅ Your order #${shortId} is ready for pickup! See you soon 🙏`,
+  orderApproved:  (shortId) => `✅ Order #${shortId} accepted! We'll start preparing it shortly.`,
+  orderPreparing: (shortId) => `👨‍🍳 Order #${shortId} is now being prepared!`,
+  orderReady:     (shortId) => `✅ Your order #${shortId} is ready for pickup! See you soon 🙏`,
+  orderOnTheWay:  (shortId) => `🚚 Order #${shortId} is on its way!`,
+  orderPickedUp:  (shortId) => `✅ Thanks for picking up order #${shortId}. Enjoy your meal! 🙏`,
+  orderDelivered: (shortId) => `✅ Order #${shortId} delivered. Enjoy your meal! 🙏`,
+  orderRejected:  (shortId) => `❌ Sorry, order #${shortId} could not be accepted. Please contact us.`,
+  orderCancelled: (shortId) => `❌ Order #${shortId} has been cancelled.`,
 
   askOrderType: (fee) => `How would you like to receive your order?\n\nDelivery fee: €${Number(fee).toFixed(2)}`,
   pickupBtn: () => 'Pickup',

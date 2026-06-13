@@ -1,6 +1,16 @@
 import type { Timestamp } from 'firebase/firestore';
 
-export type OrderStatus = 'pending' | 'ready' | 'completed';
+export type OrderStatus =
+  | 'pending'
+  | 'approved'
+  | 'preparing'
+  | 'ready'
+  | 'on_the_way'
+  | 'picked_up'
+  | 'delivered'
+  | 'rejected'
+  | 'cancelled'
+  | 'completed'; // legacy
 
 export interface OrderItem {
   name: string;

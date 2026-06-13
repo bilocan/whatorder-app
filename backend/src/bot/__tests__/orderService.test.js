@@ -13,7 +13,7 @@ jest.mock('../../lib/firebase', () => ({
 jest.mock('../../lib/whatsapp');
 jest.mock('../templates');
 
-const { createOrder, markOrderReady } = require('../orderService');
+const { createOrder, approveOrder, rejectOrder, startPreparation, markReady, markOnTheWay, markPickedUp, markDelivered, cancelOrder } = require('../orderService');
 const { ordersRef, businessRef, customersRef } = require('../../lib/collections');
 const { sendText } = require('../../lib/whatsapp');
 const { t } = require('../templates');
@@ -290,63 +290,142 @@ describe('createOrder', () => {
 });
 
 // ---------------------------------------------------------------------------
-// markOrderReady
+// State machine — transitionOrder (tested via individual functions)
 // ---------------------------------------------------------------------------
-describe('markOrderReady', () => {
-  const PENDING_ORDER = { status: 'pending', customerPhone: '+43699000001', language: 'tr' };
-
+describe('Order state machine', () => {
   function makeRef(orderData) {
     const mockUpdate = jest.fn().mockResolvedValue(undefined);
-    const mockGet = jest.fn().mockResolvedValue({
-      exists: orderData !== null,
-      data: () => orderData,
-    });
-    const ref = { get: mockGet, update: mockUpdate };
+    const ref = {
+      get: jest.fn().mockResolvedValue({ exists: orderData !== null, data: () => orderData }),
+      update: mockUpdate,
+    };
     ordersRef.mockReturnValue({ doc: jest.fn().mockReturnValue(ref) });
     return { mockUpdate };
   }
 
-  test('updates status to "ready" with a readyAt timestamp', async () => {
-    const { mockUpdate } = makeRef(PENDING_ORDER);
+  const ORDER = (status) => ({ status, customerPhone: '+43699000001', language: 'tr' });
 
-    await markOrderReady(BIZ, 'order_abc123');
+  // ── approveOrder ──────────────────────────────────────────────────────────
+  test('approveOrder: pending → approved, writes approvedAt, notifies customer', async () => {
+    const { mockUpdate } = makeRef(ORDER('pending'));
+    t.mockReturnValue('Onaylandı!');
 
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'ready', readyAt: expect.any(String) }),
-    );
+    await approveOrder(BIZ, 'order_abc123');
+
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved', approvedAt: expect.any(String) }));
+    expect(t).toHaveBeenCalledWith('orderApproved', 'tr', 'ABC123');
+    expect(sendText).toHaveBeenCalledWith('+43699000001', 'Onaylandı!');
   });
 
-  test('sends customer notification with translated message', async () => {
-    makeRef(PENDING_ORDER);
-    t.mockReturnValue('Siparişiniz hazır!');
-
-    await markOrderReady(BIZ, 'order_abc123');
-
-    expect(sendText).toHaveBeenCalledWith(PENDING_ORDER.customerPhone, 'Siparişiniz hazır!');
+  test('approveOrder: throws on invalid source state', async () => {
+    makeRef(ORDER('approved'));
+    await expect(approveOrder(BIZ, 'ord')).rejects.toThrow('Invalid transition');
   });
 
-  test('uses the correct shortId (last 6 chars, uppercased) in the notification', async () => {
-    makeRef(PENDING_ORDER);
+  // ── rejectOrder ───────────────────────────────────────────────────────────
+  test('rejectOrder: pending → rejected, notifies with orderRejected key', async () => {
+    const { mockUpdate } = makeRef(ORDER('pending'));
 
-    await markOrderReady(BIZ, 'order_ABCDEF123456');
+    await rejectOrder(BIZ, 'order_abc123');
 
-    expect(t).toHaveBeenCalledWith('orderReady', 'tr', '123456');
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'rejected', rejectedAt: expect.any(String) }));
+    expect(t).toHaveBeenCalledWith('orderRejected', 'tr', 'ABC123');
   });
 
+  // ── startPreparation ──────────────────────────────────────────────────────
+  test('startPreparation: approved → preparing', async () => {
+    const { mockUpdate } = makeRef(ORDER('approved'));
+
+    await startPreparation(BIZ, 'order_abc123');
+
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'preparing', preparingAt: expect.any(String) }));
+    expect(t).toHaveBeenCalledWith('orderPreparing', 'tr', 'ABC123');
+  });
+
+  // ── markReady ─────────────────────────────────────────────────────────────
+  test('markReady: preparing → ready', async () => {
+    const { mockUpdate } = makeRef(ORDER('preparing'));
+
+    await markReady(BIZ, 'order_abc123');
+
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'ready', readyAt: expect.any(String) }));
+    expect(t).toHaveBeenCalledWith('orderReady', 'tr', 'ABC123');
+  });
+
+  test('markReady: throws when order is not in preparing state', async () => {
+    makeRef(ORDER('pending'));
+    await expect(markReady(BIZ, 'ord')).rejects.toThrow('Invalid transition');
+  });
+
+  // ── markOnTheWay ──────────────────────────────────────────────────────────
+  test('markOnTheWay: preparing → on_the_way', async () => {
+    const { mockUpdate } = makeRef(ORDER('preparing'));
+
+    await markOnTheWay(BIZ, 'order_abc123');
+
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'on_the_way', onTheWayAt: expect.any(String) }));
+    expect(t).toHaveBeenCalledWith('orderOnTheWay', 'tr', 'ABC123');
+  });
+
+  // ── markPickedUp ──────────────────────────────────────────────────────────
+  test('markPickedUp: ready → picked_up', async () => {
+    const { mockUpdate } = makeRef(ORDER('ready'));
+
+    await markPickedUp(BIZ, 'order_abc123');
+
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'picked_up', pickedUpAt: expect.any(String) }));
+    expect(t).toHaveBeenCalledWith('orderPickedUp', 'tr', 'ABC123');
+  });
+
+  // ── markDelivered ─────────────────────────────────────────────────────────
+  test('markDelivered: on_the_way → delivered', async () => {
+    const { mockUpdate } = makeRef(ORDER('on_the_way'));
+
+    await markDelivered(BIZ, 'order_abc123');
+
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'delivered', deliveredAt: expect.any(String) }));
+    expect(t).toHaveBeenCalledWith('orderDelivered', 'tr', 'ABC123');
+  });
+
+  // ── cancelOrder ───────────────────────────────────────────────────────────
+  test('cancelOrder: pending → cancelled', async () => {
+    const { mockUpdate } = makeRef(ORDER('pending'));
+    await cancelOrder(BIZ, 'order_abc123');
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled', cancelledAt: expect.any(String) }));
+  });
+
+  test('cancelOrder: approved → cancelled', async () => {
+    const { mockUpdate } = makeRef(ORDER('approved'));
+    await cancelOrder(BIZ, 'order_abc123');
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }));
+  });
+
+  test('cancelOrder: preparing → cancelled', async () => {
+    const { mockUpdate } = makeRef(ORDER('preparing'));
+    await cancelOrder(BIZ, 'order_abc123');
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }));
+  });
+
+  test('cancelOrder: throws when order is ready (too late to cancel)', async () => {
+    makeRef(ORDER('ready'));
+    await expect(cancelOrder(BIZ, 'ord')).rejects.toThrow('Invalid transition');
+  });
+
+  // ── shared behaviour ──────────────────────────────────────────────────────
   test('throws "Order not found" when document does not exist', async () => {
     makeRef(null);
-    await expect(markOrderReady(BIZ, 'nonexistent')).rejects.toThrow('Order not found');
-  });
-
-  test('throws "Order is not pending" when status is already ready', async () => {
-    makeRef({ ...PENDING_ORDER, status: 'ready' });
-    await expect(markOrderReady(BIZ, 'order_abc123')).rejects.toThrow('Order is not pending');
+    await expect(approveOrder(BIZ, 'nonexistent')).rejects.toThrow('Order not found');
   });
 
   test('does not throw when customer notification fails', async () => {
-    makeRef(PENDING_ORDER);
+    makeRef(ORDER('pending'));
     sendText.mockRejectedValue(new Error('WhatsApp down'));
+    await expect(approveOrder(BIZ, 'order_abc123')).resolves.toBeUndefined();
+  });
 
-    await expect(markOrderReady(BIZ, 'order_abc123')).resolves.toBeUndefined();
+  test('uses last 6 chars of orderId (uppercased) as shortId', async () => {
+    makeRef(ORDER('pending'));
+    await approveOrder(BIZ, 'order_ABCDEF123456');
+    expect(t).toHaveBeenCalledWith('orderApproved', 'tr', '123456');
   });
 });

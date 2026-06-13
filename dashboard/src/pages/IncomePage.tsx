@@ -20,8 +20,9 @@ export default function IncomePage() {
 
   const today = new Date().toDateString();
   const todayOrders = orders.filter((o) => toDate(o.createdAt).toDateString() === today);
-  const earned = todayOrders.filter((o) => o.status === 'completed').reduce((s, o) => s + o.total, 0);
-  const pending = todayOrders.filter((o) => o.status !== 'completed').reduce((s, o) => s + o.total, 0);
+  const EARNED_STATUSES = new Set(['completed', 'picked_up', 'delivered']);
+  const earned = todayOrders.filter((o) => EARNED_STATUSES.has(o.status)).reduce((s, o) => s + o.total, 0);
+  const pending = todayOrders.filter((o) => !EARNED_STATUSES.has(o.status)).reduce((s, o) => s + o.total, 0);
   const totalFee = todayOrders.reduce((s, o) => s + calcFee(o.total, feeConfig), 0);
 
   return (

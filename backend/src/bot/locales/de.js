@@ -49,7 +49,14 @@ module.exports = {
   skipBtn: () => 'Überspringen',
   askName: () => 'Wie lautet Ihr Name für die Bestellung?',
 
-  orderReady: (shortId) => `✅ Ihre Bestellung #${shortId} ist abholbereit! Bis gleich 🙏`,
+  orderApproved:  (shortId) => `✅ Bestellung #${shortId} angenommen! Wir beginnen bald mit der Zubereitung.`,
+  orderPreparing: (shortId) => `👨‍🍳 Bestellung #${shortId} wird jetzt zubereitet!`,
+  orderReady:     (shortId) => `✅ Ihre Bestellung #${shortId} ist abholbereit! Bis gleich 🙏`,
+  orderOnTheWay:  (shortId) => `🚚 Bestellung #${shortId} ist unterwegs!`,
+  orderPickedUp:  (shortId) => `✅ Bestellung #${shortId} abgeholt. Guten Appetit! 🙏`,
+  orderDelivered: (shortId) => `✅ Bestellung #${shortId} zugestellt. Guten Appetit! 🙏`,
+  orderRejected:  (shortId) => `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Bitte kontaktieren Sie uns.`,
+  orderCancelled: (shortId) => `❌ Bestellung #${shortId} wurde storniert.`,
 
   askOrderType: (fee) => `Wie möchten Sie Ihre Bestellung erhalten?\n\nLiefergebühr: €${Number(fee).toFixed(2)}`,
   pickupBtn: () => 'Abholung',
