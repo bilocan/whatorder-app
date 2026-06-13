@@ -84,4 +84,10 @@ module.exports = {
   orderAgainPrompt: (name) => `${name}'dan mı sipariş veriyorsunuz?\n\nBuraya devam edin veya başka bir restoran seçin.`,
   orderAgainBtn: () => 'Buradan sipariş ver',
   chooseRestaurantBtn: () => 'Restoran seç',
+
+  restaurantClosed: (name, firstOrderTime, lastOrderTime) =>
+    firstOrderTime && lastOrderTime
+      ? `🔒 ${name} şu an kapalı.\n\nSipariş saatleri: ${firstOrderTime} – ${lastOrderTime}. Sizi bekleriz! 🙏`
+      : `🔒 ${name} şu an kapalı. Lütfen daha sonra tekrar deneyin! 🙏`,
+  closedLabel: () => '🔒 Kapalı',
 };

@@ -46,6 +46,16 @@ export interface MenuItem {
   available: boolean;
 }
 
+export interface DaySchedule {
+  openTime: string;       // 'HH:mm'
+  closeTime: string;      // 'HH:mm'
+  firstOrderTime: string; // 'HH:mm'
+  lastOrderTime: string;  // 'HH:mm'
+}
+
+// Key is day-of-week as string ('0'=Sun … '6'=Sat); absence of a key means that day is closed.
+export type BusinessSchedule = Record<string, DaySchedule>;
+
 export interface Business {
   id: string;
   name: string;
@@ -60,6 +70,7 @@ export interface Business {
   deliveryEnabled?: boolean;
   deliveryFee?: number;
   deliveryZone?: string;
+  schedule?: BusinessSchedule;
 }
 
 export interface PhoneRouting {
