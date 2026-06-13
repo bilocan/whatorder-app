@@ -1,4 +1,4 @@
-const { detectLanguage, getOverride } = require('../languageDetector');
+const { detectLanguage, scoreLanguage, getOverride } = require('../languageDetector');
 
 describe('detectLanguage', () => {
   test('detects Turkish from keywords', () => {
@@ -35,6 +35,63 @@ describe('detectLanguage', () => {
   test('TR score beats DE score when both have matches', () => {
     // 3 TR words vs 1 DE word
     expect(detectLanguage('merhaba tamam sipariş ja')).toBe('tr');
+  });
+
+  test('detects Turkish from expanded keyword set (numbers + food)', () => {
+    expect(detectLanguage('bir kebap için lütfen')).toBe('tr');
+  });
+
+  test('detects Turkish from expanded keyword set (food + drink)', () => {
+    expect(detectLanguage('iki çay ve bir kahve')).toBe('tr');
+  });
+
+  test('detects German from expanded keyword set (numbers)', () => {
+    expect(detectLanguage('zwei bier bitte danke')).toBe('de');
+  });
+
+  test('detects German from expanded keyword set (common words)', () => {
+    expect(detectLanguage('ich möchte noch mehr bestellen')).toBe('de');
+  });
+});
+
+describe('scoreLanguage', () => {
+  test('returns score 0 and lang "en" for unknown text', () => {
+    expect(scoreLanguage('hello world')).toEqual({ lang: 'en', score: 0 });
+  });
+
+  test('returns correct TR score', () => {
+    const result = scoreLanguage('merhaba evet tamam');
+    expect(result.lang).toBe('tr');
+    expect(result.score).toBe(3);
+  });
+
+  test('returns correct DE score', () => {
+    const result = scoreLanguage('hallo ich möchte bestellen bitte');
+    expect(result.lang).toBe('de');
+    expect(result.score).toBe(5);
+  });
+
+  test('score >= 2 for clear TR signal', () => {
+    const result = scoreLanguage('bir döner için lütfen');
+    expect(result.lang).toBe('tr');
+    expect(result.score).toBeGreaterThanOrEqual(2);
+  });
+
+  test('score >= 2 for clear DE signal', () => {
+    const result = scoreLanguage('zwei schnitzel bitte danke');
+    expect(result.lang).toBe('de');
+    expect(result.score).toBeGreaterThanOrEqual(2);
+  });
+
+  test('score is 0 when TR and DE are tied (both 0)', () => {
+    const result = scoreLanguage('something completely unknown');
+    expect(result.score).toBe(0);
+  });
+
+  test('score reflects max of winning language, not sum', () => {
+    // 2 TR hits, 0 DE hits → score should be 2
+    const result = scoreLanguage('merhaba tamam');
+    expect(result.score).toBe(2);
   });
 });
 

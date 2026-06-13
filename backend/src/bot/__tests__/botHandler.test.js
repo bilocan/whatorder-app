@@ -185,6 +185,33 @@ describe('Language detection', () => {
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: expectedLang }));
   });
+
+  test('non-text first message defaults to "en" (not "tr")', async () => {
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ type: 'image', text: undefined }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'en' }));
+  });
+
+  test('mid-conversation re-detect updates language when score >= 2', async () => {
+    getSession.mockResolvedValue({ language: 'tr', state: 'browsing', businessId: BIZ, basket: [] });
+
+    // German text with 3 clear DE keywords — should flip to 'de'
+    await handleMessage(ROUTING, msg({ text: 'Hallo ich möchte bestellen bitte' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'de' }));
+  });
+
+  test('mid-conversation re-detect does NOT update language on weak signal (score < 2)', async () => {
+    getSession.mockResolvedValue({ language: 'tr', state: 'browsing', businessId: BIZ, basket: [] });
+
+    // 'bir' and 'döner' are TR (score TR:2), 'ja' is DE (score DE:1) — TR wins = no change
+    await handleMessage(ROUTING, msg({ text: 'bir döner ja' }));
+
+    // No setSession call: re-detect didn't flip (same language), browsing default has no state change
+    expect(setSession).not.toHaveBeenCalled();
+  });
 });
 
 describe('Edge cases', () => {
