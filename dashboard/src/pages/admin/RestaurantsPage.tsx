@@ -5,6 +5,15 @@ import { useTranslation } from 'react-i18next';
 import { auth, db } from '../../lib/firebase';
 import type { Business } from '../../types';
 
+const TrashIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+    <path d="M10 11v6M14 11v6"/>
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+  </svg>
+);
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 function generateId(name: string): string {
@@ -193,9 +202,10 @@ export default function RestaurantsPage() {
               <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
                 <button
                   onClick={() => deleteRestaurant(b.id, b.name)}
-                  style={{ padding: '0.3rem 0.7rem', background: 'none', border: '1px solid #fca5a5', color: '#ef4444', borderRadius: 6, cursor: 'pointer', fontSize: '0.82rem' }}
+                  title={t('admin.restaurants.delete')}
+                  style={{ padding: '0.3rem', background: 'none', border: '1px solid #fca5a5', color: '#ef4444', borderRadius: 6, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', lineHeight: 0 }}
                 >
-                  {t('admin.restaurants.delete')}
+                  <TrashIcon />
                 </button>
               </td>
             </tr>
