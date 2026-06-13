@@ -84,4 +84,10 @@ module.exports = {
   orderAgainPrompt: (name) => `Ordering from ${name}?\n\nContinue here or choose a different restaurant.`,
   orderAgainBtn: () => 'Order here again',
   chooseRestaurantBtn: () => 'Choose restaurant',
+
+  restaurantClosed: (name, firstOrderTime, lastOrderTime) =>
+    firstOrderTime && lastOrderTime
+      ? `🔒 ${name} is currently closed.\n\nOrders accepted ${firstOrderTime} – ${lastOrderTime}. See you then! 🙏`
+      : `🔒 ${name} is currently closed. Please try again later! 🙏`,
+  closedLabel: () => '🔒 Closed',
 };

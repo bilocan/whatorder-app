@@ -7,6 +7,7 @@ const { detectLanguage, scoreLanguage, getOverride } = require('./languageDetect
 const { t, tCategory } = require('./templates');
 const { reverseGeocode } = require('../lib/geocode');
 const { customersRef } = require('../lib/collections');
+const { isOpenNow, isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', '1', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal', '2']);
@@ -76,7 +77,8 @@ async function sendCatalog(to, lang, businessId, bodyOverride) {
 async function getBusinessesInfo(businessIds) {
   return Promise.all(businessIds.map(async bid => {
     const info = await getBusinessInfo(bid);
-    return { id: bid, name: info.name, tagline: info.tagline || info.cuisine || '', lat: info.lat ?? null, lng: info.lng ?? null };
+    const tz = info.timezone || 'Europe/Vienna';
+    return { id: bid, name: info.name, tagline: info.tagline || info.cuisine || '', lat: info.lat ?? null, lng: info.lng ?? null, isOpen: isOpenNow(info.schedule, tz) };
   }));
 }
 
@@ -94,9 +96,9 @@ async function sendRestaurantPicker(to, businesses, lang) {
               ? `📍 ${Math.round(b.distanceKm * 1000)} m`
               : `📍 ${b.distanceKm.toFixed(1)} km`)
           : null;
-        const description = distLabel
-          ? `${distLabel} · ${b.tagline}`.slice(0, 72)
-          : b.tagline.slice(0, 72);
+        const statusSuffix = b.isOpen === false ? ` · ${t('closedLabel', lang)}` : '';
+        const tagPart = distLabel ? `${distLabel} · ${b.tagline}` : b.tagline;
+        const description = `${tagPart}${statusSuffix}`.slice(0, 72);
         return { id: `restaurant_${b.id}`, title: b.name.slice(0, 24), description };
       }),
     }],
@@ -228,6 +230,13 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       return;
     }
     const bid = routing.defaultBusinessId || routing.businessIds[0];
+    const bidInfo = await getBusinessInfo(bid);
+    if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
+      const _w0 = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
+      await sendText(from, t('restaurantClosed', lang, bidInfo.name, _w0?.firstOrderTime ?? null, _w0?.lastOrderTime ?? null));
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
+      return;
+    }
     const menuId = await sendCatalog(from, lang, bid);
     await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: menuId ? [menuId] : [] });
     return;
@@ -288,6 +297,12 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
         await sendRestaurantPicker(from, businesses, lang);
         return;
       }
+      const selectedInfo = await getBusinessInfo(selectedBid);
+      if (!isOrderingOpen(selectedInfo.schedule, selectedInfo.timezone || 'Europe/Vienna')) {
+        const _w1 = getTodayOrderWindow(selectedInfo.schedule, selectedInfo.timezone || 'Europe/Vienna');
+        await sendText(from, t('restaurantClosed', lang, selectedInfo.name, _w1?.firstOrderTime ?? null, _w1?.lastOrderTime ?? null));
+        return;
+      }
       const menuId = await sendCatalog(from, lang, selectedBid);
       await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: selectedBid, pendingDeleteIds: menuId ? [menuId] : [] });
       return;
@@ -305,6 +320,12 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   if (isMulti && session.state === 'awaiting_restaurant_choice') {
     if (type === 'button_reply') {
       if (id === 'btn_order_again') {
+        const againInfo = await getBusinessInfo(businessId);
+        if (!isOrderingOpen(againInfo.schedule, againInfo.timezone || 'Europe/Vienna')) {
+          const _w2 = getTodayOrderWindow(againInfo.schedule, againInfo.timezone || 'Europe/Vienna');
+          await sendText(from, t('restaurantClosed', lang, againInfo.name, _w2?.firstOrderTime ?? null, _w2?.lastOrderTime ?? null));
+          return;
+        }
         const menuId = await sendCatalog(from, lang, businessId);
         await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: menuId ? [menuId] : [] });
         return;
@@ -612,12 +633,16 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       await sendCatalog(from, lang, businessId);
       return;
     }
-    const menu = await getMenu(businessId);
+    const [menu, info] = await Promise.all([getMenu(businessId), getBusinessInfo(businessId)]);
+    if (!isOrderingOpen(info.schedule, info.timezone || 'Europe/Vienna')) {
+      const _w3 = getTodayOrderWindow(info.schedule, info.timezone || 'Europe/Vienna');
+      await sendText(from, t('restaurantClosed', lang, info.name, _w3?.firstOrderTime ?? null, _w3?.lastOrderTime ?? null));
+      return;
+    }
     const newBasket = items.map(item => {
       const menuItem = menu.find(m => m.id === item.productId);
       return { name: menuItem?.name ?? item.productId, qty: item.qty, price: item.price };
     });
-    const info = await getBusinessInfo(businessId);
     const prepMins = info.avgPrepTime || 30;
     const pickupTime = new Date(Date.now() + prepMins * 60000)
       .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
@@ -692,6 +717,11 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
         return;
       }
       const info = await getBusinessInfo(businessId);
+      if (!isOrderingOpen(info.schedule, info.timezone || 'Europe/Vienna')) {
+        const _w4 = getTodayOrderWindow(info.schedule, info.timezone || 'Europe/Vienna');
+        await sendText(from, t('restaurantClosed', lang, info.name, _w4?.firstOrderTime ?? null, _w4?.lastOrderTime ?? null));
+        return;
+      }
       const prepMins = info.avgPrepTime || 30;
       const pickupTime = new Date(Date.now() + prepMins * 60000)
         .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });

@@ -3,7 +3,22 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { geocodeAddress } from '../lib/geocode';
-import type { Business } from '../types';
+import type { Business, DaySchedule } from '../types';
+
+const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const DEFAULT_DAY: DaySchedule = { openTime: '09:00', closeTime: '22:00', firstOrderTime: '09:00', lastOrderTime: '21:30' };
+
+type DayMap = Record<number, DaySchedule | null>; // null = closed
+
+const INPUT_STYLE: React.CSSProperties = {
+  width: '100%', padding: '0.35rem 0.5rem', background: '#1a1a1a',
+  border: '1px solid #444', borderRadius: 4, color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box',
+};
+
+const LABEL_STYLE: React.CSSProperties = {
+  fontSize: '0.7rem', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.15rem',
+};
 
 export default function SettingsPage() {
   const { businessId } = useAuth();
@@ -18,6 +33,12 @@ export default function SettingsPage() {
   const [deliveryFee, setDeliveryFee] = useState('');
   const [deliveryZone, setDeliveryZone] = useState('');
   const [deliverySaveStatus, setDeliverySaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [dayMap, setDayMap] = useState<DayMap>({
+    0: null, 1: { ...DEFAULT_DAY }, 2: { ...DEFAULT_DAY },
+    3: { ...DEFAULT_DAY }, 4: { ...DEFAULT_DAY }, 5: { ...DEFAULT_DAY }, 6: null,
+  });
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [scheduleSaveStatus, setScheduleSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
     if (!businessId) return;
@@ -31,6 +52,16 @@ export default function SettingsPage() {
         setDeliveryEnabled(data.deliveryEnabled ?? false);
         setDeliveryFee(data.deliveryFee != null ? String(data.deliveryFee) : '');
         setDeliveryZone(data.deliveryZone ?? '');
+        if (data.schedule) {
+          setDayMap(prev => {
+            const next = { ...prev };
+            for (let d = 0; d <= 6; d++) {
+              const cfg = data.schedule![String(d)];
+              next[d] = cfg ? { ...cfg } : null;
+            }
+            return next;
+          });
+        }
       }
     });
   }, [businessId]);
@@ -55,14 +86,8 @@ export default function SettingsPage() {
     if (!businessId) return;
     const parsedLat = lat === '' ? null : parseFloat(lat);
     const parsedLng = lng === '' ? null : parseFloat(lng);
-    if (parsedLat != null && (parsedLat < -90 || parsedLat > 90)) {
-      setSaveStatus('error');
-      return;
-    }
-    if (parsedLng != null && (parsedLng < -180 || parsedLng > 180)) {
-      setSaveStatus('error');
-      return;
-    }
+    if (parsedLat != null && (parsedLat < -90 || parsedLat > 90)) { setSaveStatus('error'); return; }
+    if (parsedLng != null && (parsedLng < -180 || parsedLng > 180)) { setSaveStatus('error'); return; }
     setSaveStatus('saving');
     try {
       await updateDoc(doc(db, 'businesses', businessId), { address: address || null, lat: parsedLat, lng: parsedLng });
@@ -81,9 +106,7 @@ export default function SettingsPage() {
     setDeliverySaveStatus('saving');
     try {
       await updateDoc(doc(db, 'businesses', businessId), {
-        deliveryEnabled,
-        deliveryFee: parsedFee,
-        deliveryZone: deliveryZone.trim() || null,
+        deliveryEnabled, deliveryFee: parsedFee, deliveryZone: deliveryZone.trim() || null,
       });
       setBusiness(prev => prev ? { ...prev, deliveryEnabled, deliveryFee: parsedFee, deliveryZone: deliveryZone.trim() || undefined } : prev);
       setDeliverySaveStatus('saved');
@@ -93,10 +116,48 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleSaveSchedule() {
+    if (!businessId) return;
+    setScheduleSaveStatus('saving');
+    const schedule: Record<string, DaySchedule> = {};
+    for (let d = 0; d <= 6; d++) {
+      if (dayMap[d]) schedule[String(d)] = dayMap[d]!;
+    }
+    try {
+      await updateDoc(doc(db, 'businesses', businessId), { schedule });
+      setScheduleSaveStatus('saved');
+      setTimeout(() => setScheduleSaveStatus('idle'), 2500);
+    } catch {
+      setScheduleSaveStatus('error');
+    }
+  }
+
+  function toggleOpen(d: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    setDayMap(prev => {
+      const isNowOpen = !prev[d];
+      if (isNowOpen) setExpanded(ex => ({ ...ex, [d]: true }));
+      return { ...prev, [d]: prev[d] ? null : { ...DEFAULT_DAY } };
+    });
+  }
+
+  function toggleExpand(d: number) {
+    if (!dayMap[d]) return; // closed days don't expand
+    setExpanded(prev => ({ ...prev, [d]: !prev[d] }));
+  }
+
+  function updateDayField(d: number, field: keyof DaySchedule, value: string) {
+    setDayMap(prev => {
+      const cfg = prev[d];
+      if (!cfg) return prev;
+      return { ...prev, [d]: { ...cfg, [field]: value } };
+    });
+  }
+
   if (!business) return <p>Loading...</p>;
 
   return (
-    <div style={{ maxWidth: 400 }}>
+    <div style={{ maxWidth: 420 }}>
       <h2>Settings</h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {[
@@ -111,62 +172,31 @@ export default function SettingsPage() {
         ))}
       </div>
 
+      {/* Location */}
       <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
         <h3 style={{ margin: '0 0 0.25rem' }}>Location</h3>
-        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>
-          Used to sort this restaurant by distance for nearby customers.
-        </p>
+        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>Used to sort this restaurant by distance for nearby customers.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div>
-            <div style={{ fontSize: '0.75rem', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>Address</div>
+            <div style={LABEL_STYLE}>Address</div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                type="text"
-                value={address}
-                onChange={e => { setAddress(e.target.value); setGeocodeError(false); }}
-                placeholder="e.g. Margaretenstrasse 42, 1050 Wien"
-                style={{ flex: 1, padding: '0.4rem 0.6rem', background: '#1a1a1a', border: '1px solid #444', borderRadius: 4, color: '#fff', fontSize: '0.9rem', boxSizing: 'border-box' }}
-              />
-              <button
-                onClick={handleLookupCoords}
-                disabled={geocoding || !address.trim()}
-                style={{ padding: '0.4rem 0.75rem', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: 4, cursor: geocoding || !address.trim() ? 'default' : 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap', opacity: !address.trim() ? 0.5 : 1 }}
-              >
+              <input type="text" value={address} onChange={e => { setAddress(e.target.value); setGeocodeError(false); }} placeholder="e.g. Margaretenstrasse 42, 1050 Wien" style={{ ...INPUT_STYLE, flex: 1 }} />
+              <button onClick={handleLookupCoords} disabled={geocoding || !address.trim()} style={{ padding: '0.4rem 0.75rem', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: 4, cursor: geocoding || !address.trim() ? 'default' : 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap', opacity: !address.trim() ? 0.5 : 1 }}>
                 {geocoding ? 'Looking up…' : 'Look up coords'}
               </button>
             </div>
             {geocodeError && <div style={{ fontSize: '0.78rem', color: '#ef4444', marginTop: '0.25rem' }}>Address not found — try a more specific address.</div>}
           </div>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '0.75rem', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>Latitude</div>
-              <input
-                type="number"
-                value={lat}
-                onChange={e => setLat(e.target.value)}
-                placeholder="e.g. 48.2093"
-                step="any"
-                style={{ width: '100%', padding: '0.4rem 0.6rem', background: '#1a1a1a', border: '1px solid #444', borderRadius: 4, color: '#fff', fontSize: '0.9rem', boxSizing: 'border-box' }}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '0.75rem', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>Longitude</div>
-              <input
-                type="number"
-                value={lng}
-                onChange={e => setLng(e.target.value)}
-                placeholder="e.g. 16.3621"
-                step="any"
-                style={{ width: '100%', padding: '0.4rem 0.6rem', background: '#1a1a1a', border: '1px solid #444', borderRadius: 4, color: '#fff', fontSize: '0.9rem', boxSizing: 'border-box' }}
-              />
-            </div>
+            {[{ label: 'Latitude', value: lat, setter: setLat, placeholder: '48.2093' }, { label: 'Longitude', value: lng, setter: setLng, placeholder: '16.3621' }].map(({ label, value, setter, placeholder }) => (
+              <div key={label} style={{ flex: 1 }}>
+                <div style={LABEL_STYLE}>{label}</div>
+                <input type="number" value={value} onChange={e => setter(e.target.value)} placeholder={`e.g. ${placeholder}`} step="any" style={INPUT_STYLE} />
+              </div>
+            ))}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button
-              onClick={handleSaveLocation}
-              disabled={saveStatus === 'saving'}
-              style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: saveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
-            >
+            <button onClick={handleSaveLocation} disabled={saveStatus === 'saving'} style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: saveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
               {saveStatus === 'saving' ? 'Saving…' : 'Save location'}
             </button>
             {saveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>Saved</span>}
@@ -174,59 +204,99 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Delivery */}
       <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
         <h3 style={{ margin: '0 0 0.25rem' }}>Delivery</h3>
-        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>
-          Enable delivery orders. Customers will be asked "Pickup or delivery?" during checkout.
-        </p>
+        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>Enable delivery orders. Customers will be asked "Pickup or delivery?" during checkout.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={deliveryEnabled}
-              onChange={e => setDeliveryEnabled(e.target.checked)}
-              style={{ width: 16, height: 16, accentColor: '#22c55e', cursor: 'pointer' }}
-            />
+            <input type="checkbox" checked={deliveryEnabled} onChange={e => setDeliveryEnabled(e.target.checked)} style={{ width: 16, height: 16, accentColor: '#22c55e', cursor: 'pointer' }} />
             <span style={{ fontSize: '0.9rem' }}>Accept delivery orders</span>
           </label>
           {deliveryEnabled && (
             <>
               <div>
-                <div style={{ fontSize: '0.75rem', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>Delivery fee (€)</div>
-                <input
-                  type="number"
-                  value={deliveryFee}
-                  onChange={e => setDeliveryFee(e.target.value)}
-                  placeholder="e.g. 2.50"
-                  min="0"
-                  step="0.5"
-                  style={{ width: '100%', padding: '0.4rem 0.6rem', background: '#1a1a1a', border: '1px solid #444', borderRadius: 4, color: '#fff', fontSize: '0.9rem', boxSizing: 'border-box' }}
-                />
+                <div style={LABEL_STYLE}>Delivery fee (€)</div>
+                <input type="number" value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} placeholder="e.g. 2.50" min="0" step="0.5" style={INPUT_STYLE} />
               </div>
               <div>
-                <div style={{ fontSize: '0.75rem', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>Delivery zone (postal codes)</div>
-                <input
-                  type="text"
-                  value={deliveryZone}
-                  onChange={e => setDeliveryZone(e.target.value)}
-                  placeholder="e.g. 1010-1230 or 1050,1060,1070"
-                  style={{ width: '100%', padding: '0.4rem 0.6rem', background: '#1a1a1a', border: '1px solid #444', borderRadius: 4, color: '#fff', fontSize: '0.9rem', boxSizing: 'border-box' }}
-                />
-                <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '0.2rem' }}>Used to validate delivery addresses. Leave empty to accept all.</div>
+                <div style={LABEL_STYLE}>Delivery zone (postal codes)</div>
+                <input type="text" value={deliveryZone} onChange={e => setDeliveryZone(e.target.value)} placeholder="e.g. 1010-1230 or 1050,1060,1070" style={INPUT_STYLE} />
+                <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '0.2rem' }}>Leave empty to accept all.</div>
               </div>
             </>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button
-              onClick={handleSaveDelivery}
-              disabled={deliverySaveStatus === 'saving'}
-              style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: deliverySaveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
-            >
+            <button onClick={handleSaveDelivery} disabled={deliverySaveStatus === 'saving'} style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: deliverySaveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
               {deliverySaveStatus === 'saving' ? 'Saving…' : 'Save delivery settings'}
             </button>
             {deliverySaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>Saved</span>}
             {deliverySaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>Invalid fee value</span>}
           </div>
+        </div>
+      </div>
+
+      {/* Operating Hours */}
+      <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
+        <h3 style={{ margin: '0 0 0.25rem' }}>Operating Hours</h3>
+        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>
+          Set hours per day. Bot rejects orders outside the order window. Closed days show "🔒 Closed" in the restaurant picker.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {DAY_LABELS.map((label, d) => {
+            const cfg = dayMap[d];
+            const isOpen = cfg !== null;
+            const isExpanded = isOpen && !!expanded[d];
+            return (
+              <div key={d} style={{ border: `1px solid ${isOpen ? '#333' : '#222'}`, borderRadius: 6, overflow: 'hidden' }}>
+                {/* Day row: click row = accordion, click badge = open/closed toggle */}
+                <div
+                  onClick={() => toggleExpand(d)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.55rem 0.75rem', cursor: isOpen ? 'pointer' : 'default', background: isOpen ? '#1a1a1a' : '#111' }}
+                >
+                  <span style={{ fontSize: '0.9rem', fontWeight: 500, color: isOpen ? '#fff' : '#555' }}>{label}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {isOpen && <span style={{ fontSize: '0.7rem', color: '#555' }}>{isExpanded ? '▲' : '▼'}</span>}
+                    <span
+                      onClick={(e) => toggleOpen(d, e)}
+                      style={{ fontSize: '0.75rem', fontWeight: 600, color: isOpen ? '#22c55e' : '#444', padding: '0.15rem 0.5rem', border: `1px solid ${isOpen ? '#22c55e' : '#333'}`, borderRadius: 4, cursor: 'pointer' }}
+                    >
+                      {isOpen ? 'Open' : 'Closed'}
+                    </span>
+                  </div>
+                </div>
+                {/* Expanded time pickers */}
+                {isExpanded && cfg && (
+                  <div style={{ padding: '0.65rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#0f0f0f' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {([['openTime', 'Opens'], ['closeTime', 'Closes']] as const).map(([field, lbl]) => (
+                        <div key={field} style={{ flex: 1 }}>
+                          <div style={LABEL_STYLE}>{lbl}</div>
+                          <input type="time" value={cfg[field]} onChange={e => updateDayField(d, field, e.target.value)} style={INPUT_STYLE} />
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {([['firstOrderTime', 'First order'], ['lastOrderTime', 'Last order']] as const).map(([field, lbl]) => (
+                        <div key={field} style={{ flex: 1 }}>
+                          <div style={LABEL_STYLE}>{lbl}</div>
+                          <input type="time" value={cfg[field]} onChange={e => updateDayField(d, field, e.target.value)} style={INPUT_STYLE} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.75rem' }}>
+          <button onClick={handleSaveSchedule} disabled={scheduleSaveStatus === 'saving'} style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: scheduleSaveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
+            {scheduleSaveStatus === 'saving' ? 'Saving…' : 'Save hours'}
+          </button>
+          {scheduleSaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>Saved</span>}
+          {scheduleSaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>Error saving</span>}
         </div>
       </div>
     </div>
