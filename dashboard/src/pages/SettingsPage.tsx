@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { geocodeAddress } from '../lib/geocode';
 import type { Business, DaySchedule } from '../types';
 
-const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
 const DEFAULT_DAY: DaySchedule = { openTime: '09:00', closeTime: '22:00', firstOrderTime: '09:00', lastOrderTime: '21:30' };
 
-type DayMap = Record<number, DaySchedule | null>; // null = closed
+type DayMap = Record<number, DaySchedule | null>;
 
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%', padding: '0.35rem 0.5rem', background: '#1a1a1a',
@@ -21,6 +20,7 @@ const LABEL_STYLE: React.CSSProperties = {
 };
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const { businessId } = useAuth();
   const [business, setBusiness] = useState<Business | null>(null);
   const [address, setAddress] = useState('');
@@ -157,7 +157,7 @@ export default function SettingsPage() {
   }
 
   function toggleExpand(d: number) {
-    if (!dayMap[d]) return; // closed days don't expand
+    if (!dayMap[d]) return;
     setExpanded(prev => ({ ...prev, [d]: !prev[d] }));
   }
 
@@ -169,41 +169,44 @@ export default function SettingsPage() {
     });
   }
 
-  if (!business) return <p>Loading...</p>;
+  if (!business) return <p>{t('settings.loading')}</p>;
 
   return (
     <div style={{ maxWidth: 420 }}>
-      <h2>Settings</h2>
+      <h2>{t('settings.title')}</h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {[
-          { label: 'Business name', value: business.name },
-          { label: 'Alert number', value: business.alertPhone },
-          { label: 'Status', value: business.status },
+          { label: t('settings.businessName'), value: business.name },
+          { label: t('settings.alertNumber'),  value: business.alertPhone },
+          { label: t('settings.status'),       value: business.status },
         ].map(({ label, value }) => (
           <div key={label}>
             <div style={{ fontSize: '0.75rem', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>{label}</div>
-            <div style={{ fontWeight: 500, textTransform: label === 'Status' ? 'capitalize' : 'none', color: label === 'Status' && value === 'active' ? '#22c55e' : 'inherit' }}>{value}</div>
+            <div style={{ fontWeight: 500, textTransform: label === t('settings.status') ? 'capitalize' : 'none', color: label === t('settings.status') && value === 'active' ? '#22c55e' : 'inherit' }}>{value}</div>
           </div>
         ))}
       </div>
 
       {/* Location */}
       <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
-        <h3 style={{ margin: '0 0 0.25rem' }}>Location</h3>
-        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>Used to sort this restaurant by distance for nearby customers.</p>
+        <h3 style={{ margin: '0 0 0.25rem' }}>{t('settings.location.title')}</h3>
+        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>{t('settings.location.description')}</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div>
-            <div style={LABEL_STYLE}>Address</div>
+            <div style={LABEL_STYLE}>{t('settings.location.address')}</div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <input type="text" value={address} onChange={e => { setAddress(e.target.value); setGeocodeError(false); }} placeholder="e.g. Margaretenstrasse 42, 1050 Wien" style={{ ...INPUT_STYLE, flex: 1 }} />
               <button onClick={handleLookupCoords} disabled={geocoding || !address.trim()} style={{ padding: '0.4rem 0.75rem', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: 4, cursor: geocoding || !address.trim() ? 'default' : 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap', opacity: !address.trim() ? 0.5 : 1 }}>
-                {geocoding ? 'Looking up…' : 'Look up coords'}
+                {geocoding ? t('settings.location.lookingUp') : t('settings.location.lookupCoords')}
               </button>
             </div>
-            {geocodeError && <div style={{ fontSize: '0.78rem', color: '#ef4444', marginTop: '0.25rem' }}>Address not found — try a more specific address.</div>}
+            {geocodeError && <div style={{ fontSize: '0.78rem', color: '#ef4444', marginTop: '0.25rem' }}>{t('settings.location.notFound')}</div>}
           </div>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            {[{ label: 'Latitude', value: lat, setter: setLat, placeholder: '48.2093' }, { label: 'Longitude', value: lng, setter: setLng, placeholder: '16.3621' }].map(({ label, value, setter, placeholder }) => (
+            {[
+              { label: t('settings.location.lat'), value: lat, setter: setLat, placeholder: '48.2093' },
+              { label: t('settings.location.lng'), value: lng, setter: setLng, placeholder: '16.3621' },
+            ].map(({ label, value, setter, placeholder }) => (
               <div key={label} style={{ flex: 1 }}>
                 <div style={LABEL_STYLE}>{label}</div>
                 <input type="number" value={value} onChange={e => setter(e.target.value)} placeholder={`e.g. ${placeholder}`} step="any" style={INPUT_STYLE} />
@@ -212,55 +215,53 @@ export default function SettingsPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <button onClick={handleSaveLocation} disabled={saveStatus === 'saving'} style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: saveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
-              {saveStatus === 'saving' ? 'Saving…' : 'Save location'}
+              {saveStatus === 'saving' ? t('settings.location.saving') : t('settings.location.save')}
             </button>
-            {saveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>Saved</span>}
-            {saveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>Invalid coordinates</span>}
+            {saveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>{t('settings.location.saved')}</span>}
+            {saveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{t('settings.location.invalidCoords')}</span>}
           </div>
         </div>
       </div>
 
       {/* Delivery */}
       <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
-        <h3 style={{ margin: '0 0 0.25rem' }}>Delivery</h3>
-        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>Enable delivery orders. Customers will be asked "Pickup or delivery?" during checkout.</p>
+        <h3 style={{ margin: '0 0 0.25rem' }}>{t('settings.delivery.title')}</h3>
+        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>{t('settings.delivery.description')}</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
             <input type="checkbox" checked={deliveryEnabled} onChange={e => setDeliveryEnabled(e.target.checked)} style={{ width: 16, height: 16, accentColor: '#22c55e', cursor: 'pointer' }} />
-            <span style={{ fontSize: '0.9rem' }}>Accept delivery orders</span>
+            <span style={{ fontSize: '0.9rem' }}>{t('settings.delivery.acceptOrders')}</span>
           </label>
           {deliveryEnabled && (
             <>
               <div>
-                <div style={LABEL_STYLE}>Delivery fee (€)</div>
+                <div style={LABEL_STYLE}>{t('settings.delivery.fee')}</div>
                 <input type="number" value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} placeholder="e.g. 2.50" min="0" step="0.5" style={INPUT_STYLE} />
               </div>
               <div>
-                <div style={LABEL_STYLE}>Delivery zone (postal codes)</div>
+                <div style={LABEL_STYLE}>{t('settings.delivery.zone')}</div>
                 <input type="text" value={deliveryZone} onChange={e => setDeliveryZone(e.target.value)} placeholder="e.g. 1010-1230 or 1050,1060,1070" style={INPUT_STYLE} />
-                <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '0.2rem' }}>Leave empty to accept all.</div>
+                <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '0.2rem' }}>{t('settings.delivery.zoneHint')}</div>
               </div>
             </>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <button onClick={handleSaveDelivery} disabled={deliverySaveStatus === 'saving'} style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: deliverySaveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
-              {deliverySaveStatus === 'saving' ? 'Saving…' : 'Save delivery settings'}
+              {deliverySaveStatus === 'saving' ? t('settings.delivery.saving') : t('settings.delivery.save')}
             </button>
-            {deliverySaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>Saved</span>}
-            {deliverySaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>Invalid fee value</span>}
+            {deliverySaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>{t('settings.delivery.saved')}</span>}
+            {deliverySaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{t('settings.delivery.invalidFee')}</span>}
           </div>
         </div>
       </div>
 
       {/* Bot Language */}
       <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
-        <h3 style={{ margin: '0 0 0.25rem' }}>Bot Language</h3>
-        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>
-          Default language for new customers. They can override it at any time by typing "Deutsch", "English" or "Türkçe".
-        </p>
+        <h3 style={{ margin: '0 0 0.25rem' }}>{t('settings.botLanguage.title')}</h3>
+        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>{t('settings.botLanguage.description')}</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div>
-            <div style={LABEL_STYLE}>Default language</div>
+            <div style={LABEL_STYLE}>{t('settings.botLanguage.defaultLang')}</div>
             <select
               value={botLanguage}
               onChange={e => setBotLanguage(e.target.value as 'de' | 'tr' | 'en')}
@@ -273,48 +274,44 @@ export default function SettingsPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <button onClick={handleSaveBotLanguage} disabled={langSaveStatus === 'saving'} style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: langSaveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
-              {langSaveStatus === 'saving' ? 'Saving…' : 'Save language'}
+              {langSaveStatus === 'saving' ? t('settings.botLanguage.saving') : t('settings.botLanguage.save')}
             </button>
-            {langSaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>Saved</span>}
-            {langSaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>Error saving</span>}
+            {langSaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>{t('settings.botLanguage.saved')}</span>}
+            {langSaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{t('settings.botLanguage.error')}</span>}
           </div>
         </div>
       </div>
 
       {/* Operating Hours */}
       <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
-        <h3 style={{ margin: '0 0 0.25rem' }}>Operating Hours</h3>
-        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>
-          Set hours per day. Bot rejects orders outside the order window. Closed days show "🔒 Closed" in the restaurant picker.
-        </p>
+        <h3 style={{ margin: '0 0 0.25rem' }}>{t('settings.hours.title')}</h3>
+        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>{t('settings.hours.description')}</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {DAY_LABELS.map((label, d) => {
+          {([0, 1, 2, 3, 4, 5, 6] as const).map((d) => {
             const cfg = dayMap[d];
             const isOpen = cfg !== null;
             const isExpanded = isOpen && !!expanded[d];
             return (
               <div key={d} style={{ border: `1px solid ${isOpen ? '#333' : '#222'}`, borderRadius: 6, overflow: 'hidden' }}>
-                {/* Day row: click row = accordion, click badge = open/closed toggle */}
                 <div
                   onClick={() => toggleExpand(d)}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.55rem 0.75rem', cursor: isOpen ? 'pointer' : 'default', background: isOpen ? '#1a1a1a' : '#111' }}
                 >
-                  <span style={{ fontSize: '0.9rem', fontWeight: 500, color: isOpen ? '#fff' : '#555' }}>{label}</span>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 500, color: isOpen ? '#fff' : '#555' }}>{t(`settings.days.${d}`)}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     {isOpen && <span style={{ fontSize: '0.7rem', color: '#555' }}>{isExpanded ? '▲' : '▼'}</span>}
                     <span
                       onClick={(e) => toggleOpen(d, e)}
                       style={{ fontSize: '0.75rem', fontWeight: 600, color: isOpen ? '#22c55e' : '#444', padding: '0.15rem 0.5rem', border: `1px solid ${isOpen ? '#22c55e' : '#333'}`, borderRadius: 4, cursor: 'pointer' }}
                     >
-                      {isOpen ? 'Open' : 'Closed'}
+                      {isOpen ? t('settings.hours.open') : t('settings.hours.closed')}
                     </span>
                   </div>
                 </div>
-                {/* Expanded time pickers */}
                 {isExpanded && cfg && (
                   <div style={{ padding: '0.65rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#0f0f0f' }}>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      {([['openTime', 'Opens'], ['closeTime', 'Closes']] as const).map(([field, lbl]) => (
+                      {([['openTime', t('settings.hours.opens')], ['closeTime', t('settings.hours.closes')]] as const).map(([field, lbl]) => (
                         <div key={field} style={{ flex: 1 }}>
                           <div style={LABEL_STYLE}>{lbl}</div>
                           <input type="time" value={cfg[field]} onChange={e => updateDayField(d, field, e.target.value)} style={INPUT_STYLE} />
@@ -322,7 +319,7 @@ export default function SettingsPage() {
                       ))}
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      {([['firstOrderTime', 'First order'], ['lastOrderTime', 'Last order']] as const).map(([field, lbl]) => (
+                      {([['firstOrderTime', t('settings.hours.firstOrder')], ['lastOrderTime', t('settings.hours.lastOrder')]] as const).map(([field, lbl]) => (
                         <div key={field} style={{ flex: 1 }}>
                           <div style={LABEL_STYLE}>{lbl}</div>
                           <input type="time" value={cfg[field]} onChange={e => updateDayField(d, field, e.target.value)} style={INPUT_STYLE} />
@@ -337,10 +334,10 @@ export default function SettingsPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.75rem' }}>
           <button onClick={handleSaveSchedule} disabled={scheduleSaveStatus === 'saving'} style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: scheduleSaveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
-            {scheduleSaveStatus === 'saving' ? 'Saving…' : 'Save hours'}
+            {scheduleSaveStatus === 'saving' ? t('settings.hours.saving') : t('settings.hours.save')}
           </button>
-          {scheduleSaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>Saved</span>}
-          {scheduleSaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>Error saving</span>}
+          {scheduleSaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>{t('settings.hours.saved')}</span>}
+          {scheduleSaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{t('settings.hours.error')}</span>}
         </div>
       </div>
     </div>

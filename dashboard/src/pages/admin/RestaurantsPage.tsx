@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { auth, db } from '../../lib/firebase';
 import type { Business } from '../../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 
 function generateId(name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 20);
@@ -25,6 +25,7 @@ const inputStyle: React.CSSProperties = {
 const PHONE_NUMBER_ID = import.meta.env.VITE_WHATSAPP_PHONE_NUMBER_ID as string | undefined;
 
 export default function RestaurantsPage() {
+  const { t } = useTranslation();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [routedIds, setRoutedIds] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
@@ -50,8 +51,8 @@ export default function RestaurantsPage() {
     return () => { bizUnsub(); routingUnsub?.(); };
   }, []);
 
-  async function deleteRestaurant(id: string, name: string) {
-    if (!confirm(`Delete "${name}"? This only removes the business document — orders and menu items are not deleted.`)) return;
+  async function deleteRestaurant(id: string, bizName: string) {
+    if (!confirm(t('admin.restaurants.deleteConfirm', { name: bizName }))) return;
     await deleteDoc(doc(db, 'businesses', id));
     if (PHONE_NUMBER_ID) {
       await setDoc(doc(db, 'phoneRouting', PHONE_NUMBER_ID), { businessIds: arrayRemove(id) }, { merge: true });
@@ -74,7 +75,6 @@ export default function RestaurantsPage() {
       if (PHONE_NUMBER_ID) {
         await setDoc(doc(db, 'phoneRouting', PHONE_NUMBER_ID), { businessIds: arrayUnion(id) }, { merge: true });
       }
-      // Link the owner by phone so they can sign in immediately
       const token = await auth.currentUser?.getIdToken();
       const ownerRes = await fetch(`${API_URL}/admin/owners`, {
         method: 'POST',
@@ -102,20 +102,20 @@ export default function RestaurantsPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: !PHONE_NUMBER_ID ? '0.75rem' : '1.5rem' }}>
-        <h2 style={{ margin: 0 }}>Restaurants</h2>
+        <h2 style={{ margin: 0 }}>{t('admin.restaurants.title')}</h2>
         <button
           onClick={() => setShowForm(!showForm)}
           disabled={!PHONE_NUMBER_ID}
-          title={!PHONE_NUMBER_ID ? 'Set VITE_WHATSAPP_PHONE_NUMBER_ID in your env first' : undefined}
+          title={!PHONE_NUMBER_ID ? t('admin.restaurants.botConfigHint') : undefined}
           style={{ padding: '0.5rem 1rem', background: '#000', color: '#fff', border: 'none', borderRadius: 8, cursor: !PHONE_NUMBER_ID ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: !PHONE_NUMBER_ID ? 0.4 : 1 }}
         >
-          + New Restaurant
+          {t('admin.restaurants.newButton')}
         </button>
       </div>
 
       {!PHONE_NUMBER_ID && (
         <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.6rem 0.85rem', marginBottom: '1.5rem', fontSize: '0.85rem', color: '#92400e' }}>
-          <strong>WhatsApp bot not configured.</strong> Set <code>VITE_WHATSAPP_PHONE_NUMBER_ID</code> in your env to enable restaurant creation.
+          <strong>{t('admin.restaurants.botNotConfigured')}</strong> {t('admin.restaurants.botConfigHint')}
         </div>
       )}
 
@@ -124,35 +124,35 @@ export default function RestaurantsPage() {
           {createError && <div style={{ fontSize: '0.82rem', color: '#ef4444', marginBottom: '0.75rem' }}>{createError}</div>}
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ flex: 1, minWidth: 180 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.3rem' }}>Name</label>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.3rem' }}>{t('admin.restaurants.form.name')}</label>
               <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Döner Palace" style={inputStyle} />
             </div>
             <div style={{ flex: 1, minWidth: 180 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.3rem' }}>Owner phone (for notifications)</label>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.3rem' }}>{t('admin.restaurants.form.ownerPhone')}</label>
               <input value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="+43 660 123 4567" style={inputStyle} />
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button type="submit" disabled={saving} style={{ padding: '0.55rem 1.25rem', background: '#000', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
-                {saving ? 'Creating...' : 'Create'}
+                {saving ? t('admin.restaurants.form.creating') : t('admin.restaurants.form.create')}
               </button>
               <button type="button" onClick={() => setShowForm(false)} style={{ padding: '0.55rem 1rem', background: 'none', border: '1px solid #ddd', borderRadius: 8, cursor: 'pointer' }}>
-                Cancel
+                {t('admin.restaurants.form.cancel')}
               </button>
             </div>
           </div>
         </form>
       )}
 
-      {businesses.length === 0 && !showForm && <p style={{ color: '#999' }}>No restaurants yet.</p>}
+      {businesses.length === 0 && !showForm && <p style={{ color: '#999' }}>{t('admin.restaurants.noRestaurants')}</p>}
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
-            <th style={{ padding: '0.5rem' }}>Name</th>
-            <th style={{ padding: '0.5rem' }}>ID</th>
-            <th style={{ padding: '0.5rem' }}>Phone</th>
-            <th style={{ padding: '0.5rem' }}>Status</th>
-            <th style={{ padding: '0.5rem' }}>Bot</th>
+            <th style={{ padding: '0.5rem' }}>{t('admin.restaurants.col.name')}</th>
+            <th style={{ padding: '0.5rem' }}>{t('admin.restaurants.col.id')}</th>
+            <th style={{ padding: '0.5rem' }}>{t('admin.restaurants.col.phone')}</th>
+            <th style={{ padding: '0.5rem' }}>{t('admin.restaurants.col.status')}</th>
+            <th style={{ padding: '0.5rem' }}>{t('admin.restaurants.col.bot')}</th>
             <th style={{ padding: '0.5rem' }} />
           </tr>
         </thead>
@@ -178,15 +178,15 @@ export default function RestaurantsPage() {
               </td>
               <td style={{ padding: '0.75rem 0.5rem' }}>
                 {routedIds.has(b.id) ? (
-                  <span style={{ fontSize: '0.8rem', color: '#22c55e', fontWeight: 600 }}>On</span>
+                  <span style={{ fontSize: '0.8rem', color: '#22c55e', fontWeight: 600 }}>{t('admin.restaurants.botOn')}</span>
                 ) : (
                   <span
                     title={PHONE_NUMBER_ID
                       ? 'Not connected to the WhatsApp bot. Open the restaurant and turn on the bot toggle.'
-                      : 'WhatsApp bot not configured. Set VITE_WHATSAPP_PHONE_NUMBER_ID in your env first.'}
+                      : t('admin.restaurants.botConfigHint')}
                     style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: 600, cursor: 'default' }}
                   >
-                    No bot
+                    {t('admin.restaurants.botOff')}
                   </span>
                 )}
               </td>
@@ -195,7 +195,7 @@ export default function RestaurantsPage() {
                   onClick={() => deleteRestaurant(b.id, b.name)}
                   style={{ padding: '0.3rem 0.7rem', background: 'none', border: '1px solid #fca5a5', color: '#ef4444', borderRadius: 6, cursor: 'pointer', fontSize: '0.82rem' }}
                 >
-                  Delete
+                  {t('admin.restaurants.delete')}
                 </button>
               </td>
             </tr>

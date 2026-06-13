@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { auth } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
@@ -30,7 +32,7 @@ export default function LoginPage() {
       confirmRef.current = await signInWithPhoneNumber(auth, phone, recaptchaRef.current);
       setStep('otp');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send code. Check the phone number and try again.');
+      setError(err instanceof Error ? err.message : t('login.sendError'));
       recaptchaRef.current?.clear();
       recaptchaRef.current = null;
     } finally {
@@ -45,9 +47,8 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await confirmRef.current.confirm(otp);
-      // onAuthStateChanged in AuthContext triggers navigation via the useEffect above
     } catch {
-      setError('Invalid code. Try again.');
+      setError(t('login.invalidCode'));
     } finally {
       setBusy(false);
     }
@@ -81,12 +82,12 @@ export default function LoginPage() {
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#fafafa' }}>
       <div style={{ width: 320, padding: '2rem', background: '#fff', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.25rem' }}>WhatOrder</h1>
-        <p style={{ color: '#999', fontSize: '0.9rem', marginBottom: '1.5rem' }}>Owner dashboard</p>
+        <p style={{ color: '#999', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{t('login.tagline')}</p>
 
         {step === 'phone' && (
           <form onSubmit={requestOtp}>
             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-              Phone number
+              {t('login.phoneLabel')}
             </label>
             <input
               type="tel"
@@ -98,16 +99,16 @@ export default function LoginPage() {
             />
             {error && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{error}</p>}
             <button type="submit" disabled={busy} style={{ ...btnStyle, opacity: busy ? 0.6 : 1 }}>
-              {busy ? 'Sending...' : 'Send code'}
+              {busy ? t('login.sending') : t('login.sendCode')}
             </button>
           </form>
         )}
 
         {step === 'otp' && (
           <form onSubmit={verifyOtp}>
-            <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1rem' }}>Code sent to {phone}</p>
+            <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1rem' }}>{t('login.codeSentTo', { phone })}</p>
             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-              Verification code
+              {t('login.verificationCode')}
             </label>
             <input
               type="text"
@@ -122,14 +123,14 @@ export default function LoginPage() {
             />
             {error && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{error}</p>}
             <button type="submit" disabled={busy} style={{ ...btnStyle, opacity: busy ? 0.6 : 1 }}>
-              {busy ? 'Verifying...' : 'Sign in'}
+              {busy ? t('login.verifying') : t('login.signIn')}
             </button>
             <button
               type="button"
               onClick={() => { setStep('phone'); setOtp(''); setError(''); }}
               style={{ marginTop: '0.5rem', width: '100%', padding: '0.5rem', background: 'none', border: 'none', color: '#666', fontSize: '0.85rem', cursor: 'pointer' }}
             >
-              Use a different number
+              {t('login.useDifferentNumber')}
             </button>
           </form>
         )}

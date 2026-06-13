@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { collection, collectionGroup, getDocs, doc, setDoc } from 'firebase/firestore';
+import { useTranslation } from 'react-i18next';
 import { db } from '../../lib/firebase';
 import { useFeeConfig, calcFee } from '../../hooks/useFeeConfig';
 import type { FeeConfig } from '../../hooks/useFeeConfig';
@@ -9,11 +10,11 @@ import { toDate } from '../../types';
 type OrderRow = Order & { businessId: string; businessName: string };
 
 export default function EarningsPage() {
+  const { t } = useTranslation();
   const feeConfig = useFeeConfig();
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fee config editor state
   const [editType, setEditType] = useState<FeeConfig['feeType']>(feeConfig.feeType);
   const [editValue, setEditValue] = useState(String(feeConfig.feeValue));
   const [saving, setSaving] = useState(false);
@@ -83,18 +84,18 @@ export default function EarningsPage() {
 
   return (
     <div>
-      <h2>Earnings</h2>
+      <h2>{t('admin.earnings.title')}</h2>
 
       {/* Fee config editor */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '0.85rem', color: '#666' }}>Fee model:</span>
+        <span style={{ fontSize: '0.85rem', color: '#666' }}>{t('admin.earnings.feeModel')}</span>
         <select
           value={editType}
           onChange={(e) => setEditType(e.target.value as FeeConfig['feeType'])}
           style={{ padding: '0.3rem 0.5rem', borderRadius: 6, border: '1px solid #ddd' }}
         >
-          <option value="fixed">Fixed € per order</option>
-          <option value="percent">% of order total</option>
+          <option value="fixed">{t('admin.earnings.feeFixed')}</option>
+          <option value="percent">{t('admin.earnings.feePercent')}</option>
         </select>
         <input
           type="number"
@@ -111,40 +112,40 @@ export default function EarningsPage() {
           disabled={saving}
           style={{ padding: '0.3rem 0.9rem', borderRadius: 6, background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('admin.earnings.saving') : t('admin.earnings.save')}
         </button>
       </div>
 
       {/* Summary cards */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
         <div style={cardStyle}>
-          <div style={labelStyle}>Total Orders</div>
+          <div style={labelStyle}>{t('admin.earnings.cards.totalOrders')}</div>
           <div style={valueStyle}>{orders.length}</div>
         </div>
         <div style={cardStyle}>
-          <div style={labelStyle}>Restaurant Revenue</div>
+          <div style={labelStyle}>{t('admin.earnings.cards.restaurantRevenue')}</div>
           <div style={valueStyle}>€{totalRevenue.toFixed(2)}</div>
         </div>
         <div style={{ ...cardStyle, borderColor: '#6366f1' }}>
-          <div style={{ ...labelStyle, color: '#6366f1' }}>WhatOrder Earnings</div>
+          <div style={{ ...labelStyle, color: '#6366f1' }}>{t('admin.earnings.cards.whatorderEarnings')}</div>
           <div style={{ ...valueStyle, color: '#6366f1' }}>€{totalFees.toFixed(2)}</div>
         </div>
       </div>
 
       {/* Orders table */}
-      <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem' }}>All Orders</h3>
-      {loading && <p style={{ color: '#999' }}>Loading…</p>}
-      {!loading && orders.length === 0 && <p style={{ color: '#999' }}>No orders yet.</p>}
+      <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem' }}>{t('admin.earnings.allOrders')}</h3>
+      {loading && <p style={{ color: '#999' }}>{t('admin.earnings.loading')}</p>}
+      {!loading && orders.length === 0 && <p style={{ color: '#999' }}>{t('admin.earnings.noOrders')}</p>}
       {!loading && orders.length > 0 && (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
           <thead>
             <tr style={{ textAlign: 'left', color: '#999', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: '1px solid #eee' }}>
-              <th style={{ padding: '0.5rem 0.5rem 0.5rem 0' }}>Restaurant</th>
-              <th style={{ padding: '0.5rem' }}>Date</th>
-              <th style={{ padding: '0.5rem' }}>Customer</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right' }}>Order Total</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right', color: '#6366f1' }}>WhatOrder Fee</th>
-              <th style={{ padding: '0.5rem' }}>Status</th>
+              <th style={{ padding: '0.5rem 0.5rem 0.5rem 0' }}>{t('admin.earnings.col.restaurant')}</th>
+              <th style={{ padding: '0.5rem' }}>{t('admin.earnings.col.date')}</th>
+              <th style={{ padding: '0.5rem' }}>{t('admin.earnings.col.customer')}</th>
+              <th style={{ padding: '0.5rem', textAlign: 'right' }}>{t('admin.earnings.col.orderTotal')}</th>
+              <th style={{ padding: '0.5rem', textAlign: 'right', color: '#6366f1' }}>{t('admin.earnings.col.fee')}</th>
+              <th style={{ padding: '0.5rem' }}>{t('admin.earnings.col.status')}</th>
             </tr>
           </thead>
           <tbody>

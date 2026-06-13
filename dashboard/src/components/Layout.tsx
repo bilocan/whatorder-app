@@ -1,17 +1,20 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
-
-const navItems = [
-  { to: '/orders', label: 'Orders' },
-  { to: '/customers', label: 'Customers' },
-  { to: '/income', label: 'Income' },
-  { to: '/menu', label: 'Menu' },
-  { to: '/settings', label: 'Settings' },
-];
+import LanguageSwitcher from './LanguageSwitcher';
 
 export default function Layout() {
+  const { t } = useTranslation();
   const { user, businessId, isAdmin, signOut } = useAuth();
   const showTenantNav = !!businessId;
+
+  const navItems = [
+    { to: '/orders',    label: t('nav.orders') },
+    { to: '/customers', label: t('nav.customers') },
+    { to: '/income',    label: t('nav.income') },
+    { to: '/menu',      label: t('nav.menu') },
+    { to: '/settings',  label: t('nav.settings') },
+  ];
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -37,8 +40,8 @@ export default function Layout() {
             <>
               <div style={{ borderTop: '1px solid #eee', margin: '0.75rem 0' }} />
               {[
-                { to: '/admin', label: 'Admin' },
-                { to: '/admin/earnings', label: 'Earnings' },
+                { to: '/admin',          label: t('nav.admin') },
+                { to: '/admin/earnings', label: t('nav.earnings') },
               ].map(({ to, label }) => (
                 <NavLink
                   key={to}
@@ -59,6 +62,7 @@ export default function Layout() {
             </>
           )}
         </div>
+        <LanguageSwitcher />
         <div style={{ marginBottom: '0.5rem' }}>
           <div style={{ fontSize: '0.7rem', color: '#ccc', marginBottom: '0.15rem' }}>UID</div>
           <div
@@ -73,7 +77,7 @@ export default function Layout() {
           onClick={signOut}
           style={{ padding: '0.5rem 0', background: 'none', border: 'none', color: '#999', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}
         >
-          Sign out
+          {t('nav.signOut')}
         </button>
       </nav>
       <main style={{ flex: 1, padding: '1.5rem' }}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { useParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import type { Order, OrderStatus } from '../types';
@@ -8,42 +9,29 @@ import { toDate } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-type ActionButton = { label: string; action: string; style?: React.CSSProperties };
+type ActionButton = { labelKey: string; action: string; style?: React.CSSProperties };
 
 function getActionButtons(status: OrderStatus, orderType?: string): ActionButton[] {
   switch (status) {
     case 'pending':
       return [
-        { label: 'Approve', action: 'approve', style: { background: '#000' } },
-        { label: 'Reject',  action: 'reject',  style: { background: '#ef4444' } },
+        { labelKey: 'orderDetail.action.approve', action: 'approve', style: { background: '#000' } },
+        { labelKey: 'orderDetail.action.reject',  action: 'reject',  style: { background: '#ef4444' } },
       ];
     case 'approved':
-      return [{ label: 'Start Preparation', action: 'prepare', style: { background: '#f97316' } }];
+      return [{ labelKey: 'orderDetail.action.prepare', action: 'prepare', style: { background: '#f97316' } }];
     case 'preparing':
       return orderType === 'delivery'
-        ? [{ label: 'Out for Delivery', action: 'on-the-way', style: { background: '#06b6d4' } }]
-        : [{ label: 'Mark Ready',       action: 'ready',      style: { background: '#3b82f6' } }];
+        ? [{ labelKey: 'orderDetail.action.onTheWay', action: 'on-the-way', style: { background: '#06b6d4' } }]
+        : [{ labelKey: 'orderDetail.action.markReady', action: 'ready', style: { background: '#3b82f6' } }];
     case 'ready':
-      return [{ label: 'Mark Picked Up', action: 'picked-up', style: { background: '#22c55e' } }];
+      return [{ labelKey: 'orderDetail.action.pickedUp', action: 'picked-up', style: { background: '#22c55e' } }];
     case 'on_the_way':
-      return [{ label: 'Mark Delivered', action: 'delivered', style: { background: '#22c55e' } }];
+      return [{ labelKey: 'orderDetail.action.delivered', action: 'delivered', style: { background: '#22c55e' } }];
     default:
       return [];
   }
 }
-
-const STATUS_LABEL: Record<string, string> = {
-  pending:    'Pending',
-  approved:   'Approved',
-  preparing:  'Preparing',
-  ready:      'Ready for pickup',
-  on_the_way: 'Out for delivery',
-  picked_up:  'Picked up',
-  delivered:  'Delivered',
-  rejected:   'Rejected',
-  cancelled:  'Cancelled',
-  completed:  'Completed',
-};
 
 const STATUS_COLOR: Record<string, string> = {
   pending:    '#f59e0b',
@@ -59,6 +47,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function OrderDetailPage() {
+  const { t } = useTranslation();
   const { orderId } = useParams<{ orderId: string }>();
   const { businessId } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
@@ -84,36 +73,36 @@ export default function OrderDetailPage() {
         return;
       }
       const nextStatus: Record<string, OrderStatus> = {
-        approve:    'approved',
-        reject:     'rejected',
-        prepare:    'preparing',
-        ready:      'ready',
+        approve:      'approved',
+        reject:       'rejected',
+        prepare:      'preparing',
+        ready:        'ready',
         'on-the-way': 'on_the_way',
         'picked-up':  'picked_up',
-        delivered:  'delivered',
-        cancel:     'cancelled',
+        delivered:    'delivered',
+        cancel:       'cancelled',
       };
       if (nextStatus[action]) setOrder((o) => o ? { ...o, status: nextStatus[action] } : o);
     } catch {
-      setActionError('Network error — is the backend running?');
+      setActionError(t('orderDetail.networkError'));
     } finally {
       setLoading(false);
     }
   }
 
-  if (!order) return <p style={{ padding: '1rem' }}>Loading...</p>;
+  if (!order) return <p style={{ padding: '1rem' }}>{t('orderDetail.loading')}</p>;
 
   const buttons = getActionButtons(order.status, order.orderType);
   const color = STATUS_COLOR[order.status] ?? '#999';
 
   return (
     <div style={{ maxWidth: 480 }}>
-      <Link to="/orders" style={{ fontSize: '0.9rem', color: '#666', textDecoration: 'none' }}>← Back to orders</Link>
+      <Link to="/orders" style={{ fontSize: '0.9rem', color: '#666', textDecoration: 'none' }}>{t('orderDetail.back')}</Link>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', marginBottom: '0.1rem' }}>
         <h2 style={{ margin: 0 }}>{order.customerName}</h2>
         {order.orderType === 'delivery' && (
           <span style={{ background: '#0ea5e922', color: '#0ea5e9', padding: '0.15rem 0.6rem', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.02em' }}>
-            DELIVERY
+            {t('orderDetail.delivery')}
           </span>
         )}
       </div>
@@ -127,9 +116,9 @@ export default function OrderDetailPage() {
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
         <thead>
           <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
-            <th style={{ padding: '0.4rem 0' }}>Item</th>
-            <th style={{ padding: '0.4rem' }}>Qty</th>
-            <th style={{ padding: '0.4rem', textAlign: 'right' }}>Price</th>
+            <th style={{ padding: '0.4rem 0' }}>{t('orderDetail.col.item')}</th>
+            <th style={{ padding: '0.4rem' }}>{t('orderDetail.col.qty')}</th>
+            <th style={{ padding: '0.4rem', textAlign: 'right' }}>{t('orderDetail.col.price')}</th>
           </tr>
         </thead>
         <tbody>
@@ -145,28 +134,30 @@ export default function OrderDetailPage() {
 
       {order.orderType === 'delivery' && order.deliveryFee ? (
         <p style={{ fontSize: '0.85rem', color: '#999', textAlign: 'right', margin: '0.25rem 0 0' }}>
-          Delivery fee: €{order.deliveryFee.toFixed(2)}
+          {t('orderDetail.deliveryFee', { fee: order.deliveryFee.toFixed(2) })}
         </p>
       ) : null}
-      <p style={{ fontWeight: 700, fontSize: '1.1rem', textAlign: 'right' }}>Total: €{order.total.toFixed(2)}</p>
+      <p style={{ fontWeight: 700, fontSize: '1.1rem', textAlign: 'right' }}>
+        {t('orderDetail.total', { total: order.total.toFixed(2) })}
+      </p>
 
       {order.notes && (
         <p style={{ color: '#666', background: '#fafafa', padding: '0.5rem 0.75rem', borderRadius: 6, fontSize: '0.9rem' }}>
-          Note: {order.notes}
+          {t('orderDetail.note', { note: order.notes })}
         </p>
       )}
 
       <p style={{ color: '#999', fontSize: '0.85rem' }}>
-        Ordered at {toDate(order.createdAt).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+        {t('orderDetail.orderedAt', { time: toDate(order.createdAt).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) })}
       </p>
 
       <p style={{ fontWeight: 600, color }}>
-        {STATUS_LABEL[order.status] ?? order.status}
+        {t(`orderDetail.status.${order.status}`, { defaultValue: order.status })}
       </p>
 
       {buttons.length > 0 && (
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-          {buttons.map(({ label, action, style }) => (
+          {buttons.map(({ labelKey, action, style }) => (
             <button
               key={action}
               onClick={() => doAction(action)}
@@ -183,7 +174,7 @@ export default function OrderDetailPage() {
                 ...style,
               }}
             >
-              {loading ? 'Saving…' : label}
+              {loading ? t('orderDetail.saving') : t(labelKey)}
             </button>
           ))}
         </div>
