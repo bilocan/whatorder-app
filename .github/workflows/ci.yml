@@ -7,8 +7,8 @@ on:
     branches: [master]
 
 jobs:
-  test:
-    name: Test & Coverage
+  backend:
+    name: Backend Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -21,6 +21,7 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+        working-directory: backend
 
       - name: Run backend tests with coverage
         working-directory: backend
@@ -33,3 +34,27 @@ jobs:
           files: ./backend/coverage/lcov.info
           flags: backend
           fail_ci_if_error: false
+
+  dashboard:
+    name: Dashboard Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        working-directory: dashboard
+        run: npm install
+
+      - name: TypeScript + build
+        working-directory: dashboard
+        run: npm run build
+
+      - name: Tests
+        working-directory: dashboard
+        run: npm test
