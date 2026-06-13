@@ -34,9 +34,11 @@ module.exports = {
   confirmPrompt: () => 'YES zum Bestätigen, NO zum Abbrechen.',
   yesNoOnly: () => 'Bitte YES oder NO schreiben.',
   orderConfirmed: (shortId) => `✅ Bestellung erhalten! Bestellnr.: #${shortId}\n\nWir benachrichtigen Sie wenn sie fertig ist. Danke! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress) => {
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, alertPhone, address) => {
+    const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
+    const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Lieferung an: ${deliveryAddress}` : `Fertig um: ${pickupTime}`;
-    return `✅ Bestellung #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nGesamt: €${total}\n${detail}\n\nDanke, ${customerName}! 🙏`;
+    return `✅ Bestellung #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nGesamt: €${total}\n${detail}\n\nDanke, ${customerName}! 🙏`;
   },
   orderCancelled: () => 'Bestellung abgebrochen.',
 
@@ -79,7 +81,11 @@ module.exports = {
   restaurantPickerFooter: () => 'Tippen Sie auf einen Namen um die Karte zu öffnen',
   switchConfirmed: () => '🔄 Restaurant wird gewechselt. Ihr Warenkorb wurde geleert.',
 
-  orderConfirmedWithChoice: (shortId, name) => `✅ Bestellung erhalten! Bestellnr.: #${shortId}\n\nNochmals bei ${name} bestellen?`,
+  orderConfirmedWithChoice: (shortId, name, alertPhone, address) => {
+    const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
+    const contactBlock = contactLines ? `\n\n${name}\n${contactLines}` : '';
+    return `✅ Bestellung erhalten! Bestellnr.: #${shortId}${contactBlock}\n\nNochmals bei ${name} bestellen?`;
+  },
   orderCancelledWithChoice: (name) => `❌ Bestellung abgebrochen.\n\nNochmals bei ${name} bestellen?`,
   orderAgainPrompt: (name) => `Bestellen Sie bei ${name}?\n\nHier weitermachen oder anderes Restaurant wählen.`,
   orderAgainBtn: () => 'Hier bestellen',

@@ -34,9 +34,11 @@ module.exports = {
   confirmPrompt: () => 'Type YES to confirm, NO to cancel.',
   yesNoOnly: () => 'Please type YES or NO.',
   orderConfirmed: (shortId) => `✅ Order received! Order #${shortId}\n\nWe'll notify you when it's ready. Thank you! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress) => {
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, alertPhone, address) => {
+    const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
+    const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Delivery to: ${deliveryAddress}` : `Ready by: ${pickupTime}`;
-    return `✅ Order #${shortId}\n\n${restaurantName}\n\n${itemLines}\n\nTotal: €${total}\n${detail}\n\nThanks, ${customerName}! 🙏`;
+    return `✅ Order #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nTotal: €${total}\n${detail}\n\nThanks, ${customerName}! 🙏`;
   },
   orderCancelled: () => 'Order cancelled.',
 
@@ -79,7 +81,11 @@ module.exports = {
   restaurantPickerFooter: () => 'Tap a name to open its menu',
   switchConfirmed: () => '🔄 Switching restaurants. Your basket has been cleared.',
 
-  orderConfirmedWithChoice: (shortId, name) => `✅ Order received! Order #${shortId}\n\nOrder again from ${name}?`,
+  orderConfirmedWithChoice: (shortId, name, alertPhone, address) => {
+    const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
+    const contactBlock = contactLines ? `\n\n${name}\n${contactLines}` : '';
+    return `✅ Order received! Order #${shortId}${contactBlock}\n\nOrder again from ${name}?`;
+  },
   orderCancelledWithChoice: (name) => `❌ Order cancelled.\n\nOrder again from ${name}?`,
   orderAgainPrompt: (name) => `Ordering from ${name}?\n\nContinue here or choose a different restaurant.`,
   orderAgainBtn: () => 'Order here again',

@@ -23,7 +23,7 @@ const MENU = [
   { id: 'item_2', name: 'Ayran',  price: 2.00, category: 'drinks', description: 'Yogurt drink', available: true },
 ];
 
-const BIZ_INFO = { name: 'Döner Palace', avgPrepTime: 20, catalogId: 'cat_123' };
+const BIZ_INFO = { name: 'Döner Palace', avgPrepTime: 20, catalogId: 'cat_123', alertPhone: '+43699123456', address: 'Musterstrasse 1, 1010 Wien' };
 
 function mockCustomerProfile(data) {
   customersRef.mockReturnValue({ doc: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue({ data: () => data }) }) });
