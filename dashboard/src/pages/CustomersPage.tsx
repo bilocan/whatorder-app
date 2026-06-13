@@ -9,6 +9,29 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Customer, Order } from '../types';
 import { toDate } from '../types';
 
+const PencilIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+    <path d="M10 11v6M14 11v6"/>
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+  </svg>
+);
+
+const HistoryIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <polyline points="12 6 12 12 16 14"/>
+  </svg>
+);
+
 const btnSecondary: React.CSSProperties = {
   padding: '0.25rem 0.6rem',
   background: 'none',
@@ -18,24 +41,41 @@ const btnSecondary: React.CSSProperties = {
   fontSize: '0.78rem',
 };
 
-const btnDanger: React.CSSProperties = {
-  padding: '0.25rem 0.6rem',
-  background: 'none',
-  border: '1px solid #fca5a5',
-  color: '#ef4444',
-  borderRadius: 5,
-  cursor: 'pointer',
-  fontSize: '0.78rem',
-};
 
 const btnGhost: React.CSSProperties = {
-  padding: '0.25rem 0.6rem',
+  padding: '0.3rem',
   background: 'none',
   border: '1px solid #bfdbfe',
   color: '#2563eb',
   borderRadius: 5,
   cursor: 'pointer',
-  fontSize: '0.78rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  lineHeight: 0,
+};
+
+const btnIconEdit: React.CSSProperties = {
+  padding: '0.3rem',
+  background: 'none',
+  border: '1px solid #e5e7eb',
+  borderRadius: 5,
+  cursor: 'pointer',
+  color: '#6b7280',
+  display: 'inline-flex',
+  alignItems: 'center',
+  lineHeight: 0,
+};
+
+const btnIconDelete: React.CSSProperties = {
+  padding: '0.3rem',
+  background: 'none',
+  border: '1px solid #fca5a5',
+  borderRadius: 5,
+  cursor: 'pointer',
+  color: '#ef4444',
+  display: 'inline-flex',
+  alignItems: 'center',
+  lineHeight: 0,
 };
 
 export default function CustomersPage() {
@@ -198,15 +238,16 @@ export default function CustomersPage() {
                   <td style={{ padding: '0.75rem 0.5rem' }}>
                     <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                       {editingPhone !== c.phone && (
-                        <button style={btnSecondary} onClick={() => startEdit(c)}>{t('customers.edit')}</button>
+                        <button style={btnIconEdit} title={t('customers.edit')} onClick={() => startEdit(c)}><PencilIcon /></button>
                       )}
                       <button
                         style={{ ...btnGhost, background: expandedPhone === c.phone ? '#dbeafe' : 'none' }}
+                        title={t('customers.history')}
                         onClick={() => toggleHistory(c.phone)}
                       >
-                        {t('customers.history')}
+                        <HistoryIcon />
                       </button>
-                      <button style={btnDanger} onClick={() => handleDelete(c.phone)}>{t('customers.delete')}</button>
+                      <button style={btnIconDelete} title={t('customers.delete')} onClick={() => handleDelete(c.phone)}><TrashIcon /></button>
                     </div>
                   </td>
                 </tr>

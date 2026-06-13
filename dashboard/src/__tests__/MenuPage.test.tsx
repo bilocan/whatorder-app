@@ -80,8 +80,8 @@ describe('MenuPage', () => {
       return vi.fn()
     })
     renderPage()
-    expect(screen.getAllByText('Edit').length).toBe(3)
-    expect(screen.getAllByText('Delete').length).toBe(3)
+    expect(screen.getAllByTitle('Edit').length).toBe(3)
+    expect(screen.getAllByTitle('Delete').length).toBe(3)
   })
 
   it('shows Add item button', () => {
