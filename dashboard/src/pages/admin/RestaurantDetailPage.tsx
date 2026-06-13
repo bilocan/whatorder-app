@@ -5,6 +5,7 @@ import {
   query, where, setDoc, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
 import { useParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { auth, db } from '../../lib/firebase';
 import { geocodeAddress } from '../../lib/geocode';
 import type { Business, MenuItem, Owner } from '../../types';
@@ -53,13 +54,13 @@ const btnDanger: React.CSSProperties = {
 };
 
 export default function RestaurantDetailPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const phoneNumberId = import.meta.env.VITE_WHATSAPP_PHONE_NUMBER_ID as string | undefined;
 
   const [business, setBusiness] = useState<Business | null>(null);
   const [tab, setTab] = useState<Tab>('details');
 
-  // Details edit
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
@@ -71,12 +72,10 @@ export default function RestaurantDetailPage() {
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState(false);
 
-  // Bot toggle
   const [botEnabled, setBotEnabled] = useState(false);
   const [botLoading, setBotLoading] = useState(!!phoneNumberId);
   const [togglingBot, setTogglingBot] = useState(false);
 
-  // Menu
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [showMenuForm, setShowMenuForm] = useState(false);
   const [newItem, setNewItem] = useState({ name: '', price: '', category: 'mains' as MenuItem['category'], description: '', available: true });
@@ -84,7 +83,6 @@ export default function RestaurantDetailPage() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editItem, setEditItem] = useState({ name: '', price: '', category: 'mains' as MenuItem['category'], description: '', available: true });
 
-  // Owners
   const [owners, setOwners] = useState<Owner[]>([]);
   const [showOwnerForm, setShowOwnerForm] = useState(false);
   const [newPhone, setNewPhone] = useState('');
@@ -227,7 +225,7 @@ export default function RestaurantDetailPage() {
   }
 
   async function deleteMenuItem(itemId: string) {
-    if (!id || !confirm('Delete this item?')) return;
+    if (!id || !confirm(t('admin.restaurantDetail.menu.deleteConfirm'))) return;
     if (editingItemId === itemId) setEditingItemId(null);
     await deleteDoc(doc(db, 'businesses', id, 'menu', itemId));
   }
@@ -283,7 +281,7 @@ export default function RestaurantDetailPage() {
   }
 
   async function deleteOwner(uid: string) {
-    if (!confirm('Remove this owner?')) return;
+    if (!confirm(t('admin.restaurantDetail.owners.removeConfirm'))) return;
     try {
       const token = await auth.currentUser?.getIdToken();
       await fetch(`${API_URL}/admin/owners?uid=${encodeURIComponent(uid)}`, {
@@ -297,37 +295,36 @@ export default function RestaurantDetailPage() {
 
   const tabs: Tab[] = ['details', 'menu', 'owners'];
 
-  if (!business) return <p style={{ padding: '1rem', color: '#999' }}>Loading...</p>;
+  if (!business) return <p style={{ padding: '1rem', color: '#999' }}>{t('admin.restaurantDetail.loading')}</p>;
 
   return (
     <div style={{ maxWidth: 720 }}>
-      <Link to="/admin" style={{ fontSize: '0.9rem', color: '#666', textDecoration: 'none' }}>← Restaurants</Link>
+      <Link to="/admin" style={{ fontSize: '0.9rem', color: '#666', textDecoration: 'none' }}>{t('admin.restaurantDetail.back')}</Link>
       <h2 style={{ marginTop: '0.5rem', marginBottom: '0.1rem' }}>{business.name}</h2>
       <p style={{ color: '#999', fontSize: '0.85rem', margin: '0 0 1.5rem', fontFamily: 'monospace' }}>{business.id}</p>
 
       {/* Tab bar */}
       <div style={{ display: 'flex', borderBottom: '2px solid #eee', marginBottom: '1.5rem' }}>
-        {tabs.map((t) => (
+        {tabs.map((tabKey) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tabKey}
+            onClick={() => setTab(tabKey)}
             style={{
               padding: '0.5rem 1.1rem',
               background: 'none',
               border: 'none',
-              borderBottom: tab === t ? '2px solid #000' : '2px solid transparent',
+              borderBottom: tab === tabKey ? '2px solid #000' : '2px solid transparent',
               marginBottom: '-2px',
-              fontWeight: tab === t ? 600 : 400,
+              fontWeight: tab === tabKey ? 600 : 400,
               cursor: 'pointer',
-              textTransform: 'capitalize',
               fontSize: '0.95rem',
             }}
           >
-            {t}
-            {t === 'menu' && menuItems.length > 0 && (
+            {t(`admin.restaurantDetail.tabs.${tabKey}`)}
+            {tabKey === 'menu' && menuItems.length > 0 && (
               <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#999' }}>{menuItems.length}</span>
             )}
-            {t === 'owners' && owners.length > 0 && (
+            {tabKey === 'owners' && owners.length > 0 && (
               <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#999' }}>{owners.length}</span>
             )}
           </button>
@@ -337,13 +334,12 @@ export default function RestaurantDetailPage() {
       {/* ── Details ── */}
       {tab === 'details' && (
         <div style={{ maxWidth: 400 }}>
-          {/* Bot toggle — saves immediately, independent of the edit form */}
           {phoneNumberId && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.85rem', background: '#f9fafb', border: '1px solid #eee', borderRadius: 8, marginBottom: '1.25rem' }}>
               <div>
-                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>WhatsApp bot</div>
+                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>{t('admin.restaurantDetail.bot.label')}</div>
                 <div style={{ fontSize: '0.9rem', color: botLoading ? '#bbb' : botEnabled ? '#22c55e' : '#999', fontWeight: 500 }}>
-                  {botLoading ? 'Loading…' : botEnabled ? 'On' : 'Off'}
+                  {botLoading ? t('admin.restaurantDetail.bot.loading') : botEnabled ? t('admin.restaurantDetail.bot.on') : t('admin.restaurantDetail.bot.off')}
                 </div>
               </div>
               {!botLoading && (
@@ -363,7 +359,7 @@ export default function RestaurantDetailPage() {
                     opacity: togglingBot ? 0.5 : 1,
                   }}
                 >
-                  {togglingBot ? 'Saving…' : botEnabled ? 'Turn off' : 'Turn on'}
+                  {togglingBot ? t('admin.restaurantDetail.bot.saving') : botEnabled ? t('admin.restaurantDetail.bot.turnOff') : t('admin.restaurantDetail.bot.turnOn')}
                 </button>
               )}
             </div>
@@ -371,31 +367,31 @@ export default function RestaurantDetailPage() {
 
           {!editing ? (
             <div>
-              <Field label="Name" value={business.name} />
-              <Field label="Owner alert number" value={business.alertPhone ?? '—'} />
-              <Field label="Status" value={business.status} />
-              <Field label="Business ID" value={business.id} mono />
-              <Field label="Address" value={business.address ?? '—'} />
-              <Field label="Coordinates" value={business.lat != null && business.lng != null ? `${business.lat}, ${business.lng}` : '—'} mono />
-              <button onClick={() => setEditing(true)} style={btnPrimary}>Edit</button>
+              <Field label={t('admin.restaurantDetail.details.name')} value={business.name} />
+              <Field label={t('admin.restaurantDetail.details.ownerAlertNumber')} value={business.alertPhone ?? '—'} />
+              <Field label={t('admin.restaurantDetail.details.status')} value={business.status} />
+              <Field label={t('admin.restaurantDetail.details.businessId')} value={business.id} mono />
+              <Field label={t('admin.restaurantDetail.details.address')} value={business.address ?? '—'} />
+              <Field label={t('admin.restaurantDetail.details.coordinates')} value={business.lat != null && business.lng != null ? `${business.lat}, ${business.lng}` : '—'} mono />
+              <button onClick={() => setEditing(true)} style={btnPrimary}>{t('admin.restaurantDetail.details.edit')}</button>
             </div>
           ) : (
             <form onSubmit={saveDetails}>
-              <FormField label="Name" value={editName} onChange={setEditName} required />
-              <FormField label="Owner alert number" value={editPhone} onChange={setEditPhone} required />
+              <FormField label={t('admin.restaurantDetail.details.name')} value={editName} onChange={setEditName} required />
+              <FormField label={t('admin.restaurantDetail.details.ownerAlertNumber')} value={editPhone} onChange={setEditPhone} required />
               <div style={{ marginBottom: '0.75rem' }}>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.3rem' }}>Status</label>
+                <label style={labelStyle}>{t('admin.restaurantDetail.details.status')}</label>
                 <select
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value as 'active' | 'paused')}
                   style={{ ...inputStyle, width: 'auto' }}
                 >
-                  <option value="active">Active</option>
-                  <option value="paused">Paused</option>
+                  <option value="active">{t('admin.restaurantDetail.details.statusActive')}</option>
+                  <option value="paused">{t('admin.restaurantDetail.details.statusPaused')}</option>
                 </select>
               </div>
               <div style={{ marginBottom: '0.75rem' }}>
-                <label style={labelStyle}>Address</label>
+                <label style={labelStyle}>{t('admin.restaurantDetail.details.address')}</label>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <input
                     value={editAddress}
@@ -409,40 +405,26 @@ export default function RestaurantDetailPage() {
                     disabled={geocoding || !editAddress.trim()}
                     style={{ ...btnSecondary, whiteSpace: 'nowrap', opacity: !editAddress.trim() ? 0.5 : 1 }}
                   >
-                    {geocoding ? 'Looking up…' : 'Look up coords'}
+                    {geocoding ? t('admin.restaurantDetail.details.lookingUp') : t('admin.restaurantDetail.details.lookupCoords')}
                   </button>
                 </div>
-                {geocodeError && <div style={{ fontSize: '0.78rem', color: '#ef4444', marginTop: '0.25rem' }}>Address not found — try a more specific address.</div>}
+                {geocodeError && <div style={{ fontSize: '0.78rem', color: '#ef4444', marginTop: '0.25rem' }}>{t('admin.restaurantDetail.details.notFound')}</div>}
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Latitude</label>
-                  <input
-                    type="number"
-                    value={editLat}
-                    onChange={(e) => setEditLat(e.target.value)}
-                    placeholder="e.g. 48.2093"
-                    step="any"
-                    style={inputStyle}
-                  />
+                  <label style={labelStyle}>{t('admin.restaurantDetail.details.lat')}</label>
+                  <input type="number" value={editLat} onChange={(e) => setEditLat(e.target.value)} placeholder="e.g. 48.2093" step="any" style={inputStyle} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Longitude</label>
-                  <input
-                    type="number"
-                    value={editLng}
-                    onChange={(e) => setEditLng(e.target.value)}
-                    placeholder="e.g. 16.3621"
-                    step="any"
-                    style={inputStyle}
-                  />
+                  <label style={labelStyle}>{t('admin.restaurantDetail.details.lng')}</label>
+                  <input type="number" value={editLng} onChange={(e) => setEditLng(e.target.value)} placeholder="e.g. 16.3621" step="any" style={inputStyle} />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button type="submit" disabled={savingDetails} style={{ ...btnPrimary, opacity: savingDetails ? 0.6 : 1 }}>
-                  {savingDetails ? 'Saving...' : 'Save'}
+                  {savingDetails ? t('admin.restaurantDetail.details.saving') : t('admin.restaurantDetail.details.save')}
                 </button>
-                <button type="button" onClick={() => setEditing(false)} style={btnSecondary}>Cancel</button>
+                <button type="button" onClick={() => setEditing(false)} style={btnSecondary}>{t('admin.restaurantDetail.details.cancel')}</button>
               </div>
             </form>
           )}
@@ -452,15 +434,15 @@ export default function RestaurantDetailPage() {
       {/* ── Menu ── */}
       {tab === 'menu' && (
         <div>
-          {menuItems.length === 0 && !showMenuForm && <p style={{ color: '#999' }}>No menu items yet.</p>}
+          {menuItems.length === 0 && !showMenuForm && <p style={{ color: '#999' }}>{t('admin.restaurantDetail.menu.noItems')}</p>}
           {menuItems.length > 0 && (
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
-                  <th style={{ padding: '0.5rem' }}>Name</th>
-                  <th style={{ padding: '0.5rem' }}>Category</th>
-                  <th style={{ padding: '0.5rem' }}>Price</th>
-                  <th style={{ padding: '0.5rem' }}>Available</th>
+                  <th style={{ padding: '0.5rem' }}>{t('admin.restaurantDetail.menu.col.name')}</th>
+                  <th style={{ padding: '0.5rem' }}>{t('admin.restaurantDetail.menu.col.category')}</th>
+                  <th style={{ padding: '0.5rem' }}>{t('admin.restaurantDetail.menu.col.price')}</th>
+                  <th style={{ padding: '0.5rem' }}>{t('admin.restaurantDetail.menu.col.available')}</th>
                   <th style={{ padding: '0.5rem' }} />
                 </tr>
               </thead>
@@ -472,37 +454,37 @@ export default function RestaurantDetailPage() {
                         <form onSubmit={saveMenuItem} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10 }}>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
                             <div>
-                              <label style={labelStyle}>Name</label>
+                              <label style={labelStyle}>{t('admin.restaurantDetail.menu.form.name')}</label>
                               <input value={editItem.name} onChange={(e) => setEditItem({ ...editItem, name: e.target.value })} required style={inputStyle} />
                             </div>
                             <div>
-                              <label style={labelStyle}>Price (€)</label>
+                              <label style={labelStyle}>{t('admin.restaurantDetail.menu.form.price')}</label>
                               <input type="number" step="0.01" min="0" value={editItem.price} onChange={(e) => setEditItem({ ...editItem, price: e.target.value })} required style={inputStyle} />
                             </div>
                             <div>
-                              <label style={labelStyle}>Category</label>
+                              <label style={labelStyle}>{t('admin.restaurantDetail.menu.form.category')}</label>
                               <select value={editItem.category} onChange={(e) => setEditItem({ ...editItem, category: e.target.value as MenuItem['category'] })} style={{ ...inputStyle, width: '100%' }}>
-                                <option value="mains">Mains</option>
-                                <option value="sides">Sides</option>
-                                <option value="drinks">Drinks</option>
+                                <option value="mains">{t('admin.restaurantDetail.menu.form.mains')}</option>
+                                <option value="sides">{t('admin.restaurantDetail.menu.form.sides')}</option>
+                                <option value="drinks">{t('admin.restaurantDetail.menu.form.drinks')}</option>
                               </select>
                             </div>
                             <div>
-                              <label style={labelStyle}>Description (optional)</label>
+                              <label style={labelStyle}>{t('admin.restaurantDetail.menu.form.description')}</label>
                               <input value={editItem.description} onChange={(e) => setEditItem({ ...editItem, description: e.target.value })} style={inputStyle} />
                             </div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer' }}>
                               <input type="checkbox" checked={editItem.available} onChange={(e) => setEditItem({ ...editItem, available: e.target.checked })} />
-                              Available
+                              {t('admin.restaurantDetail.menu.form.available')}
                             </label>
                           </div>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button type="submit" disabled={savingMenu} style={{ ...btnPrimary, opacity: savingMenu ? 0.6 : 1 }}>
-                              {savingMenu ? 'Saving...' : 'Save'}
+                              {savingMenu ? t('admin.restaurantDetail.menu.saving') : t('admin.restaurantDetail.menu.save')}
                             </button>
-                            <button type="button" onClick={() => setEditingItemId(null)} style={btnSecondary}>Cancel</button>
+                            <button type="button" onClick={() => setEditingItemId(null)} style={btnSecondary}>{t('admin.restaurantDetail.menu.cancel')}</button>
                           </div>
                         </form>
                       </td>
@@ -513,11 +495,11 @@ export default function RestaurantDetailPage() {
                       <td style={{ padding: '0.65rem 0.5rem', fontSize: '0.85rem', color: '#666', textTransform: 'capitalize' }}>{item.category}</td>
                       <td style={{ padding: '0.65rem 0.5rem' }}>€{Number(item.price).toFixed(2)}</td>
                       <td style={{ padding: '0.65rem 0.5rem', fontSize: '0.85rem', color: item.available ? '#22c55e' : '#999' }}>
-                        {item.available ? 'Yes' : 'No'}
+                        {item.available ? t('admin.restaurantDetail.menu.availableYes') : t('admin.restaurantDetail.menu.availableNo')}
                       </td>
                       <td style={{ padding: '0.65rem 0.5rem', textAlign: 'right', display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
-                        <button onClick={() => startEditItem(item)} style={btnSecondary}>Edit</button>
-                        <button onClick={() => deleteMenuItem(item.id)} style={btnDanger}>Delete</button>
+                        <button onClick={() => startEditItem(item)} style={btnSecondary}>{t('admin.restaurantDetail.menu.edit')}</button>
+                        <button onClick={() => deleteMenuItem(item.id)} style={btnDanger}>{t('admin.restaurantDetail.menu.delete')}</button>
                       </td>
                     </tr>
                   )
@@ -530,41 +512,41 @@ export default function RestaurantDetailPage() {
             <form onSubmit={addMenuItem} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10, marginTop: '0.5rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
                 <div>
-                  <label style={labelStyle}>Name</label>
+                  <label style={labelStyle}>{t('admin.restaurantDetail.menu.form.name')}</label>
                   <input value={newItem.name} onChange={(e) => setNewItem({ ...newItem, name: e.target.value })} required placeholder="Döner" style={inputStyle} />
                 </div>
                 <div>
-                  <label style={labelStyle}>Price (€)</label>
+                  <label style={labelStyle}>{t('admin.restaurantDetail.menu.form.price')}</label>
                   <input type="number" step="0.01" min="0" value={newItem.price} onChange={(e) => setNewItem({ ...newItem, price: e.target.value })} required placeholder="7.50" style={inputStyle} />
                 </div>
                 <div>
-                  <label style={labelStyle}>Category</label>
+                  <label style={labelStyle}>{t('admin.restaurantDetail.menu.form.category')}</label>
                   <select value={newItem.category} onChange={(e) => setNewItem({ ...newItem, category: e.target.value as MenuItem['category'] })} style={{ ...inputStyle, width: '100%' }}>
-                    <option value="mains">Mains</option>
-                    <option value="sides">Sides</option>
-                    <option value="drinks">Drinks</option>
+                    <option value="mains">{t('admin.restaurantDetail.menu.form.mains')}</option>
+                    <option value="sides">{t('admin.restaurantDetail.menu.form.sides')}</option>
+                    <option value="drinks">{t('admin.restaurantDetail.menu.form.drinks')}</option>
                   </select>
                 </div>
                 <div>
-                  <label style={labelStyle}>Description (optional)</label>
+                  <label style={labelStyle}>{t('admin.restaurantDetail.menu.form.description')}</label>
                   <input value={newItem.description} onChange={(e) => setNewItem({ ...newItem, description: e.target.value })} placeholder="e.g. with salad and sauce" style={inputStyle} />
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={newItem.available} onChange={(e) => setNewItem({ ...newItem, available: e.target.checked })} />
-                  Available
+                  {t('admin.restaurantDetail.menu.form.available')}
                 </label>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button type="submit" disabled={savingMenu} style={{ ...btnPrimary, opacity: savingMenu ? 0.6 : 1 }}>
-                  {savingMenu ? 'Adding...' : 'Add item'}
+                  {savingMenu ? t('admin.restaurantDetail.menu.adding') : t('admin.restaurantDetail.menu.add')}
                 </button>
-                <button type="button" onClick={() => setShowMenuForm(false)} style={btnSecondary}>Cancel</button>
+                <button type="button" onClick={() => setShowMenuForm(false)} style={btnSecondary}>{t('admin.restaurantDetail.menu.cancel')}</button>
               </div>
             </form>
           ) : (
-            <button onClick={() => setShowMenuForm(true)} style={{ ...btnPrimary, marginTop: '0.25rem' }}>+ Add item</button>
+            <button onClick={() => setShowMenuForm(true)} style={{ ...btnPrimary, marginTop: '0.25rem' }}>{t('admin.restaurantDetail.menu.addItem')}</button>
           )}
         </div>
       )}
@@ -572,13 +554,13 @@ export default function RestaurantDetailPage() {
       {/* ── Owners ── */}
       {tab === 'owners' && (
         <div>
-          {owners.length === 0 && !showOwnerForm && <p style={{ color: '#999' }}>No owners linked yet.</p>}
+          {owners.length === 0 && !showOwnerForm && <p style={{ color: '#999' }}>{t('admin.restaurantDetail.owners.noOwners')}</p>}
           {owners.length > 0 && (
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
-                  <th style={{ padding: '0.5rem' }}>Name</th>
-                  <th style={{ padding: '0.5rem' }}>Phone</th>
+                  <th style={{ padding: '0.5rem' }}>{t('admin.restaurantDetail.owners.col.name')}</th>
+                  <th style={{ padding: '0.5rem' }}>{t('admin.restaurantDetail.owners.col.phone')}</th>
                   <th style={{ padding: '0.5rem' }} />
                 </tr>
               </thead>
@@ -590,7 +572,7 @@ export default function RestaurantDetailPage() {
                         <form onSubmit={saveOwner} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10 }}>
                           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
                             <div style={{ flex: 1, minWidth: 180 }}>
-                              <label style={labelStyle}>Name</label>
+                              <label style={labelStyle}>{t('admin.restaurantDetail.owners.col.name')}</label>
                               <input
                                 value={editOwner.name}
                                 onChange={(e) => setEditOwner({ ...editOwner, name: e.target.value })}
@@ -599,7 +581,7 @@ export default function RestaurantDetailPage() {
                               />
                             </div>
                             <div style={{ flex: 1, minWidth: 180 }}>
-                              <label style={labelStyle}>Phone</label>
+                              <label style={labelStyle}>{t('admin.restaurantDetail.owners.col.phone')}</label>
                               <input
                                 value={editOwner.phone}
                                 onChange={(e) => setEditOwner({ ...editOwner, phone: e.target.value })}
@@ -610,9 +592,9 @@ export default function RestaurantDetailPage() {
                           </div>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button type="submit" disabled={savingOwner} style={{ ...btnPrimary, opacity: savingOwner ? 0.6 : 1 }}>
-                              {savingOwner ? 'Saving...' : 'Save'}
+                              {savingOwner ? t('admin.restaurantDetail.owners.saving') : t('admin.restaurantDetail.owners.save')}
                             </button>
-                            <button type="button" onClick={() => setEditingOwnerId(null)} style={btnSecondary}>Cancel</button>
+                            <button type="button" onClick={() => setEditingOwnerId(null)} style={btnSecondary}>{t('admin.restaurantDetail.owners.cancel')}</button>
                           </div>
                         </form>
                       </td>
@@ -622,8 +604,8 @@ export default function RestaurantDetailPage() {
                       <td style={{ padding: '0.65rem 0.5rem', fontWeight: 500 }}>{owner.name ?? <span style={{ color: '#bbb' }}>—</span>}</td>
                       <td style={{ padding: '0.65rem 0.5rem' }}>{owner.phone ?? <span style={{ color: '#bbb' }}>—</span>}</td>
                       <td style={{ padding: '0.65rem 0.5rem', textAlign: 'right', display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
-                        <button onClick={() => startEditOwner(owner)} style={btnSecondary}>Edit</button>
-                        <button onClick={() => deleteOwner(owner.uid)} style={btnDanger}>Remove</button>
+                        <button onClick={() => startEditOwner(owner)} style={btnSecondary}>{t('admin.restaurantDetail.owners.edit')}</button>
+                        <button onClick={() => deleteOwner(owner.uid)} style={btnDanger}>{t('admin.restaurantDetail.owners.remove')}</button>
                       </td>
                     </tr>
                   )
@@ -636,7 +618,7 @@ export default function RestaurantDetailPage() {
             <form onSubmit={addOwner} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10, marginTop: '0.5rem' }}>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
                 <div style={{ flex: 1, minWidth: 180 }}>
-                  <label style={labelStyle}>Owner phone number</label>
+                  <label style={labelStyle}>{t('admin.restaurantDetail.owners.form.phone')}</label>
                   <input
                     value={newPhone}
                     onChange={(e) => { setNewPhone(e.target.value); setOwnerError(''); }}
@@ -646,7 +628,7 @@ export default function RestaurantDetailPage() {
                   />
                 </div>
                 <div style={{ flex: 1, minWidth: 180 }}>
-                  <label style={labelStyle}>Name (optional)</label>
+                  <label style={labelStyle}>{t('admin.restaurantDetail.owners.form.name')}</label>
                   <input
                     value={newOwnerName}
                     onChange={(e) => setNewOwnerName(e.target.value)}
@@ -658,13 +640,13 @@ export default function RestaurantDetailPage() {
               {ownerError && <div style={{ fontSize: '0.82rem', color: '#ef4444', marginBottom: '0.5rem' }}>{ownerError}</div>}
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button type="submit" disabled={savingOwner} style={{ ...btnPrimary, opacity: savingOwner ? 0.6 : 1 }}>
-                  {savingOwner ? 'Adding...' : 'Add'}
+                  {savingOwner ? t('admin.restaurantDetail.owners.adding') : t('admin.restaurantDetail.owners.add')}
                 </button>
-                <button type="button" onClick={() => { setShowOwnerForm(false); setOwnerError(''); }} style={btnSecondary}>Cancel</button>
+                <button type="button" onClick={() => { setShowOwnerForm(false); setOwnerError(''); }} style={btnSecondary}>{t('admin.restaurantDetail.owners.cancel')}</button>
               </div>
             </form>
           ) : (
-            <button onClick={() => setShowOwnerForm(true)} style={{ ...btnPrimary, marginTop: '0.25rem' }}>+ Add owner</button>
+            <button onClick={() => setShowOwnerForm(true)} style={{ ...btnPrimary, marginTop: '0.25rem' }}>{t('admin.restaurantDetail.owners.addOwner')}</button>
           )}
         </div>
       )}

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import type { Customer } from '../types';
 import { toDate } from '../types';
 
 export default function CustomersPage() {
+  const { t } = useTranslation();
   const { businessId } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
@@ -32,31 +34,31 @@ export default function CustomersPage() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <h2 style={{ margin: 0 }}>Customers</h2>
-        <span style={{ fontSize: '0.85rem', color: '#999' }}>{customers.length} total</span>
+        <h2 style={{ margin: 0 }}>{t('customers.title')}</h2>
+        <span style={{ fontSize: '0.85rem', color: '#999' }}>{t('customers.totalCount', { count: customers.length })}</span>
       </div>
 
       <input
         type="text"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search by name or phone…"
+        placeholder={t('customers.search')}
         style={{ width: '100%', maxWidth: 320, padding: '0.4rem 0.6rem', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: '0.9rem', marginBottom: '1rem', boxSizing: 'border-box' }}
       />
 
       {filtered.length === 0 && (
-        <p style={{ color: '#999' }}>{search ? 'No matching customers.' : 'No customers yet.'}</p>
+        <p style={{ color: '#999' }}>{search ? t('customers.noMatch') : t('customers.noCustomers')}</p>
       )}
 
       {filtered.length > 0 && (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
-              <th style={{ padding: '0.5rem' }}>Customer</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right' }}>Orders</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right' }}>Total spent</th>
-              <th style={{ padding: '0.5rem' }}>Last order</th>
-              <th style={{ padding: '0.5rem' }}>Last delivery address</th>
+              <th style={{ padding: '0.5rem' }}>{t('customers.col.customer')}</th>
+              <th style={{ padding: '0.5rem', textAlign: 'right' }}>{t('customers.col.orders')}</th>
+              <th style={{ padding: '0.5rem', textAlign: 'right' }}>{t('customers.col.totalSpent')}</th>
+              <th style={{ padding: '0.5rem' }}>{t('customers.col.lastOrder')}</th>
+              <th style={{ padding: '0.5rem' }}>{t('customers.col.lastAddress')}</th>
             </tr>
           </thead>
           <tbody>

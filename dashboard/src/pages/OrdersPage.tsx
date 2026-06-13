@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import type { Order } from '../types';
@@ -20,6 +21,7 @@ const statusColor: Record<string, string> = {
 };
 
 export default function OrdersPage() {
+  const { t } = useTranslation();
   const { businessId } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
 
@@ -36,16 +38,16 @@ export default function OrdersPage() {
 
   return (
     <div>
-      <h2>Orders</h2>
-      {orders.length === 0 && <p style={{ color: '#999' }}>No orders yet.</p>}
+      <h2>{t('orders.title')}</h2>
+      {orders.length === 0 && <p style={{ color: '#999' }}>{t('orders.noOrders')}</p>}
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
-            <th style={{ padding: '0.5rem' }}>Customer</th>
-            <th style={{ padding: '0.5rem' }}>Items</th>
-            <th style={{ padding: '0.5rem' }}>Total</th>
-            <th style={{ padding: '0.5rem' }}>Status</th>
-            <th style={{ padding: '0.5rem' }}>Time</th>
+            <th style={{ padding: '0.5rem' }}>{t('orders.col.customer')}</th>
+            <th style={{ padding: '0.5rem' }}>{t('orders.col.items')}</th>
+            <th style={{ padding: '0.5rem' }}>{t('orders.col.total')}</th>
+            <th style={{ padding: '0.5rem' }}>{t('orders.col.status')}</th>
+            <th style={{ padding: '0.5rem' }}>{t('orders.col.time')}</th>
           </tr>
         </thead>
         <tbody>
@@ -58,7 +60,7 @@ export default function OrdersPage() {
                   </Link>
                   {order.orderType === 'delivery' && (
                     <span style={{ background: '#0ea5e922', color: '#0ea5e9', padding: '0.1rem 0.5rem', borderRadius: 999, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.02em' }}>
-                      DELIVERY
+                      {t('orders.delivery')}
                     </span>
                   )}
                 </div>
@@ -75,7 +77,9 @@ export default function OrdersPage() {
               <td style={{ padding: '0.75rem 0.5rem', fontWeight: 600 }}>
                 €{order.total.toFixed(2)}
                 {order.orderType === 'delivery' && order.deliveryFee ? (
-                  <div style={{ fontSize: '0.72rem', color: '#999', fontWeight: 400 }}>+€{order.deliveryFee.toFixed(2)} delivery</div>
+                  <div style={{ fontSize: '0.72rem', color: '#999', fontWeight: 400 }}>
+                    {t('orders.deliveryFee', { fee: order.deliveryFee.toFixed(2) })}
+                  </div>
                 ) : null}
               </td>
               <td style={{ padding: '0.75rem 0.5rem' }}>
