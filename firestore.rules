@@ -44,17 +44,18 @@ service cloud.firestore {
         allow write: if false;
       }
 
-      // Menu is managed by admins via the admin panel.
-      // Restaurant owners view their menu read-only from the dashboard.
+      // Menu is managed by the restaurant owner and admins.
       match /menu/{itemId} {
         allow read: if isOwnerOf(businessId) || isAdmin();
-        allow write: if isAdmin();
+        allow write: if isOwnerOf(businessId) || isAdmin();
       }
 
-      // Customers are written by the backend only.
+      // Customers are written by the backend (Admin SDK).
+      // Owners may update (e.g. edit name) or delete their own customer records.
       match /customers/{customerId} {
         allow read: if isOwnerOf(businessId) || isAdmin();
-        allow write: if false;
+        allow create: if false;
+        allow update, delete: if isOwnerOf(businessId) || isAdmin();
       }
     }
 
