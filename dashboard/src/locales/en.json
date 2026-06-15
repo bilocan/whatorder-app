@@ -1,0 +1,342 @@
+{
+  "nav": {
+    "orders": "Orders",
+    "customers": "Customers",
+    "income": "Income",
+    "menu": "Menu",
+    "settings": "Settings",
+    "admin": "Admin",
+    "earnings": "Earnings",
+    "signOut": "Sign out"
+  },
+  "lang": {
+    "label": "Language"
+  },
+  "login": {
+    "tagline": "Restaurant Dashboard",
+    "phoneLabel": "Phone number",
+    "sendCode": "Send code",
+    "sendError": "Failed to send code",
+    "sending": "Sending...",
+    "codeSentTo": "Code sent to {{phone}}",
+    "verificationCode": "Verification code",
+    "verifying": "Verifying...",
+    "signIn": "Sign in",
+    "invalidCode": "Invalid code",
+    "useDifferentNumber": "Use a different number"
+  },
+  "orders": {
+    "title": "Orders",
+    "noOrders": "No orders yet.",
+    "col": {
+      "customer": "Customer",
+      "items": "Items",
+      "total": "Total",
+      "status": "Status",
+      "time": "Time"
+    },
+    "delivery": "Delivery",
+    "deliveryFee": "+ €{{fee}} delivery fee"
+  },
+  "orderDetail": {
+    "loading": "Loading order...",
+    "back": "← Back to orders",
+    "delivery": "Delivery",
+    "col": {
+      "item": "Item",
+      "qty": "Qty",
+      "price": "Price"
+    },
+    "deliveryFee": "+ €{{fee}} delivery fee",
+    "total": "Total: €{{total}}",
+    "note": "Note: {{note}}",
+    "orderedAt": "Ordered at {{time}}",
+    "networkError": "Network error",
+    "saving": "Saving...",
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "preparing": "Preparing",
+      "ready": "Ready",
+      "on_the_way": "On the way",
+      "picked_up": "Picked up",
+      "delivered": "Delivered",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled",
+      "completed": "Completed"
+    },
+    "action": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "prepare": "Start preparing",
+      "onTheWay": "On the way",
+      "markReady": "Mark ready",
+      "pickedUp": "Picked up",
+      "delivered": "Delivered"
+    }
+  },
+  "customers": {
+    "title": "Customers",
+    "totalCount": "{{count}} customers",
+    "search": "Search...",
+    "noCustomers": "No customers yet.",
+    "noMatch": "No customers found.",
+    "col": {
+      "customer": "Customer",
+      "orders": "Orders",
+      "totalSpent": "Total spent",
+      "lastOrder": "Last order",
+      "lastAddress": "Last delivery address",
+      "actions": "Actions"
+    },
+    "edit": "Edit",
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "history": "History",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this customer?",
+    "orderHistory": "Order history",
+    "loading": "Loading...",
+    "noOrders": "No orders."
+  },
+  "menu": {
+    "title": "Menu",
+    "noItems": "No menu items yet.",
+    "addItem": "+ Add item",
+    "add": "Add",
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this item?",
+    "available": "Available",
+    "unavailable": "Off",
+    "form": {
+      "name": "Name",
+      "price": "Price (€)",
+      "category": "Category",
+      "description": "Description",
+      "available": "Available"
+    },
+    "category": {
+      "mains": "Mains",
+      "sides": "Sides",
+      "drinks": "Drinks"
+    }
+  },
+  "income": {
+    "title": "Today's income",
+    "earned": "Earned",
+    "pending": "Pending",
+    "orders": "Orders",
+    "whatorderFee": "WhatOrder fee",
+    "breakdown": "Breakdown",
+    "noOrders": "No orders today.",
+    "feeLabel": "€{{fee}} fee"
+  },
+  "settings": {
+    "title": "Settings",
+    "loading": "Loading...",
+    "businessName": "Restaurant name",
+    "alertNumber": "Alert number",
+    "status": "Status",
+    "location": {
+      "title": "Location",
+      "description": "Address and coordinates for delivery zone checks.",
+      "address": "Address",
+      "lookupCoords": "Look up coordinates",
+      "lookingUp": "Looking up...",
+      "notFound": "Address not found.",
+      "lat": "Latitude",
+      "lng": "Longitude",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "invalidCoords": "Invalid coordinates"
+    },
+    "delivery": {
+      "title": "Delivery",
+      "description": "Enable delivery and set fees.",
+      "acceptOrders": "Accept delivery orders",
+      "fee": "Delivery fee (€)",
+      "zone": "Delivery zone",
+      "zoneHint": "e.g. 1010-1230 or 1050,1060,1070",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "invalidFee": "Invalid fee"
+    },
+    "botLanguage": {
+      "title": "Bot language",
+      "description": "Default language of the WhatsApp bot.",
+      "defaultLang": "Default language",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "error": "Failed to save"
+    },
+    "hours": {
+      "title": "Opening hours",
+      "description": "Days and times when orders are accepted.",
+      "open": "Open",
+      "closed": "Closed",
+      "opens": "Opens",
+      "closes": "Closes",
+      "firstOrder": "First order",
+      "lastOrder": "Last order",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "error": "Failed to save"
+    },
+    "days": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    }
+  },
+  "admin": {
+    "earnings": {
+      "title": "Earnings",
+      "feeModel": "Fee model",
+      "feeFixed": "Fixed",
+      "feePercent": "Percentage",
+      "save": "Save",
+      "saving": "Saving...",
+      "cards": {
+        "totalOrders": "Total orders",
+        "restaurantRevenue": "Restaurant revenue",
+        "whatorderEarnings": "WhatOrder earnings"
+      },
+      "allOrders": "All orders",
+      "loading": "Loading...",
+      "noOrders": "No orders.",
+      "col": {
+        "restaurant": "Restaurant",
+        "date": "Date",
+        "customer": "Customer",
+        "orderTotal": "Order total",
+        "fee": "Fee",
+        "status": "Status"
+      }
+    },
+    "restaurants": {
+      "title": "Restaurants",
+      "newButton": "+ New",
+      "botConfigHint": "VITE_WHATSAPP_PHONE_NUMBER_ID is not configured.",
+      "botNotConfigured": "Bot not configured.",
+      "noRestaurants": "No restaurants yet.",
+      "col": {
+        "name": "Name",
+        "id": "ID",
+        "phone": "Phone",
+        "status": "Status",
+        "bot": "Bot"
+      },
+      "botOn": "Active",
+      "botOff": "Inactive",
+      "delete": "Delete",
+      "deleteConfirm": "Delete restaurant \"{{name}}\"?",
+      "form": {
+        "name": "Restaurant name",
+        "ownerPhone": "Owner phone",
+        "create": "Create",
+        "creating": "Creating...",
+        "cancel": "Cancel"
+      }
+    },
+    "restaurantDetail": {
+      "loading": "Loading...",
+      "back": "← Back to restaurants",
+      "tabs": {
+        "details": "Details",
+        "menu": "Menu",
+        "owners": "Owners"
+      },
+      "bot": {
+        "label": "WhatsApp Bot",
+        "loading": "Loading...",
+        "on": "On",
+        "off": "Off",
+        "saving": "Saving...",
+        "turnOn": "Turn on",
+        "turnOff": "Turn off"
+      },
+      "details": {
+        "name": "Name",
+        "ownerAlertNumber": "Alert number",
+        "status": "Status",
+        "businessId": "Business ID",
+        "address": "Address",
+        "coordinates": "Coordinates",
+        "edit": "Edit",
+        "statusActive": "Active",
+        "statusPaused": "Paused",
+        "lookupCoords": "Look up coordinates",
+        "lookingUp": "Looking up...",
+        "notFound": "Address not found.",
+        "lat": "Latitude",
+        "lng": "Longitude",
+        "save": "Save",
+        "saving": "Saving...",
+        "cancel": "Cancel"
+      },
+      "menu": {
+        "noItems": "No items yet.",
+        "col": {
+          "name": "Name",
+          "category": "Category",
+          "price": "Price",
+          "available": "Available"
+        },
+        "availableYes": "Yes",
+        "availableNo": "No",
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleteConfirm": "Delete this item?",
+        "form": {
+          "name": "Name",
+          "price": "Price (€)",
+          "category": "Category",
+          "description": "Description",
+          "mains": "Mains",
+          "sides": "Sides",
+          "drinks": "Drinks",
+          "available": "Available"
+        },
+        "save": "Save",
+        "saving": "Saving...",
+        "cancel": "Cancel",
+        "add": "Add",
+        "adding": "Adding...",
+        "addItem": "+ Add item"
+      },
+      "owners": {
+        "noOwners": "No owners yet.",
+        "col": {
+          "name": "Name",
+          "phone": "Phone"
+        },
+        "edit": "Edit",
+        "save": "Save",
+        "saving": "Saving...",
+        "cancel": "Cancel",
+        "remove": "Remove",
+        "removeConfirm": "Remove this owner?",
+        "form": {
+          "phone": "Phone number",
+          "name": "Name"
+        },
+        "add": "Add",
+        "adding": "Adding...",
+        "addOwner": "+ Add owner"
+      }
+    }
+  }
+}
