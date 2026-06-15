@@ -206,20 +206,13 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   // DEV only: send flow on keyword "flow" — disabled in production
   if (process.env.NODE_ENV !== 'production' && type === 'text' && norm === 'flow') {
     const bid = session.businessId || routing.defaultBusinessId || routing.businessIds[0];
-    const flowMenu = await getMenu(bid);
     await sendFlowMessage(from, {
-      flowId: '1465498598663384',
+      flowId: process.env.WHATSAPP_FLOW_ID || '1465498598663384',
       flowToken: `${from}|${bid}`,
       flowCta: 'Open Menu',
-      screen: 'MENU_BROWSE',
+      screen: 'CATEGORY_SELECT',
       body: 'Tap to browse the menu',
-      data: {
-        menu_items: flowMenu.map(item => ({
-          id: item.id,
-          title: item.name,
-          description: `€${Number(item.price).toFixed(2)}${item.description ? ` — ${item.description}` : ''}`,
-        })),
-      },
+      data: {},
     });
     return;
   }
@@ -679,34 +672,27 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     return;
   }
 
-  // Flow completed — customer tapped "Place order" in the WhatsApp Flow UI
+  // Flow completed — basket already written to session by /flow/exchange during ORDER_ITEM steps.
   if (type === 'flow_completion') {
-    const { item_id, protein, quantity, sauces_text, special_requests, unit_price } = data ?? {};
-    const info = await getBusinessInfo(businessId);
-    const menu = await getMenu(businessId);
-    const item = menu.find(m => m.id === item_id);
-    if (!item) {
+    const flowBasket = session.basket ?? [];
+    if (!flowBasket.length) {
       await sendCatalog(from, lang, businessId);
       return;
     }
-    const qty = parseInt(quantity, 10) || 1;
-    const itemLabel = `${item.name}${protein ? ` — ${protein}` : ''}${sauces_text && sauces_text !== 'None' ? `, ${sauces_text}` : ''}`;
-    const basket = [{ name: itemLabel, qty, price: parseFloat(unit_price) || item.price }];
+    const info = await getBusinessInfo(businessId);
+    if (!isOrderingOpen(info.schedule, info.timezone || 'Europe/Vienna')) {
+      const _w = getTodayOrderWindow(info.schedule, info.timezone || 'Europe/Vienna');
+      await sendText(from, t('restaurantClosed', lang, info.name, _w?.firstOrderTime ?? null, _w?.lastOrderTime ?? null));
+      return;
+    }
     const prepMins = info.avgPrepTime || 30;
     const pickupTime = new Date(Date.now() + prepMins * 60000)
       .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
-    const notes = (special_requests && special_requests !== '—') ? special_requests : '';
-    const knownName = await getKnownName(from, businessId);
-    const newSession = { ...session, state: 'awaiting_name', language: lang, basket, businessId, pickupTime, prepMins, specialRequests: notes, orderType: 'pickup', pendingDeleteIds: [] };
-    if (knownName) {
-      await transitionToConfirming(from, newSession, lang, businessId, basket, knownName);
-      return;
-    }
-    const nameId = await sendButtonMessage(from, {
-      body: t('confirmSummary', lang, buildBasketText(basket, lang), prepMins, pickupTime),
-      buttons: [{ id: 'btn_cancel_order', title: t('cancelOrderBtn', lang) }],
+    const reqId = await sendButtonMessage(from, {
+      body: t('specialRequestsPrompt', lang),
+      buttons: [{ id: 'btn_skip_requests', title: t('skipBtn', lang) }],
     });
-    await setSession(from, { ...newSession, pendingDeleteIds: nameId ? [nameId] : [] });
+    await setSession(from, { ...session, state: 'awaiting_special_requests', basket: flowBasket, pickupTime, prepMins, businessId, pendingDeleteIds: reqId ? [reqId] : [] });
     return;
   }
 
