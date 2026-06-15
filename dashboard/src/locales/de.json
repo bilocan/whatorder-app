@@ -1,0 +1,342 @@
+{
+  "nav": {
+    "orders": "Bestellungen",
+    "customers": "Kunden",
+    "income": "Einnahmen",
+    "menu": "Speisekarte",
+    "settings": "Einstellungen",
+    "admin": "Restaurants",
+    "earnings": "Verdienst",
+    "signOut": "Abmelden"
+  },
+  "lang": {
+    "label": "Sprache"
+  },
+  "login": {
+    "tagline": "Restaurant-Dashboard",
+    "phoneLabel": "Telefonnummer",
+    "sendCode": "Code senden",
+    "sendError": "Fehler beim Senden des Codes",
+    "sending": "Senden...",
+    "codeSentTo": "Code gesendet an {{phone}}",
+    "verificationCode": "Bestätigungscode",
+    "verifying": "Überprüfen...",
+    "signIn": "Anmelden",
+    "invalidCode": "Ungültiger Code",
+    "useDifferentNumber": "Andere Nummer verwenden"
+  },
+  "orders": {
+    "title": "Bestellungen",
+    "noOrders": "Keine Bestellungen.",
+    "col": {
+      "customer": "Kunde",
+      "items": "Artikel",
+      "total": "Gesamt",
+      "status": "Status",
+      "time": "Zeit"
+    },
+    "delivery": "Lieferung",
+    "deliveryFee": "+ €{{fee}} Liefergebühr"
+  },
+  "orderDetail": {
+    "loading": "Lade Bestellung...",
+    "back": "← Zurück zu Bestellungen",
+    "delivery": "Lieferung",
+    "col": {
+      "item": "Artikel",
+      "qty": "Anz.",
+      "price": "Preis"
+    },
+    "deliveryFee": "+ €{{fee}} Liefergebühr",
+    "total": "Gesamt: €{{total}}",
+    "note": "Hinweis: {{note}}",
+    "orderedAt": "Bestellt um {{time}}",
+    "networkError": "Netzwerkfehler",
+    "saving": "Wird gespeichert...",
+    "status": {
+      "pending": "Ausstehend",
+      "approved": "Bestätigt",
+      "preparing": "In Vorbereitung",
+      "ready": "Bereit",
+      "on_the_way": "Unterwegs",
+      "picked_up": "Abgeholt",
+      "delivered": "Geliefert",
+      "rejected": "Abgelehnt",
+      "cancelled": "Storniert",
+      "completed": "Abgeschlossen"
+    },
+    "action": {
+      "approve": "Bestätigen",
+      "reject": "Ablehnen",
+      "prepare": "In Zubereitung",
+      "onTheWay": "Unterwegs",
+      "markReady": "Bereit",
+      "pickedUp": "Abgeholt",
+      "delivered": "Geliefert"
+    }
+  },
+  "customers": {
+    "title": "Kunden",
+    "totalCount": "{{count}} Kunden",
+    "search": "Suchen...",
+    "noCustomers": "Noch keine Kunden.",
+    "noMatch": "Keine Kunden gefunden.",
+    "col": {
+      "customer": "Kunde",
+      "orders": "Bestellungen",
+      "totalSpent": "Gesamtausgaben",
+      "lastOrder": "Letzte Bestellung",
+      "lastAddress": "Letzte Lieferadresse",
+      "actions": "Aktionen"
+    },
+    "edit": "Bearbeiten",
+    "save": "Speichern",
+    "saving": "Speichern...",
+    "cancel": "Abbrechen",
+    "history": "Verlauf",
+    "delete": "Löschen",
+    "deleteConfirm": "Kunden wirklich löschen?",
+    "orderHistory": "Bestellverlauf",
+    "loading": "Lade...",
+    "noOrders": "Keine Bestellungen."
+  },
+  "menu": {
+    "title": "Speisekarte",
+    "noItems": "Noch keine Artikel.",
+    "addItem": "+ Artikel hinzufügen",
+    "add": "Hinzufügen",
+    "save": "Speichern",
+    "saving": "Speichern...",
+    "cancel": "Abbrechen",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "deleteConfirm": "Artikel wirklich löschen?",
+    "available": "Verfügbar",
+    "unavailable": "Nicht verfügbar",
+    "form": {
+      "name": "Name",
+      "price": "Preis (€)",
+      "category": "Kategorie",
+      "description": "Beschreibung",
+      "available": "Verfügbar"
+    },
+    "category": {
+      "mains": "Hauptgerichte",
+      "sides": "Beilagen",
+      "drinks": "Getränke"
+    }
+  },
+  "income": {
+    "title": "Heutige Einnahmen",
+    "earned": "Verdient",
+    "pending": "Ausstehend",
+    "orders": "Bestellungen",
+    "whatorderFee": "WhatOrder-Gebühr",
+    "breakdown": "Übersicht",
+    "noOrders": "Heute keine Bestellungen.",
+    "feeLabel": "€{{fee}} Gebühr"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "loading": "Lade...",
+    "businessName": "Restaurantname",
+    "alertNumber": "Benachrichtigungsnummer",
+    "status": "Status",
+    "location": {
+      "title": "Standort",
+      "description": "Adresse und Koordinaten für die Lieferzonen-Prüfung.",
+      "address": "Adresse",
+      "lookupCoords": "Koordinaten suchen",
+      "lookingUp": "Suche...",
+      "notFound": "Adresse nicht gefunden.",
+      "lat": "Breitengrad",
+      "lng": "Längengrad",
+      "save": "Speichern",
+      "saving": "Speichern...",
+      "saved": "Gespeichert",
+      "invalidCoords": "Ungültige Koordinaten"
+    },
+    "delivery": {
+      "title": "Lieferung",
+      "description": "Lieferservice aktivieren und Gebühren festlegen.",
+      "acceptOrders": "Lieferbestellungen annehmen",
+      "fee": "Liefergebühr (€)",
+      "zone": "Lieferzone",
+      "zoneHint": "z.B. 1010-1230 oder 1050,1060,1070",
+      "save": "Speichern",
+      "saving": "Speichern...",
+      "saved": "Gespeichert",
+      "invalidFee": "Ungültige Gebühr"
+    },
+    "botLanguage": {
+      "title": "Bot-Sprache",
+      "description": "Standardsprache des WhatsApp-Bots.",
+      "defaultLang": "Standardsprache",
+      "save": "Speichern",
+      "saving": "Speichern...",
+      "saved": "Gespeichert",
+      "error": "Fehler beim Speichern"
+    },
+    "hours": {
+      "title": "Öffnungszeiten",
+      "description": "Tage und Zeiten, an denen Bestellungen angenommen werden.",
+      "open": "Geöffnet",
+      "closed": "Geschlossen",
+      "opens": "Öffnet",
+      "closes": "Schließt",
+      "firstOrder": "Erste Bestellung",
+      "lastOrder": "Letzte Bestellung",
+      "save": "Speichern",
+      "saving": "Speichern...",
+      "saved": "Gespeichert",
+      "error": "Fehler beim Speichern"
+    },
+    "days": {
+      "0": "Sonntag",
+      "1": "Montag",
+      "2": "Dienstag",
+      "3": "Mittwoch",
+      "4": "Donnerstag",
+      "5": "Freitag",
+      "6": "Samstag"
+    }
+  },
+  "admin": {
+    "earnings": {
+      "title": "Einnahmen",
+      "feeModel": "Gebührenmodell",
+      "feeFixed": "Fixbetrag",
+      "feePercent": "Prozentsatz",
+      "save": "Speichern",
+      "saving": "Speichern...",
+      "cards": {
+        "totalOrders": "Gesamtbestellungen",
+        "restaurantRevenue": "Restaurantumsatz",
+        "whatorderEarnings": "WhatOrder-Einnahmen"
+      },
+      "allOrders": "Alle Bestellungen",
+      "loading": "Lade...",
+      "noOrders": "Keine Bestellungen.",
+      "col": {
+        "restaurant": "Restaurant",
+        "date": "Datum",
+        "customer": "Kunde",
+        "orderTotal": "Bestellsumme",
+        "fee": "Gebühr",
+        "status": "Status"
+      }
+    },
+    "restaurants": {
+      "title": "Restaurants",
+      "newButton": "+ Neu",
+      "botConfigHint": "VITE_WHATSAPP_PHONE_NUMBER_ID ist nicht konfiguriert.",
+      "botNotConfigured": "Bot nicht konfiguriert.",
+      "noRestaurants": "Noch keine Restaurants.",
+      "col": {
+        "name": "Name",
+        "id": "ID",
+        "phone": "Telefon",
+        "status": "Status",
+        "bot": "Bot"
+      },
+      "botOn": "Aktiv",
+      "botOff": "Inaktiv",
+      "delete": "Löschen",
+      "deleteConfirm": "Restaurant \"{{name}}\" wirklich löschen?",
+      "form": {
+        "name": "Restaurantname",
+        "ownerPhone": "Besitzer-Telefon",
+        "create": "Erstellen",
+        "creating": "Erstellen...",
+        "cancel": "Abbrechen"
+      }
+    },
+    "restaurantDetail": {
+      "loading": "Lade...",
+      "back": "← Zurück zu Restaurants",
+      "tabs": {
+        "details": "Details",
+        "menu": "Speisekarte",
+        "owners": "Besitzer"
+      },
+      "bot": {
+        "label": "WhatsApp-Bot",
+        "loading": "Lade...",
+        "on": "Aktiv",
+        "off": "Inaktiv",
+        "saving": "Speichern...",
+        "turnOn": "Aktivieren",
+        "turnOff": "Deaktivieren"
+      },
+      "details": {
+        "name": "Name",
+        "ownerAlertNumber": "Benachrichtigungsnummer",
+        "status": "Status",
+        "businessId": "Business-ID",
+        "address": "Adresse",
+        "coordinates": "Koordinaten",
+        "edit": "Bearbeiten",
+        "statusActive": "Aktiv",
+        "statusPaused": "Pausiert",
+        "lookupCoords": "Koordinaten suchen",
+        "lookingUp": "Suche...",
+        "notFound": "Adresse nicht gefunden.",
+        "lat": "Breitengrad",
+        "lng": "Längengrad",
+        "save": "Speichern",
+        "saving": "Speichern...",
+        "cancel": "Abbrechen"
+      },
+      "menu": {
+        "noItems": "Noch keine Artikel.",
+        "col": {
+          "name": "Name",
+          "category": "Kategorie",
+          "price": "Preis",
+          "available": "Verfügbar"
+        },
+        "availableYes": "Ja",
+        "availableNo": "Nein",
+        "edit": "Bearbeiten",
+        "delete": "Löschen",
+        "deleteConfirm": "Artikel wirklich löschen?",
+        "form": {
+          "name": "Name",
+          "price": "Preis (€)",
+          "category": "Kategorie",
+          "description": "Beschreibung",
+          "mains": "Hauptgerichte",
+          "sides": "Beilagen",
+          "drinks": "Getränke",
+          "available": "Verfügbar"
+        },
+        "save": "Speichern",
+        "saving": "Speichern...",
+        "cancel": "Abbrechen",
+        "add": "Hinzufügen",
+        "adding": "Hinzufügen...",
+        "addItem": "+ Artikel hinzufügen"
+      },
+      "owners": {
+        "noOwners": "Noch keine Besitzer.",
+        "col": {
+          "name": "Name",
+          "phone": "Telefon"
+        },
+        "edit": "Bearbeiten",
+        "save": "Speichern",
+        "saving": "Speichern...",
+        "cancel": "Abbrechen",
+        "remove": "Entfernen",
+        "removeConfirm": "Besitzer wirklich entfernen?",
+        "form": {
+          "phone": "Telefonnummer",
+          "name": "Name"
+        },
+        "add": "Hinzufügen",
+        "adding": "Hinzufügen...",
+        "addOwner": "+ Besitzer hinzufügen"
+      }
+    }
+  }
+}

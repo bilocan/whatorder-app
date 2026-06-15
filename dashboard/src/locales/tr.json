@@ -1,0 +1,342 @@
+{
+  "nav": {
+    "orders": "Siparişler",
+    "customers": "Müşteriler",
+    "income": "Gelir",
+    "menu": "Menü",
+    "settings": "Ayarlar",
+    "admin": "Restoranlar",
+    "earnings": "Kazanç",
+    "signOut": "Çıkış"
+  },
+  "lang": {
+    "label": "Dil"
+  },
+  "login": {
+    "tagline": "Restoran Paneli",
+    "phoneLabel": "Telefon numarası",
+    "sendCode": "Kod gönder",
+    "sendError": "Kod gönderilemedi",
+    "sending": "Gönderiliyor...",
+    "codeSentTo": "{{phone}} numarasına kod gönderildi",
+    "verificationCode": "Doğrulama kodu",
+    "verifying": "Doğrulanıyor...",
+    "signIn": "Giriş yap",
+    "invalidCode": "Geçersiz kod",
+    "useDifferentNumber": "Farklı numara kullan"
+  },
+  "orders": {
+    "title": "Siparişler",
+    "noOrders": "Henüz sipariş yok.",
+    "col": {
+      "customer": "Müşteri",
+      "items": "Ürünler",
+      "total": "Toplam",
+      "status": "Durum",
+      "time": "Zaman"
+    },
+    "delivery": "Teslimat",
+    "deliveryFee": "+ €{{fee}} teslimat ücreti"
+  },
+  "orderDetail": {
+    "loading": "Sipariş yükleniyor...",
+    "back": "← Siparişlere dön",
+    "delivery": "Teslimat",
+    "col": {
+      "item": "Ürün",
+      "qty": "Adet",
+      "price": "Fiyat"
+    },
+    "deliveryFee": "+ €{{fee}} teslimat ücreti",
+    "total": "Toplam: €{{total}}",
+    "note": "Not: {{note}}",
+    "orderedAt": "{{time}} tarihinde sipariş verildi",
+    "networkError": "Ağ hatası",
+    "saving": "Kaydediliyor...",
+    "status": {
+      "pending": "Bekliyor",
+      "approved": "Onaylandı",
+      "preparing": "Hazırlanıyor",
+      "ready": "Hazır",
+      "on_the_way": "Yolda",
+      "picked_up": "Teslim alındı",
+      "delivered": "Teslim edildi",
+      "rejected": "Reddedildi",
+      "cancelled": "İptal edildi",
+      "completed": "Tamamlandı"
+    },
+    "action": {
+      "approve": "Onayla",
+      "reject": "Reddet",
+      "prepare": "Hazırlamaya başla",
+      "onTheWay": "Yola çıktı",
+      "markReady": "Hazır",
+      "pickedUp": "Teslim alındı",
+      "delivered": "Teslim edildi"
+    }
+  },
+  "customers": {
+    "title": "Müşteriler",
+    "totalCount": "{{count}} müşteri",
+    "search": "Ara...",
+    "noCustomers": "Henüz müşteri yok.",
+    "noMatch": "Müşteri bulunamadı.",
+    "col": {
+      "customer": "Müşteri",
+      "orders": "Siparişler",
+      "totalSpent": "Toplam harcama",
+      "lastOrder": "Son sipariş",
+      "lastAddress": "Son teslimat adresi",
+      "actions": "İşlemler"
+    },
+    "edit": "Düzenle",
+    "save": "Kaydet",
+    "saving": "Kaydediliyor...",
+    "cancel": "İptal",
+    "history": "Geçmiş",
+    "delete": "Sil",
+    "deleteConfirm": "Bu müşteri silinsin mi?",
+    "orderHistory": "Sipariş geçmişi",
+    "loading": "Yükleniyor...",
+    "noOrders": "Sipariş yok."
+  },
+  "menu": {
+    "title": "Menü",
+    "noItems": "Henüz ürün yok.",
+    "addItem": "+ Ürün ekle",
+    "add": "Ekle",
+    "save": "Kaydet",
+    "saving": "Kaydediliyor...",
+    "cancel": "İptal",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "deleteConfirm": "Bu ürün silinsin mi?",
+    "available": "Mevcut",
+    "unavailable": "Mevcut değil",
+    "form": {
+      "name": "Ad",
+      "price": "Fiyat (€)",
+      "category": "Kategori",
+      "description": "Açıklama",
+      "available": "Mevcut"
+    },
+    "category": {
+      "mains": "Ana yemekler",
+      "sides": "Yan yemekler",
+      "drinks": "İçecekler"
+    }
+  },
+  "income": {
+    "title": "Bugünkü gelir",
+    "earned": "Kazanılan",
+    "pending": "Bekleyen",
+    "orders": "Siparişler",
+    "whatorderFee": "WhatOrder ücreti",
+    "breakdown": "Özet",
+    "noOrders": "Bugün sipariş yok.",
+    "feeLabel": "€{{fee}} ücret"
+  },
+  "settings": {
+    "title": "Ayarlar",
+    "loading": "Yükleniyor...",
+    "businessName": "Restoran adı",
+    "alertNumber": "Bildirim numarası",
+    "status": "Durum",
+    "location": {
+      "title": "Konum",
+      "description": "Teslimat bölgesi kontrolü için adres ve koordinatlar.",
+      "address": "Adres",
+      "lookupCoords": "Koordinatları bul",
+      "lookingUp": "Aranıyor...",
+      "notFound": "Adres bulunamadı.",
+      "lat": "Enlem",
+      "lng": "Boylam",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor...",
+      "saved": "Kaydedildi",
+      "invalidCoords": "Geçersiz koordinatlar"
+    },
+    "delivery": {
+      "title": "Teslimat",
+      "description": "Teslimatı etkinleştir ve ücretleri ayarla.",
+      "acceptOrders": "Teslimat siparişleri kabul et",
+      "fee": "Teslimat ücreti (€)",
+      "zone": "Teslimat bölgesi",
+      "zoneHint": "ör. 1010-1230 veya 1050,1060,1070",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor...",
+      "saved": "Kaydedildi",
+      "invalidFee": "Geçersiz ücret"
+    },
+    "botLanguage": {
+      "title": "Bot dili",
+      "description": "WhatsApp botunun varsayılan dili.",
+      "defaultLang": "Varsayılan dil",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor...",
+      "saved": "Kaydedildi",
+      "error": "Kaydedilemedi"
+    },
+    "hours": {
+      "title": "Çalışma saatleri",
+      "description": "Siparişlerin kabul edildiği günler ve saatler.",
+      "open": "Açık",
+      "closed": "Kapalı",
+      "opens": "Açılış",
+      "closes": "Kapanış",
+      "firstOrder": "İlk sipariş",
+      "lastOrder": "Son sipariş",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor...",
+      "saved": "Kaydedildi",
+      "error": "Kaydedilemedi"
+    },
+    "days": {
+      "0": "Pazar",
+      "1": "Pazartesi",
+      "2": "Salı",
+      "3": "Çarşamba",
+      "4": "Perşembe",
+      "5": "Cuma",
+      "6": "Cumartesi"
+    }
+  },
+  "admin": {
+    "earnings": {
+      "title": "Kazanç",
+      "feeModel": "Ücret modeli",
+      "feeFixed": "Sabit",
+      "feePercent": "Yüzde",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor...",
+      "cards": {
+        "totalOrders": "Toplam sipariş",
+        "restaurantRevenue": "Restoran cirosu",
+        "whatorderEarnings": "WhatOrder kazancı"
+      },
+      "allOrders": "Tüm siparişler",
+      "loading": "Yükleniyor...",
+      "noOrders": "Sipariş yok.",
+      "col": {
+        "restaurant": "Restoran",
+        "date": "Tarih",
+        "customer": "Müşteri",
+        "orderTotal": "Sipariş toplamı",
+        "fee": "Ücret",
+        "status": "Durum"
+      }
+    },
+    "restaurants": {
+      "title": "Restoranlar",
+      "newButton": "+ Yeni",
+      "botConfigHint": "VITE_WHATSAPP_PHONE_NUMBER_ID yapılandırılmamış.",
+      "botNotConfigured": "Bot yapılandırılmamış.",
+      "noRestaurants": "Henüz restoran yok.",
+      "col": {
+        "name": "Ad",
+        "id": "ID",
+        "phone": "Telefon",
+        "status": "Durum",
+        "bot": "Bot"
+      },
+      "botOn": "Aktif",
+      "botOff": "İnaktif",
+      "delete": "Sil",
+      "deleteConfirm": "\"{{name}}\" restoranı silinsin mi?",
+      "form": {
+        "name": "Restoran adı",
+        "ownerPhone": "Sahip telefonu",
+        "create": "Oluştur",
+        "creating": "Oluşturuluyor...",
+        "cancel": "İptal"
+      }
+    },
+    "restaurantDetail": {
+      "loading": "Yükleniyor...",
+      "back": "← Restoranlara dön",
+      "tabs": {
+        "details": "Detaylar",
+        "menu": "Menü",
+        "owners": "Sahipler"
+      },
+      "bot": {
+        "label": "WhatsApp Bot",
+        "loading": "Yükleniyor...",
+        "on": "Aktif",
+        "off": "İnaktif",
+        "saving": "Kaydediliyor...",
+        "turnOn": "Aç",
+        "turnOff": "Kapat"
+      },
+      "details": {
+        "name": "Ad",
+        "ownerAlertNumber": "Bildirim numarası",
+        "status": "Durum",
+        "businessId": "İşletme ID",
+        "address": "Adres",
+        "coordinates": "Koordinatlar",
+        "edit": "Düzenle",
+        "statusActive": "Aktif",
+        "statusPaused": "Duraklatıldı",
+        "lookupCoords": "Koordinatları bul",
+        "lookingUp": "Aranıyor...",
+        "notFound": "Adres bulunamadı.",
+        "lat": "Enlem",
+        "lng": "Boylam",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor...",
+        "cancel": "İptal"
+      },
+      "menu": {
+        "noItems": "Henüz ürün yok.",
+        "col": {
+          "name": "Ad",
+          "category": "Kategori",
+          "price": "Fiyat",
+          "available": "Mevcut"
+        },
+        "availableYes": "Evet",
+        "availableNo": "Hayır",
+        "edit": "Düzenle",
+        "delete": "Sil",
+        "deleteConfirm": "Bu ürün silinsin mi?",
+        "form": {
+          "name": "Ad",
+          "price": "Fiyat (€)",
+          "category": "Kategori",
+          "description": "Açıklama",
+          "mains": "Ana yemekler",
+          "sides": "Yan yemekler",
+          "drinks": "İçecekler",
+          "available": "Mevcut"
+        },
+        "save": "Kaydet",
+        "saving": "Kaydediliyor...",
+        "cancel": "İptal",
+        "add": "Ekle",
+        "adding": "Ekleniyor...",
+        "addItem": "+ Ürün ekle"
+      },
+      "owners": {
+        "noOwners": "Henüz sahip yok.",
+        "col": {
+          "name": "Ad",
+          "phone": "Telefon"
+        },
+        "edit": "Düzenle",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor...",
+        "cancel": "İptal",
+        "remove": "Kaldır",
+        "removeConfirm": "Bu sahip kaldırılsın mı?",
+        "form": {
+          "phone": "Telefon numarası",
+          "name": "Ad"
+        },
+        "add": "Ekle",
+        "adding": "Ekleniyor...",
+        "addOwner": "+ Sahip ekle"
+      }
+    }
+  }
+}
