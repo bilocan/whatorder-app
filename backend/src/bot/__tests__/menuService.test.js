@@ -5,12 +5,46 @@ jest.mock('../../lib/collections', () => ({
 }));
 jest.mock('../templates');
 
-const { getMenu, getBusinessInfo, formatMenuText, matchMenuItem } = require('../menuService');
+const { getMenu, getBusinessInfo, formatMenuText, matchMenuItem, resolvePhotoUrl } = require('../menuService');
 const { menuRef, businessRef } = require('../../lib/collections');
 const { t } = require('../templates');
 
 beforeEach(() => {
   jest.clearAllMocks();
+});
+
+// ---------------------------------------------------------------------------
+// resolvePhotoUrl — pure function, no mocks needed
+// ---------------------------------------------------------------------------
+describe('resolvePhotoUrl', () => {
+  test('returns null for falsy values', () => {
+    expect(resolvePhotoUrl(null)).toBeNull();
+    expect(resolvePhotoUrl(undefined)).toBeNull();
+    expect(resolvePhotoUrl('')).toBeNull();
+  });
+
+  test('passes through https:// URLs unchanged', () => {
+    const url = 'https://firebasestorage.googleapis.com/v0/b/bucket/o/img.jpg?alt=media';
+    expect(resolvePhotoUrl(url)).toBe(url);
+  });
+
+  test('converts gs:// URI to Firebase Storage public URL', () => {
+    const result = resolvePhotoUrl('gs://my-bucket/menu/item.jpg');
+    expect(result).toBe('https://firebasestorage.googleapis.com/v0/b/my-bucket/o/menu%2Fitem.jpg?alt=media');
+  });
+
+  test('encodes nested path segments correctly', () => {
+    const result = resolvePhotoUrl('gs://bucket/path/sub/file.png');
+    expect(result).toBe('https://firebasestorage.googleapis.com/v0/b/bucket/o/path%2Fsub%2Ffile.png?alt=media');
+  });
+
+  test('returns null for malformed gs:// URI with no slash after bucket', () => {
+    expect(resolvePhotoUrl('gs://bucket-only')).toBeNull();
+  });
+
+  test('returns null for unrecognised schemes', () => {
+    expect(resolvePhotoUrl('ftp://example.com/img.jpg')).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
