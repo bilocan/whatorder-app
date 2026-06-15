@@ -219,6 +219,17 @@
       "6": "Sat"
     }
   },
+  "presence": {
+    "online": "Online — accepting orders",
+    "ordersPaused": "Orders paused",
+    "offline": "Offline",
+    "pauseOrders": "Pause orders",
+    "resumeOrders": "Resume orders",
+    "deliveryOn": "Delivery on",
+    "deliveryOff": "Delivery off",
+    "pauseDelivery": "Pause delivery",
+    "resumeDelivery": "Resume delivery"
+  },
   "admin": {
     "earnings": {
       "title": "Earnings",

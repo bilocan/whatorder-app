@@ -219,6 +219,17 @@
       "6": "Sa"
     }
   },
+  "presence": {
+    "online": "Online — Bestellungen aktiv",
+    "ordersPaused": "Bestellungen pausiert",
+    "offline": "Offline",
+    "pauseOrders": "Pause",
+    "resumeOrders": "Fortsetzen",
+    "deliveryOn": "Lieferung aktiv",
+    "deliveryOff": "Lieferung pausiert",
+    "pauseDelivery": "Lieferung pausieren",
+    "resumeDelivery": "Lieferung fortsetzen"
+  },
   "admin": {
     "earnings": {
       "title": "Erlöse",
