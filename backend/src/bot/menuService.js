@@ -37,4 +37,20 @@ function matchMenuItem(rawName, menuItems) {
   );
 }
 
-module.exports = { getMenu, getBusinessInfo, formatMenuText, matchMenuItem };
+// Converts gs:// Cloud Storage URIs to public Firebase Storage HTTPS URLs.
+// Passes through https:// URLs unchanged. Returns null for anything else.
+function resolvePhotoUrl(photoUrl) {
+  if (!photoUrl) return null;
+  if (photoUrl.startsWith('https://')) return photoUrl;
+  if (photoUrl.startsWith('gs://')) {
+    const withoutScheme = photoUrl.slice(5);
+    const slashIdx = withoutScheme.indexOf('/');
+    if (slashIdx === -1) return null;
+    const bucket = withoutScheme.slice(0, slashIdx);
+    const path = withoutScheme.slice(slashIdx + 1);
+    return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(path)}?alt=media`;
+  }
+  return null;
+}
+
+module.exports = { getMenu, getBusinessInfo, formatMenuText, matchMenuItem, resolvePhotoUrl };
