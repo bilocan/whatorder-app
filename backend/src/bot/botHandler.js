@@ -261,6 +261,11 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
       return;
     }
+    if (bidInfo.isOnline === false || bidInfo.ordersOpen === false) {
+      await sendText(from, t('ordersClosedByOwner', lang, bidInfo.name));
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
+      return;
+    }
     const menuId = await sendCatalog(from, lang, bid);
     await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: menuId ? [menuId] : [] });
     return;
@@ -327,6 +332,10 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
         await sendText(from, t('restaurantClosed', lang, selectedInfo.name, _w1?.firstOrderTime ?? null, _w1?.lastOrderTime ?? null));
         return;
       }
+      if (selectedInfo.isOnline === false || selectedInfo.ordersOpen === false) {
+        await sendText(from, t('ordersClosedByOwner', lang, selectedInfo.name));
+        return;
+      }
       const menuId = await sendCatalog(from, lang, selectedBid);
       await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: selectedBid, pendingDeleteIds: menuId ? [menuId] : [] });
       return;
@@ -348,6 +357,10 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
         if (!isOrderingOpen(againInfo.schedule, againInfo.timezone || 'Europe/Vienna')) {
           const _w2 = getTodayOrderWindow(againInfo.schedule, againInfo.timezone || 'Europe/Vienna');
           await sendText(from, t('restaurantClosed', lang, againInfo.name, _w2?.firstOrderTime ?? null, _w2?.lastOrderTime ?? null));
+          return;
+        }
+        if (againInfo.isOnline === false || againInfo.ordersOpen === false) {
+          await sendText(from, t('ordersClosedByOwner', lang, againInfo.name));
           return;
         }
         const menuId = await sendCatalog(from, lang, businessId);
@@ -474,6 +487,15 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
         return;
       }
       if (id === 'btn_delivery') {
+        const delivInfo = await getBusinessInfo(businessId);
+        if (delivInfo.deliveryOpen === false) {
+          const msgId = await sendButtonMessage(from, {
+            body: t('deliveryClosedByOwner', lang),
+            buttons: [{ id: 'btn_pickup', title: t('pickupBtn', lang) }],
+          });
+          await setSession(from, { ...session, pendingDeleteIds: msgId ? [msgId] : [] });
+          return;
+        }
         const rows = await getDeliveryAddressRows(session, from, businessId, lang);
         if (rows) {
           const pickerId = await sendDeliveryAddressPicker(from, rows, lang);

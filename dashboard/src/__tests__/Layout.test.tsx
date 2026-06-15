@@ -5,6 +5,11 @@ import Layout from '../components/Layout'
 const mockUseAuth = vi.hoisted(() => vi.fn())
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: mockUseAuth }))
+vi.mock('../hooks/usePresence', () => ({
+  usePresence: vi.fn(() => null),
+  toggleOrdersOpen: vi.fn(),
+  toggleDeliveryOpen: vi.fn(),
+}))
 vi.mock('react-router-dom', () => ({
   NavLink: ({ to, children }: { to: string; children: React.ReactNode; style: unknown }) => (
     <a href={to}>{children}</a>
