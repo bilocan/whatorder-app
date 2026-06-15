@@ -1,32 +1,80 @@
 const express = require('express');
 const router = express.Router();
 const { decryptRequest, encryptResponse } = require('../lib/flowCrypto');
-const { getMenu } = require('../bot/menuService');
+const { getMenu, getBusinessInfo } = require('../bot/menuService');
+const { sessionRef } = require('../lib/collections');
+const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 
-// Hardcoded for pilot — extend by adding fields to Firestore menu items later
-const PROTEIN_OPTIONS = [
-  { id: 'chicken', title: 'Chicken' },
-  { id: 'lamb',    title: 'Lamb'    },
-  { id: 'mixed',   title: 'Mixed'   },
-];
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const SAUCE_OPTIONS = [
-  { id: 'garlic', title: 'Garlic sauce' },
-  { id: 'chili',  title: 'Chili sauce'  },
-  { id: 'herb',   title: 'Herb sauce'   },
-  { id: 'none',   title: 'No sauce'     },
-];
-
-function qtyOptions(price) {
-  return [1, 2, 3].map(n => ({
-    id: String(n),
-    title: `${n} — €${(price * n).toFixed(2)}`,
-  }));
+function qtyOptions() {
+  return [1, 2, 3].map(n => ({ id: String(n), title: String(n) }));
 }
 
-function labelOf(options, id) {
-  return options.find(o => o.id === id)?.title ?? id;
+// Derive unique ordered category list from menu items.
+function getCategories(menu) {
+  const seen = new Set();
+  const cats = [];
+  for (const item of menu) {
+    const cat = item.category || 'other';
+    if (!seen.has(cat)) { seen.add(cat); cats.push(cat); }
+  }
+  return cats.map(id => ({ id, title: id.charAt(0).toUpperCase() + id.slice(1) }));
 }
+
+// Map item.optionGroups to flat top-level fields (nested object binding is unreliable in Flows).
+function mapOptionSlots(optionGroups = []) {
+  const singles = optionGroups.filter(g => g.type === 'single').slice(0, 3);
+  const multi   = optionGroups.find(g => g.type === 'multi') || null;
+
+  function slotFields(n, group) {
+    if (!group) return {
+      [F[`SLOT${n}_VISIBLE`]]:  false,
+      [F[`SLOT${n}_LABEL`]]:    '',
+      [F[`SLOT${n}_REQUIRED`]]: false,
+      [F[`SLOT${n}_OPTIONS`]]:  [],
+    };
+    return {
+      [F[`SLOT${n}_VISIBLE`]]:  true,
+      [F[`SLOT${n}_LABEL`]]:    group.label,
+      [F[`SLOT${n}_REQUIRED`]]: group.required ?? false,
+      [F[`SLOT${n}_OPTIONS`]]:  group.options.map(o => ({ id: o.id, title: o.label })),
+    };
+  }
+
+  return {
+    ...slotFields(1, singles[0] ?? null),
+    ...slotFields(2, singles[1] ?? null),
+    ...slotFields(3, singles[2] ?? null),
+    [F.MULTI_VISIBLE]: !!multi,
+    [F.MULTI_LABEL]:   multi?.label ?? '',
+    [F.MULTI_OPTIONS]: multi ? multi.options.map(o => ({ id: o.id, title: o.label })) : [],
+  };
+}
+
+// Build a readable label from submitted slot values + the flat slots data returned by mapOptionSlots.
+function buildCustomLabel(item, payload, slots) {
+  const parts = [];
+  for (const n of [1, 2, 3]) {
+    if (!slots[F[`SLOT${n}_VISIBLE`]]) continue;
+    const val = payload[F[`SLOT${n}_VALUE`]];
+    if (!val) continue;
+    const opt = slots[F[`SLOT${n}_OPTIONS`]].find(o => o.id === val);
+    parts.push(opt ? opt.title : val);
+  }
+  const multiVals = Array.isArray(payload[F.MULTI_VALUE])
+    ? payload[F.MULTI_VALUE]
+    : (payload[F.MULTI_VALUE] ? [payload[F.MULTI_VALUE]] : []);
+  if (slots[F.MULTI_VISIBLE] && multiVals.length) {
+    const labels = multiVals
+      .map(v => slots[F.MULTI_OPTIONS].find(o => o.id === v)?.title ?? v)
+      .join(', ');
+    parts.push(labels);
+  }
+  return parts.length ? `${item.name} — ${parts.join(', ')}` : item.name;
+}
+
+// ── Route ─────────────────────────────────────────────────────────────────────
 
 router.post('/flow/exchange', async (req, res) => {
   let aesKey, iv;
@@ -43,16 +91,33 @@ router.post('/flow/exchange', async (req, res) => {
     }
 
     // flow_token format: "phone|businessId"
-    const [, businessId] = (flow_token ?? '').split('|');
+    const [phone, businessId] = (flow_token ?? '').split('|');
+    if (!businessId) {
+      console.error(`[flow/exchange] invalid flow_token "${flow_token}" — expected "phone|businessId"`);
+      return res.status(400).json({ error: 'Invalid flow_token. Set it to "phone|businessId" in the Flow Tester.' });
+    }
 
-    // INIT: return initial menu for MENU_BROWSE
+    // ── INIT → CATEGORY_SELECT ──────────────────────────────────────────────
     if (action === 'INIT') {
       const menu = await getMenu(businessId);
       return reply({
         version,
-        screen: 'MENU_BROWSE',
+        screen: S.CATEGORY_SELECT,
+        data: { [F.CATEGORIES]: getCategories(menu) },
+      });
+    }
+
+    // ── CATEGORY_SELECT → MENU_BROWSE ───────────────────────────────────────
+    if (action === 'data_exchange' && screen === S.CATEGORY_SELECT) {
+      const categoryId = payload[F.CATEGORY_ID];
+      const menu = await getMenu(businessId);
+      const items = menu.filter(i => (i.category || 'other') === categoryId);
+      return reply({
+        version,
+        screen: S.MENU_BROWSE,
         data: {
-          menu_items: menu.map(item => ({
+          [F.CATEGORY_TITLE]: categoryId.charAt(0).toUpperCase() + categoryId.slice(1),
+          [F.MENU_ITEMS]: items.map(item => ({
             id: item.id,
             title: item.name,
             description: `€${Number(item.price).toFixed(2)}${item.description ? ` — ${item.description}` : ''}`,
@@ -61,57 +126,81 @@ router.post('/flow/exchange', async (req, res) => {
       });
     }
 
-    // MENU_BROWSE: item selected → load customise screen
-    if (action === 'data_exchange' && screen === 'MENU_BROWSE') {
+    // ── MENU_BROWSE → ORDER_ITEM ─────────────────────────────────────────────
+    if (action === 'data_exchange' && screen === S.MENU_BROWSE) {
+      const itemId = payload[F.ITEM_ID];
       const menu = await getMenu(businessId);
-      const item = menu.find(m => m.id === payload.item_id);
-      if (!item) throw new Error(`Item not found: ${payload.item_id}`);
+      const item = menu.find(m => m.id === itemId);
+      if (!item) throw new Error(`Item not found: ${itemId}`);
 
+      const slots = mapOptionSlots(item.optionGroups);
       return reply({
         version,
-        screen: 'ORDER_ITEM',
+        screen: S.ORDER_ITEM,
         data: {
-          item_id: item.id,
-          item_name: item.name,
-          item_description: item.description || '',
-          protein_options: PROTEIN_OPTIONS,
-          qty_options: qtyOptions(item.price),
-          sauce_options: SAUCE_OPTIONS,
+          [F.ITEM_ID]:          item.id,
+          [F.ITEM_NAME]:        item.name,
+          [F.ITEM_DESCRIPTION]: item.description || '',
+          [F.ITEM_PRICE]:       `€${Number(item.price).toFixed(2)}`,
+          [F.QTY_OPTIONS]:      qtyOptions(),
+          ...slots,
         },
       });
     }
 
-    // ORDER_ITEM: review tapped → build confirm summary
-    if (action === 'data_exchange' && screen === 'ORDER_ITEM') {
-      const { item_id, protein, quantity, sauces = [], special_requests = '' } = payload;
+    // ── ORDER_ITEM → append to basket → CART_REVIEW ──────────────────────────
+    if (action === 'data_exchange' && screen === S.ORDER_ITEM) {
+      const itemId  = payload[F.ITEM_ID];
+      const qtyId   = payload[F.QTY] ?? '1';
+      const notes   = payload[F.NOTES] ?? '';
       const menu = await getMenu(businessId);
-      const item = menu.find(m => m.id === item_id);
-      if (!item) throw new Error(`Item not found: ${item_id}`);
+      const item = menu.find(m => m.id === itemId);
+      if (!item) throw new Error(`Item not found: ${itemId}`);
 
-      const qty = parseInt(quantity, 10) || 1;
-      const total = (item.price * qty).toFixed(2);
-      const proteinLabel = labelOf(PROTEIN_OPTIONS, protein);
-      const saucesArr = Array.isArray(sauces) ? sauces : (sauces ? [sauces] : []);
-      const saucesText = saucesArr.length
-        ? saucesArr.map(s => labelOf(SAUCE_OPTIONS, s)).join(', ')
-        : 'None';
+      const qty = Math.min(99, Math.max(1, parseInt(qtyId, 10) || 1));
+      const slots = mapOptionSlots(item.optionGroups);
+      const itemName = buildCustomLabel(item, payload, slots);
+      const itemNotes = notes.trim() || null;
+      const basketItem = {
+        name: itemNotes ? `${itemName} (${itemNotes})` : itemName,
+        qty,
+        price: item.price,
+      };
 
+      const ref = sessionRef(phone);
+      const snap = await ref.get();
+      const existing = snap.exists ? (snap.data().basket ?? []) : [];
+      const existingIdx = existing.findIndex(i => i.name === basketItem.name);
+      const newBasket = existingIdx >= 0
+        ? existing.map((i, idx) => idx === existingIdx ? { ...i, qty: i.qty + qty } : i)
+        : [...existing, basketItem];
+      await ref.set({ basket: newBasket, updatedAt: new Date() }, { merge: true });
+
+      const total = newBasket.reduce((s, i) => s + i.price * i.qty, 0);
+      const basketText = newBasket.map(i => `${i.qty}x ${i.name}  €${(i.price * i.qty).toFixed(2)}`).join('\n');
       return reply({
         version,
-        screen: 'ORDER_CONFIRM',
+        screen: S.CART_REVIEW,
         data: {
-          item_id: item.id,
-          item_qty_label: `${item.name} × ${qty}`,
-          protein_label: `Protein: ${proteinLabel}`,
-          sauces_label: `Sauces: ${saucesText}`,
-          notes_label: special_requests ? `Notes: ${special_requests}` : 'Notes: —',
-          total_label: `Total: €${total}`,
-          protein: proteinLabel,
-          quantity: String(qty),
-          sauces_text: saucesText,
-          special_requests: special_requests || '—',
-          total: `€${total}`,
-          unit_price: String(item.price),
+          [F.BASKET_TEXT]: basketText,
+          [F.TOTAL_LABEL]: `Total: €${total.toFixed(2)}`,
+        },
+      });
+    }
+
+    // ── CART_REVIEW → MENU_BROWSE (add more) ────────────────────────────────
+    if (action === 'data_exchange' && screen === S.CART_REVIEW) {
+      const menu = await getMenu(businessId);
+      return reply({
+        version,
+        screen: S.MENU_BROWSE,
+        data: {
+          [F.CATEGORY_TITLE]: 'All items',
+          [F.MENU_ITEMS]: menu.map(item => ({
+            id: item.id,
+            title: item.name,
+            description: `€${Number(item.price).toFixed(2)}${item.description ? ` — ${item.description}` : ''}`,
+          })),
         },
       });
     }
