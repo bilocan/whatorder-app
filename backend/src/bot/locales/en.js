@@ -96,4 +96,7 @@ module.exports = {
       ? `🔒 ${name} is currently closed.\n\nOrders accepted ${firstOrderTime} – ${lastOrderTime}. See you then! 🙏`
       : `🔒 ${name} is currently closed. Please try again later! 🙏`,
   closedLabel: () => '🔒 Closed',
+
+  ordersClosedByOwner: (name) => `⏸️ ${name} is not accepting orders right now. Please try again later! 🙏`,
+  deliveryClosedByOwner: () => '🚫 Delivery is currently unavailable. Please choose pickup.',
 };
