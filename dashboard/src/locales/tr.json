@@ -219,6 +219,17 @@
       "6": "Cmt"
     }
   },
+  "presence": {
+    "online": "Çevrimiçi — sipariş alınıyor",
+    "ordersPaused": "Siparişler durduruldu",
+    "offline": "Çevrimdışı",
+    "pauseOrders": "Siparişleri durdur",
+    "resumeOrders": "Siparişleri devam ettir",
+    "deliveryOn": "Teslimat açık",
+    "deliveryOff": "Teslimat kapalı",
+    "pauseDelivery": "Teslimatı durdur",
+    "resumeDelivery": "Teslimatı devam ettir"
+  },
   "admin": {
     "earnings": {
       "title": "Kazançlar",
