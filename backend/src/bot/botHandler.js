@@ -1,7 +1,7 @@
 const { getSession, setSession } = require('./sessionStore');
 const { getMenu, getBusinessInfo } = require('./menuService');
 const { createOrder } = require('./orderService');
-const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendLocationRequest, deleteMessage } = require('../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendFlowMessage, sendLocationRequest, deleteMessage } = require('../lib/whatsapp');
 const { sortByDistance } = require('../lib/distance');
 const { detectLanguage, scoreLanguage, getOverride } = require('./languageDetector');
 const { t, tCategory } = require('./templates');
@@ -180,7 +180,8 @@ async function deleteStale(phone, session) {
 //   { type: 'list_reply', id, title }       — list menu or restaurant picker
 //   { type: 'button_reply', id, title }
 //   { type: 'cart_submitted', items: [{ productId, qty, price, currency }] } — catalog flow
-async function handleMessage(routing, { from, contactName, type, text, id, items, latitude, longitude }) {
+//   { type: 'flow_completion', data: { item_id, protein, quantity, sauces_text, special_requests, total, unit_price } }
+async function handleMessage(routing, { from, contactName, type, text, id, items, data, latitude, longitude }) {
   if (!routing.businessIds.length) {
     console.warn(`[bot] no restaurants routed for this WhatsApp number — ignoring message from ${from}`);
     return;
@@ -200,6 +201,27 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       await sendText(from, t('langChanged', overrideLang));
       return;
     }
+  }
+
+  // DEV only: send flow on keyword "flow" — disabled in production
+  if (process.env.NODE_ENV !== 'production' && type === 'text' && norm === 'flow') {
+    const bid = session.businessId || routing.defaultBusinessId || routing.businessIds[0];
+    const flowMenu = await getMenu(bid);
+    await sendFlowMessage(from, {
+      flowId: '1465498598663384',
+      flowToken: `${from}|${bid}`,
+      flowCta: 'Open Menu',
+      screen: 'MENU_BROWSE',
+      body: 'Tap to browse the menu',
+      data: {
+        menu_items: flowMenu.map(item => ({
+          id: item.id,
+          title: item.name,
+          description: `€${Number(item.price).toFixed(2)}${item.description ? ` — ${item.description}` : ''}`,
+        })),
+      },
+    });
+    return;
   }
 
   // Re-detect language mid-conversation on clear signal (≥2 keyword hits), to prevent
@@ -654,6 +676,37 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       buttons: [{ id: 'btn_skip_requests', title: t('skipBtn', lang) }],
     });
     await setSession(from, { state: 'awaiting_special_requests', language: lang, basket: newBasket, pickupTime, prepMins, businessId, pendingDeleteIds: reqId ? [reqId] : [] });
+    return;
+  }
+
+  // Flow completed — customer tapped "Place order" in the WhatsApp Flow UI
+  if (type === 'flow_completion') {
+    const { item_id, protein, quantity, sauces_text, special_requests, unit_price } = data ?? {};
+    const info = await getBusinessInfo(businessId);
+    const menu = await getMenu(businessId);
+    const item = menu.find(m => m.id === item_id);
+    if (!item) {
+      await sendCatalog(from, lang, businessId);
+      return;
+    }
+    const qty = parseInt(quantity, 10) || 1;
+    const itemLabel = `${item.name}${protein ? ` — ${protein}` : ''}${sauces_text && sauces_text !== 'None' ? `, ${sauces_text}` : ''}`;
+    const basket = [{ name: itemLabel, qty, price: parseFloat(unit_price) || item.price }];
+    const prepMins = info.avgPrepTime || 30;
+    const pickupTime = new Date(Date.now() + prepMins * 60000)
+      .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+    const notes = (special_requests && special_requests !== '—') ? special_requests : '';
+    const knownName = await getKnownName(from, businessId);
+    const newSession = { ...session, state: 'awaiting_name', language: lang, basket, businessId, pickupTime, prepMins, specialRequests: notes, orderType: 'pickup', pendingDeleteIds: [] };
+    if (knownName) {
+      await transitionToConfirming(from, newSession, lang, businessId, basket, knownName);
+      return;
+    }
+    const nameId = await sendButtonMessage(from, {
+      body: t('confirmSummary', lang, buildBasketText(basket, lang), prepMins, pickupTime),
+      buttons: [{ id: 'btn_cancel_order', title: t('cancelOrderBtn', lang) }],
+    });
+    await setSession(from, { ...newSession, pendingDeleteIds: nameId ? [nameId] : [] });
     return;
   }
 

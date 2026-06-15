@@ -9,34 +9,53 @@
     "earnings": "Kazançlar",
     "signOut": "Çıkış yap"
   },
+  "lang": {
+    "label": "Dil",
+    "de": "Deutsch",
+    "en": "English",
+    "tr": "Türkçe"
+  },
+  "login": {
+    "tagline": "Sahip paneli",
+    "phoneLabel": "Telefon numarası",
+    "sendCode": "Kod gönder",
+    "sendError": "Kod gönderilemedi. Telefon numarasını kontrol edip tekrar deneyin.",
+    "sending": "Gönderiliyor...",
+    "codeSentTo": "Kod gönderildi: {{phone}}",
+    "verificationCode": "Doğrulama kodu",
+    "verifying": "Doğrulanıyor...",
+    "signIn": "Giriş yap",
+    "invalidCode": "Geçersiz kod. Tekrar deneyin.",
+    "useDifferentNumber": "Farklı numara kullan"
+  },
   "orders": {
     "title": "Siparişler",
     "noOrders": "Henüz sipariş yok.",
-    "delivery": "TESLİMAT",
-    "deliveryFee": "+€{{fee}} teslimat",
     "col": {
       "customer": "Müşteri",
       "items": "Ürünler",
       "total": "Toplam",
       "status": "Durum",
       "time": "Saat"
-    }
+    },
+    "delivery": "Teslimat",
+    "deliveryFee": "+ €{{fee}} teslimat ücreti"
   },
   "orderDetail": {
+    "loading": "Sipariş yükleniyor...",
     "back": "← Siparişlere dön",
-    "delivery": "TESLİMAT",
-    "loading": "Yükleniyor...",
-    "saving": "Kaydediliyor…",
-    "networkError": "Ağ hatası — backend çalışıyor mu?",
-    "deliveryFee": "Teslimat ücreti: €{{fee}}",
-    "total": "Toplam: €{{total}}",
-    "note": "Not: {{note}}",
-    "orderedAt": "Sipariş zamanı: {{time}}",
+    "delivery": "Teslimat",
     "col": {
       "item": "Ürün",
       "qty": "Adet",
       "price": "Fiyat"
     },
+    "deliveryFee": "Teslimat ücreti: €{{fee}}",
+    "total": "Toplam: €{{total}}",
+    "note": "Not: {{note}}",
+    "orderedAt": "Sipariş zamanı: {{time}}",
+    "networkError": "Ağ hatası — backend çalışıyor mu?",
+    "saving": "Kaydediliyor…",
     "status": {
       "pending": "Beklemede",
       "approved": "Onaylandı",
@@ -59,30 +78,61 @@
       "delivered": "Teslim edildi olarak işaretle"
     }
   },
-  "menu": {
-    "title": "Menü",
-    "noItems": "Henüz menü ürünü yok.",
-    "available": "Mevcut",
-    "unavailable": "Mevcut değil",
-    "addItem": "+ Ürün ekle",
-    "add": "Ekle",
+  "customers": {
+    "title": "Müşteriler",
+    "totalCount": "{{count}} toplam",
+    "search": "İsim veya telefon ile ara…",
+    "noCustomers": "Henüz müşteri yok.",
+    "noMatch": "Eşleşen müşteri bulunamadı.",
+    "col": {
+      "customer": "Müşteri",
+      "orders": "Siparişler",
+      "totalSpent": "Toplam harcama",
+      "lastOrder": "Son sipariş",
+      "lastAddress": "Son teslimat adresi",
+      "actions": "İşlemler"
+    },
+    "historyCol": {
+      "date": "Tarih",
+      "items": "Ürünler",
+      "total": "Toplam",
+      "status": "Durum"
+    },
     "edit": "Düzenle",
     "save": "Kaydet",
     "saving": "Kaydediliyor…",
     "cancel": "İptal",
+    "history": "Geçmiş",
+    "delete": "Sil",
+    "deleteConfirm": "Müşteri silinsin mi? Siparişler korunur.",
+    "orderHistory": "Sipariş geçmişi",
+    "loading": "Yükleniyor…",
+    "noOrders": "Henüz sipariş yok."
+  },
+  "menu": {
+    "title": "Menü",
+    "noItems": "Henüz menü ürünü yok.",
+    "addItem": "+ Ürün ekle",
+    "add": "Ekle",
+    "save": "Kaydet",
+    "saving": "Kaydediliyor…",
+    "cancel": "İptal",
+    "edit": "Düzenle",
     "delete": "Sil",
     "deleteConfirm": "Bu ürün silinsin mi?",
-    "category": {
-      "mains": "Ana Yemekler",
-      "sides": "Yan Yemekler",
-      "drinks": "İçecekler"
-    },
+    "available": "Mevcut",
+    "unavailable": "Mevcut değil",
     "form": {
       "name": "Ad",
       "price": "Fiyat (€)",
       "category": "Kategori",
       "description": "Açıklama (isteğe bağlı)",
       "available": "Mevcut"
+    },
+    "category": {
+      "mains": "Ana Yemekler",
+      "sides": "Yan Yemekler",
+      "drinks": "İçecekler"
     }
   },
   "income": {
@@ -107,13 +157,13 @@
       "address": "Adres",
       "lookupCoords": "Koordinat ara",
       "lookingUp": "Aranıyor…",
+      "notFound": "Adres bulunamadı — daha spesifik bir adres deneyin.",
       "lat": "Enlem",
       "lng": "Boylam",
       "save": "Konumu kaydet",
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi",
-      "invalidCoords": "Geçersiz koordinatlar",
-      "notFound": "Adres bulunamadı — daha spesifik bir adres deneyin."
+      "invalidCoords": "Geçersiz koordinatlar"
     },
     "delivery": {
       "title": "Teslimat",
@@ -169,163 +219,7 @@
       "6": "Cmt"
     }
   },
-  "login": {
-    "tagline": "Sahip paneli",
-    "phoneLabel": "Telefon numarası",
-    "sendCode": "Kod gönder",
-    "sending": "Gönderiliyor...",
-    "codeSentTo": "Kod gönderildi: {{phone}}",
-    "verificationCode": "Doğrulama kodu",
-    "signIn": "Giriş yap",
-    "verifying": "Doğrulanıyor...",
-    "useDifferentNumber": "Farklı numara kullan",
-    "sendError": "Kod gönderilemedi. Telefon numarasını kontrol edip tekrar deneyin.",
-    "invalidCode": "Geçersiz kod. Tekrar deneyin."
-  },
-  "customers": {
-    "title": "Müşteriler",
-    "totalCount": "{{count}} toplam",
-    "search": "İsim veya telefon ile ara…",
-    "noMatch": "Eşleşen müşteri bulunamadı.",
-    "noCustomers": "Henüz müşteri yok.",
-    "edit": "Düzenle",
-    "save": "Kaydet",
-    "saving": "Kaydediliyor…",
-    "cancel": "İptal",
-    "delete": "Sil",
-    "deleteConfirm": "Müşteri silinsin mi? Siparişler korunur.",
-    "history": "Geçmiş",
-    "orderHistory": "Sipariş geçmişi",
-    "noOrders": "Henüz sipariş yok.",
-    "loading": "Yükleniyor…",
-    "col": {
-      "customer": "Müşteri",
-      "orders": "Siparişler",
-      "totalSpent": "Toplam harcama",
-      "lastOrder": "Son sipariş",
-      "lastAddress": "Son teslimat adresi",
-      "actions": "İşlemler"
-    },
-    "historyCol": {
-      "date": "Tarih",
-      "items": "Ürünler",
-      "total": "Toplam",
-      "status": "Durum"
-    }
-  },
   "admin": {
-    "restaurants": {
-      "title": "Restoranlar",
-      "newButton": "+ Yeni Restoran",
-      "noRestaurants": "Henüz restoran yok.",
-      "botNotConfigured": "WhatsApp botu yapılandırılmamış.",
-      "botConfigHint": "Restoran oluşturmak için ortam değişkenine VITE_WHATSAPP_PHONE_NUMBER_ID ekleyin.",
-      "form": {
-        "name": "Ad",
-        "ownerPhone": "Sahip telefonu (bildirimler için)",
-        "create": "Oluştur",
-        "creating": "Oluşturuluyor...",
-        "cancel": "İptal"
-      },
-      "col": {
-        "name": "Ad",
-        "id": "ID",
-        "phone": "Telefon",
-        "status": "Durum",
-        "bot": "Bot"
-      },
-      "botOn": "Açık",
-      "botOff": "Bot yok",
-      "delete": "Sil",
-      "deleteConfirm": "\"{{name}}\" silinsin mi? Yalnızca işletme belgesi kaldırılır — siparişler ve menü öğeleri silinmez."
-    },
-    "restaurantDetail": {
-      "back": "← Restoranlar",
-      "loading": "Yükleniyor...",
-      "tabs": {
-        "details": "Detaylar",
-        "menu": "Menü",
-        "owners": "Sahipler"
-      },
-      "bot": {
-        "label": "WhatsApp botu",
-        "on": "Açık",
-        "off": "Kapalı",
-        "loading": "Yükleniyor…",
-        "turnOn": "Aç",
-        "turnOff": "Kapat",
-        "saving": "Kaydediliyor…"
-      },
-      "details": {
-        "name": "Ad",
-        "ownerAlertNumber": "Sahip bildirim numarası",
-        "status": "Durum",
-        "businessId": "İşletme ID",
-        "address": "Adres",
-        "coordinates": "Koordinatlar",
-        "edit": "Düzenle",
-        "save": "Kaydet",
-        "saving": "Kaydediliyor...",
-        "cancel": "İptal",
-        "statusActive": "Aktif",
-        "statusPaused": "Duraklatıldı",
-        "lookupCoords": "Koordinat ara",
-        "lookingUp": "Aranıyor…",
-        "notFound": "Adres bulunamadı — daha spesifik bir adres deneyin.",
-        "lat": "Enlem",
-        "lng": "Boylam"
-      },
-      "menu": {
-        "noItems": "Henüz menü ürünü yok.",
-        "col": {
-          "name": "Ad",
-          "category": "Kategori",
-          "price": "Fiyat",
-          "available": "Mevcut"
-        },
-        "availableYes": "Evet",
-        "availableNo": "Hayır",
-        "edit": "Düzenle",
-        "delete": "Sil",
-        "deleteConfirm": "Bu ürün silinsin mi?",
-        "save": "Kaydet",
-        "saving": "Kaydediliyor...",
-        "cancel": "İptal",
-        "addItem": "+ Ürün ekle",
-        "adding": "Ekleniyor...",
-        "add": "Ürün ekle",
-        "form": {
-          "name": "Ad",
-          "price": "Fiyat (€)",
-          "category": "Kategori",
-          "description": "Açıklama (isteğe bağlı)",
-          "available": "Mevcut",
-          "mains": "Ana Yemekler",
-          "sides": "Yan Yemekler",
-          "drinks": "İçecekler"
-        }
-      },
-      "owners": {
-        "noOwners": "Henüz sahip bağlı değil.",
-        "col": {
-          "name": "Ad",
-          "phone": "Telefon"
-        },
-        "edit": "Düzenle",
-        "remove": "Kaldır",
-        "removeConfirm": "Bu sahip kaldırılsın mı?",
-        "save": "Kaydet",
-        "saving": "Kaydediliyor...",
-        "cancel": "İptal",
-        "addOwner": "+ Sahip ekle",
-        "adding": "Ekleniyor...",
-        "add": "Ekle",
-        "form": {
-          "phone": "Sahip telefon numarası",
-          "name": "Ad (isteğe bağlı)"
-        }
-      }
-    },
     "earnings": {
       "title": "Kazançlar",
       "feeModel": "Ücret modeli:",
@@ -349,12 +243,118 @@
         "fee": "WhatOrder Ücreti",
         "status": "Durum"
       }
+    },
+    "restaurants": {
+      "title": "Restoranlar",
+      "newButton": "+ Yeni Restoran",
+      "botConfigHint": "Restoran oluşturmak için ortam değişkenine VITE_WHATSAPP_PHONE_NUMBER_ID ekleyin.",
+      "botNotConfigured": "WhatsApp botu yapılandırılmamış.",
+      "noRestaurants": "Henüz restoran yok.",
+      "col": {
+        "name": "Ad",
+        "id": "ID",
+        "phone": "Telefon",
+        "status": "Durum",
+        "bot": "Bot"
+      },
+      "botOn": "Aktif",
+      "botOff": "İnaktif",
+      "delete": "Sil",
+      "deleteConfirm": "\"{{name}}\" restoranı silinsin mi?",
+      "form": {
+        "name": "Restoran adı",
+        "ownerPhone": "Sahip telefonu",
+        "create": "Oluştur",
+        "creating": "Oluşturuluyor...",
+        "cancel": "İptal"
+      }
+    },
+    "restaurantDetail": {
+      "loading": "Yükleniyor...",
+      "back": "← Restoranlar",
+      "tabs": {
+        "details": "Detaylar",
+        "menu": "Menü",
+        "owners": "Sahipler"
+      },
+      "bot": {
+        "label": "WhatsApp Bot",
+        "loading": "Yükleniyor…",
+        "on": "Açık",
+        "off": "Kapalı",
+        "saving": "Kaydediliyor…",
+        "turnOn": "Aç",
+        "turnOff": "Kapat"
+      },
+      "details": {
+        "name": "Ad",
+        "ownerAlertNumber": "Sahip bildirim numarası",
+        "status": "Durum",
+        "businessId": "İşletme ID",
+        "address": "Adres",
+        "coordinates": "Koordinatlar",
+        "edit": "Düzenle",
+        "statusActive": "Aktif",
+        "statusPaused": "Duraklatıldı",
+        "lookupCoords": "Koordinat ara",
+        "lookingUp": "Aranıyor…",
+        "notFound": "Adres bulunamadı — daha spesifik bir adres deneyin.",
+        "lat": "Enlem",
+        "lng": "Boylam",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor...",
+        "cancel": "İptal"
+      },
+      "menu": {
+        "noItems": "Henüz menü ürünü yok.",
+        "col": {
+          "name": "Ad",
+          "category": "Kategori",
+          "price": "Fiyat",
+          "available": "Mevcut"
+        },
+        "availableYes": "Evet",
+        "availableNo": "Hayır",
+        "edit": "Düzenle",
+        "delete": "Sil",
+        "deleteConfirm": "Bu ürün silinsin mi?",
+        "form": {
+          "name": "Ad",
+          "price": "Fiyat (€)",
+          "category": "Kategori",
+          "description": "Açıklama (isteğe bağlı)",
+          "available": "Mevcut",
+          "mains": "Ana Yemekler",
+          "sides": "Yan Yemekler",
+          "drinks": "İçecekler"
+        },
+        "save": "Kaydet",
+        "saving": "Kaydediliyor...",
+        "cancel": "İptal",
+        "add": "Ürün ekle",
+        "adding": "Ekleniyor...",
+        "addItem": "+ Ürün ekle"
+      },
+      "owners": {
+        "noOwners": "Henüz sahip bağlı değil.",
+        "col": {
+          "name": "Ad",
+          "phone": "Telefon"
+        },
+        "edit": "Düzenle",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor...",
+        "cancel": "İptal",
+        "remove": "Kaldır",
+        "removeConfirm": "Bu sahip kaldırılsın mı?",
+        "form": {
+          "phone": "Sahip telefon numarası",
+          "name": "Ad (isteğe bağlı)"
+        },
+        "add": "Ekle",
+        "adding": "Ekleniyor...",
+        "addOwner": "+ Sahip ekle"
+      }
     }
-  },
-  "lang": {
-    "label": "Dil",
-    "de": "Deutsch",
-    "en": "English",
-    "tr": "Türkçe"
   }
 }

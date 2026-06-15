@@ -172,8 +172,19 @@ describe('receiveWebhook', () => {
     );
   });
 
+  test('processes nfm_reply as flow_completion', async () => {
+    const payload = { item_id: 'abc', protein: 'Chicken', quantity: '1', sauces_text: 'None', special_requests: '-', total: '€8.50', unit_price: '8.50' };
+    const req = { body: webhookBody({ type: 'interactive', interactive: { type: 'nfm_reply', nfm_reply: { name: 'flow', body: 'Sent', response_json: JSON.stringify(payload) } } }) };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(handleMessage).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ type: 'flow_completion', data: payload }),
+    );
+  });
+
   test('200 ok for unknown interactive type', async () => {
-    const req = { body: webhookBody({ type: 'interactive', interactive: { type: 'nfm_reply' } }) };
+    const req = { body: webhookBody({ type: 'interactive', interactive: { type: 'unknown_type' } }) };
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(res.json).toHaveBeenCalledWith({ status: 'ok' });

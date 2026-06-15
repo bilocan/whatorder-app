@@ -9,34 +9,53 @@
     "earnings": "Erlöse",
     "signOut": "Abmelden"
   },
+  "lang": {
+    "label": "Sprache",
+    "de": "Deutsch",
+    "en": "English",
+    "tr": "Türkçe"
+  },
+  "login": {
+    "tagline": "Inhaber-Dashboard",
+    "phoneLabel": "Telefonnummer",
+    "sendCode": "Code senden",
+    "sendError": "Fehler beim Senden des Codes. Bitte Telefonnummer prüfen und erneut versuchen.",
+    "sending": "Wird gesendet...",
+    "codeSentTo": "Code gesendet an {{phone}}",
+    "verificationCode": "Bestätigungscode",
+    "verifying": "Überprüfe...",
+    "signIn": "Anmelden",
+    "invalidCode": "Ungültiger Code. Erneut versuchen.",
+    "useDifferentNumber": "Andere Nummer verwenden"
+  },
   "orders": {
     "title": "Bestellungen",
     "noOrders": "Noch keine Bestellungen.",
-    "delivery": "LIEFERUNG",
-    "deliveryFee": "+€{{fee}} Liefergebühr",
     "col": {
       "customer": "Kunde",
       "items": "Artikel",
       "total": "Gesamt",
       "status": "Status",
       "time": "Zeit"
-    }
+    },
+    "delivery": "Lieferung",
+    "deliveryFee": "+ €{{fee}} Liefergebühr"
   },
   "orderDetail": {
+    "loading": "Lade Bestellung...",
     "back": "← Zurück zu Bestellungen",
-    "delivery": "LIEFERUNG",
-    "loading": "Lade...",
-    "saving": "Speichern…",
-    "networkError": "Netzwerkfehler — läuft das Backend?",
-    "deliveryFee": "Liefergebühr: €{{fee}}",
-    "total": "Gesamt: €{{total}}",
-    "note": "Hinweis: {{note}}",
-    "orderedAt": "Bestellt um {{time}}",
+    "delivery": "Lieferung",
     "col": {
       "item": "Artikel",
       "qty": "Menge",
       "price": "Preis"
     },
+    "deliveryFee": "Liefergebühr: €{{fee}}",
+    "total": "Gesamt: €{{total}}",
+    "note": "Hinweis: {{note}}",
+    "orderedAt": "Bestellt um {{time}}",
+    "networkError": "Netzwerkfehler — läuft das Backend?",
+    "saving": "Speichern…",
     "status": {
       "pending": "Ausstehend",
       "approved": "Angenommen",
@@ -59,30 +78,61 @@
       "delivered": "Als geliefert markieren"
     }
   },
-  "menu": {
-    "title": "Speisekarte",
-    "noItems": "Noch keine Menüpunkte.",
-    "available": "Verfügbar",
-    "unavailable": "Nicht verfügbar",
-    "addItem": "+ Artikel hinzufügen",
-    "add": "Hinzufügen",
+  "customers": {
+    "title": "Kunden",
+    "totalCount": "{{count}} gesamt",
+    "search": "Nach Name oder Telefon suchen…",
+    "noCustomers": "Noch keine Kunden.",
+    "noMatch": "Keine passenden Kunden gefunden.",
+    "col": {
+      "customer": "Kunde",
+      "orders": "Bestellungen",
+      "totalSpent": "Gesamtausgaben",
+      "lastOrder": "Letzte Bestellung",
+      "lastAddress": "Letzte Lieferadresse",
+      "actions": "Aktionen"
+    },
+    "historyCol": {
+      "date": "Datum",
+      "items": "Artikel",
+      "total": "Gesamt",
+      "status": "Status"
+    },
     "edit": "Bearbeiten",
     "save": "Speichern",
     "saving": "Speichern…",
     "cancel": "Abbrechen",
+    "history": "Verlauf",
+    "delete": "Löschen",
+    "deleteConfirm": "Kunden wirklich löschen? Bestellungen bleiben erhalten.",
+    "orderHistory": "Bestellverlauf",
+    "loading": "Lade…",
+    "noOrders": "Noch keine Bestellungen."
+  },
+  "menu": {
+    "title": "Speisekarte",
+    "noItems": "Noch keine Menüpunkte.",
+    "addItem": "+ Artikel hinzufügen",
+    "add": "Hinzufügen",
+    "save": "Speichern",
+    "saving": "Speichern…",
+    "cancel": "Abbrechen",
+    "edit": "Bearbeiten",
     "delete": "Löschen",
     "deleteConfirm": "Diesen Artikel wirklich löschen?",
-    "category": {
-      "mains": "Hauptgerichte",
-      "sides": "Beilagen",
-      "drinks": "Getränke"
-    },
+    "available": "Verfügbar",
+    "unavailable": "Nicht verfügbar",
     "form": {
       "name": "Name",
       "price": "Preis (€)",
       "category": "Kategorie",
       "description": "Beschreibung (optional)",
       "available": "Verfügbar"
+    },
+    "category": {
+      "mains": "Hauptgerichte",
+      "sides": "Beilagen",
+      "drinks": "Getränke"
     }
   },
   "income": {
@@ -90,7 +140,7 @@
     "earned": "Eingenommen",
     "pending": "Ausstehend",
     "orders": "Bestellungen",
-    "whatorderFee": "WhatOrder Gebühr",
+    "whatorderFee": "WhatOrder-Gebühr",
     "breakdown": "Aufschlüsselung",
     "noOrders": "Heute keine Bestellungen.",
     "feeLabel": "Gebühr: €{{fee}}"
@@ -107,13 +157,13 @@
       "address": "Adresse",
       "lookupCoords": "Koordinaten suchen",
       "lookingUp": "Suche…",
+      "notFound": "Adresse nicht gefunden — bitte eine genauere Adresse eingeben.",
       "lat": "Breitengrad",
       "lng": "Längengrad",
       "save": "Standort speichern",
       "saving": "Speichern…",
       "saved": "Gespeichert",
-      "invalidCoords": "Ungültige Koordinaten",
-      "notFound": "Adresse nicht gefunden — bitte eine genauere Adresse eingeben."
+      "invalidCoords": "Ungültige Koordinaten"
     },
     "delivery": {
       "title": "Lieferung",
@@ -169,163 +219,7 @@
       "6": "Sa"
     }
   },
-  "login": {
-    "tagline": "Inhaber-Dashboard",
-    "phoneLabel": "Telefonnummer",
-    "sendCode": "Code senden",
-    "sending": "Wird gesendet...",
-    "codeSentTo": "Code gesendet an {{phone}}",
-    "verificationCode": "Bestätigungscode",
-    "signIn": "Anmelden",
-    "verifying": "Überprüfe...",
-    "useDifferentNumber": "Andere Nummer verwenden",
-    "sendError": "Fehler beim Senden des Codes. Bitte Telefonnummer prüfen und erneut versuchen.",
-    "invalidCode": "Ungültiger Code. Erneut versuchen."
-  },
-  "customers": {
-    "title": "Kunden",
-    "totalCount": "{{count}} gesamt",
-    "search": "Nach Name oder Telefon suchen…",
-    "noMatch": "Keine passenden Kunden gefunden.",
-    "noCustomers": "Noch keine Kunden.",
-    "edit": "Bearbeiten",
-    "save": "Speichern",
-    "saving": "Speichern…",
-    "cancel": "Abbrechen",
-    "delete": "Löschen",
-    "deleteConfirm": "Kunden wirklich löschen? Bestellungen bleiben erhalten.",
-    "history": "Verlauf",
-    "orderHistory": "Bestellverlauf",
-    "noOrders": "Noch keine Bestellungen.",
-    "loading": "Lade…",
-    "col": {
-      "customer": "Kunde",
-      "orders": "Bestellungen",
-      "totalSpent": "Gesamtausgaben",
-      "lastOrder": "Letzte Bestellung",
-      "lastAddress": "Letzte Lieferadresse",
-      "actions": "Aktionen"
-    },
-    "historyCol": {
-      "date": "Datum",
-      "items": "Artikel",
-      "total": "Gesamt",
-      "status": "Status"
-    }
-  },
   "admin": {
-    "restaurants": {
-      "title": "Restaurants",
-      "newButton": "+ Neues Restaurant",
-      "noRestaurants": "Noch keine Restaurants.",
-      "botNotConfigured": "WhatsApp-Bot nicht konfiguriert.",
-      "botConfigHint": "VITE_WHATSAPP_PHONE_NUMBER_ID in der Umgebung setzen, um Restaurants erstellen zu können.",
-      "form": {
-        "name": "Name",
-        "ownerPhone": "Inhabertelefon (für Benachrichtigungen)",
-        "create": "Erstellen",
-        "creating": "Erstelle...",
-        "cancel": "Abbrechen"
-      },
-      "col": {
-        "name": "Name",
-        "id": "ID",
-        "phone": "Telefon",
-        "status": "Status",
-        "bot": "Bot"
-      },
-      "botOn": "An",
-      "botOff": "Kein Bot",
-      "delete": "Löschen",
-      "deleteConfirm": "{{name}} löschen? Es wird nur das Geschäftsdokument entfernt — Bestellungen und Menüpunkte bleiben erhalten."
-    },
-    "restaurantDetail": {
-      "back": "← Restaurants",
-      "loading": "Lade...",
-      "tabs": {
-        "details": "Details",
-        "menu": "Speisekarte",
-        "owners": "Inhaber"
-      },
-      "bot": {
-        "label": "WhatsApp-Bot",
-        "on": "An",
-        "off": "Aus",
-        "loading": "Lade…",
-        "turnOn": "Einschalten",
-        "turnOff": "Ausschalten",
-        "saving": "Speichern…"
-      },
-      "details": {
-        "name": "Name",
-        "ownerAlertNumber": "Inhaber-Benachrichtigungsnummer",
-        "status": "Status",
-        "businessId": "Geschäfts-ID",
-        "address": "Adresse",
-        "coordinates": "Koordinaten",
-        "edit": "Bearbeiten",
-        "save": "Speichern",
-        "saving": "Speichern...",
-        "cancel": "Abbrechen",
-        "statusActive": "Aktiv",
-        "statusPaused": "Pausiert",
-        "lookupCoords": "Koordinaten suchen",
-        "lookingUp": "Suche…",
-        "notFound": "Adresse nicht gefunden — bitte eine genauere Adresse eingeben.",
-        "lat": "Breitengrad",
-        "lng": "Längengrad"
-      },
-      "menu": {
-        "noItems": "Noch keine Menüpunkte.",
-        "col": {
-          "name": "Name",
-          "category": "Kategorie",
-          "price": "Preis",
-          "available": "Verfügbar"
-        },
-        "availableYes": "Ja",
-        "availableNo": "Nein",
-        "edit": "Bearbeiten",
-        "delete": "Löschen",
-        "deleteConfirm": "Diesen Artikel löschen?",
-        "save": "Speichern",
-        "saving": "Speichern...",
-        "cancel": "Abbrechen",
-        "addItem": "+ Artikel hinzufügen",
-        "adding": "Hinzufügen...",
-        "add": "Artikel hinzufügen",
-        "form": {
-          "name": "Name",
-          "price": "Preis (€)",
-          "category": "Kategorie",
-          "description": "Beschreibung (optional)",
-          "available": "Verfügbar",
-          "mains": "Hauptgerichte",
-          "sides": "Beilagen",
-          "drinks": "Getränke"
-        }
-      },
-      "owners": {
-        "noOwners": "Noch keine Inhaber verknüpft.",
-        "col": {
-          "name": "Name",
-          "phone": "Telefon"
-        },
-        "edit": "Bearbeiten",
-        "remove": "Entfernen",
-        "removeConfirm": "Diesen Inhaber entfernen?",
-        "save": "Speichern",
-        "saving": "Speichern...",
-        "cancel": "Abbrechen",
-        "addOwner": "+ Inhaber hinzufügen",
-        "adding": "Hinzufügen...",
-        "add": "Hinzufügen",
-        "form": {
-          "phone": "Inhabertelefonnummer",
-          "name": "Name (optional)"
-        }
-      }
-    },
     "earnings": {
       "title": "Erlöse",
       "feeModel": "Gebührenmodell:",
@@ -349,12 +243,118 @@
         "fee": "WhatOrder-Gebühr",
         "status": "Status"
       }
+    },
+    "restaurants": {
+      "title": "Restaurants",
+      "newButton": "+ Neues Restaurant",
+      "botConfigHint": "VITE_WHATSAPP_PHONE_NUMBER_ID in der Umgebung setzen, um Restaurants erstellen zu können.",
+      "botNotConfigured": "WhatsApp-Bot nicht konfiguriert.",
+      "noRestaurants": "Noch keine Restaurants.",
+      "col": {
+        "name": "Name",
+        "id": "ID",
+        "phone": "Telefon",
+        "status": "Status",
+        "bot": "Bot"
+      },
+      "botOn": "Aktiv",
+      "botOff": "Inaktiv",
+      "delete": "Löschen",
+      "deleteConfirm": "Restaurant \"{{name}}\" wirklich löschen?",
+      "form": {
+        "name": "Restaurantname",
+        "ownerPhone": "Besitzer-Telefon",
+        "create": "Erstellen",
+        "creating": "Erstellen...",
+        "cancel": "Abbrechen"
+      }
+    },
+    "restaurantDetail": {
+      "loading": "Lade...",
+      "back": "← Restaurants",
+      "tabs": {
+        "details": "Details",
+        "menu": "Speisekarte",
+        "owners": "Inhaber"
+      },
+      "bot": {
+        "label": "WhatsApp-Bot",
+        "loading": "Lade…",
+        "on": "An",
+        "off": "Aus",
+        "saving": "Speichern…",
+        "turnOn": "Einschalten",
+        "turnOff": "Ausschalten"
+      },
+      "details": {
+        "name": "Name",
+        "ownerAlertNumber": "Inhaber-Benachrichtigungsnummer",
+        "status": "Status",
+        "businessId": "Geschäfts-ID",
+        "address": "Adresse",
+        "coordinates": "Koordinaten",
+        "edit": "Bearbeiten",
+        "statusActive": "Aktiv",
+        "statusPaused": "Pausiert",
+        "lookupCoords": "Koordinaten suchen",
+        "lookingUp": "Suche…",
+        "notFound": "Adresse nicht gefunden — bitte eine genauere Adresse eingeben.",
+        "lat": "Breitengrad",
+        "lng": "Längengrad",
+        "save": "Speichern",
+        "saving": "Speichern...",
+        "cancel": "Abbrechen"
+      },
+      "menu": {
+        "noItems": "Noch keine Menüpunkte.",
+        "col": {
+          "name": "Name",
+          "category": "Kategorie",
+          "price": "Preis",
+          "available": "Verfügbar"
+        },
+        "availableYes": "Ja",
+        "availableNo": "Nein",
+        "edit": "Bearbeiten",
+        "delete": "Löschen",
+        "deleteConfirm": "Diesen Artikel löschen?",
+        "form": {
+          "name": "Name",
+          "price": "Preis (€)",
+          "category": "Kategorie",
+          "description": "Beschreibung (optional)",
+          "available": "Verfügbar",
+          "mains": "Hauptgerichte",
+          "sides": "Beilagen",
+          "drinks": "Getränke"
+        },
+        "save": "Speichern",
+        "saving": "Speichern...",
+        "cancel": "Abbrechen",
+        "add": "Artikel hinzufügen",
+        "adding": "Hinzufügen...",
+        "addItem": "+ Artikel hinzufügen"
+      },
+      "owners": {
+        "noOwners": "Noch keine Inhaber verknüpft.",
+        "col": {
+          "name": "Name",
+          "phone": "Telefon"
+        },
+        "edit": "Bearbeiten",
+        "save": "Speichern",
+        "saving": "Speichern...",
+        "cancel": "Abbrechen",
+        "remove": "Entfernen",
+        "removeConfirm": "Diesen Inhaber entfernen?",
+        "form": {
+          "phone": "Inhabertelefonnummer",
+          "name": "Name (optional)"
+        },
+        "add": "Hinzufügen",
+        "adding": "Hinzufügen...",
+        "addOwner": "+ Inhaber hinzufügen"
+      }
     }
-  },
-  "lang": {
-    "label": "Sprache",
-    "de": "Deutsch",
-    "en": "English",
-    "tr": "Türkçe"
   }
 }

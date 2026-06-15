@@ -9,34 +9,53 @@
     "earnings": "Earnings",
     "signOut": "Sign out"
   },
+  "lang": {
+    "label": "Language",
+    "de": "Deutsch",
+    "en": "English",
+    "tr": "Türkçe"
+  },
+  "login": {
+    "tagline": "Owner dashboard",
+    "phoneLabel": "Phone number",
+    "sendCode": "Send code",
+    "sendError": "Failed to send code. Check the phone number and try again.",
+    "sending": "Sending...",
+    "codeSentTo": "Code sent to {{phone}}",
+    "verificationCode": "Verification code",
+    "verifying": "Verifying...",
+    "signIn": "Sign in",
+    "invalidCode": "Invalid code. Try again.",
+    "useDifferentNumber": "Use a different number"
+  },
   "orders": {
     "title": "Orders",
     "noOrders": "No orders yet.",
-    "delivery": "DELIVERY",
-    "deliveryFee": "+€{{fee}} delivery",
     "col": {
       "customer": "Customer",
       "items": "Items",
       "total": "Total",
       "status": "Status",
       "time": "Time"
-    }
+    },
+    "delivery": "Delivery",
+    "deliveryFee": "+ €{{fee}} delivery fee"
   },
   "orderDetail": {
+    "loading": "Loading order...",
     "back": "← Back to orders",
-    "delivery": "DELIVERY",
-    "loading": "Loading...",
-    "saving": "Saving…",
-    "networkError": "Network error — is the backend running?",
-    "deliveryFee": "Delivery fee: €{{fee}}",
-    "total": "Total: €{{total}}",
-    "note": "Note: {{note}}",
-    "orderedAt": "Ordered at {{time}}",
+    "delivery": "Delivery",
     "col": {
       "item": "Item",
       "qty": "Qty",
       "price": "Price"
     },
+    "deliveryFee": "Delivery fee: €{{fee}}",
+    "total": "Total: €{{total}}",
+    "note": "Note: {{note}}",
+    "orderedAt": "Ordered at {{time}}",
+    "networkError": "Network error — is the backend running?",
+    "saving": "Saving…",
     "status": {
       "pending": "Pending",
       "approved": "Approved",
@@ -59,30 +78,61 @@
       "delivered": "Mark Delivered"
     }
   },
-  "menu": {
-    "title": "Menu",
-    "noItems": "No menu items yet.",
-    "available": "Available",
-    "unavailable": "Off",
-    "addItem": "+ Add item",
-    "add": "Add",
+  "customers": {
+    "title": "Customers",
+    "totalCount": "{{count}} total",
+    "search": "Search by name or phone…",
+    "noCustomers": "No customers yet.",
+    "noMatch": "No matching customers.",
+    "col": {
+      "customer": "Customer",
+      "orders": "Orders",
+      "totalSpent": "Total spent",
+      "lastOrder": "Last order",
+      "lastAddress": "Last delivery address",
+      "actions": "Actions"
+    },
+    "historyCol": {
+      "date": "Date",
+      "items": "Items",
+      "total": "Total",
+      "status": "Status"
+    },
     "edit": "Edit",
     "save": "Save",
     "saving": "Saving…",
     "cancel": "Cancel",
+    "history": "History",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this customer? Orders will be kept.",
+    "orderHistory": "Order history",
+    "loading": "Loading…",
+    "noOrders": "No orders yet."
+  },
+  "menu": {
+    "title": "Menu",
+    "noItems": "No menu items yet.",
+    "addItem": "+ Add item",
+    "add": "Add",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "edit": "Edit",
     "delete": "Delete",
     "deleteConfirm": "Delete this item?",
-    "category": {
-      "mains": "Mains",
-      "sides": "Sides",
-      "drinks": "Drinks"
-    },
+    "available": "Available",
+    "unavailable": "Off",
     "form": {
       "name": "Name",
       "price": "Price (€)",
       "category": "Category",
       "description": "Description (optional)",
       "available": "Available"
+    },
+    "category": {
+      "mains": "Mains",
+      "sides": "Sides",
+      "drinks": "Drinks"
     }
   },
   "income": {
@@ -107,13 +157,13 @@
       "address": "Address",
       "lookupCoords": "Look up coords",
       "lookingUp": "Looking up…",
+      "notFound": "Address not found — try a more specific address.",
       "lat": "Latitude",
       "lng": "Longitude",
       "save": "Save location",
       "saving": "Saving…",
       "saved": "Saved",
-      "invalidCoords": "Invalid coordinates",
-      "notFound": "Address not found — try a more specific address."
+      "invalidCoords": "Invalid coordinates"
     },
     "delivery": {
       "title": "Delivery",
@@ -169,163 +219,7 @@
       "6": "Sat"
     }
   },
-  "login": {
-    "tagline": "Owner dashboard",
-    "phoneLabel": "Phone number",
-    "sendCode": "Send code",
-    "sending": "Sending...",
-    "codeSentTo": "Code sent to {{phone}}",
-    "verificationCode": "Verification code",
-    "signIn": "Sign in",
-    "verifying": "Verifying...",
-    "useDifferentNumber": "Use a different number",
-    "sendError": "Failed to send code. Check the phone number and try again.",
-    "invalidCode": "Invalid code. Try again."
-  },
-  "customers": {
-    "title": "Customers",
-    "totalCount": "{{count}} total",
-    "search": "Search by name or phone…",
-    "noMatch": "No matching customers.",
-    "noCustomers": "No customers yet.",
-    "edit": "Edit",
-    "save": "Save",
-    "saving": "Saving…",
-    "cancel": "Cancel",
-    "delete": "Delete",
-    "deleteConfirm": "Delete this customer? Orders will be kept.",
-    "history": "History",
-    "orderHistory": "Order history",
-    "noOrders": "No orders yet.",
-    "loading": "Loading…",
-    "col": {
-      "customer": "Customer",
-      "orders": "Orders",
-      "totalSpent": "Total spent",
-      "lastOrder": "Last order",
-      "lastAddress": "Last delivery address",
-      "actions": "Actions"
-    },
-    "historyCol": {
-      "date": "Date",
-      "items": "Items",
-      "total": "Total",
-      "status": "Status"
-    }
-  },
   "admin": {
-    "restaurants": {
-      "title": "Restaurants",
-      "newButton": "+ New Restaurant",
-      "noRestaurants": "No restaurants yet.",
-      "botNotConfigured": "WhatsApp bot not configured.",
-      "botConfigHint": "Set VITE_WHATSAPP_PHONE_NUMBER_ID in your env to enable restaurant creation.",
-      "form": {
-        "name": "Name",
-        "ownerPhone": "Owner phone (for notifications)",
-        "create": "Create",
-        "creating": "Creating...",
-        "cancel": "Cancel"
-      },
-      "col": {
-        "name": "Name",
-        "id": "ID",
-        "phone": "Phone",
-        "status": "Status",
-        "bot": "Bot"
-      },
-      "botOn": "On",
-      "botOff": "No bot",
-      "delete": "Delete",
-      "deleteConfirm": "Delete \"{{name}}\"? This only removes the business document — orders and menu items are not deleted."
-    },
-    "restaurantDetail": {
-      "back": "← Restaurants",
-      "loading": "Loading...",
-      "tabs": {
-        "details": "Details",
-        "menu": "Menu",
-        "owners": "Owners"
-      },
-      "bot": {
-        "label": "WhatsApp bot",
-        "on": "On",
-        "off": "Off",
-        "loading": "Loading…",
-        "turnOn": "Turn on",
-        "turnOff": "Turn off",
-        "saving": "Saving…"
-      },
-      "details": {
-        "name": "Name",
-        "ownerAlertNumber": "Owner alert number",
-        "status": "Status",
-        "businessId": "Business ID",
-        "address": "Address",
-        "coordinates": "Coordinates",
-        "edit": "Edit",
-        "save": "Save",
-        "saving": "Saving...",
-        "cancel": "Cancel",
-        "statusActive": "Active",
-        "statusPaused": "Paused",
-        "lookupCoords": "Look up coords",
-        "lookingUp": "Looking up…",
-        "notFound": "Address not found — try a more specific address.",
-        "lat": "Latitude",
-        "lng": "Longitude"
-      },
-      "menu": {
-        "noItems": "No menu items yet.",
-        "col": {
-          "name": "Name",
-          "category": "Category",
-          "price": "Price",
-          "available": "Available"
-        },
-        "availableYes": "Yes",
-        "availableNo": "No",
-        "edit": "Edit",
-        "delete": "Delete",
-        "deleteConfirm": "Delete this item?",
-        "save": "Save",
-        "saving": "Saving...",
-        "cancel": "Cancel",
-        "addItem": "+ Add item",
-        "adding": "Adding...",
-        "add": "Add item",
-        "form": {
-          "name": "Name",
-          "price": "Price (€)",
-          "category": "Category",
-          "description": "Description (optional)",
-          "available": "Available",
-          "mains": "Mains",
-          "sides": "Sides",
-          "drinks": "Drinks"
-        }
-      },
-      "owners": {
-        "noOwners": "No owners linked yet.",
-        "col": {
-          "name": "Name",
-          "phone": "Phone"
-        },
-        "edit": "Edit",
-        "remove": "Remove",
-        "removeConfirm": "Remove this owner?",
-        "save": "Save",
-        "saving": "Saving...",
-        "cancel": "Cancel",
-        "addOwner": "+ Add owner",
-        "adding": "Adding...",
-        "add": "Add",
-        "form": {
-          "phone": "Owner phone number",
-          "name": "Name (optional)"
-        }
-      }
-    },
     "earnings": {
       "title": "Earnings",
       "feeModel": "Fee model:",
@@ -349,12 +243,118 @@
         "fee": "WhatOrder Fee",
         "status": "Status"
       }
+    },
+    "restaurants": {
+      "title": "Restaurants",
+      "newButton": "+ New Restaurant",
+      "botConfigHint": "Set VITE_WHATSAPP_PHONE_NUMBER_ID in your env to enable restaurant creation.",
+      "botNotConfigured": "WhatsApp bot not configured.",
+      "noRestaurants": "No restaurants yet.",
+      "col": {
+        "name": "Name",
+        "id": "ID",
+        "phone": "Phone",
+        "status": "Status",
+        "bot": "Bot"
+      },
+      "botOn": "Active",
+      "botOff": "Inactive",
+      "delete": "Delete",
+      "deleteConfirm": "Delete restaurant \"{{name}}\"?",
+      "form": {
+        "name": "Restaurant name",
+        "ownerPhone": "Owner phone",
+        "create": "Create",
+        "creating": "Creating...",
+        "cancel": "Cancel"
+      }
+    },
+    "restaurantDetail": {
+      "loading": "Loading...",
+      "back": "← Restaurants",
+      "tabs": {
+        "details": "Details",
+        "menu": "Menu",
+        "owners": "Owners"
+      },
+      "bot": {
+        "label": "WhatsApp Bot",
+        "loading": "Loading...",
+        "on": "On",
+        "off": "Off",
+        "saving": "Saving...",
+        "turnOn": "Turn on",
+        "turnOff": "Turn off"
+      },
+      "details": {
+        "name": "Name",
+        "ownerAlertNumber": "Owner alert number",
+        "status": "Status",
+        "businessId": "Business ID",
+        "address": "Address",
+        "coordinates": "Coordinates",
+        "edit": "Edit",
+        "statusActive": "Active",
+        "statusPaused": "Paused",
+        "lookupCoords": "Look up coords",
+        "lookingUp": "Looking up…",
+        "notFound": "Address not found — try a more specific address.",
+        "lat": "Latitude",
+        "lng": "Longitude",
+        "save": "Save",
+        "saving": "Saving...",
+        "cancel": "Cancel"
+      },
+      "menu": {
+        "noItems": "No menu items yet.",
+        "col": {
+          "name": "Name",
+          "category": "Category",
+          "price": "Price",
+          "available": "Available"
+        },
+        "availableYes": "Yes",
+        "availableNo": "No",
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleteConfirm": "Delete this item?",
+        "form": {
+          "name": "Name",
+          "price": "Price (€)",
+          "category": "Category",
+          "description": "Description (optional)",
+          "available": "Available",
+          "mains": "Mains",
+          "sides": "Sides",
+          "drinks": "Drinks"
+        },
+        "save": "Save",
+        "saving": "Saving...",
+        "cancel": "Cancel",
+        "add": "Add item",
+        "adding": "Adding...",
+        "addItem": "+ Add item"
+      },
+      "owners": {
+        "noOwners": "No owners linked yet.",
+        "col": {
+          "name": "Name",
+          "phone": "Phone"
+        },
+        "edit": "Edit",
+        "save": "Save",
+        "saving": "Saving...",
+        "cancel": "Cancel",
+        "remove": "Remove",
+        "removeConfirm": "Remove this owner?",
+        "form": {
+          "phone": "Owner phone number",
+          "name": "Name (optional)"
+        },
+        "add": "Add",
+        "adding": "Adding...",
+        "addOwner": "+ Add owner"
+      }
     }
-  },
-  "lang": {
-    "label": "Language",
-    "de": "Deutsch",
-    "en": "English",
-    "tr": "Türkçe"
   }
 }
