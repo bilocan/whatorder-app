@@ -85,9 +85,9 @@ describe('CustomersPage', () => {
       return vi.fn()
     })
     renderPage()
-    expect(screen.getAllByText('Edit').length).toBe(2)
-    expect(screen.getAllByText('History').length).toBe(2)
-    expect(screen.getAllByText('Delete').length).toBe(2)
+    expect(screen.getAllByTitle('Edit').length).toBe(2)
+    expect(screen.getAllByTitle('History').length).toBe(2)
+    expect(screen.getAllByTitle('Delete').length).toBe(2)
   })
 
   it('renders delivery address for customers that have one', () => {

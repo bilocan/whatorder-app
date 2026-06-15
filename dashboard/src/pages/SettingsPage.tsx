@@ -156,9 +156,13 @@ export default function SettingsPage() {
     });
   }
 
-  function toggleExpand(d: number) {
-    if (!dayMap[d]) return;
-    setExpanded(prev => ({ ...prev, [d]: !prev[d] }));
+  function handlePillClick(d: number) {
+    if (!dayMap[d]) {
+      setDayMap(prev => ({ ...prev, [d]: { ...DEFAULT_DAY } }));
+      setExpanded({ [d]: true });
+    } else {
+      setExpanded(prev => (prev[d] ? {} : { [d]: true }));
+    }
   }
 
   function updateDayField(d: number, field: keyof DaySchedule, value: string) {
@@ -286,52 +290,75 @@ export default function SettingsPage() {
       <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
         <h3 style={{ margin: '0 0 0.25rem' }}>{t('settings.hours.title')}</h3>
         <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>{t('settings.hours.description')}</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {/* Day pills — horizontal */}
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
           {([0, 1, 2, 3, 4, 5, 6] as const).map((d) => {
-            const cfg = dayMap[d];
-            const isOpen = cfg !== null;
+            const isOpen = dayMap[d] !== null;
             const isExpanded = isOpen && !!expanded[d];
             return (
-              <div key={d} style={{ border: `1px solid ${isOpen ? '#333' : '#222'}`, borderRadius: 6, overflow: 'hidden' }}>
-                <div
-                  onClick={() => toggleExpand(d)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.55rem 0.75rem', cursor: isOpen ? 'pointer' : 'default', background: isOpen ? '#1a1a1a' : '#111' }}
-                >
-                  <span style={{ fontSize: '0.9rem', fontWeight: 500, color: isOpen ? '#fff' : '#555' }}>{t(`settings.days.${d}`)}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {isOpen && <span style={{ fontSize: '0.7rem', color: '#555' }}>{isExpanded ? '▲' : '▼'}</span>}
-                    <span
-                      onClick={(e) => toggleOpen(d, e)}
-                      style={{ fontSize: '0.75rem', fontWeight: 600, color: isOpen ? '#22c55e' : '#444', padding: '0.15rem 0.5rem', border: `1px solid ${isOpen ? '#22c55e' : '#333'}`, borderRadius: 4, cursor: 'pointer' }}
-                    >
-                      {isOpen ? t('settings.hours.open') : t('settings.hours.closed')}
-                    </span>
-                  </div>
+              <div
+                key={d}
+                onClick={() => handlePillClick(d)}
+                style={{
+                  flex: 1,
+                  minWidth: 38,
+                  padding: '0.5rem 0.25rem',
+                  textAlign: 'center',
+                  borderRadius: 6,
+                  border: `1px solid ${isExpanded ? '#22c55e' : isOpen ? '#444' : '#222'}`,
+                  background: isOpen ? '#1a1a1a' : '#111',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+              >
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, color: isOpen ? '#fff' : '#444' }}>
+                  {t(`settings.daysShort.${d}`)}
                 </div>
-                {isExpanded && cfg && (
-                  <div style={{ padding: '0.65rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#0f0f0f' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      {([['openTime', t('settings.hours.opens')], ['closeTime', t('settings.hours.closes')]] as const).map(([field, lbl]) => (
-                        <div key={field} style={{ flex: 1 }}>
-                          <div style={LABEL_STYLE}>{lbl}</div>
-                          <input type="time" value={cfg[field]} onChange={e => updateDayField(d, field, e.target.value)} style={INPUT_STYLE} />
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      {([['firstOrderTime', t('settings.hours.firstOrder')], ['lastOrderTime', t('settings.hours.lastOrder')]] as const).map(([field, lbl]) => (
-                        <div key={field} style={{ flex: 1 }}>
-                          <div style={LABEL_STYLE}>{lbl}</div>
-                          <input type="time" value={cfg[field]} onChange={e => updateDayField(d, field, e.target.value)} style={INPUT_STYLE} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <div style={{ fontSize: '0.55rem', color: isOpen ? '#22c55e' : '#333', marginTop: '0.2rem' }}>
+                  ●
+                </div>
               </div>
             );
           })}
         </div>
+
+        {/* Expanded time panel for the selected day */}
+        {([0, 1, 2, 3, 4, 5, 6] as const).map((d) => {
+          const cfg = dayMap[d];
+          const isExpanded = cfg !== null && !!expanded[d];
+          if (!isExpanded || !cfg) return null;
+          return (
+            <div key={d} style={{ marginTop: '0.75rem', border: '1px solid #333', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.55rem 0.75rem', background: '#1a1a1a' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 500, color: '#fff' }}>{t(`settings.days.${d}`)}</span>
+                <span
+                  onClick={(e) => toggleOpen(d, e)}
+                  style={{ fontSize: '0.75rem', fontWeight: 600, color: '#22c55e', padding: '0.15rem 0.5rem', border: '1px solid #22c55e', borderRadius: 4, cursor: 'pointer' }}
+                >
+                  {t('settings.hours.open')}
+                </span>
+              </div>
+              <div style={{ padding: '0.65rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#0f0f0f' }}>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {([['openTime', t('settings.hours.opens')], ['closeTime', t('settings.hours.closes')]] as const).map(([field, lbl]) => (
+                    <div key={field} style={{ flex: 1 }}>
+                      <div style={LABEL_STYLE}>{lbl}</div>
+                      <input type="time" value={cfg[field]} onChange={e => updateDayField(d, field, e.target.value)} style={INPUT_STYLE} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {([['firstOrderTime', t('settings.hours.firstOrder')], ['lastOrderTime', t('settings.hours.lastOrder')]] as const).map(([field, lbl]) => (
+                    <div key={field} style={{ flex: 1 }}>
+                      <div style={LABEL_STYLE}>{lbl}</div>
+                      <input type="time" value={cfg[field]} onChange={e => updateDayField(d, field, e.target.value)} style={INPUT_STYLE} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.75rem' }}>
           <button onClick={handleSaveSchedule} disabled={scheduleSaveStatus === 'saving'} style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: scheduleSaveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
             {scheduleSaveStatus === 'saving' ? t('settings.hours.saving') : t('settings.hours.save')}
