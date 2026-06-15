@@ -1,7 +1,7 @@
 const { getSession, setSession } = require('./sessionStore');
-const { getMenu, getBusinessInfo } = require('./menuService');
+const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('./menuService');
 const { createOrder } = require('./orderService');
-const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendFlowMessage, sendLocationRequest, deleteMessage } = require('../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendFlowMessage, sendLocationRequest, sendImage, deleteMessage } = require('../lib/whatsapp');
 const { sortByDistance } = require('../lib/distance');
 const { detectLanguage, scoreLanguage, getOverride } = require('./languageDetector');
 const { t, tCategory } = require('./templates');
@@ -718,6 +718,10 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     if (!item) {
       await sendCatalog(from, lang, businessId);
       return;
+    }
+    const photoUrl = resolvePhotoUrl(item.photoUrl);
+    if (photoUrl) {
+      try { await sendImage(from, { url: photoUrl }); } catch { /* non-fatal */ }
     }
     const qtyId = await sendButtonMessage(from, {
       body: t('qtyBody', lang, item.name, item.price.toFixed(2)),
