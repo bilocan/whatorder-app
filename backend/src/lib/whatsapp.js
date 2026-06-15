@@ -115,6 +115,39 @@ async function sendLocationRequest(to, bodyText) {
   });
 }
 
+// flowId: the Flow ID from Meta Business Manager → WhatsApp → Flows
+// flowToken: unique string per session (e.g. phone + timestamp) — returned in the completion webhook
+// flowCta: button label that opens the flow (max 20 chars)
+// screen: ID of the first screen in the flow
+// data: optional initial data passed to the first screen
+async function sendFlowMessage(to, { flowId, flowToken, flowCta, screen, body, data = {} }) {
+  const normalized = normalizePhone(to);
+  if (process.env.NODE_ENV === 'test') {
+    console.log(`\n[WA FLOW → ${normalized}]\nflowId=${flowId} screen=${screen}\n${body}\n`);
+    return testId();
+  }
+  return send({
+    messaging_product: 'whatsapp',
+    to: normalized,
+    type: 'interactive',
+    interactive: {
+      type: 'flow',
+      body: { text: body },
+      action: {
+        name: 'flow',
+        parameters: {
+          flow_message_version: '3',
+          flow_token: flowToken,
+          flow_id: flowId,
+          flow_cta: flowCta,
+          flow_action: 'navigate',
+          flow_action_payload: { screen, data },
+        },
+      },
+    },
+  });
+}
+
 // Non-fatal: logs on failure rather than throwing.
 async function deleteMessage(messageId) {
   if (!messageId) return;
@@ -135,4 +168,4 @@ async function deleteMessage(messageId) {
   }
 }
 
-module.exports = { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendLocationRequest, deleteMessage };
+module.exports = { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendFlowMessage, sendLocationRequest, deleteMessage };

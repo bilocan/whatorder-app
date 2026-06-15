@@ -55,6 +55,10 @@ async function receiveWebhook(req, res) {
     } else if (iType === 'button_reply') {
       const br = msg.interactive.button_reply;
       message = { type: 'button_reply', id: br.id, title: br.title };
+    } else if (iType === 'nfm_reply') {
+      let flowData = {};
+      try { flowData = JSON.parse(msg.interactive.nfm_reply?.response_json ?? '{}'); } catch {}
+      message = { type: 'flow_completion', data: flowData };
     } else {
       res.status(200).json({ status: 'ok' });
       return;
