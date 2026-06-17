@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,6 +11,7 @@ export default function Layout() {
   const { user, businessId, isAdmin, signOut } = useAuth();
   const showTenantNav = !!businessId;
   const presence = usePresence(businessId);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const navItems = [
     { to: '/orders',    label: t('nav.orders') },
@@ -19,16 +21,45 @@ export default function Layout() {
     { to: '/settings',  label: t('nav.settings') },
   ];
 
+  const presenceDotColor = !presence?.isOnline ? '#ef4444'
+    : !presence?.ordersOpen ? '#f59e0b'
+    : '#22c55e';
+
+  function closeMenu() { setMenuOpen(false); }
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <nav style={{ width: 200, padding: '1rem', borderRight: '1px solid #eee', display: 'flex', flexDirection: 'column' }}>
+    <div className="layout-root">
+      {/* Mobile top header */}
+      <div className="layout-mobile-header">
+        <button className="hamburger-btn" onClick={() => setMenuOpen(true)} aria-label="Open menu">
+          ☰
+        </button>
+        <span style={{ fontWeight: 700, fontSize: '1rem' }}>WhatOrder</span>
+        {presence && (
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: presenceDotColor, flexShrink: 0 }} />
+        )}
+        {!presence && <span style={{ width: 10 }} />}
+      </div>
+
+      {/* Overlay (mobile) */}
+      <div
+        className={`layout-overlay${menuOpen ? ' open' : ''}`}
+        onClick={closeMenu}
+      />
+
+      {/* Sidebar / nav drawer */}
+      <nav className={`layout-nav${menuOpen ? ' open' : ''}`}>
+        <button className="nav-close-btn" onClick={closeMenu} aria-label="Close menu">✕</button>
+
         <div style={{ fontWeight: 'bold', marginBottom: '1rem' }}>WhatOrder</div>
         {showTenantNav && <RestaurantSwitcher />}
+
         <div style={{ flex: 1 }}>
           {showTenantNav && navItems.map(({ to, label }) => (
             <NavLink
               key={to}
               to={to}
+              onClick={closeMenu}
               style={({ isActive }) => ({
                 display: 'block',
                 padding: '0.5rem 0',
@@ -51,6 +82,7 @@ export default function Layout() {
                   key={to}
                   to={to}
                   end={to === '/admin'}
+                  onClick={closeMenu}
                   style={({ isActive }) => ({
                     display: 'block',
                     padding: '0.5rem 0',
@@ -66,16 +98,11 @@ export default function Layout() {
             </>
           )}
         </div>
+
         {showTenantNav && presence && (
           <div style={{ margin: '0.5rem 0 0.75rem', padding: '0.6rem 0.75rem', background: '#f5f5f5', borderRadius: 8, fontSize: '0.78rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
-              <span style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                flexShrink: 0,
-                background: !presence.isOnline ? '#ef4444' : !presence.ordersOpen ? '#f59e0b' : '#22c55e',
-              }} />
+              <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: presenceDotColor }} />
               <span style={{ color: '#444', fontWeight: 500 }}>
                 {!presence.isOnline
                   ? t('presence.offline')
@@ -123,6 +150,7 @@ export default function Layout() {
             )}
           </div>
         )}
+
         <LanguageSwitcher />
         <div style={{ marginBottom: '0.5rem' }}>
           <div style={{ fontSize: '0.7rem', color: '#ccc', marginBottom: '0.15rem' }}>UID</div>
@@ -141,7 +169,8 @@ export default function Layout() {
           {t('nav.signOut')}
         </button>
       </nav>
-      <main style={{ flex: 1, padding: '1.5rem' }}>
+
+      <main className="layout-main">
         <Outlet />
       </main>
     </div>
