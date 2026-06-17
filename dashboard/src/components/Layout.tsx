@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import LanguageSwitcher from './LanguageSwitcher';
+import RestaurantSwitcher from './RestaurantSwitcher';
 import { usePresence, toggleOrdersOpen, toggleDeliveryOpen } from '../hooks/usePresence';
 
 export default function Layout() {
@@ -21,7 +22,8 @@ export default function Layout() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <nav style={{ width: 200, padding: '1rem', borderRight: '1px solid #eee', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ fontWeight: 'bold', marginBottom: '1.5rem' }}>WhatOrder</div>
+        <div style={{ fontWeight: 'bold', marginBottom: '1rem' }}>WhatOrder</div>
+        {showTenantNav && <RestaurantSwitcher />}
         <div style={{ flex: 1 }}>
           {showTenantNav && navItems.map(({ to, label }) => (
             <NavLink

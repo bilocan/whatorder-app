@@ -10,6 +10,9 @@ vi.mock('../hooks/usePresence', () => ({
   toggleOrdersOpen: vi.fn(),
   toggleDeliveryOpen: vi.fn(),
 }))
+vi.mock('../components/RestaurantSwitcher', () => ({
+  default: () => <div data-testid="restaurant-switcher" />,
+}))
 vi.mock('react-router-dom', () => ({
   NavLink: ({ to, children }: { to: string; children: React.ReactNode; style: unknown }) => (
     <a href={to}>{children}</a>
@@ -18,7 +21,7 @@ vi.mock('react-router-dom', () => ({
 }))
 
 function auth(overrides: object) {
-  return { user: { uid: 'u1' }, businessId: null, isAdmin: false, loading: false, signOut: vi.fn(), ...overrides }
+  return { user: { uid: 'u1' }, businessId: null, businessIds: [], isAdmin: false, loading: false, signOut: vi.fn(), setActiveBusinessId: vi.fn(), ...overrides }
 }
 
 describe('Layout nav visibility', () => {

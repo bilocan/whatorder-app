@@ -1,4 +1,10 @@
 {
+  "selectRestaurant": {
+    "title": "Select a restaurant",
+    "subtitle": "Choose the restaurant you want to manage.",
+    "loading": "Loading restaurants…",
+    "switchLabel": "Switch restaurant"
+  },
   "nav": {
     "orders": "Orders",
     "customers": "Customers",

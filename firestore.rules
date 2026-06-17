@@ -15,7 +15,10 @@ service cloud.firestore {
     function isOwnerOf(businessId) {
       return isSignedIn()
         && exists(/databases/$(database)/documents/owners/$(request.auth.uid))
-        && get(/databases/$(database)/documents/owners/$(request.auth.uid)).data.businessId == businessId;
+        && (
+          get(/databases/$(database)/documents/owners/$(request.auth.uid)).data.businessId == businessId
+          || businessId in get(/databases/$(database)/documents/owners/$(request.auth.uid)).data.get('businessIds', [])
+        );
     }
 
     // Each authenticated user reads their own record to discover their businessId.

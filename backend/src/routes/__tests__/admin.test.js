@@ -1,6 +1,11 @@
 jest.mock('../../lib/firebase', () => ({
   db: {},
-  admin: { auth: jest.fn() },
+  admin: {
+    auth: jest.fn(),
+    firestore: {
+      FieldValue: { arrayUnion: jest.fn((...args) => ({ _arrayUnion: args })) },
+    },
+  },
 }));
 jest.mock('../../lib/collections', () => ({
   adminRef: jest.fn(),
