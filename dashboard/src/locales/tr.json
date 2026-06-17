@@ -1,4 +1,10 @@
 {
+  "selectRestaurant": {
+    "title": "Restoran seç",
+    "subtitle": "Yönetmek istediğin restoranı seç.",
+    "loading": "Restoranlar yükleniyor…",
+    "switchLabel": "Restoran değiştir"
+  },
   "nav": {
     "orders": "Siparişler",
     "customers": "Müşteriler",

@@ -1,4 +1,10 @@
 {
+  "selectRestaurant": {
+    "title": "Restaurant auswählen",
+    "subtitle": "Wähle das Restaurant, das du verwalten möchtest.",
+    "loading": "Restaurants werden geladen…",
+    "switchLabel": "Restaurant wechseln"
+  },
   "nav": {
     "orders": "Bestellungen",
     "customers": "Kunden",
