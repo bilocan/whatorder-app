@@ -49,6 +49,8 @@ module.exports = {
 
   specialRequestsPrompt: () => 'Any special requests, allergies, or notes?\n\nType them here, or tap Skip if none.',
   skipBtn: () => 'Skip',
+  editCartBtn:  () => 'Edit cart',
+  editCartBody: () => 'Tap below to edit your cart.',
   askName: () => "What's your name for the order?",
 
   orderApproved:  (shortId) => `✅ Order #${shortId} accepted! We'll start preparing it shortly.`,

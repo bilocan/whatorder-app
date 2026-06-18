@@ -11,9 +11,9 @@ const OUT = path.join(__dirname, '../flows/menu-flow.json');
 
 // ── Screen builders ────────────────────────────────────────────────────────────
 
-function categorySelect() {
+function categorySelectScreen(id) {
   return {
-    id: S.CATEGORY_SELECT,
+    id,
     title: 'Menu',
     data: {
       [F.CATEGORIES]: {
@@ -52,6 +52,8 @@ function categorySelect() {
     },
   };
 }
+
+function categorySelect() { return categorySelectScreen(S.CATEGORY_SELECT); }
 
 function menuBrowse() {
   return {
@@ -193,27 +195,86 @@ function orderItem() {
   };
 }
 
-function cartReview() {
+function cartReview() { return cartEditScreen(S.CART_REVIEW); }
+
+function cartEditScreen(id) {
   return {
-    id: S.CART_REVIEW,
+    id,
     title: 'Your cart',
     terminal: true,
     data: {
-      [F.BASKET_TEXT]: { type: 'string', '__example__': '1x Doner  7.50\n2x Falafel  12.00' },
-      [F.TOTAL_LABEL]: { type: 'string', '__example__': 'Total: €19.50' },
+      [F.BASKET_TEXT]:  { type: 'string', '__example__': '1x Döner  €10.00\n2x Falafel  €12.00' },
+      [F.TOTAL_LABEL]:  { type: 'string', '__example__': 'Total: €22.00' },
+      [F.BASKET_ITEMS]: {
+        type: 'array',
+        items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } } },
+        '__example__': [{ id: '0', title: '1x Döner' }, { id: '1', title: '2x Falafel' }, { id: 'clear', title: 'Clear entire cart' }],
+      },
     },
     layout: {
       type: 'SingleColumnLayout',
       children: [{
         type: 'Form',
-        name: 'checkout_form',
+        name: 'cart_form',
         children: [
-          { type: 'TextBody', text: `\${data.${F.BASKET_TEXT}}` },
+          { type: 'TextBody',       text: `\${data.${F.BASKET_TEXT}}` },
+          { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
+          { type: 'TextCaption',    text: 'Check items to remove, then tap Remove. Or go straight to Place order.' },
+          {
+            type: 'CheckboxGroup',
+            label: 'Remove items:',
+            name: F.REMOVE_ITEMS,
+            required: false,
+            'data-source': `\${data.${F.BASKET_ITEMS}}`,
+          },
+          {
+            type: 'EmbeddedLink',
+            text: 'Remove selected items',
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: `\${form.${F.REMOVE_ITEMS}}` },
+            },
+          },
+          {
+            type: 'EmbeddedLink',
+            text: 'Add more items',
+            'on-click-action': { name: 'data_exchange', payload: { cart_action: 'add_more' } },
+          },
+          {
+            type: 'Footer',
+            label: 'Place order',
+            'on-click-action': { name: 'complete', payload: {} },
+          },
+        ],
+      }],
+    },
+  };
+}
+
+function cartUpdated() { return cartEditScreen(S.CART_UPDATED); }
+
+// Final cart — no remove UI.
+function cartDone() {
+  return {
+    id: S.CART_DONE,
+    title: 'Your cart',
+    terminal: true,
+    data: {
+      [F.BASKET_TEXT]: { type: 'string', '__example__': '1x Döner  €10.00' },
+      [F.TOTAL_LABEL]: { type: 'string', '__example__': 'Total: €10.00' },
+    },
+    layout: {
+      type: 'SingleColumnLayout',
+      children: [{
+        type: 'Form',
+        name: 'cart_done_form',
+        children: [
+          { type: 'TextBody',       text: `\${data.${F.BASKET_TEXT}}` },
           { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
           {
             type: 'EmbeddedLink',
             text: 'Add more items',
-            'on-click-action': { name: 'data_exchange', payload: { action: 'add_more' } },
+            'on-click-action': { name: 'data_exchange', payload: { cart_action: 'add_more' } },
           },
           {
             type: 'Footer',
@@ -232,16 +293,22 @@ const flow = {
   version: '7.3',
   data_api_version: '3.0',
   routing_model: {
-    [S.CATEGORY_SELECT]: [S.MENU_BROWSE],
-    [S.MENU_BROWSE]:     [S.ORDER_ITEM],
-    [S.ORDER_ITEM]:      [S.CART_REVIEW],
-    [S.CART_REVIEW]:     [S.MENU_BROWSE],
+    [S.CATEGORY_SELECT]:        [S.MENU_BROWSE],
+    [S.CATEGORY_SELECT_RETURN]: [S.MENU_BROWSE],
+    [S.MENU_BROWSE]:            [S.ORDER_ITEM],
+    [S.ORDER_ITEM]:             [S.CART_REVIEW],
+    [S.CART_REVIEW]:  [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED],
+    [S.CART_UPDATED]: [S.CATEGORY_SELECT_RETURN, S.CART_DONE],
+    [S.CART_DONE]:    [S.CATEGORY_SELECT_RETURN],
   },
   screens: [
     categorySelect(),
+    categorySelectScreen(S.CATEGORY_SELECT_RETURN),
     menuBrowse(),
     orderItem(),
     cartReview(),
+    cartUpdated(),
+    cartDone(),
   ],
 };
 
