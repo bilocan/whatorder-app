@@ -6,7 +6,6 @@
     { "source": "/webhooks/whatsapp", "destination": "/api/webhooks/whatsapp" },
     { "source": "/health", "destination": "/api/index" },
     { "source": "/admin/owners", "destination": "/api/admin/owners" },
-    { "source": "/businesses/:businessId/orders/:orderId/:action", "destination": "/api/businesses/:businessId/orders/:orderId/:action" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
