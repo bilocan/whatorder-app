@@ -23,6 +23,7 @@ app.use('/webhooks/whatsapp', webhookRouter);
 app.use('/admin', adminRouter);
 app.use('/', flowRouter);
 app.use('/', ordersRouter);
+app.use('/api', ordersRouter);
 
 if (require.main === module) {
   app.listen(PORT, () => {
