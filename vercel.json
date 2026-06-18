@@ -1,4 +1,5 @@
 {
+  "installCommand": "npm install",
   "buildCommand": "cd dashboard && npm install --include=dev && npm run build",
   "outputDirectory": "dashboard/dist",
   "rewrites": [
