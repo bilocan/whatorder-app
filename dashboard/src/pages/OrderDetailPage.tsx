@@ -66,7 +66,7 @@ export default function OrderDetailPage() {
     setLoading(true);
     setActionError('');
     try {
-      const res = await fetch(`${API_URL}/businesses/${businessId}/orders/${orderId}/${action}`, { method: 'POST' });
+      const res = await fetch(`${API_URL}/api/businesses/${businessId}/orders/${orderId}/${action}`, { method: 'POST' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         setActionError(body.error ?? `Request failed (${res.status})`);
