@@ -49,6 +49,8 @@ module.exports = {
 
   specialRequestsPrompt: () => 'Özel isteğiniz, alerji durumunuz veya notunuz var mı?\n\nBuraya yazabilirsiniz, yoksa Atla tuşuna basın.',
   skipBtn: () => 'Atla',
+  editCartBtn:  () => 'Sepeti düzenle',
+  editCartBody: () => 'Sepetinizi düzenlemek için aşağıya dokunun.',
   askName: () => 'Sipariş için adınızı yazar mısınız?',
 
   orderApproved:  (shortId) => `✅ Sipariş #${shortId} onaylandı! Kısa süre içinde hazırlanmaya başlanacak.`,
