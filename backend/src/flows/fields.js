@@ -3,10 +3,13 @@
 // If you rename a field, update it here — both sides stay in sync automatically.
 
 const SCREENS = {
-  CATEGORY_SELECT: 'CATEGORY_SELECT',
-  MENU_BROWSE:     'MENU_BROWSE',
-  ORDER_ITEM:      'ORDER_ITEM',
-  CART_REVIEW:     'CART_REVIEW',
+  CATEGORY_SELECT:        'CATEGORY_SELECT',
+  CATEGORY_SELECT_RETURN: 'CATEGORY_SELECT_RETURN', // identical to CATEGORY_SELECT but routable from CART screens
+  MENU_BROWSE:            'MENU_BROWSE',
+  ORDER_ITEM:             'ORDER_ITEM',
+  CART_REVIEW:  'CART_REVIEW',  // editable cart round 1
+  CART_UPDATED: 'CART_UPDATED', // editable cart round 2 (identical UI, different ID to satisfy DAG)
+  CART_DONE:    'CART_DONE',    // final summary — no remove UI, just place order
 };
 
 const FIELDS = {
@@ -47,8 +50,10 @@ const FIELDS = {
   NOTES:          'notes',
 
   // CART_REVIEW
-  BASKET_TEXT: 'basket_text',
-  TOTAL_LABEL: 'total_label',
+  BASKET_TEXT:  'basket_text',
+  TOTAL_LABEL:  'total_label',
+  BASKET_ITEMS: 'basket_items',
+  REMOVE_ITEMS: 'remove_items', // CheckboxGroup — multi-select removal
 };
 
 module.exports = { SCREENS, FIELDS };

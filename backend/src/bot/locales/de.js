@@ -49,6 +49,8 @@ module.exports = {
 
   specialRequestsPrompt: () => 'Haben Sie besondere Wünsche, Allergien oder Anmerkungen?\n\nTippen Sie diese hier ein oder tippen Sie auf Überspringen.',
   skipBtn: () => 'Überspringen',
+  editCartBtn:  () => 'Warenkorb bearbeiten',
+  editCartBody: () => 'Tippen Sie unten, um Ihren Warenkorb zu bearbeiten.',
   askName: () => 'Wie lautet Ihr Name für die Bestellung?',
 
   orderApproved:  (shortId) => `✅ Bestellung #${shortId} angenommen! Wir beginnen bald mit der Zubereitung.`,

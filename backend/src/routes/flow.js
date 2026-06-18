@@ -52,6 +52,29 @@ function mapOptionSlots(optionGroups = []) {
   };
 }
 
+// Build cart display data. cartReviewData includes basket_items (for CART_REVIEW's remove UI).
+function basketSummary(basket) {
+  const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  return {
+    [F.BASKET_TEXT]: basket.map(i => `${i.qty}x ${i.name}  €${(i.price * i.qty).toFixed(2)}`).join('\n'),
+    [F.TOTAL_LABEL]: `Total: €${total.toFixed(2)}`,
+  };
+}
+function buildCartData(basket) {
+  return {
+    ...basketSummary(basket),
+    [F.BASKET_ITEMS]: [
+      ...basket.map((i, idx) => {
+        const full = `${i.qty}x ${i.name}`;
+        // WhatsApp Flows CheckboxGroup silently drops form values when any title exceeds 30 chars
+        const title = full.length > 30 ? full.slice(0, 28) + '…' : full;
+        return { id: String(idx), title };
+      }),
+      { id: 'clear', title: 'Clear entire cart' },
+    ],
+  };
+}
+
 // Build a readable label from submitted slot values + the flat slots data returned by mapOptionSlots.
 function buildCustomLabel(item, payload, slots) {
   const parts = [];
@@ -86,6 +109,8 @@ router.post('/flow/exchange', async (req, res) => {
 
     const reply = (data) => res.send(encryptResponse(data, aesKey, iv));
 
+    console.log('[flow/exchange] IN action=%s screen=%s payload=%s', action, screen, JSON.stringify(payload));
+
     if (action === 'ping') {
       return reply({ version, data: { status: 'active' } });
     }
@@ -97,14 +122,16 @@ router.post('/flow/exchange', async (req, res) => {
       return res.status(400).json({ error: 'Invalid flow_token. Set it to "phone|businessId" in the Flow Tester.' });
     }
 
-    // ── INIT → CATEGORY_SELECT ──────────────────────────────────────────────
+    // ── INIT → CART_REVIEW (if basket non-empty) or CATEGORY_SELECT ─────────
     if (action === 'INIT') {
+      const ref = sessionRef(phone);
+      const snap = await ref.get();
+      const basket = snap.exists ? (snap.data().basket ?? []) : [];
+      if (basket.length) {
+        return reply({ version, screen: S.CART_REVIEW, data: buildCartData(basket) });
+      }
       const menu = await getMenu(businessId);
-      return reply({
-        version,
-        screen: S.CATEGORY_SELECT,
-        data: { [F.CATEGORIES]: getCategories(menu) },
-      });
+      return reply({ version, screen: S.CATEGORY_SELECT, data: { [F.CATEGORIES]: getCategories(menu) } });
     }
 
     // ── CATEGORY_SELECT → MENU_BROWSE ───────────────────────────────────────
@@ -176,27 +203,71 @@ router.post('/flow/exchange', async (req, res) => {
         : [...existing, basketItem];
       await ref.set({ basket: newBasket, updatedAt: new Date() }, { merge: true });
 
-      const total = newBasket.reduce((s, i) => s + i.price * i.qty, 0);
-      const basketText = newBasket.map(i => `${i.qty}x ${i.name}  €${(i.price * i.qty).toFixed(2)}`).join('\n');
-      return reply({
-        version,
-        screen: S.CART_REVIEW,
-        data: {
-          [F.BASKET_TEXT]: basketText,
-          [F.TOTAL_LABEL]: `Total: €${total.toFixed(2)}`,
-        },
-      });
+      return reply({ version, screen: S.CART_REVIEW, data: buildCartData(newBasket) });
     }
 
-    // ── CART_REVIEW → MENU_BROWSE (add more) ────────────────────────────────
-    if (action === 'data_exchange' && screen === S.CART_REVIEW) {
+    // ── CART_REVIEW + CART_UPDATED: editable cart chain ─────────────────────
+    // Forward-only DAG: CART_REVIEW → CART_UPDATED → CART_DONE
+    const NEXT_CART = { [S.CART_REVIEW]: S.CART_UPDATED, [S.CART_UPDATED]: S.CART_DONE };
+    if (action === 'data_exchange' && NEXT_CART[screen]) {
+      const nextScreen = NEXT_CART[screen];
+      const cartAction = payload.cart_action;
+
+      if (cartAction === 'add_more') {
+        const menu = await getMenu(businessId);
+        return reply({ version, screen: S.CATEGORY_SELECT_RETURN, data: { [F.CATEGORIES]: getCategories(menu) } });
+      }
+
+      if (cartAction === 'remove_items') {
+        const raw = payload[F.REMOVE_ITEMS];
+        const removeIds = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+        const ref = sessionRef(phone);
+        const snap = await ref.get();
+        const existing = snap.exists ? (snap.data().basket ?? []) : [];
+
+        if (removeIds.includes('clear')) {
+          await ref.set({ basket: [], updatedAt: new Date() }, { merge: true });
+          const menu = await getMenu(businessId);
+          return reply({ version, screen: S.CATEGORY_SELECT_RETURN, data: { [F.CATEGORIES]: getCategories(menu) } });
+        }
+
+        const removeSet = new Set(removeIds.map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
+        const newBasket = removeSet.size ? existing.filter((_, i) => !removeSet.has(i)) : existing;
+        if (removeSet.size) await ref.set({ basket: newBasket, updatedAt: new Date() }, { merge: true });
+
+        if (!newBasket.length) {
+          const menu = await getMenu(businessId);
+          return reply({ version, screen: S.CATEGORY_SELECT_RETURN, data: { [F.CATEGORIES]: getCategories(menu) } });
+        }
+        const data = nextScreen === S.CART_DONE ? basketSummary(newBasket) : buildCartData(newBasket);
+        return reply({ version, screen: nextScreen, data });
+      }
+
+      // fallback — pass through unchanged
+      const ref = sessionRef(phone);
+      const snap = await ref.get();
+      const existing = snap.exists ? (snap.data().basket ?? []) : [];
+      const data = nextScreen === S.CART_DONE ? basketSummary(existing) : buildCartData(existing);
+      return reply({ version, screen: nextScreen, data });
+    }
+
+    // ── CART_DONE: add_more only ─────────────────────────────────────────────
+    if (action === 'data_exchange' && screen === S.CART_DONE) {
       const menu = await getMenu(businessId);
+      return reply({ version, screen: S.CATEGORY_SELECT_RETURN, data: { [F.CATEGORIES]: getCategories(menu) } });
+    }
+
+    // ── CATEGORY_SELECT_RETURN → MENU_BROWSE (same as CATEGORY_SELECT) ─────
+    if (action === 'data_exchange' && screen === S.CATEGORY_SELECT_RETURN) {
+      const categoryId = payload[F.CATEGORY_ID];
+      const menu = await getMenu(businessId);
+      const items = menu.filter(i => (i.category || 'other') === categoryId);
       return reply({
         version,
         screen: S.MENU_BROWSE,
         data: {
-          [F.CATEGORY_TITLE]: 'All items',
-          [F.MENU_ITEMS]: menu.map(item => ({
+          [F.CATEGORY_TITLE]: categoryId.charAt(0).toUpperCase() + categoryId.slice(1),
+          [F.MENU_ITEMS]: items.map(item => ({
             id: item.id,
             title: item.name,
             description: `€${Number(item.price).toFixed(2)}${item.description ? ` — ${item.description}` : ''}`,

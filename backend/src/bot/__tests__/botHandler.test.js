@@ -1060,7 +1060,7 @@ describe('awaiting_special_requests: invalid input re-prompts', () => {
 
     expect(setSession).not.toHaveBeenCalled();
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: [expect.objectContaining({ id: 'btn_skip_requests' })],
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_skip_requests' })]),
     }));
   });
 
@@ -1075,7 +1075,7 @@ describe('awaiting_special_requests: invalid input re-prompts', () => {
 
     expect(setSession).not.toHaveBeenCalled();
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: [expect.objectContaining({ id: 'btn_skip_requests' })],
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_skip_requests' })]),
     }));
   });
 });

@@ -419,6 +419,19 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
 
   // ── State: awaiting_special_requests ──────────────────────────────────────
   if (session.state === 'awaiting_special_requests') {
+    if (type === 'button_reply' && id === 'btn_edit_cart') {
+      await sendFlowMessage(from, {
+        flowId: process.env.WHATSAPP_FLOW_ID || '1465498598663384',
+        flowToken: `${from}|${businessId}`,
+        flowCta: t('editCartBtn', lang),
+        screen: 'CART_REVIEW',
+        body: t('editCartBody', lang),
+        data: {},
+      });
+      await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: [] });
+      return;
+    }
+
     const isSkip = type === 'button_reply' && id === 'btn_skip_requests';
     const notes = isSkip ? '' : (type === 'text' && norm.length > 0 ? text.trim() : null);
 
@@ -447,7 +460,10 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     }
     await sendButtonMessage(from, {
       body: t('specialRequestsPrompt', lang),
-      buttons: [{ id: 'btn_skip_requests', title: t('skipBtn', lang) }],
+      buttons: [
+        { id: 'btn_skip_requests', title: t('skipBtn', lang) },
+        { id: 'btn_edit_cart',     title: t('editCartBtn', lang) },
+      ],
     });
     return;
   }
@@ -690,7 +706,10 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
     const reqId = await sendButtonMessage(from, {
       body: t('specialRequestsPrompt', lang),
-      buttons: [{ id: 'btn_skip_requests', title: t('skipBtn', lang) }],
+      buttons: [
+        { id: 'btn_skip_requests', title: t('skipBtn', lang) },
+        { id: 'btn_edit_cart',     title: t('editCartBtn', lang) },
+      ],
     });
     await setSession(from, { ...session, state: 'awaiting_special_requests', basket: flowBasket, pickupTime, prepMins, businessId, pendingDeleteIds: reqId ? [reqId] : [] });
     return;
