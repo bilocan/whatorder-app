@@ -1,0 +1,7 @@
+node_modules/
+coverage/
+.env
+.env.*
+scripts/
+**/__tests__/
+**/*.test.js
