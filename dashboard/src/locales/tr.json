@@ -32,7 +32,8 @@
     "verifying": "Doğrulanıyor...",
     "signIn": "Giriş yap",
     "invalidCode": "Geçersiz kod. Tekrar deneyin.",
-    "useDifferentNumber": "Farklı numara kullan"
+    "useDifferentNumber": "Farklı numara kullan",
+    "notRegistered": "Bu telefon numarası sistemimizde kayıtlı değil."
   },
   "orders": {
     "title": "Siparişler",

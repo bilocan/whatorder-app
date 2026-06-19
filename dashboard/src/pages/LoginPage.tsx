@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { auth } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 export default function LoginPage() {
   const { t } = useTranslation();
   const { user, loading } = useAuth();
@@ -26,6 +28,16 @@ export default function LoginPage() {
     setError('');
     setBusy(true);
     try {
+      const checkRes = await fetch(`${API_URL}/admin/check-phone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      const { allowed } = await checkRes.json();
+      if (!allowed) {
+        setError(t('login.notRegistered'));
+        return;
+      }
       if (!recaptchaRef.current) {
         recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
       }

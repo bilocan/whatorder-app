@@ -32,7 +32,8 @@
     "verifying": "Überprüfe...",
     "signIn": "Anmelden",
     "invalidCode": "Ungültiger Code. Erneut versuchen.",
-    "useDifferentNumber": "Andere Nummer verwenden"
+    "useDifferentNumber": "Andere Nummer verwenden",
+    "notRegistered": "Diese Telefonnummer ist nicht in unserem System registriert."
   },
   "orders": {
     "title": "Bestellungen",
