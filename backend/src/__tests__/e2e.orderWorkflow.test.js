@@ -33,7 +33,7 @@ jest.mock('../lib/distance');
 const { handleMessage } = require('../bot/botHandler');
 const { markReady, approveOrder, startPreparation } = require('../bot/orderService');
 
-const { sendText, sendButtonMessage, sendCatalogMessage, sendListMessage,
+const { sendText, sendButtonMessage, sendFlowMessage, sendListMessage,
   sendLocationRequest, deleteMessage } = require('../lib/whatsapp');
 const { getSession, setSession } = require('../bot/sessionStore');
 const { getMenu, getBusinessInfo } = require('../bot/menuService');
@@ -124,11 +124,12 @@ function inMsg(overrides = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  process.env.WHATSAPP_FLOW_ID = 'flow_test_id';
 
   // WhatsApp stubs
   sendText.mockResolvedValue('wamid_stub');
   sendButtonMessage.mockResolvedValue('wamid_btn');
-  sendCatalogMessage.mockResolvedValue('wamid_cat');
+  sendFlowMessage.mockResolvedValue(null);
   sendListMessage.mockResolvedValue('wamid_list');
   sendLocationRequest.mockResolvedValue(undefined);
   deleteMessage.mockResolvedValue(undefined);
@@ -147,6 +148,10 @@ beforeEach(() => {
 
   // Distance sort: identity
   sortByDistance.mockImplementation((items) => items);
+});
+
+afterEach(() => {
+  delete process.env.WHATSAPP_FLOW_ID;
 });
 
 // ── Test suite: pickup order workflow ─────────────────────────────────────────
