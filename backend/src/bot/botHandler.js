@@ -240,8 +240,13 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   if (!session.language || (isMulti && !session.businessId && session.state !== 'selecting_restaurant' && session.state !== 'awaiting_location') || sessionExpiredForPicker) {
     if (isMulti) {
       const lang = session.language || (type === 'text' ? detectLanguage(text) : 'en');
-      const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
-      await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: locId ? [locId] : [] });
+      // Set state before the API call so a failed sendLocationRequest can't leave the bot looping;
+      // if the call succeeds, update pendingDeleteIds so the message is cleaned up next turn.
+      await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: [] });
+      try {
+        const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
+        if (locId) await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: [locId] });
+      } catch { /* ignore — awaiting_location handler will show the picker on next message */ }
       return;
     }
     const bid = routing.defaultBusinessId || routing.businessIds[0];
@@ -321,7 +326,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
         return;
       }
       const menuId = await sendCatalog(from, lang, selectedBid);
-      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: selectedBid, pendingDeleteIds: menuId ? [menuId] : [] });
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: selectedBid, lat: session.lat ?? null, lng: session.lng ?? null, pendingDeleteIds: menuId ? [menuId] : [] });
       return;
     }
     // Any other input while picking: re-show the picker (sorted if location known)
@@ -362,7 +367,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
           { id: 'btn_done',        title: t('doneBtn', lang) },
         ],
       });
-      await setSession(from, { state: 'browsing', language: lang, basket: newBasket, businessId, pendingDeleteIds: [], ...(session.flow ? { flow: session.flow } : {}) });
+      await setSession(from, { state: 'browsing', language: lang, basket: newBasket, businessId, lat: session.lat ?? null, lng: session.lng ?? null, pendingDeleteIds: [], ...(session.flow ? { flow: session.flow } : {}) });
       return;
     }
 
@@ -583,7 +588,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       const shortId = orderId.slice(-6).toUpperCase();
       const orderTotal = isDelivery ? subtotal + deliveryFee : subtotal;
       const itemLines = basket.map(i => `• ${i.qty}× ${i.name} — €${(i.price * i.qty).toFixed(2)}`).join('\n');
-      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [] });
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: isMulti ? null : businessId, pendingDeleteIds: [] });
       await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, orderTotal.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, info.alertPhone || null, info.address || null));
       return;
     }
@@ -629,7 +634,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       body: t('specialRequestsPrompt', lang),
       buttons: [{ id: 'btn_skip_requests', title: t('skipBtn', lang) }],
     });
-    await setSession(from, { state: 'awaiting_special_requests', language: lang, basket: newBasket, pickupTime, prepMins, businessId, pendingDeleteIds: reqId ? [reqId] : [] });
+    await setSession(from, { state: 'awaiting_special_requests', language: lang, basket: newBasket, pickupTime, prepMins, businessId, lat: session.lat ?? null, lng: session.lng ?? null, pendingDeleteIds: reqId ? [reqId] : [] });
     return;
   }
 
