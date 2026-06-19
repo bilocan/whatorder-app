@@ -412,16 +412,16 @@ describe('Multi-restaurant: late location share in selecting_restaurant', () => 
   });
 });
 
-// ─── Use case: order confirmed → awaiting_restaurant_choice ──────────────────
+// ─── Use case: order confirmed → silent receipt, session reset ────────────────
 
-describe('Multi-restaurant: order confirmed transitions to awaiting_restaurant_choice', () => {
+describe('Multi-restaurant: order confirmed sends receipt and resets session', () => {
   beforeEach(() => {
     getBusinessInfo.mockImplementation(id =>
       Promise.resolve(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO)
     );
   });
 
-  test('sets state to awaiting_restaurant_choice and sends choice buttons', async () => {
+  test('sets state to browsing with businessId null and sends receipt text', async () => {
     getSession.mockResolvedValue(multiSession({
       state: 'confirming',
       basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
@@ -433,20 +433,15 @@ describe('Multi-restaurant: order confirmed transitions to awaiting_restaurant_c
     await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Confirm ✅' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_restaurant_choice',
+      state: 'browsing',
       businessId: 'biz_a',
       basket: [],
     }));
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      body: expect.stringContaining('Döner Palace'),
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_order_again' }),
-        expect.objectContaining({ id: 'btn_choose_restaurant' }),
-      ]),
-    }));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Döner Palace'));
+    expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
-  test('order confirmation body includes the order short ID', async () => {
+  test('receipt text includes the order short ID', async () => {
     getSession.mockResolvedValue(multiSession({
       state: 'confirming',
       basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
@@ -458,23 +453,21 @@ describe('Multi-restaurant: order confirmed transitions to awaiting_restaurant_c
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Confirm ✅' }));
 
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      body: expect.stringContaining('ABC123'),
-    }));
-    expect(sendText).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'));
+    expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 });
 
-// ─── Use case: order cancelled → awaiting_restaurant_choice ──────────────────
+// ─── Use case: order cancelled → silent text, session reset ──────────────────
 
-describe('Multi-restaurant: order cancelled transitions to awaiting_restaurant_choice', () => {
+describe('Multi-restaurant: order cancelled sends text and resets session', () => {
   beforeEach(() => {
     getBusinessInfo.mockImplementation(id =>
       Promise.resolve(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO)
     );
   });
 
-  test('sets state to awaiting_restaurant_choice and sends choice buttons', async () => {
+  test('sets state to browsing with businessId null and sends cancel text', async () => {
     getSession.mockResolvedValue(multiSession({
       state: 'confirming',
       basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
@@ -484,117 +477,18 @@ describe('Multi-restaurant: order cancelled transitions to awaiting_restaurant_c
     await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_cancel_order', title: 'Cancel ❌' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_restaurant_choice',
+      state: 'browsing',
       businessId: 'biz_a',
     }));
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_order_again' }),
-        expect.objectContaining({ id: 'btn_choose_restaurant' }),
-      ]),
-    }));
+    expect(sendText).toHaveBeenCalled();
+    expect(sendButtonMessage).not.toHaveBeenCalled();
     expect(sendCatalogMessage).not.toHaveBeenCalled();
   });
 });
 
-// ─── Use case: awaiting_restaurant_choice interactions ───────────────────────
+// ─── Use case: switch keyword from browsing ───────────────────────────────────
 
-describe('Multi-restaurant: awaiting_restaurant_choice state interactions', () => {
-  beforeEach(() => {
-    getBusinessInfo.mockImplementation(id =>
-      Promise.resolve(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO)
-    );
-  });
-
-  test('btn_order_again → browsing state and shows catalog at same restaurant', async () => {
-    getSession.mockResolvedValue(multiSession({ state: 'awaiting_restaurant_choice' }));
-
-    await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_order_again', title: 'Order here again' }));
-
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendCatalogMessage).toHaveBeenCalledWith(FROM, 'cat_a', expect.any(String), expect.any(String));
-  });
-
-  test('btn_choose_restaurant without stored location → location request', async () => {
-    getSession.mockResolvedValue(multiSession({ state: 'awaiting_restaurant_choice' }));
-
-    await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_choose_restaurant', title: 'Choose restaurant' }));
-
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_location',
-      businessId: null,
-    }));
-    expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.any(String));
-    expect(sendListMessage).not.toHaveBeenCalled();
-  });
-
-  test('btn_choose_restaurant with stored location → sorted picker', async () => {
-    const BIZ_A_WITH_COORDS = { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 };
-    const BIZ_B_WITH_COORDS = { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 };
-    getBusinessInfo.mockImplementation(id =>
-      Promise.resolve(id === 'biz_a' ? BIZ_A_WITH_COORDS : BIZ_B_WITH_COORDS)
-    );
-    getSession.mockResolvedValue(multiSession({ state: 'awaiting_restaurant_choice', lat: 48.1980, lng: 16.3730 }));
-
-    await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_choose_restaurant', title: 'Choose restaurant' }));
-
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'selecting_restaurant',
-      businessId: null,
-      lat: 48.1980,
-      lng: 16.3730,
-    }));
-    expect(sendListMessage).toHaveBeenCalled();
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    expect(rows[0].id).toBe('restaurant_biz_b'); // closer to customer
-  });
-
-  test('random text re-shows the choice prompt without changing state', async () => {
-    getSession.mockResolvedValue(multiSession({ state: 'awaiting_restaurant_choice' }));
-
-    await handleMessage(ROUTING_MULTI, msg({ text: 'hello' }));
-
-    expect(setSession).not.toHaveBeenCalled();
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      body: expect.stringContaining('Döner Palace'),
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_order_again' }),
-        expect.objectContaining({ id: 'btn_choose_restaurant' }),
-      ]),
-    }));
-  });
-
-  test('returning customer (session days old) still sees the choice prompt', async () => {
-    getSession.mockResolvedValue(multiSession({
-      state: 'awaiting_restaurant_choice',
-      updatedAt: makeUpdatedAt(48 * 60 * 60 * 1000), // 48 hours ago
-    }));
-
-    await handleMessage(ROUTING_MULTI, msg({ text: 'hi' }));
-
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_order_again' }),
-        expect.objectContaining({ id: 'btn_choose_restaurant' }),
-      ]),
-    }));
-    expect(sendCatalogMessage).not.toHaveBeenCalled();
-  });
-
-  test('switch keyword without stored location → location request', async () => {
-    getSession.mockResolvedValue(multiSession({ state: 'awaiting_restaurant_choice' }));
-
-    await handleMessage(ROUTING_MULTI, msg({ text: 'switch' }));
-
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Switching'));
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_location',
-      businessId: null,
-    }));
-    expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.any(String));
-    expect(sendListMessage).not.toHaveBeenCalled();
-  });
-
+describe('Multi-restaurant: switch keyword from browsing state', () => {
   test('switch keyword with stored location → sorted picker', async () => {
     const BIZ_A_WITH_COORDS = { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 };
     const BIZ_B_WITH_COORDS = { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 };

@@ -40,7 +40,7 @@ module.exports = {
     const detail = deliveryAddress ? `Delivery to: ${deliveryAddress}` : `Ready by: ${pickupTime}`;
     return `✅ Order #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nTotal: €${total}\n${detail}\n\nThanks, ${customerName}! 🙏`;
   },
-  orderCancelled: () => 'Order cancelled.',
+  checkoutCancelled: () => 'Order cancelled.',
 
   menuEmpty: () => 'No items available right now.',
 
