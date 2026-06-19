@@ -315,6 +315,41 @@ describe('Multi-restaurant: first-time customer', () => {
   });
 });
 
+// ─── Use case: post-order routing (language set, no businessId) ───────────────
+
+describe('Multi-restaurant: post-order routing', () => {
+  beforeEach(() => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO)
+    );
+  });
+
+  test('language set + no businessId → always requests fresh location (even if lat/lng stored)', async () => {
+    getSession.mockResolvedValue({ language: 'en', basket: [], businessId: null, state: 'browsing', lat: 48.1980, lng: 16.3730 });
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'hi' }));
+
+    expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.any(String));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_location',
+      businessId: null,
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('session set to awaiting_location before API call so failures cannot loop', async () => {
+    sendLocationRequest.mockRejectedValueOnce(new Error('API error'));
+    getSession.mockResolvedValue({ language: 'en', basket: [], businessId: null, state: 'browsing' });
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'hi' }));
+
+    // Session must be updated even if sendLocationRequest throws
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_location',
+    }));
+  });
+});
+
 // ─── Use case: awaiting_location state ───────────────────────────────────────
 
 describe('Multi-restaurant: awaiting_location state', () => {
@@ -410,6 +445,19 @@ describe('Multi-restaurant: late location share in selecting_restaurant', () => 
     expect(rows[0].id).toBe('restaurant_biz_b');
     expect(rows[0].description).toMatch(/📍/);
   });
+
+  test('restaurant selected → lat/lng preserved in browsing session', async () => {
+    getSession.mockResolvedValue({ state: 'selecting_restaurant', language: 'en', basket: [], businessId: null, lat: 48.1980, lng: 16.3730 });
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_biz_a' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      businessId: 'biz_a',
+      lat: 48.1980,
+      lng: 16.3730,
+    }));
+  });
 });
 
 // ─── Use case: order confirmed → silent receipt, session reset ────────────────
@@ -434,7 +482,7 @@ describe('Multi-restaurant: order confirmed sends receipt and resets session', (
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'browsing',
-      businessId: 'biz_a',
+      businessId: null,
       basket: [],
     }));
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Döner Palace'));
