@@ -119,6 +119,40 @@ describe('isOrderingOpen', () => {
     setNow('2024-06-10T21:30:00Z');
     expect(isOrderingOpen(allDaysOpen({ lastOrderTime: '21:30' }), TZ)).toBe(true);
   });
+
+  describe('cross-midnight window (firstOrderTime="09:00", lastOrderTime="02:30")', () => {
+    const crossMidnight = allDaysOpen({ firstOrderTime: '09:00', lastOrderTime: '02:30' });
+
+    test('open at 14:00 (evening side)', () => {
+      setNow('2024-06-10T14:00:00Z'); // Monday 14:00
+      expect(isOrderingOpen(crossMidnight, TZ)).toBe(true);
+    });
+
+    test('open at 23:59 (just before midnight)', () => {
+      setNow('2024-06-10T23:59:00Z');
+      expect(isOrderingOpen(crossMidnight, TZ)).toBe(true);
+    });
+
+    test('open at 01:00 (early morning of next day)', () => {
+      setNow('2024-06-11T01:00:00Z'); // Tuesday 01:00 — within Monday lastOrderTime 02:30
+      expect(isOrderingOpen(crossMidnight, TZ)).toBe(true);
+    });
+
+    test('open at exactly lastOrderTime 02:30', () => {
+      setNow('2024-06-11T02:30:00Z');
+      expect(isOrderingOpen(crossMidnight, TZ)).toBe(true);
+    });
+
+    test('closed at 03:00 (after lastOrderTime on next day)', () => {
+      setNow('2024-06-11T03:00:00Z'); // Tuesday 03:00 — past Monday lastOrderTime
+      expect(isOrderingOpen(crossMidnight, TZ)).toBe(false);
+    });
+
+    test('closed before firstOrderTime (08:00)', () => {
+      setNow('2024-06-10T08:00:00Z');
+      expect(isOrderingOpen(crossMidnight, TZ)).toBe(false);
+    });
+  });
 });
 
 // ── getTodayOrderWindow ─────────────────────────────────────────────────────

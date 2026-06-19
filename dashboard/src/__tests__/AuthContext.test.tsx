@@ -14,12 +14,13 @@ vi.mock('firebase/auth', () => ({ onAuthStateChanged: mockOnAuthStateChanged, si
 vi.mock('firebase/firestore', () => ({ doc: mockDoc, onSnapshot: mockOnSnapshot }))
 
 function AuthSpy() {
-  const { user, businessId, isAdmin, loading } = useAuth()
+  const { user, businessId, businessIds, isAdmin, loading } = useAuth()
   return (
     <div>
       <span data-testid="loading">{String(loading)}</span>
       <span data-testid="user">{user ? 'signed-in' : 'null'}</span>
       <span data-testid="businessId">{businessId ?? 'null'}</span>
+      <span data-testid="businessIds">{businessIds.join(',') || 'none'}</span>
       <span data-testid="isAdmin">{String(isAdmin)}</span>
     </div>
   )
@@ -78,6 +79,43 @@ describe('AuthContext', () => {
     })
     render(<AuthProvider><AuthSpy /></AuthProvider>)
     await waitFor(() => expect(screen.getByTestId('isAdmin')).toHaveTextContent('true'))
+    expect(screen.getByTestId('businessId')).toHaveTextContent('null')
+  })
+
+  it('exposes businessIds array from owners doc (legacy single-businessId)', async () => {
+    mockOnAuthStateChanged.mockImplementation((_: unknown, cb: (u: object) => void) => {
+      cb({ uid: 'u1' })
+      return vi.fn()
+    })
+    mockOnSnapshot.mockImplementation((ref: { _coll: string }, success: (s: object) => void) => {
+      if (ref._coll === 'owners') {
+        success({ exists: () => true, data: () => ({ businessId: 'biz-1' }) })
+      } else {
+        success({ exists: () => false })
+      }
+      return vi.fn()
+    })
+    render(<AuthProvider><AuthSpy /></AuthProvider>)
+    await waitFor(() => expect(screen.getByTestId('businessIds')).toHaveTextContent('biz-1'))
+    expect(screen.getByTestId('businessId')).toHaveTextContent('biz-1')
+  })
+
+  it('exposes businessIds array from owners doc (new businessIds field)', async () => {
+    mockOnAuthStateChanged.mockImplementation((_: unknown, cb: (u: object) => void) => {
+      cb({ uid: 'u1' })
+      return vi.fn()
+    })
+    mockOnSnapshot.mockImplementation((ref: { _coll: string }, success: (s: object) => void) => {
+      if (ref._coll === 'owners') {
+        success({ exists: () => true, data: () => ({ businessId: 'biz-1', businessIds: ['biz-1', 'biz-2'] }) })
+      } else {
+        success({ exists: () => false })
+      }
+      return vi.fn()
+    })
+    render(<AuthProvider><AuthSpy /></AuthProvider>)
+    await waitFor(() => expect(screen.getByTestId('businessIds')).toHaveTextContent('biz-1,biz-2'))
+    // No saved session → businessId is null (requires picker)
     expect(screen.getByTestId('businessId')).toHaveTextContent('null')
   })
 
