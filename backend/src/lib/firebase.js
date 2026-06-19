@@ -20,6 +20,11 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore();
-db.settings({ preferRest: true });
+// grpc-js is broken on Node.js 24 — use REST as a workaround.
+// Node.js 22 (Cloud Run) uses gRPC natively, which handles reconnections
+// correctly and avoids the "Premature close" error on idle Cloud Run instances.
+if (parseInt(process.versions.node, 10) >= 24) {
+  db.settings({ preferRest: true });
+}
 
 module.exports = { admin, db };
