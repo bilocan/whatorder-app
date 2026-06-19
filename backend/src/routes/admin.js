@@ -31,6 +31,33 @@ function normalizePhone(raw) {
   return stripped.startsWith('+') ? stripped : `+${stripped}`;
 }
 
+// POST /admin/check-phone  (public — no auth required)
+// Returns { allowed: true } only if the phone is registered as an owner or admin.
+// Called by the dashboard login page before triggering Firebase phone OTP so we
+// never send an SMS to a number that isn't in our system.
+router.post('/check-phone', async (req, res) => {
+  const { phone } = req.body ?? {};
+  if (!phone) return res.status(400).json({ allowed: false });
+
+  const normalizedPhone = normalizePhone(phone);
+
+  let userRecord;
+  try {
+    userRecord = await admin.auth().getUserByPhoneNumber(normalizedPhone);
+  } catch (err) {
+    if (err.code === 'auth/user-not-found') return res.json({ allowed: false });
+    console.error('[admin/check-phone] auth lookup failed:', err);
+    return res.status(500).json({ allowed: false });
+  }
+
+  const [ownerSnap, adminSnap] = await Promise.all([
+    ownerRef(userRecord.uid).get(),
+    adminRef(userRecord.uid).get(),
+  ]);
+
+  res.json({ allowed: ownerSnap.exists || adminSnap.exists });
+});
+
 // POST /admin/owners
 // Body: { phone: string, businessId: string }
 // Looks up or creates the Firebase Auth user, then writes owners/{uid}
