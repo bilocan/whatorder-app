@@ -1,4 +1,10 @@
 {
+  "selectRestaurant": {
+    "title": "Select a restaurant",
+    "subtitle": "Choose the restaurant you want to manage.",
+    "loading": "Loading restaurants…",
+    "switchLabel": "Switch restaurant"
+  },
   "nav": {
     "orders": "Orders",
     "customers": "Customers",
@@ -219,6 +225,17 @@
       "5": "Fri",
       "6": "Sat"
     }
+  },
+  "presence": {
+    "online": "Online — accepting orders",
+    "ordersPaused": "Orders paused",
+    "offline": "Offline",
+    "pauseOrders": "Pause orders",
+    "resumeOrders": "Resume orders",
+    "deliveryOn": "Delivery on",
+    "deliveryOff": "Delivery off",
+    "pauseDelivery": "Pause delivery",
+    "resumeDelivery": "Resume delivery"
   },
   "admin": {
     "earnings": {
