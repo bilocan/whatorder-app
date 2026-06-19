@@ -148,6 +148,17 @@ async function sendFlowMessage(to, { flowId, flowToken, flowCta, screen, body, d
   });
 }
 
+async function sendImage(to, { url, caption }) {
+  const normalized = normalizePhone(to);
+  if (process.env.NODE_ENV === 'test') {
+    console.log(`\n[WA IMAGE → ${normalized}]\nurl=${url}\ncaption=${caption ?? ''}\n`);
+    return testId();
+  }
+  const image = { link: url };
+  if (caption) image.caption = caption;
+  return send({ messaging_product: 'whatsapp', to: normalized, type: 'image', image });
+}
+
 // Non-fatal: logs on failure rather than throwing.
 async function deleteMessage(messageId) {
   if (!messageId) return;
@@ -168,4 +179,4 @@ async function deleteMessage(messageId) {
   }
 }
 
-module.exports = { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendFlowMessage, sendLocationRequest, deleteMessage };
+module.exports = { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendFlowMessage, sendLocationRequest, sendImage, deleteMessage };

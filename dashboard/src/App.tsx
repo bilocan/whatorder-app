@@ -14,9 +14,13 @@ import CustomersPage from './pages/CustomersPage';
 import RestaurantsPage from './pages/admin/RestaurantsPage';
 import RestaurantDetailPage from './pages/admin/RestaurantDetailPage';
 import EarningsPage from './pages/admin/EarningsPage';
+import SelectRestaurantPage from './pages/SelectRestaurantPage';
 
 function DefaultRedirect() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, businessId, businessIds } = useAuth();
+  if (!isAdmin && businessIds.length > 1 && !businessId) {
+    return <Navigate to="/select-restaurant" replace />;
+  }
   return <Navigate to={isAdmin ? '/admin' : '/orders'} replace />;
 }
 
@@ -26,6 +30,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/select-restaurant" element={<SelectRestaurantPage />} />
           <Route path="/" element={<AuthGuard><Layout /></AuthGuard>}>
             <Route index element={<DefaultRedirect />} />
             <Route path="orders" element={<OrdersPage />} />

@@ -40,7 +40,8 @@ export default function OrdersPage() {
     <div>
       <h2>{t('orders.title')}</h2>
       {orders.length === 0 && <p style={{ color: '#999' }}>{t('orders.noOrders')}</p>}
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
         <thead>
           <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
             <th style={{ padding: '0.5rem' }}>{t('orders.col.customer')}</th>
@@ -102,6 +103,7 @@ export default function OrdersPage() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

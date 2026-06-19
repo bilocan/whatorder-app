@@ -1,7 +1,7 @@
 const { getSession, setSession } = require('./sessionStore');
-const { getMenu, getBusinessInfo } = require('./menuService');
+const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('./menuService');
 const { createOrder } = require('./orderService');
-const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendFlowMessage, sendLocationRequest, deleteMessage } = require('../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendFlowMessage, sendLocationRequest, sendImage, deleteMessage } = require('../lib/whatsapp');
 const { sortByDistance } = require('../lib/distance');
 const { detectLanguage, scoreLanguage, getOverride } = require('./languageDetector');
 const { t, tCategory } = require('./templates');
@@ -259,6 +259,11 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
       return;
     }
+    if (bidInfo.isOnline === false || bidInfo.ordersOpen === false) {
+      await sendText(from, t('ordersClosedByOwner', lang, bidInfo.name));
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
+      return;
+    }
     const menuId = await sendCatalog(from, lang, bid);
     await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: menuId ? [menuId] : [] });
     return;
@@ -323,6 +328,10 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       if (!isOrderingOpen(selectedInfo.schedule, selectedInfo.timezone || 'Europe/Vienna')) {
         const _w1 = getTodayOrderWindow(selectedInfo.schedule, selectedInfo.timezone || 'Europe/Vienna');
         await sendText(from, t('restaurantClosed', lang, selectedInfo.name, _w1?.firstOrderTime ?? null, _w1?.lastOrderTime ?? null));
+        return;
+      }
+      if (selectedInfo.isOnline === false || selectedInfo.ordersOpen === false) {
+        await sendText(from, t('ordersClosedByOwner', lang, selectedInfo.name));
         return;
       }
       const menuId = await sendCatalog(from, lang, selectedBid);
@@ -451,6 +460,15 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
         return;
       }
       if (id === 'btn_delivery') {
+        const delivInfo = await getBusinessInfo(businessId);
+        if (delivInfo.deliveryOpen === false) {
+          const msgId = await sendButtonMessage(from, {
+            body: t('deliveryClosedByOwner', lang),
+            buttons: [{ id: 'btn_pickup', title: t('pickupBtn', lang) }],
+          });
+          await setSession(from, { ...session, pendingDeleteIds: msgId ? [msgId] : [] });
+          return;
+        }
         const rows = await getDeliveryAddressRows(session, from, businessId, lang);
         if (rows) {
           const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
@@ -673,6 +691,10 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     if (!item) {
       await sendCatalog(from, lang, businessId);
       return;
+    }
+    const photoUrl = resolvePhotoUrl(item.photoUrl);
+    if (photoUrl) {
+      try { await sendImage(from, { url: photoUrl }); } catch { /* non-fatal */ }
     }
     const qtyId = await sendButtonMessage(from, {
       body: t('qtyBody', lang, item.name, item.price.toFixed(2)),

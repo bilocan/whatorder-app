@@ -76,7 +76,14 @@ module.exports = async (req, res) => {
     }
 
     const { uid } = userRecord;
-    await ownerRef(uid).set({ businessId, phone: normalizedPhone });
+    await ownerRef(uid).set(
+      {
+        businessId,
+        phone: normalizedPhone,
+        businessIds: admin.firestore.FieldValue.arrayUnion(businessId),
+      },
+      { merge: true },
+    );
     return res.json({ uid, phone: normalizedPhone });
   }
 
