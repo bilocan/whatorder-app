@@ -1,4 +1,10 @@
 {
+  "selectRestaurant": {
+    "title": "Restaurant auswählen",
+    "subtitle": "Wähle das Restaurant, das du verwalten möchtest.",
+    "loading": "Restaurants werden geladen…",
+    "switchLabel": "Restaurant wechseln"
+  },
   "nav": {
     "orders": "Bestellungen",
     "customers": "Kunden",
@@ -219,6 +225,17 @@
       "5": "Fr",
       "6": "Sa"
     }
+  },
+  "presence": {
+    "online": "Online — Bestellungen aktiv",
+    "ordersPaused": "Bestellungen pausiert",
+    "offline": "Offline",
+    "pauseOrders": "Pause",
+    "resumeOrders": "Fortsetzen",
+    "deliveryOn": "Lieferung aktiv",
+    "deliveryOff": "Lieferung pausiert",
+    "pauseDelivery": "Lieferung pausieren",
+    "resumeDelivery": "Lieferung fortsetzen"
   },
   "admin": {
     "earnings": {

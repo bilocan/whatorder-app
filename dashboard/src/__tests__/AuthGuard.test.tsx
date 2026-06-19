@@ -14,7 +14,7 @@ function Child() {
 }
 
 function auth(overrides: object) {
-  return { user: null, businessId: null, isAdmin: false, loading: false, signOut: vi.fn(), ...overrides }
+  return { user: null, businessId: null, businessIds: [], isAdmin: false, loading: false, signOut: vi.fn(), setActiveBusinessId: vi.fn(), ...overrides }
 }
 
 describe('AuthGuard', () => {
@@ -33,11 +33,18 @@ describe('AuthGuard', () => {
     expect(screen.queryByTestId('child')).not.toBeInTheDocument()
   })
 
-  it('shows account-not-linked message for owner without businessId', () => {
-    mockUseAuth.mockReturnValue(auth({ user: { uid: 'u1' }, businessId: null, isAdmin: false }))
+  it('shows account-not-linked message for owner with no restaurants', () => {
+    mockUseAuth.mockReturnValue(auth({ user: { uid: 'u1' }, businessId: null, businessIds: [], isAdmin: false }))
     render(<AuthGuard><Child /></AuthGuard>)
     expect(screen.getByText('Account not linked')).toBeInTheDocument()
     expect(screen.getByText(/not linked to a restaurant/)).toBeInTheDocument()
+    expect(screen.queryByTestId('child')).not.toBeInTheDocument()
+  })
+
+  it('redirects to /select-restaurant for multi-restaurant owner with no active selection', () => {
+    mockUseAuth.mockReturnValue(auth({ user: { uid: 'u1' }, businessId: null, businessIds: ['biz-1', 'biz-2'], isAdmin: false }))
+    render(<AuthGuard><Child /></AuthGuard>)
+    expect(screen.getByTestId('navigate')).toHaveAttribute('data-to', '/select-restaurant')
     expect(screen.queryByTestId('child')).not.toBeInTheDocument()
   })
 
