@@ -59,6 +59,58 @@ describe('requireAdmin middleware', () => {
   });
 });
 
+// ── POST /admin/check-phone ──────────────────────────────────────────────────
+
+describe('POST /admin/check-phone', () => {
+  test('400 when phone is missing', async () => {
+    const res = await request(app).post('/admin/check-phone').send({});
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ allowed: false });
+  });
+
+  test('allowed: false when phone not found in Firebase Auth', async () => {
+    const notFoundErr = Object.assign(new Error('not found'), { code: 'auth/user-not-found' });
+    mockAuth.getUserByPhoneNumber.mockRejectedValue(notFoundErr);
+    const res = await request(app).post('/admin/check-phone').send({ phone: '+431234' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ allowed: false });
+  });
+
+  test('allowed: false when uid is in neither owners nor admins', async () => {
+    mockAuth.getUserByPhoneNumber.mockResolvedValue({ uid: 'uid1' });
+    ownerRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+    adminRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+    const res = await request(app).post('/admin/check-phone').send({ phone: '+431234' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ allowed: false });
+  });
+
+  test('allowed: true when uid is in owners', async () => {
+    mockAuth.getUserByPhoneNumber.mockResolvedValue({ uid: 'uid1' });
+    ownerRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: true }) });
+    adminRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+    const res = await request(app).post('/admin/check-phone').send({ phone: '+431234' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ allowed: true });
+  });
+
+  test('allowed: true when uid is in admins', async () => {
+    mockAuth.getUserByPhoneNumber.mockResolvedValue({ uid: 'uid1' });
+    ownerRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+    adminRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: true }) });
+    const res = await request(app).post('/admin/check-phone').send({ phone: '+431234' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ allowed: true });
+  });
+
+  test('500 when getUserByPhoneNumber fails with unexpected error', async () => {
+    mockAuth.getUserByPhoneNumber.mockRejectedValue(new Error('internal'));
+    const res = await request(app).post('/admin/check-phone').send({ phone: '+431234' });
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ allowed: false });
+  });
+});
+
 // ── POST /admin/owners ───────────────────────────────────────────────────────
 
 describe('POST /admin/owners', () => {

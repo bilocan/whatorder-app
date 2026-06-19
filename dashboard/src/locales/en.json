@@ -26,7 +26,8 @@
     "verifying": "Verifying...",
     "signIn": "Sign in",
     "invalidCode": "Invalid code. Try again.",
-    "useDifferentNumber": "Use a different number"
+    "useDifferentNumber": "Use a different number",
+    "notRegistered": "This phone number is not registered in our system."
   },
   "orders": {
     "title": "Orders",
