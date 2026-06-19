@@ -40,7 +40,7 @@ module.exports = {
     const detail = deliveryAddress ? `Teslimat: ${deliveryAddress}` : `Hazır: ${pickupTime}`;
     return `✅ Sipariş #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}\n${detail}\n\nTeşekkürler, ${customerName}! 🙏`;
   },
-  orderCancelled: () => 'Sipariş iptal edildi.',
+  checkoutCancelled: () => 'Sipariş iptal edildi.',
 
   menuEmpty: () => 'Şu an menümüzde ürün yok.',
 
