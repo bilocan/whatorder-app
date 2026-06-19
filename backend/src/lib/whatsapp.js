@@ -141,7 +141,7 @@ async function sendFlowMessage(to, { flowId, flowToken, flowCta, screen, body, d
           flow_id: flowId,
           flow_cta: flowCta,
           flow_action: 'navigate',
-          flow_action_payload: { screen, data },
+          flow_action_payload: Object.keys(data).length ? { screen, data } : { screen },
         },
       },
     },

@@ -10,7 +10,7 @@ const { handleMessage } = require('../botHandler');
 const { getSession, setSession } = require('../sessionStore');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { createOrder } = require('../orderService');
-const { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendLocationRequest, sendImage } = require('../../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage } = require('../../lib/whatsapp');
 const { reverseGeocode } = require('../../lib/geocode');
 const { customersRef } = require('../../lib/collections');
 
@@ -31,18 +31,23 @@ function mockCustomerProfile(data) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  process.env.WHATSAPP_FLOW_ID = 'flow_test_id';
   getMenu.mockResolvedValue(MENU);
   getBusinessInfo.mockResolvedValue(BIZ_INFO);
   createOrder.mockResolvedValue('order_abc123');
   sendText.mockResolvedValue();
   sendListMessage.mockResolvedValue('list_msg_id');
   sendButtonMessage.mockResolvedValue();
-  sendCatalogMessage.mockResolvedValue();
+  sendFlowMessage.mockResolvedValue(null);
   sendLocationRequest.mockResolvedValue();
   sendImage.mockResolvedValue();
   resolvePhotoUrl.mockReturnValue(null);
   reverseGeocode.mockResolvedValue(null);
   mockCustomerProfile(null); // no saved address by default
+});
+
+afterEach(() => {
+  delete process.env.WHATSAPP_FLOW_ID;
 });
 
 function msg(overrides) {
@@ -57,7 +62,7 @@ describe('Full flow: language detection → catalog → cart → special request
     await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'tr', state: 'browsing' }));
-    expect(sendCatalogMessage).toHaveBeenCalledWith(FROM, 'cat_123', expect.stringContaining('Döner Palace'), 'item_1');
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({ flowId: 'flow_test_id', flowToken: `${FROM}|${BIZ}` }));
   });
 
   test('Step 2: cart_submitted moves to awaiting_special_requests and shows prompt', async () => {
@@ -171,7 +176,7 @@ describe('Cancel flow', () => {
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
   });
 });
 
@@ -232,18 +237,18 @@ describe('Edge cases', () => {
 
     await handleMessage(ROUTING, msg({ type: 'cart_submitted', items: [] }));
 
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
     expect(setSession).not.toHaveBeenCalled();
   });
 
-  test('no catalogId falls back to list menu', async () => {
-    getBusinessInfo.mockResolvedValue({ name: 'Test', avgPrepTime: 30 }); // no catalogId
+  test('no WHATSAPP_FLOW_ID falls back to list menu', async () => {
+    delete process.env.WHATSAPP_FLOW_ID;
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Hello' }));
 
     expect(sendListMessage).toHaveBeenCalled();
-    expect(sendCatalogMessage).not.toHaveBeenCalled();
+    expect(sendFlowMessage).not.toHaveBeenCalled();
   });
 
   test('unknown productId falls back to productId as name', async () => {
@@ -264,11 +269,11 @@ describe('Edge cases', () => {
 
     await handleMessage(ROUTING, msg({ text: 'something random' }));
 
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
   });
 
-  test('catalog failure falls back to list menu', async () => {
-    sendCatalogMessage.mockRejectedValue(new Error('API error'));
+  test('flow failure falls back to list menu', async () => {
+    sendFlowMessage.mockRejectedValue(new Error('API error'));
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Hello' }));
@@ -530,7 +535,7 @@ describe('Multi-restaurant: order cancelled sends text and resets session', () =
     }));
     expect(sendText).toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalled();
-    expect(sendCatalogMessage).not.toHaveBeenCalled();
+    expect(sendFlowMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -592,7 +597,7 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
@@ -604,7 +609,7 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
@@ -613,7 +618,7 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 });
@@ -652,7 +657,7 @@ describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_cancel_order', title: 'Cancel ❌' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 });
@@ -712,7 +717,7 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
       state: 'browsing',
       businessId: 'biz_b',
     }));
-    expect(sendCatalogMessage).toHaveBeenCalledWith(FROM, 'cat_b', expect.any(String), expect.any(String));
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({ flowId: 'flow_test_id', flowToken: `${FROM}|biz_b` }));
   });
 
   test('invalid restaurant id in list_reply → re-shows picker without state change', async () => {
@@ -830,7 +835,7 @@ describe('Browsing state: list_reply item selection', () => {
 
     await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'item_unknown_999' }));
 
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
     expect(setSession).not.toHaveBeenCalled();
   });
 
@@ -892,7 +897,7 @@ describe('Browsing state: button actions', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_add_more', title: 'Add more' }));
 
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
   });
 
   test('btn_add_more shows list menu when flow is list', async () => {
@@ -902,7 +907,7 @@ describe('Browsing state: button actions', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_add_more', title: 'Add more' }));
 
     expect(sendListMessage).toHaveBeenCalled();
-    expect(sendCatalogMessage).not.toHaveBeenCalled();
+    expect(sendFlowMessage).not.toHaveBeenCalled();
   });
 
   test('btn_view_basket with items shows basket text and action buttons', async () => {
@@ -927,7 +932,7 @@ describe('Browsing state: button actions', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_view_basket', title: 'View basket' }));
 
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
@@ -940,7 +945,7 @@ describe('Browsing state: button actions', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_clear_basket', title: 'Clear' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ basket: [] }));
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
   });
 
   test('btn_done with items transitions to awaiting_special_requests', async () => {
@@ -966,7 +971,7 @@ describe('Browsing state: button actions', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_done', title: 'Done' }));
 
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
     expect(setSession).not.toHaveBeenCalled();
   });
 
@@ -992,7 +997,7 @@ describe('Browsing state: button actions', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_cancel_order', title: 'Cancel' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
   });
 });
 
@@ -1021,7 +1026,7 @@ describe('Browsing state: basket keyword', () => {
 
     await handleMessage(ROUTING, msg({ text: 'sepet' }));
 
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
@@ -1130,7 +1135,7 @@ describe('Confirming state: ambiguous input', () => {
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
-    expect(sendCatalogMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
   });
 });
 
@@ -1175,7 +1180,7 @@ describe('Multi-restaurant: newly added restaurant appears in picker', () => {
       state: 'browsing',
       businessId: 'biz_c',
     }));
-    expect(sendCatalogMessage).toHaveBeenCalledWith(FROM, 'cat_c', expect.any(String), expect.any(String));
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({ flowId: 'flow_test_id', flowToken: `${FROM}|biz_c` }));
   });
 
   test('picker row title shows newly added restaurant name', async () => {
