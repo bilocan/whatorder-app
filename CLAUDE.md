@@ -9,3 +9,5 @@ Path rules (vault SSOT): `whatorder-vault/Projects/WhatOrder/ai-rules/`
 Cursor triggers (committed): `.cursor/rules/*.mdc`
 
 Claude Code local setup (one gitignored file per developer): copy `.claude/CLAUDE.local.md.example` to `.claude/CLAUDE.local.md`.
+
+Open `WhatOrder.code-workspace` in Cursor for app + vault together.
