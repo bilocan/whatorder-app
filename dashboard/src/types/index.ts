@@ -36,6 +36,23 @@ export interface Order {
   deliveryFee?: number;
 }
 
+export interface MenuOption {
+  id: string;
+  label: string;
+}
+
+export interface MenuOptionGroup {
+  id: string;
+  label: string;
+  type: 'single' | 'multi';
+  required?: boolean;
+  options: MenuOption[];
+  /** multi only: preset when customer taps default / replies skip */
+  multiDefault?: 'all' | 'none' | 'custom';
+  /** multi + custom: which options are included in the default */
+  defaultOptionIds?: string[];
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -44,6 +61,7 @@ export interface MenuItem {
   category: 'mains' | 'sides' | 'drinks';
   photoUrl?: string;
   available: boolean;
+  optionGroups?: MenuOptionGroup[];
 }
 
 export interface DaySchedule {

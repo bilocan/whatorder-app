@@ -8,6 +8,9 @@ import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { auth, db } from '../../lib/firebase';
 import { geocodeAddress } from '../../lib/geocode';
+import OptionGroupsEditor from '../../components/OptionGroupsEditor';
+import { draftGroupsFromMenu, customizationSummary, buildMenuPayload } from '../../lib/optionGroups';
+import type { DraftOptionGroup } from '../../lib/optionGroups';
 import { useConfirm } from '../../components/ConfirmDialog';
 import type { Business, MenuItem, Owner } from '../../types';
 
@@ -111,10 +114,23 @@ export default function RestaurantDetailPage() {
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [showMenuForm, setShowMenuForm] = useState(false);
-  const [newItem, setNewItem] = useState({ name: '', price: '', category: 'mains' as MenuItem['category'], description: '', available: true });
+type MenuFormState = {
+  name: string;
+  price: string;
+  category: MenuItem['category'];
+  description: string;
+  available: boolean;
+  optionGroups: DraftOptionGroup[];
+};
+
+const EMPTY_MENU: MenuFormState = {
+  name: '', price: '', category: 'mains', description: '', available: true, optionGroups: [],
+};
+
+  const [newItem, setNewItem] = useState<MenuFormState>(EMPTY_MENU);
   const [savingMenu, setSavingMenu] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [editItem, setEditItem] = useState({ name: '', price: '', category: 'mains' as MenuItem['category'], description: '', available: true });
+  const [editItem, setEditItem] = useState<MenuFormState>(EMPTY_MENU);
 
   const [owners, setOwners] = useState<Owner[]>([]);
   const [showOwnerForm, setShowOwnerForm] = useState(false);
@@ -224,21 +240,22 @@ export default function RestaurantDetailPage() {
     e.preventDefault();
     if (!id) return;
     setSavingMenu(true);
-    await addDoc(collection(db, 'businesses', id, 'menu'), {
-      name: newItem.name,
-      price: parseFloat(newItem.price),
-      category: newItem.category,
-      description: newItem.description,
-      available: newItem.available,
-    });
-    setNewItem({ name: '', price: '', category: 'mains', description: '', available: true });
+    await addDoc(collection(db, 'businesses', id, 'menu'), buildMenuPayload(newItem));
+    setNewItem(EMPTY_MENU);
     setShowMenuForm(false);
     setSavingMenu(false);
   }
 
   function startEditItem(item: MenuItem) {
     setEditingItemId(item.id);
-    setEditItem({ name: item.name, price: String(item.price), category: item.category, description: item.description ?? '', available: item.available });
+    setEditItem({
+      name: item.name,
+      price: String(item.price),
+      category: item.category,
+      description: item.description ?? '',
+      available: item.available,
+      optionGroups: draftGroupsFromMenu(item.optionGroups),
+    });
     setShowMenuForm(false);
   }
 
@@ -246,13 +263,7 @@ export default function RestaurantDetailPage() {
     e.preventDefault();
     if (!id || !editingItemId) return;
     setSavingMenu(true);
-    await updateDoc(doc(db, 'businesses', id, 'menu', editingItemId), {
-      name: editItem.name,
-      price: parseFloat(editItem.price),
-      category: editItem.category,
-      description: editItem.description,
-      available: editItem.available,
-    });
+    await updateDoc(doc(db, 'businesses', id, 'menu', editingItemId), buildMenuPayload(editItem, true));
     setSavingMenu(false);
     setEditingItemId(null);
   }
@@ -515,7 +526,11 @@ export default function RestaurantDetailPage() {
                               {t('admin.restaurantDetail.menu.form.available')}
                             </label>
                           </div>
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <OptionGroupsEditor
+                            value={editItem.optionGroups}
+                            onChange={(optionGroups) => setEditItem({ ...editItem, optionGroups })}
+                          />
+                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
                             <button type="submit" disabled={savingMenu} style={{ ...btnPrimary, opacity: savingMenu ? 0.6 : 1 }}>
                               {savingMenu ? t('admin.restaurantDetail.menu.saving') : t('admin.restaurantDetail.menu.save')}
                             </button>
@@ -526,7 +541,14 @@ export default function RestaurantDetailPage() {
                     </tr>
                   ) : (
                     <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '0.65rem 0.5rem', fontWeight: 500 }}>{item.name}</td>
+                      <td style={{ padding: '0.65rem 0.5rem', fontWeight: 500 }}>
+                        {item.name}
+                        {customizationSummary(item.optionGroups) && (
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: '#6366f1', fontWeight: 400 }}>
+                            {t('menu.optionGroups.badge', { summary: customizationSummary(item.optionGroups) })}
+                          </span>
+                        )}
+                      </td>
                       <td style={{ padding: '0.65rem 0.5rem', fontSize: '0.85rem', color: '#666', textTransform: 'capitalize' }}>{item.category}</td>
                       <td style={{ padding: '0.65rem 0.5rem' }}>€{Number(item.price).toFixed(2)}</td>
                       <td style={{ padding: '0.65rem 0.5rem', fontSize: '0.85rem', color: item.available ? '#22c55e' : '#999' }}>
@@ -573,7 +595,11 @@ export default function RestaurantDetailPage() {
                   {t('admin.restaurantDetail.menu.form.available')}
                 </label>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <OptionGroupsEditor
+                value={newItem.optionGroups}
+                onChange={(optionGroups) => setNewItem({ ...newItem, optionGroups })}
+              />
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
                 <button type="submit" disabled={savingMenu} style={{ ...btnPrimary, opacity: savingMenu ? 0.6 : 1 }}>
                   {savingMenu ? t('admin.restaurantDetail.menu.adding') : t('admin.restaurantDetail.menu.add')}
                 </button>

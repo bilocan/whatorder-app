@@ -102,4 +102,27 @@ module.exports = {
 
   ordersClosedByOwner: (name) => `⏸️ ${name} is not accepting orders right now. Please try again later! 🙏`,
   deliveryClosedByOwner: () => '🚫 Delivery is currently unavailable. Please choose pickup.',
+
+  intentConfirmHeader: () => 'Got it:',
+  intentConfirmPrompt: () => 'Add these to your order?',
+  intentConfirmBtn: () => 'Add to basket',
+  intentEditMenuBtn: () => 'Browse menu',
+  intentUnmatched: (items) => `Couldn't find: ${items}`,
+  intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\nChoose ${groupLabel}:`,
+  intentCustomizeUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel) => `${itemName} ${unitIndex}/${unitTotal}\nChoose ${groupLabel}:`,
+  intentSameOrEachPrompt: (qty, itemName) => `You ordered ${qty}x ${itemName}.\nSame options for all, or customize each one?`,
+  intentSameOptsBtn: () => 'Same for all',
+  intentEachOptsBtn: () => 'Customize each',
+  intentCustomizeSkip: () => 'Skip',
+  intentChooseBtn: () => 'Choose',
+  intentMultiPrompt: (qty, itemName, groupLabel, optionList, defaultSummary) =>
+    `${qty}x ${itemName}\n${groupLabel} — default: ${defaultSummary}.\nReply with choices (comma-separated), or all / none:\n\n${optionList}\n\nExample: tomato, salad`,
+  intentMultiUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel, optionList, defaultSummary) =>
+    `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} — default: ${defaultSummary}.\nReply with choices (comma-separated), or all / none:\n\n${optionList}`,
+  intentMultiInvalid: (unmatched, optionList) =>
+    `Couldn't match: ${unmatched}\n\nAvailable:\n${optionList}\n\nTry again (comma-separated, all, or none):`,
+  intentMultiDefaultAll: () => 'all included',
+  intentMultiDefaultNone: () => 'none',
+  intentMultiDefaultHint: () => 'Tap Use default, or reply all / none / skip (uses default above).',
+  intentMultiDefaultBtn: () => 'Use default',
 };

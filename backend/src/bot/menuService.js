@@ -1,5 +1,6 @@
 const { menuRef, businessRef } = require('../lib/collections');
 const { t } = require('./templates');
+const { matchMenuItem } = require('./menuMatch');
 
 async function getMenu(businessId) {
   const snap = await menuRef(businessId).where('available', '==', true).get();
@@ -15,26 +16,6 @@ function formatMenuText(items, lang = 'tr') {
   if (!items.length) return t('menuEmpty', lang);
   const lines = items.map(i => `• ${i.name} — €${Number(i.price).toFixed(2)}`);
   return `${t('menuHeader', lang)}\n\n${lines.join('\n')}\n\n${t('menuExample', lang)}`;
-}
-
-// Strip diacritics for accent-insensitive matching ("doner" matches "Doner" / "Döner")
-function norm(str) {
-  return str
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/ı/g, 'i') // Turkish dotless i
-    .trim();
-}
-
-// Fuzzy match: exact → menu name contains query → query contains menu name
-function matchMenuItem(rawName, menuItems) {
-  const needle = norm(rawName);
-  return (
-    menuItems.find(i => norm(i.name) === needle) ||
-    menuItems.find(i => norm(i.name).includes(needle)) ||
-    menuItems.find(i => needle.includes(norm(i.name)))
-  );
 }
 
 // Converts gs:// Cloud Storage URIs to public Firebase Storage HTTPS URLs.

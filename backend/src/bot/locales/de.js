@@ -102,4 +102,27 @@ module.exports = {
 
   ordersClosedByOwner: (name) => `⏸️ ${name} nimmt gerade keine Bestellungen entgegen. Bitte versuchen Sie es später! 🙏`,
   deliveryClosedByOwner: () => '🚫 Lieferung ist derzeit nicht verfügbar. Bitte wählen Sie Abholung.',
+
+  intentConfirmHeader: () => 'Verstanden:',
+  intentConfirmPrompt: () => 'Zum Warenkorb hinzufügen?',
+  intentConfirmBtn: () => 'Hinzufügen',
+  intentEditMenuBtn: () => 'Menü ansehen',
+  intentUnmatched: (items) => `Nicht gefunden: ${items}`,
+  intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\n${groupLabel} wählen:`,
+  intentCustomizeUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel) => `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} wählen:`,
+  intentSameOrEachPrompt: (qty, itemName) => `${qty}x ${itemName} bestellt.\nGleiche Optionen für alle oder einzeln anpassen?`,
+  intentSameOptsBtn: () => 'Alle gleich',
+  intentEachOptsBtn: () => 'Einzeln wählen',
+  intentCustomizeSkip: () => 'Überspringen',
+  intentChooseBtn: () => 'Wählen',
+  intentMultiPrompt: (qty, itemName, groupLabel, optionList, defaultSummary) =>
+    `${qty}x ${itemName}\n${groupLabel} — Standard: ${defaultSummary}.\nAntwort mit Auswahl (kommagetrennt) oder all / none:\n\n${optionList}\n\nBeispiel: Tomate, Salat`,
+  intentMultiUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel, optionList, defaultSummary) =>
+    `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} — Standard: ${defaultSummary}.\nAntwort mit Auswahl (kommagetrennt) oder all / none:\n\n${optionList}`,
+  intentMultiInvalid: (unmatched, optionList) =>
+    `Nicht erkannt: ${unmatched}\n\nVerfügbar:\n${optionList}\n\nNochmal versuchen (kommagetrennt, all oder none):`,
+  intentMultiDefaultAll: () => 'alles dabei',
+  intentMultiDefaultNone: () => 'keine',
+  intentMultiDefaultHint: () => 'Tippe Standard verwenden, oder antworte all / none / skip (nutzt Standard oben).',
+  intentMultiDefaultBtn: () => 'Standard',
 };
