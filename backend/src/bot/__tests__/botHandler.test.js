@@ -1358,6 +1358,104 @@ describe('Delivery flow: awaiting_order_type', () => {
   });
 });
 
+describe('Delivery minimum order value gate', () => {
+  test('btn_delivery below minimumOrderValue shows basket warning, skips the address step', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 20 });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_order_type' }); // basket subtotal = 17
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_delivery' }));
+
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('20.00'),
+      buttons: expect.not.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      orderType: 'delivery',
+    }));
+  });
+
+  test('btn_delivery at/above minimumOrderValue proceeds to address step as usual', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 10 });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_order_type' }); // basket subtotal = 17
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_delivery' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address',
+      orderType: 'delivery',
+    }));
+  });
+
+  test('btn_confirm while still below minimum re-shows the gate, does not restart special requests', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 50 });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing', orderType: 'delivery' }); // subtotal 17
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_special_requests' }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.not.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+    }));
+  });
+
+  test('btn_done resumes directly to the address step once minimum is met, without re-asking special requests', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 10 });
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'browsing',
+      orderType: 'delivery',
+      basket: [{ name: 'Döner', qty: 3, price: 8.5 }], // 25.5, meets 10
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_done' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_delivery_address' }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_special_requests' }));
+  });
+
+  test('btn_view_basket while gated hides Confirm until minimum is met', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 50 });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing', orderType: 'delivery' }); // subtotal 17
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_view_basket' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.not.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+    }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_delivery_address' }));
+  });
+
+  test('pickup orders are never gated by minimumOrderValue', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, minimumOrderValue: 100 });
+    mockCustomerProfile({ name: 'Mehmet' });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_order_type' }); // subtotal 17
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_pickup' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'confirming' }));
+  });
+
+  test('adding an item via qty selector preserves orderType and deliveryAddress (no checkout restart)', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'selecting', businessId: BIZ, basket: [],
+      pendingItem: { name: 'Ayran', price: 2.00 },
+      orderType: 'delivery',
+      deliveryAddress: 'Naschmarkt 5, 1040 Wien',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'qty_1', title: '1' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      orderType: 'delivery',
+      deliveryAddress: 'Naschmarkt 5, 1040 Wien',
+    }));
+  });
+});
+
 describe('Delivery flow: awaiting_delivery_address', () => {
   test('location pin with successful geocode saves human-readable address and moves to awaiting_name', async () => {
     reverseGeocode.mockResolvedValue('Mariahilfer Str. 10, 1060 Wien');
