@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import OptionGroupsEditor from '../components/OptionGroupsEditor';
 import { draftGroupsFromMenu, customizationSummary, buildMenuPayload } from '../lib/optionGroups';
 import type { DraftOptionGroup } from '../lib/optionGroups';
+import { useConfirm } from '../components/ConfirmDialog';
 import type { MenuItem } from '../types';
 
 const PencilIcon = () => (
@@ -180,6 +181,7 @@ function MenuForm({ values, onChange, onSubmit, onCancel, submitting, submitLabe
 
 export default function MenuPage() {
   const { t } = useTranslation();
+  const confirmDialog = useConfirm();
   const { businessId } = useAuth();
   const [items, setItems] = useState<MenuItem[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -238,7 +240,7 @@ export default function MenuPage() {
   }
 
   async function handleDelete(itemId: string) {
-    if (!businessId || !confirm(t('menu.deleteConfirm'))) return;
+    if (!businessId || !(await confirmDialog(t('menu.deleteConfirm')))) return;
     if (editingId === itemId) setEditingId(null);
     await deleteDoc(doc(db, 'businesses', businessId, 'menu', itemId));
   }

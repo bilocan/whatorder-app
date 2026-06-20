@@ -88,6 +88,7 @@ export interface Business {
   deliveryEnabled?: boolean;
   deliveryFee?: number;
   deliveryZone?: string;
+  minimumOrderValue?: number;
   schedule?: BusinessSchedule;
   botLanguage?: 'de' | 'tr' | 'en';
 }

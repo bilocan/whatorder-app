@@ -20,15 +20,80 @@ async function getKnownName(phone, businessId) {
   }
 }
 
+// Renders the basket with a below-minimum warning (Confirm button hidden) or, once the
+// subtotal meets minimumOrderValue, the plain basket with Confirm available again.
+async function sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue }) {
+  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  const meets = !minimumOrderValue || subtotal >= minimumOrderValue;
+  const buttons = [
+    { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
+    { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },
+  ];
+  if (meets) buttons.push({ id: 'btn_confirm', title: t('confirmBtn', lang) });
+  const body = meets
+    ? buildBasketText(basket, lang)
+    : `${t('belowMinimumOrderValue', lang, minimumOrderValue.toFixed(2))}\n\n${buildBasketText(basket, lang)}`;
+  const msgId = await sendButtonMessage(from, { body, buttons });
+  return { msgId, meets };
+}
+
+// Shows the address picker (or asks for a typed/shared address) and transitions accordingly.
+async function proceedToDeliveryAddress({ from, session, lang, businessId }) {
+  const rows = await getDeliveryAddressRows(session, from, businessId, lang);
+  if (rows) {
+    const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
+    await setSession(from, { ...session, state: 'awaiting_delivery_address_choice', orderType: 'delivery', pendingDeleteIds: pickerId ? [pickerId] : [] });
+  } else {
+    const askId = await sendText(from, t('askDeliveryAddress', lang));
+    await setSession(from, { ...session, state: 'awaiting_delivery_address', orderType: 'delivery', pendingDeleteIds: askId ? [askId] : [] });
+  }
+}
+
+// Called whenever a delivery order's basket may have changed (add more / re-submit cart)
+// while still gated on minimumOrderValue (no deliveryAddress collected yet). Re-checks the
+// minimum: if still short, re-shows the gate. If now met, re-asks special requests (the
+// basket changed since the customer last answered that prompt — they may want to add a
+// note for the new item) before resuming into address selection. Never re-asks
+// pickup/delivery, since that's already answered.
+async function resumeDeliveryCheckout({ from, session, lang, businessId, basket }) {
+  const info = await getBusinessInfo(businessId);
+  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
+    await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
+    return;
+  }
+  const reqId = await sendButtonMessage(from, {
+    body: t('specialRequestsPrompt', lang),
+    buttons: [{ id: 'btn_skip_requests', title: t('skipBtn', lang) }],
+  });
+  await setSession(from, { ...session, state: 'awaiting_special_requests', pendingDeleteIds: reqId ? [reqId] : [] });
+}
+
+// "View basket" while gated: re-renders the gate (Confirm shown only once minimumOrderValue
+// is met) without advancing to the address step.
+async function showDeliveryBasketGate({ from, session, lang, basket, businessId }) {
+  const info = await getBusinessInfo(businessId);
+  const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue || 0 });
+  await setSession(from, { ...session, pendingDeleteIds: msgId ? [msgId] : [] });
+}
+
 // Sends the final confirmation message and sets state to 'confirming'.
 // Call instead of transitioning to awaiting_name when a known name is available.
 async function transitionToConfirming(from, session, lang, businessId, basket, name) {
   const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
-  let displayTotal = subtotal;
-  if (session.orderType === 'delivery') {
-    const info = await getBusinessInfo(businessId);
-    displayTotal = subtotal + (info.deliveryFee || 0);
+  const info = await getBusinessInfo(businessId);
+
+  // Safety net: the delivery minimum gate normally runs earlier (btn_delivery /
+  // resumeDeliveryCheckout), before the address is even asked. This re-check only
+  // matters if the basket somehow changed after the gate already passed.
+  if (session.orderType === 'delivery' && info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
+    await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
+    return;
   }
+
+  const displayTotal = session.orderType === 'delivery' ? subtotal + (info.deliveryFee || 0) : subtotal;
   const confirmId = await sendButtonMessage(from, {
     body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null),
     buttons: [
@@ -91,6 +156,13 @@ async function handleAwaitingSpecialRequests({ from, session, lang, businessId, 
   const notes = isSkip ? '' : (type === 'text' && norm.length > 0 ? text.trim() : null);
 
   if (notes !== null) {
+    // Resumed after the delivery minimum gate: pickup/delivery is already answered
+    // (this re-ask of special requests only happens because the basket changed).
+    if (session.orderType === 'delivery') {
+      await proceedToDeliveryAddress({ from, session: { ...session, specialRequests: notes }, lang, businessId });
+      return;
+    }
+
     const info = await getBusinessInfo(businessId);
     if (info.deliveryEnabled) {
       const typeId = await sendButtonMessage(from, {
@@ -146,14 +218,13 @@ async function handleAwaitingOrderType({ from, session, lang, businessId, basket
         await setSession(from, { ...session, pendingDeleteIds: msgId ? [msgId] : [] });
         return;
       }
-      const rows = await getDeliveryAddressRows(session, from, businessId, lang);
-      if (rows) {
-        const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
-        await setSession(from, { ...session, state: 'awaiting_delivery_address_choice', orderType: 'delivery', pendingDeleteIds: pickerId ? [pickerId] : [] });
-      } else {
-        const askId = await sendText(from, t('askDeliveryAddress', lang));
-        await setSession(from, { ...session, state: 'awaiting_delivery_address', orderType: 'delivery', pendingDeleteIds: askId ? [askId] : [] });
+      const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+      if (delivInfo.minimumOrderValue && subtotal < delivInfo.minimumOrderValue) {
+        const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: delivInfo.minimumOrderValue });
+        await setSession(from, { ...session, orderType: 'delivery', state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
+        return;
       }
+      await proceedToDeliveryAddress({ from, session, lang, businessId });
       return;
     }
   }
@@ -301,4 +372,6 @@ module.exports = {
   handleAwaitingDeliveryAddress,
   handleAwaitingName,
   handleConfirming,
+  resumeDeliveryCheckout,
+  showDeliveryBasketGate,
 };
