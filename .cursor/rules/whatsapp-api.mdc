@@ -1,0 +1,13 @@
+---
+description: WhatsApp API — read vault SSOT before messaging or webhook changes
+globs: backend/src/lib/whatsapp.js,backend/src/bot/templates.js,backend/src/controllers/webhookController.js
+alwaysApply: false
+---
+
+# WhatsApp API
+
+**SSOT:** `../whatorder-vault/Projects/WhatOrder/ai-rules/whatsapp-api.md`
+
+Before editing WhatsApp client, templates, or webhook handling, read that vault file and apply all rules. Edit the vault file to change this rule.
+
+Must-read spec: `../whatorder-vault/Projects/WhatOrder/specs/whatsapp-business-api-reference.md`
