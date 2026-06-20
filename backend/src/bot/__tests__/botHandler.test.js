@@ -948,6 +948,19 @@ describe('Browsing state: button actions', () => {
     expect(sendFlowMessage).toHaveBeenCalled();
   });
 
+  test('btn_clear_basket drops orderType/deliveryAddress so a re-added basket is not still delivery-gated', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      orderType: 'delivery', // was gated on minimumOrderValue before clearing
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_clear_basket', title: 'Clear' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ basket: [] }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ orderType: 'delivery' }));
+  });
+
   test('btn_done with items transitions to awaiting_special_requests', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'browsing', businessId: BIZ,
