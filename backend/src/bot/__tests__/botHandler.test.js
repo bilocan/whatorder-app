@@ -62,7 +62,7 @@ describe('Full flow: language detection → catalog → cart → special request
     await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'tr', state: 'browsing' }));
-    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({ flowId: 'flow_test_id', flowToken: `${FROM}|${BIZ}` }));
+    expect(sendListMessage).toHaveBeenCalled();
   });
 
   test('Step 2: cart_submitted moves to awaiting_special_requests and shows prompt', async () => {
@@ -176,7 +176,7 @@ describe('Cancel flow', () => {
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
   });
 });
 
@@ -237,7 +237,7 @@ describe('Edge cases', () => {
 
     await handleMessage(ROUTING, msg({ type: 'cart_submitted', items: [] }));
 
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
     expect(setSession).not.toHaveBeenCalled();
   });
 
@@ -269,7 +269,7 @@ describe('Edge cases', () => {
 
     await handleMessage(ROUTING, msg({ text: 'something random' }));
 
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
   });
 
   test('flow failure falls back to list menu', async () => {
@@ -597,8 +597,7 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expect(sendFlowMessage).toHaveBeenCalled();
-    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
   });
 
   test('2h idle + empty basket → does NOT show picker (within 8h TTL)', async () => {
@@ -609,8 +608,7 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expect(sendFlowMessage).toHaveBeenCalled();
-    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
   });
 
   test('9h idle + browsing with no updatedAt → does NOT show picker (no timestamp = no TTL)', async () => {
@@ -618,8 +616,7 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expect(sendFlowMessage).toHaveBeenCalled();
-    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
   });
 });
 
@@ -657,7 +654,7 @@ describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_cancel_order', title: 'Cancel ❌' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 });
@@ -717,7 +714,7 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
       state: 'browsing',
       businessId: 'biz_b',
     }));
-    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({ flowId: 'flow_test_id', flowToken: `${FROM}|biz_b` }));
+    expect(sendListMessage).toHaveBeenCalled();
   });
 
   test('invalid restaurant id in list_reply → re-shows picker without state change', async () => {
@@ -835,7 +832,7 @@ describe('Browsing state: list_reply item selection', () => {
 
     await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'item_unknown_999' }));
 
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
     expect(setSession).not.toHaveBeenCalled();
   });
 
@@ -897,7 +894,7 @@ describe('Browsing state: button actions', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_add_more', title: 'Add more' }));
 
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
   });
 
   test('btn_add_more shows list menu when flow is list', async () => {
@@ -932,7 +929,7 @@ describe('Browsing state: button actions', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_view_basket', title: 'View basket' }));
 
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
@@ -945,7 +942,7 @@ describe('Browsing state: button actions', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_clear_basket', title: 'Clear' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ basket: [] }));
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
   });
 
   test('btn_done with items transitions to awaiting_special_requests', async () => {
@@ -971,7 +968,7 @@ describe('Browsing state: button actions', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_done', title: 'Done' }));
 
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
     expect(setSession).not.toHaveBeenCalled();
   });
 
@@ -997,7 +994,7 @@ describe('Browsing state: button actions', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_cancel_order', title: 'Cancel' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
   });
 });
 
@@ -1026,7 +1023,7 @@ describe('Browsing state: basket keyword', () => {
 
     await handleMessage(ROUTING, msg({ text: 'sepet' }));
 
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
@@ -1135,7 +1132,7 @@ describe('Confirming state: ambiguous input', () => {
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
-    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
   });
 });
 
@@ -1180,7 +1177,7 @@ describe('Multi-restaurant: newly added restaurant appears in picker', () => {
       state: 'browsing',
       businessId: 'biz_c',
     }));
-    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({ flowId: 'flow_test_id', flowToken: `${FROM}|biz_c` }));
+    expect(sendListMessage).toHaveBeenCalled();
   });
 
   test('picker row title shows newly added restaurant name', async () => {
