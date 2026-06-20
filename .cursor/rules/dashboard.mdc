@@ -1,0 +1,13 @@
+---
+description: Dashboard — read vault SSOT before UI or client Firestore changes
+globs: dashboard/src/**
+alwaysApply: false
+---
+
+# Dashboard
+
+**SSOT:** `../whatorder-vault/Projects/WhatOrder/ai-rules/dashboard.md`
+
+Before editing dashboard code, read that vault file and apply all rules. Edit the vault file to change this rule.
+
+Scope check: `../whatorder-vault/Projects/WhatOrder/specs/mvp-spec.md`

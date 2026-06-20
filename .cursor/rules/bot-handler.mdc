@@ -1,0 +1,13 @@
+---
+description: Bot state machine — read vault SSOT before editing bot code
+globs: backend/src/bot/**
+alwaysApply: false
+---
+
+# Bot handler
+
+**SSOT:** `../whatorder-vault/Projects/WhatOrder/ai-rules/bot-handler.md`
+
+Before any edit under `backend/src/bot/`, read that vault file and apply all rules. Edit the vault file to change this rule.
+
+Must-read spec: `../whatorder-vault/Projects/WhatOrder/specs/bot-state-machine.md`

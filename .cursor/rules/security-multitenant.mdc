@@ -1,0 +1,13 @@
+---
+description: Multitenant security — read vault SSOT before auth or tenant-scoped routes
+globs: backend/src/routes/admin.js,backend/src/routes/orders.js,dashboard/src/contexts/**
+alwaysApply: false
+---
+
+# Multitenant security
+
+**SSOT:** `../whatorder-vault/Projects/WhatOrder/ai-rules/security-multitenant.md`
+
+Before editing admin routes, order routes, or dashboard auth context, read that vault file and apply all rules. Edit the vault file to change this rule.
+
+Must-read spec: `../whatorder-vault/Projects/WhatOrder/specs/security-multitenant.md`
