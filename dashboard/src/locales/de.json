@@ -190,6 +190,15 @@
       "saved": "Gespeichert",
       "invalidFee": "Ungültiger Gebührenwert"
     },
+    "minimumOrder": {
+      "title": "Mindestbestellwert",
+      "description": "Legen Sie einen Mindestwert für den Warenkorb fest, den Kunden erreichen müssen, um bestellen zu können.",
+      "label": "Mindestbestellwert (€)",
+      "save": "Mindestbestellwert speichern",
+      "saving": "Speichern…",
+      "saved": "Gespeichert",
+      "invalidValue": "Ungültiger Wert"
+    },
     "botLanguage": {
       "title": "Bot-Sprache",
       "description": "Standardsprache für neue Kunden. Sie können sie jederzeit durch Eingabe von Deutsch, English oder Türkçe ändern.",
