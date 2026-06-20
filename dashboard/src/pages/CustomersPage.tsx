@@ -91,6 +91,7 @@ export default function CustomersPage() {
   const [expandedPhone, setExpandedPhone] = useState<string | null>(null);
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(false);
 
   useEffect(() => {
     if (!businessId) return;
@@ -140,16 +141,23 @@ export default function CustomersPage() {
     }
     setExpandedPhone(phone);
     setHistoryOrders([]);
+    setHistoryError(false);
     setHistoryLoading(true);
-    const snap = await getDocs(
-      query(
-        collection(db, 'businesses', businessId!, 'orders'),
-        where('customerPhone', '==', phone),
-        orderBy('createdAt', 'desc'),
-      ),
-    );
-    setHistoryOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
-    setHistoryLoading(false);
+    try {
+      const snap = await getDocs(
+        query(
+          collection(db, 'businesses', businessId!, 'orders'),
+          where('customerPhone', '==', phone),
+          orderBy('createdAt', 'desc'),
+        ),
+      );
+      setHistoryOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
+    } catch (err) {
+      console.error('Failed to load order history', err);
+      setHistoryError(true);
+    } finally {
+      setHistoryLoading(false);
+    }
   }
 
   return (
@@ -260,10 +268,13 @@ export default function CustomersPage() {
                         {historyLoading && (
                           <p style={{ color: '#999', fontSize: '0.85rem', margin: '0.5rem 0 0' }}>{t('customers.loading')}</p>
                         )}
-                        {!historyLoading && historyOrders.length === 0 && (
+                        {!historyLoading && historyError && (
+                          <p style={{ color: '#ef4444', fontSize: '0.85rem', margin: '0.5rem 0 0' }}>{t('customers.historyError')}</p>
+                        )}
+                        {!historyLoading && !historyError && historyOrders.length === 0 && (
                           <p style={{ color: '#999', fontSize: '0.85rem', margin: '0.5rem 0 0' }}>{t('customers.noOrders')}</p>
                         )}
-                        {!historyLoading && historyOrders.length > 0 && (
+                        {!historyLoading && !historyError && historyOrders.length > 0 && (
                           <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0.5rem' }}>
                             <thead>
                               <tr style={{ textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
