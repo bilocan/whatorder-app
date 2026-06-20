@@ -5,12 +5,12 @@ alwaysApply: true
 
 # Vault SSOT for path rules
 
-Path-specific engineering rules live in the vault, not in this file.
+Path-specific engineering rules live in the vault. Scoped rules below include **Critical** bullets; full rules in vault SSOT files.
+
+**Session start:** `../whatorder-vault/Projects/WhatOrder/ai-index.md` → latest `session-*.md`
 
 **Index:** `../whatorder-vault/Projects/WhatOrder/ai-rules/README.md`
 
-**Session start:** read `../whatorder-vault/Projects/WhatOrder/ai-index.md` first, then latest `session-*.md` in vault notes.
+**Onboarding:** `../whatorder-vault/Onboarding/developer-onboarding.md`
 
-When a scoped rule below activates, **read the matching vault file with the Read tool before editing** and follow it completely.
-
-To change a rule, edit the vault `ai-rules/*.md` file and commit to `whatorder-vault`. Do not edit rule content in `.cursor/rules/*.mdc` wrappers.
+When a scoped rule activates, read the vault SSOT file before editing. To change rules, edit vault `ai-rules/*.md` only, not these `.mdc` wrappers.
