@@ -27,7 +27,33 @@ const TrashIcon = () => (
   </svg>
 );
 
-const CATEGORIES: MenuItem['category'][] = ['mains', 'sides', 'drinks'];
+const STANDARD_CATEGORIES: MenuItem['category'][] = ['mains', 'sides', 'drinks'];
+const CATEGORY_ORDER: Record<string, number> = { mains: 0, sides: 1, drinks: 2 };
+
+function categoryLabel(cat: string, t: (key: string) => string): string {
+  if (STANDARD_CATEGORIES.includes(cat as MenuItem['category'])) {
+    return t(`menu.category.${cat}`);
+  }
+  return cat;
+}
+
+function groupMenuItems(items: MenuItem[]) {
+  const byCat = new Map<string, MenuItem[]>();
+  for (const item of items) {
+    const cat = item.category || 'other';
+    if (!byCat.has(cat)) byCat.set(cat, []);
+    byCat.get(cat)!.push(item);
+  }
+  return [...byCat.entries()]
+    .sort(([a], [b]) => {
+      const diff = (CATEGORY_ORDER[a] ?? 99) - (CATEGORY_ORDER[b] ?? 99);
+      return diff !== 0 ? diff : a.localeCompare(b);
+    })
+    .map(([cat, catItems]) => ({
+      cat,
+      items: [...catItems].sort((a, b) => a.name.localeCompare(b.name)),
+    }));
+}
 
 const inputStyle: React.CSSProperties = {
   padding: '0.45rem 0.65rem',
@@ -105,7 +131,7 @@ interface MenuFormProps {
 
 function MenuForm({ values, onChange, onSubmit, onCancel, submitting, submitLabel }: MenuFormProps) {
   const { t } = useTranslation();
-  const categoryOptions = CATEGORIES.map((c) => ({ value: c, label: t(`menu.category.${c}`) }));
+  const categoryOptions = STANDARD_CATEGORIES.map((c) => ({ value: c, label: t(`menu.category.${c}`) }));
 
   return (
     <form
@@ -197,15 +223,7 @@ export default function MenuPage() {
     });
   }, [businessId]);
 
-  const sorted = [...items].sort((a, b) => {
-    const order: Record<string, number> = { mains: 0, sides: 1, drinks: 2 };
-    const diff = (order[a.category] ?? 99) - (order[b.category] ?? 99);
-    return diff !== 0 ? diff : a.name.localeCompare(b.name);
-  });
-
-  const grouped = CATEGORIES
-    .map((cat) => ({ cat, items: sorted.filter((i) => i.category === cat) }))
-    .filter((g) => g.items.length > 0);
+  const grouped = groupMenuItems(items);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -282,7 +300,7 @@ export default function MenuPage() {
       {grouped.map(({ cat, items: catItems }) => (
         <div key={cat} style={{ marginBottom: '2rem' }}>
           <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem', marginBottom: '0.5rem' }}>
-            {t(`menu.category.${cat}`)}
+            {categoryLabel(cat, t)}
           </h3>
           {catItems.map((item) =>
             editingId === item.id ? (
