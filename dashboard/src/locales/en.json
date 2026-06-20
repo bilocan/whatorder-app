@@ -1,4 +1,9 @@
 {
+  "common": {
+    "confirmTitle": "Please confirm",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
   "selectRestaurant": {
     "title": "Select a restaurant",
     "subtitle": "Choose the restaurant you want to manage.",

@@ -4,6 +4,7 @@ import { useAuth } from './contexts/AuthContext';
 import AuthGuard from './components/AuthGuard';
 import AdminGuard from './components/AdminGuard';
 import Layout from './components/Layout';
+import { ConfirmDialogProvider } from './components/ConfirmDialog';
 import LoginPage from './pages/LoginPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
@@ -27,24 +28,26 @@ function DefaultRedirect() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/select-restaurant" element={<SelectRestaurantPage />} />
-          <Route path="/" element={<AuthGuard><Layout /></AuthGuard>}>
-            <Route index element={<DefaultRedirect />} />
-            <Route path="orders" element={<OrdersPage />} />
-            <Route path="orders/:orderId" element={<OrderDetailPage />} />
-            <Route path="customers" element={<CustomersPage />} />
-            <Route path="income" element={<IncomePage />} />
-            <Route path="menu" element={<MenuPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="admin" element={<AdminGuard><RestaurantsPage /></AdminGuard>} />
-            <Route path="admin/restaurants/:id" element={<AdminGuard><RestaurantDetailPage /></AdminGuard>} />
-            <Route path="admin/earnings" element={<AdminGuard><EarningsPage /></AdminGuard>} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <ConfirmDialogProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/select-restaurant" element={<SelectRestaurantPage />} />
+            <Route path="/" element={<AuthGuard><Layout /></AuthGuard>}>
+              <Route index element={<DefaultRedirect />} />
+              <Route path="orders" element={<OrdersPage />} />
+              <Route path="orders/:orderId" element={<OrderDetailPage />} />
+              <Route path="customers" element={<CustomersPage />} />
+              <Route path="income" element={<IncomePage />} />
+              <Route path="menu" element={<MenuPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="admin" element={<AdminGuard><RestaurantsPage /></AdminGuard>} />
+              <Route path="admin/restaurants/:id" element={<AdminGuard><RestaurantDetailPage /></AdminGuard>} />
+              <Route path="admin/earnings" element={<AdminGuard><EarningsPage /></AdminGuard>} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ConfirmDialogProvider>
     </AuthProvider>
   );
 }

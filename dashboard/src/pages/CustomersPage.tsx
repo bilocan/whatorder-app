@@ -6,6 +6,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useConfirm } from '../components/ConfirmDialog';
 import type { Customer, Order } from '../types';
 import { toDate } from '../types';
 
@@ -80,6 +81,7 @@ const btnIconDelete: React.CSSProperties = {
 
 export default function CustomersPage() {
   const { t } = useTranslation();
+  const confirmDialog = useConfirm();
   const { businessId } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
@@ -128,7 +130,7 @@ export default function CustomersPage() {
   }
 
   async function handleDelete(phone: string) {
-    if (!businessId || !confirm(t('customers.deleteConfirm'))) return;
+    if (!businessId || !(await confirmDialog(t('customers.deleteConfirm')))) return;
     if (expandedPhone === phone) setExpandedPhone(null);
     if (editingPhone === phone) setEditingPhone(null);
     await deleteDoc(doc(db, 'businesses', businessId, 'customers', phone));
