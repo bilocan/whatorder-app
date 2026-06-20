@@ -47,6 +47,7 @@ Thumbs.db
 !tsconfig.*.json
 !vercel.json
 !firebase.json
+!firestore.indexes.json
 !dashboard/src/locales/*.json
 
 # Firebase

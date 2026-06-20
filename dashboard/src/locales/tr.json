@@ -114,7 +114,8 @@
     "deleteConfirm": "Müşteri silinsin mi? Siparişler korunur.",
     "orderHistory": "Sipariş geçmişi",
     "loading": "Yükleniyor…",
-    "noOrders": "Henüz sipariş yok."
+    "noOrders": "Henüz sipariş yok.",
+    "historyError": "Sipariş geçmişi yüklenemedi."
   },
   "menu": {
     "title": "Menü",
