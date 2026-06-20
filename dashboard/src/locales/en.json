@@ -114,7 +114,8 @@
     "deleteConfirm": "Delete this customer? Orders will be kept.",
     "orderHistory": "Order history",
     "loading": "Loading…",
-    "noOrders": "No orders yet."
+    "noOrders": "No orders yet.",
+    "historyError": "Couldn't load order history."
   },
   "menu": {
     "title": "Menu",

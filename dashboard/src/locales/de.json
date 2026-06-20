@@ -114,7 +114,8 @@
     "deleteConfirm": "Kunden wirklich löschen? Bestellungen bleiben erhalten.",
     "orderHistory": "Bestellverlauf",
     "loading": "Lade…",
-    "noOrders": "Noch keine Bestellungen."
+    "noOrders": "Noch keine Bestellungen.",
+    "historyError": "Bestellverlauf konnte nicht geladen werden."
   },
   "menu": {
     "title": "Speisekarte",
