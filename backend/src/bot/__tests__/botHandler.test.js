@@ -1401,7 +1401,7 @@ describe('Delivery minimum order value gate', () => {
     }));
   });
 
-  test('btn_done resumes directly to the address step once minimum is met, without re-asking special requests', async () => {
+  test('btn_done resumes via special requests (not pickup/delivery) once minimum is met', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 10 });
     getSession.mockResolvedValue({
       ...BASE_SESSION,
@@ -1412,8 +1412,60 @@ describe('Delivery minimum order value gate', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_done' }));
 
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_delivery_address' }));
-    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_special_requests' }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_special_requests' }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_delivery' })]),
+    }));
+  });
+
+  test('special requests given while orderType is already delivery skip the pickup/delivery question', async () => {
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'awaiting_special_requests',
+      orderType: 'delivery',
+      basket: [{ name: 'Döner', qty: 3, price: 8.5 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Bitte ohne Zwiebel' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address',
+      specialRequests: 'Bitte ohne Zwiebel',
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_delivery' })]),
+    }));
+  });
+
+  test('qty selector shows the gate (no Confirm) when adding an item still leaves the basket below minimum', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, minimumOrderValue: 50 });
+    getSession.mockResolvedValue({
+      language: 'en', state: 'selecting', businessId: BIZ, basket: [{ name: 'Döner', qty: 1, price: 8.5 }],
+      pendingItem: { name: 'Ayran', price: 2.00 },
+      orderType: 'delivery',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'qty_1', title: '1' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.not.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', orderType: 'delivery' }));
+  });
+
+  test('qty selector shows Confirm once the added item brings the basket up to the minimum', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, minimumOrderValue: 10 });
+    getSession.mockResolvedValue({
+      language: 'en', state: 'selecting', businessId: BIZ, basket: [{ name: 'Döner', qty: 1, price: 8.5 }],
+      pendingItem: { name: 'Ayran', price: 2.00 },
+      orderType: 'delivery',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'qty_1', title: '1' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+    }));
   });
 
   test('btn_view_basket while gated hides Confirm until minimum is met', async () => {
