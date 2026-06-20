@@ -3,12 +3,18 @@ import { deleteField } from 'firebase/firestore';
 
 export type DraftOption = { id: string; label: string };
 
+export type MultiDefaultMode = 'all' | 'none' | 'custom';
+
 export type DraftOptionGroup = {
   id: string;
   label: string;
   type: 'single' | 'multi';
   required: boolean;
   options: DraftOption[];
+  /** multi only: preset when customer uses default / skip */
+  multiDefault?: MultiDefaultMode;
+  /** multi + custom: indices into options[] */
+  defaultOptionIndices?: number[];
 };
 
 export function slugifyId(text: string): string {
@@ -27,6 +33,7 @@ export function emptyDraftGroup(type: 'single' | 'multi' = 'single'): DraftOptio
     type,
     required: type === 'single',
     options: [{ id: '', label: '' }],
+    ...(type === 'multi' ? { multiDefault: 'all' as const, defaultOptionIndices: [] } : {}),
   };
 }
 
@@ -38,6 +45,14 @@ export function draftGroupsFromMenu(groups?: MenuOptionGroup[]): DraftOptionGrou
     type: g.type,
     required: g.required ?? false,
     options: (g.options ?? []).map((o) => ({ id: o.id, label: o.label })),
+    ...(g.type === 'multi'
+      ? {
+          multiDefault: g.multiDefault ?? 'all',
+          defaultOptionIndices: (g.defaultOptionIds ?? [])
+            .map((id) => (g.options ?? []).findIndex((o) => o.id === id))
+            .filter((i) => i >= 0),
+        }
+      : {}),
   }));
 }
 
@@ -77,13 +92,29 @@ export function normalizeOptionGroups(groups: DraftOptionGroup[]): MenuOptionGro
 
       if (!options.length) return null;
 
-      return {
+      const base = {
         id: groupId,
         label,
         type: g.type,
         required: g.required,
         options,
       };
+
+      if (g.type !== 'multi') return base;
+
+      const mode = g.multiDefault ?? 'all';
+      if (mode === 'none') {
+        return { ...base, multiDefault: 'none' as const };
+      }
+      if (mode === 'custom') {
+        const defaultOptionIds = (g.defaultOptionIndices ?? [])
+          .map((i) => options[i]?.id)
+          .filter((id): id is string => !!id);
+        if (defaultOptionIds.length) {
+          return { ...base, multiDefault: 'custom' as const, defaultOptionIds };
+        }
+      }
+      return { ...base, multiDefault: 'all' as const };
     })
     .filter(Boolean) as MenuOptionGroup[];
 }

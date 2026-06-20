@@ -157,7 +157,13 @@
       "options": "Optionen",
       "optionPlaceholder": "Hähnchen",
       "addOption": "+ Option hinzufügen",
-      "badge": "{{summary}} Anpassungen"
+      "badge": "{{summary}} Anpassungen",
+      "defaultLabel": "Standard wenn Kunde überspringt oder skip schreibt",
+      "defaultAll": "Alle Optionen",
+      "defaultNone": "Keine",
+      "defaultCustom": "Ausgewählte Optionen",
+      "defaultCustomHint": "Hake an, welche Optionen im Standard enthalten sind.",
+      "defaultOption": "Im Standard enthalten"
     }
   },
   "income": {

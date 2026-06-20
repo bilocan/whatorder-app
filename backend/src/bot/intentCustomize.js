@@ -1,8 +1,23 @@
 const { setSession, buildSessionWrite } = require('./sessionStore');
-const { sendButtonMessage, sendListMessage } = require('../lib/whatsapp');
+const { sendButtonMessage, sendListMessage, sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildBasketText } = require('./botHelpers');
 const { mergeIntoBasket } = require('./intentMatcher');
+const { norm } = require('./menuMatch');
+
+const MULTI_NONE_KEYWORDS = new Set([
+  'none', 'no', 'nothing', 'zero',
+  'yok', 'hayir', 'bos', 'hiç', 'hic',
+  'nein', 'keine', 'nichts',
+]);
+const MULTI_ALL_KEYWORDS = new Set([
+  'all', 'everything', 'full',
+  'alle', 'alles', 'hepsi', 'tamami', 'tümü', 'tumu',
+]);
+const MULTI_DEFAULT_KEYWORDS = new Set([
+  'skip', 'default', 'ok', '-',
+  'atla', 'uberspringen', 'überspringen',
+]);
 
 function needsCustomization(item) {
   return (item.optionGroups?.length ?? 0) > 0;
@@ -42,19 +57,112 @@ function getMultiSelection(selections, groupId) {
   return Array.isArray(sel) ? sel : (sel ? [sel] : []);
 }
 
-function toggleMultiSelection(selections, group, optionId) {
-  const current = getMultiSelection(selections, group.id);
-  const next = current.includes(optionId)
-    ? current.filter(id => id !== optionId)
-    : [...current, optionId];
-  return { ...selections, [group.id]: next };
+function matchOptionToken(token, options) {
+  const needle = norm(token);
+  if (!needle) return null;
+
+  let bestId = null;
+  let bestScore = 0;
+  for (const opt of options) {
+    const candidate = norm(opt.label);
+    if (!candidate) continue;
+    let score = 0;
+    if (needle === candidate) score = 100;
+    else if (candidate.startsWith(needle) || needle.startsWith(candidate)) score = 50;
+    else if (candidate.includes(needle) || needle.includes(candidate)) score = 10;
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = opt.id;
+    }
+  }
+  return bestScore > 0 ? bestId : null;
 }
 
-function selectedLabels(group, selections) {
-  const ids = getMultiSelection(selections, group.id);
-  return ids
-    .map(id => group.options?.find(o => o.id === id)?.label)
+function splitMultiTokens(text) {
+  return text
+    .split(/[,;+\n]|(?:\band\b)|(?:\bund\b)|(?:\bve\b)/i)
+    .map(s => s.trim())
     .filter(Boolean);
+}
+
+function allOptionIds(group) {
+  return (group.options ?? []).map(o => o.id);
+}
+
+function getDefaultMultiSelection(group) {
+  const mode = group.multiDefault ?? 'all';
+  if (mode === 'none') return [];
+  if (mode === 'custom') {
+    const valid = (group.defaultOptionIds ?? [])
+      .filter(id => group.options?.some(o => o.id === id));
+    return valid.length ? valid : allOptionIds(group);
+  }
+  return allOptionIds(group);
+}
+
+function formatDefaultSummary(lang, group) {
+  const mode = group.multiDefault ?? 'all';
+  if (mode === 'none') return t('intentMultiDefaultNone', lang);
+  if (mode === 'custom') {
+    const labels = (group.defaultOptionIds ?? [])
+      .map(id => group.options?.find(o => o.id === id)?.label)
+      .filter(Boolean);
+    if (!labels.length) return t('intentMultiDefaultAll', lang);
+    return labels.join(', ');
+  }
+  return t('intentMultiDefaultAll', lang);
+}
+
+function isMultiNoneText(text) {
+  return MULTI_NONE_KEYWORDS.has(norm(text));
+}
+
+function isMultiAllText(text) {
+  return MULTI_ALL_KEYWORDS.has(norm(text));
+}
+
+function isMultiDefaultText(text) {
+  const n = norm(text);
+  return !n || MULTI_DEFAULT_KEYWORDS.has(n);
+}
+
+function parseMultiTextInput(text, group) {
+  const options = group.options ?? [];
+  const matched = [];
+  const unmatched = [];
+
+  for (const token of splitMultiTokens(text)) {
+    const id = matchOptionToken(token, options);
+    if (id) {
+      if (!matched.includes(id)) matched.push(id);
+    } else {
+      unmatched.push(token);
+    }
+  }
+  return { matched, unmatched };
+}
+
+function parseMultiReply(text, group) {
+  const trimmed = (text ?? '').trim();
+
+  if (isMultiNoneText(trimmed)) {
+    return { matched: [], unmatched: [] };
+  }
+  if (isMultiAllText(trimmed)) {
+    return { matched: allOptionIds(group), unmatched: [] };
+  }
+  if (isMultiDefaultText(trimmed)) {
+    return { matched: getDefaultMultiSelection(group), unmatched: [] };
+  }
+
+  const { matched, unmatched } = parseMultiTextInput(trimmed, group);
+  if (unmatched.length) return { matched, unmatched };
+  if (matched.length) return { matched, unmatched: [] };
+  return { matched: getDefaultMultiSelection(group), unmatched: [] };
+}
+
+function formatOptionList(group) {
+  return (group.options ?? []).map(o => `• ${o.label}`).join('\n');
 }
 
 function optReplyId(groupId, optionId) {
@@ -110,14 +218,16 @@ function promptContext(ic) {
 
 function buildGroupBody(lang, ctx, group) {
   const { item, unitIndex, unitTotal, showUnit } = ctx;
-  let body = showUnit
+  if (group.type === 'multi') {
+    const optionList = formatOptionList(group);
+    const defaultSummary = formatDefaultSummary(lang, group);
+    return showUnit
+      ? t('intentMultiUnitPrompt', lang, unitIndex, unitTotal, item.name, group.label, optionList, defaultSummary)
+      : t('intentMultiPrompt', lang, item.qty, item.name, group.label, optionList, defaultSummary);
+  }
+  return showUnit
     ? t('intentCustomizeUnitPrompt', lang, unitIndex, unitTotal, item.name, group.label)
     : t('intentCustomizePrompt', lang, item.qty, item.name, group.label);
-  if (group.type === 'multi') {
-    const picked = selectedLabels(group, ctx.selections ?? {});
-    if (picked.length) body += `\n\n${t('intentMultiSelected', lang, picked.join(', '))}`;
-  }
-  return body;
 }
 
 async function promptSameOrEach(from, lang, item) {
@@ -157,46 +267,28 @@ async function promptSingleGroup(from, lang, ctx, group, selections) {
   });
 }
 
-async function promptMultiGroup(from, lang, ctx, group, selections) {
-  const body = buildGroupBody(lang, { ...ctx, selections }, group);
-  const picked = getMultiSelection(selections, group.id);
-  const canSkip = !group.required;
-  const canDone = picked.length > 0 || canSkip;
-
-  const rows = (group.options ?? []).map(o => {
-    const mark = picked.includes(o.id) ? '✓ ' : '';
-    return {
-      id: optReplyId(group.id, o.id),
-      title: `${mark}${o.label}`.slice(0, 24),
-    };
-  });
-  if (canDone) {
-    rows.push({ id: optDoneId(group.id), title: t('intentMultiDoneBtn', lang).slice(0, 24) });
-  }
-  if (canSkip && !picked.length) {
-    rows.push({ id: optSkipId(group.id), title: t('intentCustomizeSkip', lang).slice(0, 24) });
-  }
-
-  if (rows.length <= 3 && group.options.length <= 2) {
+async function promptMultiGroup(from, lang, ctx, group) {
+  const body = buildGroupBody(lang, ctx, group);
+  if (!group.required) {
     return sendButtonMessage(from, {
-      body,
-      buttons: rows.slice(0, 3).map(r => ({ id: r.id, title: r.title.slice(0, 20) })),
+      body: `${body}\n\n${t('intentMultiDefaultHint', lang)}`,
+      buttons: [{ id: optSkipId(group.id), title: t('intentMultiDefaultBtn', lang).slice(0, 20) }],
     });
   }
+  return sendText(from, body);
+}
 
-  return sendListMessage(from, {
-    header: group.label.slice(0, 60),
-    body,
-    buttonLabel: t('intentChooseBtn', lang).slice(0, 20),
-    sections: [{ title: group.label.slice(0, 24), rows: rows.slice(0, 10) }],
-  });
+async function promptMultiGroupInvalid(from, lang, ctx, group, unmatched) {
+  const optionList = formatOptionList(group);
+  const body = `${t('intentMultiInvalid', lang, unmatched.join(', '), optionList)}\n\n${buildGroupBody(lang, ctx, group)}`;
+  return sendText(from, body);
 }
 
 async function promptOptionGroup(from, lang, ic) {
   const ctx = promptContext(ic);
   const group = ctx.item.optionGroups[ic.groupIdx];
   if (group.type === 'multi') {
-    return promptMultiGroup(from, lang, ctx, group, ic.selections);
+    return promptMultiGroup(from, lang, ctx, group);
   }
   return promptSingleGroup(from, lang, ctx, group, ic.selections);
 }
@@ -290,18 +382,18 @@ async function startIntentCustomization({ from, session, lang, businessId, baske
   await startNextItem(from, session, lang, businessId, customizeItems, readyBasket);
 }
 
-async function handleIntentCustomize({ from, session, lang, businessId, type, id }) {
+async function handleIntentCustomize({ from, session, lang, businessId, type, text, id }) {
   const ic = session.intentCustomize;
   if (!ic?.queue?.length) {
     await setSession(from, buildSessionWrite(session, { state: 'browsing', intentCustomize: undefined }));
     return;
   }
 
-  if (type !== 'button_reply' && type !== 'list_reply') return;
-
   const item = ic.queue[0];
+  const group = item.optionGroups?.[ic.groupIdx];
 
   if (item.qty > 1 && ic.unitMode == null) {
+    if (type !== 'button_reply') return;
     if (id === 'btn_intent_same_opts' || id === 'btn_intent_each_opts') {
       const nextIc = { ...ic, unitMode: id === 'btn_intent_same_opts' ? 'same' : 'each', unitIndex: 1 };
       const msgId = await promptOptionGroup(from, lang, nextIc);
@@ -310,8 +402,23 @@ async function handleIntentCustomize({ from, session, lang, businessId, type, id
     return;
   }
 
-  const group = item.optionGroups?.[ic.groupIdx];
   if (!group) return;
+
+  if (group.type === 'multi' && type === 'text') {
+    const trimmed = (text ?? '').trim();
+    const { matched, unmatched } = parseMultiReply(trimmed, group);
+    if (unmatched.length) {
+      const ctx = promptContext(ic);
+      await promptMultiGroupInvalid(from, lang, ctx, group, unmatched);
+      return;
+    }
+
+    const selections = { ...ic.selections, [group.id]: matched };
+    await advanceCustomization({ from, session, lang, businessId, selections });
+    return;
+  }
+
+  if (type !== 'button_reply' && type !== 'list_reply') return;
 
   const parsed = parseOptionReply(id);
   if (!parsed || parsed.groupId !== group.id) {
@@ -321,26 +428,25 @@ async function handleIntentCustomize({ from, session, lang, businessId, type, id
   }
 
   if (parsed.done) {
-    const picked = getMultiSelection(ic.selections, group.id);
-    if (group.required && !picked.length) {
-      const msgId = await promptOptionGroup(from, lang, ic);
-      await persistCustomize(from, session, lang, businessId, ic, msgId);
-      return;
-    }
-    await advanceCustomization({ from, session, lang, businessId, selections: ic.selections });
+    const msgId = await promptOptionGroup(from, lang, ic);
+    await persistCustomize(from, session, lang, businessId, ic, msgId);
     return;
   }
 
   if (parsed.skip) {
+    if (group.type === 'multi') {
+      const selections = { ...ic.selections, [group.id]: getDefaultMultiSelection(group) };
+      await advanceCustomization({ from, session, lang, businessId, selections });
+      return;
+    }
     if (group.required) return;
     await advanceCustomization({ from, session, lang, businessId, selections: ic.selections });
     return;
   }
 
   if (group.type === 'multi') {
-    const selections = toggleMultiSelection(ic.selections, group, parsed.optionId);
-    const msgId = await promptOptionGroup(from, lang, { ...ic, selections });
-    await persistCustomize(from, session, lang, businessId, { ...ic, selections }, msgId);
+    const msgId = await promptOptionGroup(from, lang, ic);
+    await persistCustomize(from, session, lang, businessId, ic, msgId);
     return;
   }
 
@@ -353,7 +459,10 @@ module.exports = {
   splitPendingItems,
   buildOptionLabel,
   parseOptionReply,
-  toggleMultiSelection,
+  parseMultiTextInput,
+  parseMultiReply,
+  allOptionIds,
+  getDefaultMultiSelection,
   getMultiSelection,
   startIntentCustomization,
   handleIntentCustomize,

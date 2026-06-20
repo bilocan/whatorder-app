@@ -23,10 +23,12 @@ describe('normalizeOptionGroups', () => {
         ],
       },
       {
-        id: '',
+        id: 'inserts',
         label: 'Inserts',
         type: 'multi',
         required: false,
+        multiDefault: 'custom',
+        defaultOptionIds: ['tomato', 'salad', 'onion'],
         options: [
           { id: '', label: 'Tomato' },
           { id: '', label: 'Salad' },
@@ -34,6 +36,7 @@ describe('normalizeOptionGroups', () => {
           { id: '', label: 'Sauce' },
           { id: '', label: 'Pepper' },
         ],
+        defaultOptionIndices: [0, 1, 2],
       },
     ];
 
@@ -42,6 +45,10 @@ describe('normalizeOptionGroups', () => {
     expect(result[0]).toMatchObject({ id: 'protein', label: 'Protein', type: 'single', required: true });
     expect(result[0].options.map((o) => o.label)).toEqual(['Chicken', 'Lamb']);
     expect(result[1].options).toHaveLength(5);
+    expect(result[1]).toMatchObject({
+      multiDefault: 'custom',
+      defaultOptionIds: ['tomato', 'salad', 'onion'],
+    });
   });
 
   it('round-trips through draftGroupsFromMenu', () => {

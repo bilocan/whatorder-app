@@ -15,7 +15,6 @@ jest.mock('../../lib/geocode');
 jest.mock('../../lib/collections', () => ({ customersRef: jest.fn() }));
 
 const { handleMessage } = require('../botHandler');
-const { getMultiSelection } = require('../intentCustomize');
 const { getSession, setSession } = require('../sessionStore');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { createOrder } = require('../orderService');
@@ -970,11 +969,7 @@ describe('Intent ordering (Tier A)', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'opt_protein_chicken', title: 'Chicken' }));
     expect(stored.intentCustomize.groupIdx).toBe(1);
 
-    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'opt_inserts_tomato', title: 'Tomato' }));
-    expect(getMultiSelection(stored.intentCustomize.selections, 'inserts')).toEqual(['tomato']);
-
-    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'opt_inserts_salad', title: 'Salad' }));
-    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'opt_done_inserts', title: 'Done' }));
+    await handleMessage(ROUTING, msg({ type: 'text', text: 'tomato, salad' }));
 
     expect(stored.state).toBe('browsing');
     expect(stored.basket).toEqual([

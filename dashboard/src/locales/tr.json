@@ -157,7 +157,13 @@
       "options": "Seçenekler",
       "optionPlaceholder": "Tavuk",
       "addOption": "+ Seçenek ekle",
-      "badge": "{{summary}} özelleştirme"
+      "badge": "{{summary}} özelleştirme",
+      "defaultLabel": "Müşteri atlayınca veya skip yazınca varsayılan",
+      "defaultAll": "Tüm seçenekler",
+      "defaultNone": "Hiçbiri",
+      "defaultCustom": "Seçili seçenekler",
+      "defaultCustomHint": "Varsayılanda hangi seçeneklerin olduğunu işaretle.",
+      "defaultOption": "Varsayılanda dahil"
     }
   },
   "income": {

@@ -1,10 +1,10 @@
 const {
-  needsCustomization,
-  splitPendingItems,
   buildOptionLabel,
   parseOptionReply,
-  toggleMultiSelection,
-  getMultiSelection,
+  parseMultiTextInput,
+  parseMultiReply,
+  getDefaultMultiSelection,
+  allOptionIds,
 } = require('../intentCustomize');
 
 const OPTION_GROUPS = [
@@ -23,6 +23,7 @@ const OPTION_GROUPS = [
     label: 'Inserts',
     type: 'multi',
     required: false,
+    multiDefault: 'all',
     options: [
       { id: 'tomato', label: 'Tomato' },
       { id: 'salad', label: 'Salad' },
@@ -31,15 +32,66 @@ const OPTION_GROUPS = [
   },
 ];
 
-describe('toggleMultiSelection', () => {
-  test('adds and removes options', () => {
-    const group = OPTION_GROUPS[1];
-    let sel = toggleMultiSelection({}, group, 'tomato');
-    expect(getMultiSelection(sel, 'inserts')).toEqual(['tomato']);
-    sel = toggleMultiSelection(sel, group, 'salad');
-    expect(getMultiSelection(sel, 'inserts')).toEqual(['tomato', 'salad']);
-    sel = toggleMultiSelection(sel, group, 'tomato');
-    expect(getMultiSelection(sel, 'inserts')).toEqual(['salad']);
+const CUSTOM_DEFAULT_GROUP = {
+  id: 'inserts',
+  label: 'Inserts',
+  type: 'multi',
+  required: false,
+  multiDefault: 'custom',
+  defaultOptionIds: ['tomato', 'onion'],
+  options: OPTION_GROUPS[1].options,
+};
+
+describe('getDefaultMultiSelection', () => {
+  test('all mode returns every option', () => {
+    expect(getDefaultMultiSelection(OPTION_GROUPS[1])).toEqual(allOptionIds(OPTION_GROUPS[1]));
+  });
+
+  test('none mode returns empty', () => {
+    expect(getDefaultMultiSelection({ ...OPTION_GROUPS[1], multiDefault: 'none' })).toEqual([]);
+  });
+
+  test('custom mode returns owner-selected options', () => {
+    expect(getDefaultMultiSelection(CUSTOM_DEFAULT_GROUP)).toEqual(['tomato', 'onion']);
+  });
+});
+
+describe('parseMultiReply', () => {
+  test('skip uses owner default', () => {
+    expect(parseMultiReply('skip', CUSTOM_DEFAULT_GROUP)).toEqual({
+      matched: ['tomato', 'onion'],
+      unmatched: [],
+    });
+  });
+
+  test('all always selects every option', () => {
+    expect(parseMultiReply('all', CUSTOM_DEFAULT_GROUP)).toEqual({
+      matched: allOptionIds(CUSTOM_DEFAULT_GROUP),
+      unmatched: [],
+    });
+  });
+
+  test('none selects nothing even when default is custom', () => {
+    expect(parseMultiReply('none', CUSTOM_DEFAULT_GROUP)).toEqual({
+      matched: [],
+      unmatched: [],
+    });
+  });
+
+  test('specific list overrides default', () => {
+    expect(parseMultiReply('salad', OPTION_GROUPS[1])).toEqual({
+      matched: ['salad'],
+      unmatched: [],
+    });
+  });
+});
+
+describe('parseMultiTextInput', () => {
+  test('matches comma-separated labels', () => {
+    expect(parseMultiTextInput('tomato, salad', OPTION_GROUPS[1])).toEqual({
+      matched: ['tomato', 'salad'],
+      unmatched: [],
+    });
   });
 });
 
@@ -54,7 +106,7 @@ describe('buildOptionLabel', () => {
 });
 
 describe('parseOptionReply', () => {
-  test('parses done', () => {
-    expect(parseOptionReply('opt_done_inserts')).toEqual({ done: true, groupId: 'inserts' });
+  test('parses skip', () => {
+    expect(parseOptionReply('opt_skip_inserts')).toEqual({ skip: true, groupId: 'inserts' });
   });
 });
