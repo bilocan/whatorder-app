@@ -5,7 +5,7 @@ jest.mock('../../lib/firebase', () => ({
 }));
 
 const { db } = require('../../lib/firebase');
-const { getSession, setSession, clearSession } = require('../sessionStore');
+const { getSession, setSession, clearSession, buildSessionWrite } = require('../sessionStore');
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -71,6 +71,58 @@ describe('setSession', () => {
     await setSession('+43699000001', original);
 
     expect(original).not.toHaveProperty('updatedAt');
+  });
+
+  test('strips undefined fields before write', async () => {
+    const mockSet = jest.fn().mockResolvedValue(undefined);
+    db.collection.mockReturnValue({ doc: jest.fn().mockReturnValue({ set: mockSet }) });
+
+    await setSession('+43699000001', { state: 'browsing', basket: [], pendingIntentItems: undefined });
+
+    expect(mockSet.mock.calls[0][0]).not.toHaveProperty('pendingIntentItems');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildSessionWrite
+// ---------------------------------------------------------------------------
+describe('buildSessionWrite', () => {
+  test('omits pending intent fields on confirm-style overwrite', () => {
+    const payload = buildSessionWrite(
+      {
+        state: 'browsing',
+        language: 'tr',
+        businessId: 'biz_test',
+        basket: [],
+        pendingIntentItems: [{ name: 'Döner', qty: 2, price: 8.5 }],
+        unmatchedIntentItems: ['burger'],
+      },
+      {
+        basket: [{ name: 'Döner', qty: 2, price: 8.5 }],
+        pendingDeleteIds: [],
+      },
+    );
+
+    expect(payload.basket).toHaveLength(1);
+    expect(payload).not.toHaveProperty('pendingIntentItems');
+    expect(payload).not.toHaveProperty('unmatchedIntentItems');
+  });
+
+  test('preserves checkout context fields', () => {
+    const payload = buildSessionWrite(
+      {
+        state: 'browsing',
+        language: 'de',
+        businessId: 'biz_test',
+        basket: [],
+        orderType: 'delivery',
+        deliveryAddress: 'Wien',
+      },
+      { basket: [{ name: 'Döner', qty: 1, price: 8.5 }] },
+    );
+
+    expect(payload.orderType).toBe('delivery');
+    expect(payload.deliveryAddress).toBe('Wien');
   });
 });
 

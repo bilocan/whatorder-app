@@ -101,4 +101,19 @@ module.exports = {
 
   ordersClosedByOwner: (name) => `⏸️ ${name} is not accepting orders right now. Please try again later! 🙏`,
   deliveryClosedByOwner: () => '🚫 Delivery is currently unavailable. Please choose pickup.',
+
+  intentConfirmHeader: () => 'Got it:',
+  intentConfirmPrompt: () => 'Add these to your order?',
+  intentConfirmBtn: () => 'Add to basket',
+  intentEditMenuBtn: () => 'Browse menu',
+  intentUnmatched: (items) => `Couldn't find: ${items}`,
+  intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\nChoose ${groupLabel}:`,
+  intentCustomizeUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel) => `${itemName} ${unitIndex}/${unitTotal}\nChoose ${groupLabel}:`,
+  intentSameOrEachPrompt: (qty, itemName) => `You ordered ${qty}x ${itemName}.\nSame options for all, or customize each one?`,
+  intentSameOptsBtn: () => 'Same for all',
+  intentEachOptsBtn: () => 'Customize each',
+  intentCustomizeSkip: () => 'Skip',
+  intentChooseBtn: () => 'Choose',
+  intentMultiSelected: (labels) => `Selected: ${labels}`,
+  intentMultiDoneBtn: () => 'Done',
 };

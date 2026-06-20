@@ -91,6 +91,12 @@ describe('matchMenuItem', () => {
     expect(matchMenuItem('ıstanbul special', items)).toEqual(items[0]);
   });
 
+  test('matches menu item aliases', () => {
+    const items = [{ id: 'c1', name: 'Coca-Cola', price: 2.5, aliases: ['cola', 'coke'] }];
+    expect(matchMenuItem('cola', items)).toEqual(items[0]);
+    expect(matchMenuItem('coke', items)).toEqual(items[0]);
+  });
+
   test('handles empty menu', () => {
     expect(matchMenuItem('döner', [])).toBeUndefined();
   });

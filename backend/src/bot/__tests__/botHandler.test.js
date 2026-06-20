@@ -1,5 +1,13 @@
 jest.mock('../../lib/firebase', () => ({ db: {}, admin: {} }));
-jest.mock('../sessionStore');
+jest.mock('../sessionStore', () => {
+  const actual = jest.requireActual('../sessionStore');
+  return {
+    ...actual,
+    getSession: jest.fn(),
+    setSession: jest.fn(),
+    clearSession: jest.fn(),
+  };
+});
 jest.mock('../menuService');
 jest.mock('../orderService');
 jest.mock('../../lib/whatsapp');
@@ -7,6 +15,7 @@ jest.mock('../../lib/geocode');
 jest.mock('../../lib/collections', () => ({ customersRef: jest.fn() }));
 
 const { handleMessage } = require('../botHandler');
+const { getMultiSelection } = require('../intentCustomize');
 const { getSession, setSession } = require('../sessionStore');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { createOrder } = require('../orderService');
@@ -19,7 +28,49 @@ const ROUTING = { businessIds: [BIZ], defaultBusinessId: BIZ };
 const FROM = '+43699000001';
 
 const MENU = [
-  { id: 'item_1', name: 'Döner',  price: 8.50, category: 'mains',  description: 'Chicken', available: true },
+  {
+    id: 'item_1',
+    name: 'Döner',
+    price: 8.50,
+    category: 'mains',
+    description: 'Chicken',
+    available: true,
+    optionGroups: [
+      {
+        id: 'protein',
+        label: 'Protein',
+        type: 'single',
+        required: true,
+        options: [
+          { id: 'chicken', label: 'Chicken' },
+          { id: 'lamb', label: 'Lamb' },
+          { id: 'mixed', label: 'Mixed' },
+        ],
+      },
+      {
+        id: 'sauce',
+        label: 'Sauce',
+        type: 'multi',
+        required: false,
+        options: [
+          { id: 'garlic', label: 'Garlic sauce' },
+          { id: 'chili', label: 'Chili sauce' },
+          { id: 'none', label: 'No sauce' },
+        ],
+      },
+      {
+        id: 'inserts',
+        label: 'Inserts',
+        type: 'multi',
+        required: false,
+        options: [
+          { id: 'tomato', label: 'Tomato' },
+          { id: 'salad', label: 'Salad' },
+          { id: 'onion', label: 'Onion' },
+        ],
+      },
+    ],
+  },
   { id: 'item_2', name: 'Ayran',  price: 2.00, category: 'drinks', description: 'Yogurt drink', available: true },
 ];
 
@@ -223,8 +274,8 @@ describe('Language detection', () => {
   test('mid-conversation re-detect does NOT update language on weak signal (score < 2)', async () => {
     getSession.mockResolvedValue({ language: 'tr', state: 'browsing', businessId: BIZ, basket: [] });
 
-    // 'bir' and 'döner' are TR (score TR:2), 'ja' is DE (score DE:1) — TR wins = no change
-    await handleMessage(ROUTING, msg({ text: 'bir döner ja' }));
+    // 'naber' is TR (score TR:1), 'ja' is DE (score DE:1) — tie, no change; not order-like text
+    await handleMessage(ROUTING, msg({ text: 'naber ja' }));
 
     // No setSession call: re-detect didn't flip (same language), browsing default has no state change
     expect(setSession).not.toHaveBeenCalled();
@@ -803,6 +854,208 @@ describe('Selecting state: quantity selection flow', () => {
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: expect.arrayContaining([expect.objectContaining({ id: 'qty_1' })]),
     }));
+  });
+});
+
+// ─── Tier A intent ordering ──────────────────────────────────────────────────
+
+describe('Intent ordering (Tier A)', () => {
+  test('first message with order text shows intent confirm instead of menu', async () => {
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ text: '2x Döner und Ayran' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_intent_confirm' }),
+        expect.objectContaining({ id: 'btn_intent_edit_menu' }),
+      ]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      pendingIntentItems: expect.arrayContaining([
+        expect.objectContaining({ name: 'Döner', qty: 2 }),
+        expect.objectContaining({ name: 'Ayran', qty: 1 }),
+      ]),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('browsing text intent shows confirm prompt', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: '2x Döner + Ayran' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_confirm' })]),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('btn_intent_confirm merges items into basket', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ, basket: [],
+      pendingIntentItems: [
+        { name: 'Ayran', qty: 1, price: 2.00, menuItemId: 'item_2', optionGroups: [] },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_intent_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+    }));
+    expect(setSession.mock.calls[0][1]).not.toHaveProperty('pendingIntentItems');
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Ayran'),
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+    }));
+    expect(setSession.mock.invocationCallOrder[0]).toBeLessThan(sendButtonMessage.mock.invocationCallOrder[0]);
+  });
+
+  test('btn_intent_confirm asks same-or-each when qty > 1', async () => {
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'browsing', businessId: BIZ, basket: [],
+      pendingIntentItems: [
+        {
+          name: 'Döner', qty: 2, price: 8.50, menuItemId: 'item_1',
+          optionGroups: MENU[0].optionGroups,
+        },
+        { name: 'Ayran', qty: 1, price: 2.00, menuItemId: 'item_2', optionGroups: [] },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_intent_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'customizing_intent',
+      basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+      intentCustomize: expect.objectContaining({
+        queue: [expect.objectContaining({ name: 'Döner', qty: 2 })],
+        unitMode: null,
+      }),
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_intent_same_opts' }),
+        expect.objectContaining({ id: 'btn_intent_each_opts' }),
+      ]),
+    }));
+  });
+
+  test('customizing_intent same mode completes with multi inserts', async () => {
+    let stored = {
+      language: 'tr',
+      state: 'customizing_intent',
+      businessId: BIZ,
+      basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+      intentCustomize: {
+        queue: [{
+          name: 'Döner', qty: 2, price: 8.50, menuItemId: 'item_1',
+          optionGroups: [MENU[0].optionGroups[0], MENU[0].optionGroups[2]],
+        }],
+        groupIdx: 0,
+        selections: {},
+        readyBasket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+        unitMode: 'same',
+        unitIndex: 1,
+        unitTotal: 2,
+      },
+    };
+    getSession.mockImplementation(async () => ({ ...stored }));
+    setSession.mockImplementation(async (_phone, data) => { stored = { ...data }; });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'opt_protein_chicken', title: 'Chicken' }));
+    expect(stored.intentCustomize.groupIdx).toBe(1);
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'opt_inserts_tomato', title: 'Tomato' }));
+    expect(getMultiSelection(stored.intentCustomize.selections, 'inserts')).toEqual(['tomato']);
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'opt_inserts_salad', title: 'Salad' }));
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'opt_done_inserts', title: 'Done' }));
+
+    expect(stored.state).toBe('browsing');
+    expect(stored.basket).toEqual([
+      { name: 'Ayran', qty: 1, price: 2.00 },
+      { name: 'Döner — Chicken, Tomato, Salad', qty: 2, price: 8.50 },
+    ]);
+  });
+
+  test('customizing_intent each mode adds separate basket lines', async () => {
+    let stored = {
+      language: 'tr',
+      state: 'customizing_intent',
+      businessId: BIZ,
+      basket: [],
+      intentCustomize: {
+        queue: [{
+          name: 'Döner', qty: 2, price: 8.50, menuItemId: 'item_1',
+          optionGroups: [MENU[0].optionGroups[0]],
+        }],
+        groupIdx: 0,
+        selections: {},
+        readyBasket: [],
+        unitMode: 'each',
+        unitIndex: 1,
+        unitTotal: 2,
+      },
+    };
+    getSession.mockImplementation(async () => ({ ...stored }));
+    setSession.mockImplementation(async (_phone, data) => { stored = { ...data }; });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'opt_protein_chicken', title: 'Chicken' }));
+    expect(stored.intentCustomize.unitIndex).toBe(2);
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'opt_protein_lamb', title: 'Lamb' }));
+
+    expect(stored.state).toBe('browsing');
+    expect(stored.basket).toEqual([
+      { name: 'Döner — Chicken', qty: 1, price: 8.50 },
+      { name: 'Döner — Lamb', qty: 1, price: 8.50 },
+    ]);
+  });
+
+  test('btn_view_basket after btn_intent_confirm reads persisted basket', async () => {
+    let stored = {
+      language: 'tr', state: 'browsing', businessId: BIZ, basket: [],
+      pendingIntentItems: [
+        { name: 'Ayran', qty: 1, price: 2.00, menuItemId: 'item_2', optionGroups: [] },
+      ],
+    };
+    getSession.mockImplementation(async () => ({ ...stored }));
+    setSession.mockImplementation(async (_phone, data) => {
+      stored = { ...data };
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_intent_confirm' }));
+    sendButtonMessage.mockClear();
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_view_basket', title: 'Sepeti Gör' }));
+
+    expect(stored.basket).toHaveLength(1);
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Ayran'),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('unmatched intent text falls back to catalog', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: '2x burger and fries' }));
+
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+
+  test('greeting first message still shows menu', async () => {
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
+
+    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 });
 

@@ -101,4 +101,19 @@ module.exports = {
 
   ordersClosedByOwner: (name) => `⏸️ ${name} nimmt gerade keine Bestellungen entgegen. Bitte versuchen Sie es später! 🙏`,
   deliveryClosedByOwner: () => '🚫 Lieferung ist derzeit nicht verfügbar. Bitte wählen Sie Abholung.',
+
+  intentConfirmHeader: () => 'Verstanden:',
+  intentConfirmPrompt: () => 'Zum Warenkorb hinzufügen?',
+  intentConfirmBtn: () => 'Hinzufügen',
+  intentEditMenuBtn: () => 'Menü ansehen',
+  intentUnmatched: (items) => `Nicht gefunden: ${items}`,
+  intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\n${groupLabel} wählen:`,
+  intentCustomizeUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel) => `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} wählen:`,
+  intentSameOrEachPrompt: (qty, itemName) => `${qty}x ${itemName} bestellt.\nGleiche Optionen für alle oder einzeln anpassen?`,
+  intentSameOptsBtn: () => 'Alle gleich',
+  intentEachOptsBtn: () => 'Einzeln wählen',
+  intentCustomizeSkip: () => 'Überspringen',
+  intentChooseBtn: () => 'Wählen',
+  intentMultiSelected: (labels) => `Ausgewählt: ${labels}`,
+  intentMultiDoneBtn: () => 'Fertig',
 };

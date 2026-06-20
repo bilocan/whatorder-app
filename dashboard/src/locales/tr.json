@@ -140,6 +140,24 @@
       "mains": "Ana Yemekler",
       "sides": "Yan Yemekler",
       "drinks": "İçecekler"
+    },
+    "optionGroups": {
+      "title": "WhatsApp özelleştirmeleri",
+      "hint": "Protein, malzemeler, soslar — müşteriler yazılı veya menü siparişinde bunları seçer.",
+      "empty": "Henüz özelleştirme yok. Tek seçim (ör. Protein) veya çoklu seçim (ör. Malzemeler) ekleyin.",
+      "addSingle": "+ Tek seçim",
+      "addMulti": "+ Çoklu seçim",
+      "groupLabel": "Grup adı",
+      "groupLabelPlaceholder": "Protein",
+      "groupType": "Tür",
+      "typeSingle": "Bir tane seç",
+      "typeMulti": "Birden fazla seç",
+      "required": "Zorunlu",
+      "removeGroup": "Kaldır",
+      "options": "Seçenekler",
+      "optionPlaceholder": "Tavuk",
+      "addOption": "+ Seçenek ekle",
+      "badge": "{{summary}} özelleştirme"
     }
   },
   "income": {

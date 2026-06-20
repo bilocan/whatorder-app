@@ -36,6 +36,19 @@ export interface Order {
   deliveryFee?: number;
 }
 
+export interface MenuOption {
+  id: string;
+  label: string;
+}
+
+export interface MenuOptionGroup {
+  id: string;
+  label: string;
+  type: 'single' | 'multi';
+  required?: boolean;
+  options: MenuOption[];
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -44,6 +57,7 @@ export interface MenuItem {
   category: 'mains' | 'sides' | 'drinks';
   photoUrl?: string;
   available: boolean;
+  optionGroups?: MenuOptionGroup[];
 }
 
 export interface DaySchedule {
