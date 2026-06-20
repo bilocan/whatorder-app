@@ -67,6 +67,7 @@ module.exports = {
   deliveryBtn: () => 'Teslimat',
   askDeliveryAddress: () => '📍 Konumunuzu paylaşın veya teslimat adresinizi yazın.',
   deliveryOutOfZone: () => 'Üzgünüz, bu bölgeye teslimat yapamıyoruz. Lütfen gel-al seçeneğini seçin.',
+  belowMinimumOrderValue: (minValue) => `Üzgünüz, minimum sipariş tutarı €${minValue}. Lütfen sepetinize biraz daha ürün ekleyin.`,
 
   deliveryAddrPickerHeader: () => '📍 Teslimat adresi',
   deliveryAddrPickerBody:   () => 'Siparişinizi nereye teslim edelim?',

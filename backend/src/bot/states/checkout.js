@@ -24,11 +24,22 @@ async function getKnownName(phone, businessId) {
 // Call instead of transitioning to awaiting_name when a known name is available.
 async function transitionToConfirming(from, session, lang, businessId, basket, name) {
   const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
-  let displayTotal = subtotal;
-  if (session.orderType === 'delivery') {
-    const info = await getBusinessInfo(businessId);
-    displayTotal = subtotal + (info.deliveryFee || 0);
+  const info = await getBusinessInfo(businessId);
+
+  if (session.orderType === 'delivery' && info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    const msgId = await sendButtonMessage(from, {
+      body: `${t('belowMinimumOrderValue', lang, info.minimumOrderValue.toFixed(2))}\n\n${buildBasketText(basket, lang)}`,
+      buttons: [
+        { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
+        { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },
+        { id: 'btn_confirm',      title: t('confirmBtn', lang) },
+      ],
+    });
+    await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
+    return;
   }
+
+  const displayTotal = session.orderType === 'delivery' ? subtotal + (info.deliveryFee || 0) : subtotal;
   const confirmId = await sendButtonMessage(from, {
     body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null),
     buttons: [

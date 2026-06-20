@@ -190,6 +190,15 @@
       "saved": "Kaydedildi",
       "invalidFee": "Geçersiz ücret değeri"
     },
+    "minimumOrder": {
+      "title": "Minimum Sipariş Tutarı",
+      "description": "Teslimat siparişleri için sepetin ulaşması gereken minimum tutarı belirleyin. Gel-al siparişleri bu kuraldan etkilenmez.",
+      "label": "Minimum sipariş tutarı (€)",
+      "save": "Minimum sipariş tutarını kaydet",
+      "saving": "Kaydediliyor…",
+      "saved": "Kaydedildi",
+      "invalidValue": "Geçersiz değer"
+    },
     "botLanguage": {
       "title": "Bot Dili",
       "description": "Yeni müşteriler için varsayılan dil. \"Deutsch\", \"English\" veya \"Türkçe\" yazarak istedikleri zaman değiştirebilirler.",

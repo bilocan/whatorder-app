@@ -190,6 +190,15 @@
       "saved": "Saved",
       "invalidFee": "Invalid fee value"
     },
+    "minimumOrder": {
+      "title": "Minimum Order Value",
+      "description": "Set a minimum cart value customers must reach for delivery orders. Pickup orders are not affected.",
+      "label": "Minimum order value (€)",
+      "save": "Save minimum order value",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "invalidValue": "Invalid value"
+    },
     "botLanguage": {
       "title": "Bot Language",
       "description": "Default language for new customers. They can override it at any time by typing \"Deutsch\", \"English\" or \"Türkçe\".",
