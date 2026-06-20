@@ -1,5 +1,5 @@
 const { getMenu, getBusinessInfo } = require('./menuService');
-const { sendText, sendListMessage, sendFlowMessage } = require('../lib/whatsapp');
+const { sendText, sendListMessage } = require('../lib/whatsapp');
 const { isOpenNow } = require('../lib/schedule');
 const { t, tCategory } = require('./templates');
 
@@ -47,30 +47,23 @@ async function sendMenu(to, lang, businessId, bodyOverride) {
   });
 }
 
-// Tries Flow message first; falls back to list menu if Flow is unavailable or rejected.
-// Returns the list menu message ID when the list fallback is used, null for flow sends.
+// TODO: re-enable Flow once rate-limit issues on real numbers are resolved.
+// const { sendFlowMessage } = require('../lib/whatsapp');
+// async function sendCatalog(to, lang, businessId, bodyOverride) {
+//   const flowId = process.env.WHATSAPP_FLOW_ID;
+//   if (flowId) {
+//     const [info, menu] = await Promise.all([getBusinessInfo(businessId), getMenu(businessId)]);
+//     if (!menu.length) { await sendText(to, t('menuEmpty', lang)); return null; }
+//     try {
+//       await sendFlowMessage(to, { flowId, flowToken: `${to}|${businessId}`, flowCta: t('viewMenuBtn', lang), screen: 'CATEGORY_SELECT', body: bodyOverride ?? t('catalogBody', lang, info.name), data: {} });
+//       return null;
+//     } catch (err) {
+//       if (err.response?.data?.error?.code === 131056) throw err;
+//     }
+//   }
+//   return sendMenu(to, lang, businessId, bodyOverride);
+// }
 async function sendCatalog(to, lang, businessId, bodyOverride) {
-  const flowId = process.env.WHATSAPP_FLOW_ID;
-  if (flowId) {
-    const [info, menu] = await Promise.all([getBusinessInfo(businessId), getMenu(businessId)]);
-    if (!menu.length) {
-      await sendText(to, t('menuEmpty', lang));
-      return null;
-    }
-    try {
-      await sendFlowMessage(to, {
-        flowId,
-        flowToken: `${to}|${businessId}`,
-        flowCta: t('viewMenuBtn', lang),
-        screen: 'CATEGORY_SELECT',
-        body: bodyOverride ?? t('catalogBody', lang, info.name),
-        data: {},
-      });
-      return null;
-    } catch {
-      // fall through to list menu
-    }
-  }
   return sendMenu(to, lang, businessId, bodyOverride);
 }
 
