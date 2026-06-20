@@ -6,4 +6,4 @@ description: Write a structured session debrief to the vault covering work done 
 When invoked, follow the prompt at:
 `../../../../whatorder-vault/Skills/summarize/prompt.md`
 
-That file is already loaded into context via CLAUDE.local.md — execute its workflow directly.
+That file is loaded via vault `CLAUDE.md` (through `.claude/CLAUDE.local.md`). Execute its workflow directly.
