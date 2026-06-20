@@ -192,7 +192,7 @@
     },
     "minimumOrder": {
       "title": "Minimum Sipariş Tutarı",
-      "description": "Müşterilerin sipariş verebilmesi için sepetin ulaşması gereken minimum tutarı belirleyin.",
+      "description": "Teslimat siparişleri için sepetin ulaşması gereken minimum tutarı belirleyin. Gel-al siparişleri bu kuraldan etkilenmez.",
       "label": "Minimum sipariş tutarı (€)",
       "save": "Minimum sipariş tutarını kaydet",
       "saving": "Kaydediliyor…",
