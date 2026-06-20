@@ -6,4 +6,4 @@ description: Run the Definition of Done workflow — checks, vault release log, 
 When invoked, follow the prompt at:
 `../../../../../whatorder-vault/Skills/task-done/prompt.md`
 
-That file is already loaded into context via CLAUDE.local.md — execute its workflow directly.
+That file is loaded via vault `CLAUDE.md` (through `.claude/CLAUDE.local.md`). Execute its workflow directly.
