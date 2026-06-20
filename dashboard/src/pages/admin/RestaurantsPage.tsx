@@ -3,6 +3,7 @@ import { collection, onSnapshot, doc, setDoc, deleteDoc, arrayUnion, arrayRemove
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { auth, db } from '../../lib/firebase';
+import { useConfirm } from '../../components/ConfirmDialog';
 import type { Business } from '../../types';
 
 const TrashIcon = () => (
@@ -35,6 +36,7 @@ const PHONE_NUMBER_ID = import.meta.env.VITE_WHATSAPP_PHONE_NUMBER_ID as string 
 
 export default function RestaurantsPage() {
   const { t } = useTranslation();
+  const confirmDialog = useConfirm();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [routedIds, setRoutedIds] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
@@ -61,7 +63,7 @@ export default function RestaurantsPage() {
   }, []);
 
   async function deleteRestaurant(id: string, bizName: string) {
-    if (!confirm(t('admin.restaurants.deleteConfirm', { name: bizName }))) return;
+    if (!(await confirmDialog(t('admin.restaurants.deleteConfirm', { name: bizName })))) return;
     await deleteDoc(doc(db, 'businesses', id));
     if (PHONE_NUMBER_ID) {
       await setDoc(doc(db, 'phoneRouting', PHONE_NUMBER_ID), { businessIds: arrayRemove(id) }, { merge: true });

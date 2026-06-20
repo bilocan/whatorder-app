@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import RestaurantDetailPage from '../pages/admin/RestaurantDetailPage';
+import { ConfirmDialogProvider } from '../components/ConfirmDialog';
 
 // ── hoisted mocks ──────────────────────────────────────────────────────────
 
@@ -60,11 +61,13 @@ function renderPage(phoneNumberId: string = PHONE_NUMBER_ID) {
   vi.stubEnv('VITE_WHATSAPP_PHONE_NUMBER_ID', phoneNumberId);
 
   return render(
-    <MemoryRouter initialEntries={[`/admin/restaurants/${BUSINESS_ID}`]}>
-      <Routes>
-        <Route path="/admin/restaurants/:id" element={<RestaurantDetailPage />} />
-      </Routes>
-    </MemoryRouter>,
+    <ConfirmDialogProvider>
+      <MemoryRouter initialEntries={[`/admin/restaurants/${BUSINESS_ID}`]}>
+        <Routes>
+          <Route path="/admin/restaurants/:id" element={<RestaurantDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    </ConfirmDialogProvider>,
   );
 }
 

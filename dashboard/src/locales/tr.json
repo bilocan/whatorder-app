@@ -1,4 +1,9 @@
 {
+  "common": {
+    "confirmTitle": "Lütfen onayla",
+    "confirm": "Onayla",
+    "cancel": "Vazgeç"
+  },
   "selectRestaurant": {
     "title": "Restoran seç",
     "subtitle": "Yönetmek istediğin restoranı seç.",

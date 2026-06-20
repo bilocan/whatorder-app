@@ -8,6 +8,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { auth, db } from '../../lib/firebase';
 import { geocodeAddress } from '../../lib/geocode';
+import { useConfirm } from '../../components/ConfirmDialog';
 import type { Business, MenuItem, Owner } from '../../types';
 
 const PencilIcon = () => (
@@ -86,6 +87,7 @@ const btnIconDelete: React.CSSProperties = {
 
 export default function RestaurantDetailPage() {
   const { t } = useTranslation();
+  const confirmDialog = useConfirm();
   const { id } = useParams<{ id: string }>();
   const phoneNumberId = import.meta.env.VITE_WHATSAPP_PHONE_NUMBER_ID as string | undefined;
 
@@ -256,7 +258,7 @@ export default function RestaurantDetailPage() {
   }
 
   async function deleteMenuItem(itemId: string) {
-    if (!id || !confirm(t('admin.restaurantDetail.menu.deleteConfirm'))) return;
+    if (!id || !(await confirmDialog(t('admin.restaurantDetail.menu.deleteConfirm')))) return;
     if (editingItemId === itemId) setEditingItemId(null);
     await deleteDoc(doc(db, 'businesses', id, 'menu', itemId));
   }
@@ -312,7 +314,7 @@ export default function RestaurantDetailPage() {
   }
 
   async function deleteOwner(uid: string) {
-    if (!confirm(t('admin.restaurantDetail.owners.removeConfirm'))) return;
+    if (!(await confirmDialog(t('admin.restaurantDetail.owners.removeConfirm')))) return;
     try {
       const token = await auth.currentUser?.getIdToken();
       await fetch(`${API_URL}/admin/owners?uid=${encodeURIComponent(uid)}`, {
