@@ -1,4 +1,9 @@
 {
+  "common": {
+    "confirmTitle": "Bitte bestätigen",
+    "confirm": "Bestätigen",
+    "cancel": "Abbrechen"
+  },
   "selectRestaurant": {
     "title": "Restaurant auswählen",
     "subtitle": "Wähle das Restaurant, das du verwalten möchtest.",
@@ -114,7 +119,8 @@
     "deleteConfirm": "Kunden wirklich löschen? Bestellungen bleiben erhalten.",
     "orderHistory": "Bestellverlauf",
     "loading": "Lade…",
-    "noOrders": "Noch keine Bestellungen."
+    "noOrders": "Noch keine Bestellungen.",
+    "historyError": "Bestellverlauf konnte nicht geladen werden."
   },
   "menu": {
     "title": "Speisekarte",
@@ -207,6 +213,15 @@
       "saving": "Speichern…",
       "saved": "Gespeichert",
       "invalidFee": "Ungültiger Gebührenwert"
+    },
+    "minimumOrder": {
+      "title": "Mindestbestellwert",
+      "description": "Legen Sie einen Mindestwert für den Warenkorb fest, den Kunden bei Lieferbestellungen erreichen müssen. Abholbestellungen sind davon nicht betroffen.",
+      "label": "Mindestbestellwert (€)",
+      "save": "Mindestbestellwert speichern",
+      "saving": "Speichern…",
+      "saved": "Gespeichert",
+      "invalidValue": "Ungültiger Wert"
     },
     "botLanguage": {
       "title": "Bot-Sprache",

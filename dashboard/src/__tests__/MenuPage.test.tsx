@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import MenuPage from '../pages/MenuPage'
+import { ConfirmDialogProvider } from '../components/ConfirmDialog'
 
 const { mockUseAuth, mockOnSnapshot } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
@@ -26,7 +27,11 @@ const ITEMS = [
 ]
 
 function renderPage() {
-  return render(<MemoryRouter><MenuPage /></MemoryRouter>)
+  return render(
+    <ConfirmDialogProvider>
+      <MemoryRouter><MenuPage /></MemoryRouter>
+    </ConfirmDialogProvider>
+  )
 }
 
 describe('MenuPage', () => {

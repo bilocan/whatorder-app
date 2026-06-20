@@ -11,6 +11,7 @@ import { geocodeAddress } from '../../lib/geocode';
 import OptionGroupsEditor from '../../components/OptionGroupsEditor';
 import { draftGroupsFromMenu, customizationSummary, buildMenuPayload } from '../../lib/optionGroups';
 import type { DraftOptionGroup } from '../../lib/optionGroups';
+import { useConfirm } from '../../components/ConfirmDialog';
 import type { Business, MenuItem, Owner } from '../../types';
 
 const PencilIcon = () => (
@@ -89,6 +90,7 @@ const btnIconDelete: React.CSSProperties = {
 
 export default function RestaurantDetailPage() {
   const { t } = useTranslation();
+  const confirmDialog = useConfirm();
   const { id } = useParams<{ id: string }>();
   const phoneNumberId = import.meta.env.VITE_WHATSAPP_PHONE_NUMBER_ID as string | undefined;
 
@@ -267,7 +269,7 @@ const EMPTY_MENU: MenuFormState = {
   }
 
   async function deleteMenuItem(itemId: string) {
-    if (!id || !confirm(t('admin.restaurantDetail.menu.deleteConfirm'))) return;
+    if (!id || !(await confirmDialog(t('admin.restaurantDetail.menu.deleteConfirm')))) return;
     if (editingItemId === itemId) setEditingItemId(null);
     await deleteDoc(doc(db, 'businesses', id, 'menu', itemId));
   }
@@ -323,7 +325,7 @@ const EMPTY_MENU: MenuFormState = {
   }
 
   async function deleteOwner(uid: string) {
-    if (!confirm(t('admin.restaurantDetail.owners.removeConfirm'))) return;
+    if (!(await confirmDialog(t('admin.restaurantDetail.owners.removeConfirm')))) return;
     try {
       const token = await auth.currentUser?.getIdToken();
       await fetch(`${API_URL}/admin/owners?uid=${encodeURIComponent(uid)}`, {

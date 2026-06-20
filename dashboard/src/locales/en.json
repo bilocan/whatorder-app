@@ -1,4 +1,9 @@
 {
+  "common": {
+    "confirmTitle": "Please confirm",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
   "selectRestaurant": {
     "title": "Select a restaurant",
     "subtitle": "Choose the restaurant you want to manage.",
@@ -114,7 +119,8 @@
     "deleteConfirm": "Delete this customer? Orders will be kept.",
     "orderHistory": "Order history",
     "loading": "Loading…",
-    "noOrders": "No orders yet."
+    "noOrders": "No orders yet.",
+    "historyError": "Couldn't load order history."
   },
   "menu": {
     "title": "Menu",
@@ -207,6 +213,15 @@
       "saving": "Saving…",
       "saved": "Saved",
       "invalidFee": "Invalid fee value"
+    },
+    "minimumOrder": {
+      "title": "Minimum Order Value",
+      "description": "Set a minimum cart value customers must reach for delivery orders. Pickup orders are not affected.",
+      "label": "Minimum order value (€)",
+      "save": "Save minimum order value",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "invalidValue": "Invalid value"
     },
     "botLanguage": {
       "title": "Bot Language",

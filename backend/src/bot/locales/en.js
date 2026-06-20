@@ -67,6 +67,7 @@ module.exports = {
   deliveryBtn: () => 'Delivery',
   askDeliveryAddress: () => '📍 Share your location or type your delivery address.',
   deliveryOutOfZone: () => "Sorry, we don't deliver to that area. Please choose pickup instead.",
+  belowMinimumOrderValue: (minValue) => `Sorry, the minimum order value is €${minValue}. Please add more items to your basket.`,
 
   deliveryAddrPickerHeader: () => '📍 Delivery address',
   deliveryAddrPickerBody:   () => 'Where should we deliver your order?',
