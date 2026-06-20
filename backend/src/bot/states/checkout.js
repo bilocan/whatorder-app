@@ -24,11 +24,15 @@ async function getKnownName(phone, businessId) {
 // Call instead of transitioning to awaiting_name when a known name is available.
 async function transitionToConfirming(from, session, lang, businessId, basket, name) {
   const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
-  let displayTotal = subtotal;
-  if (session.orderType === 'delivery') {
-    const info = await getBusinessInfo(businessId);
-    displayTotal = subtotal + (info.deliveryFee || 0);
+  const info = await getBusinessInfo(businessId);
+
+  if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    await sendText(from, t('belowMinimumOrderValue', lang, info.minimumOrderValue.toFixed(2)));
+    await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: [] });
+    return;
   }
+
+  const displayTotal = session.orderType === 'delivery' ? subtotal + (info.deliveryFee || 0) : subtotal;
   const confirmId = await sendButtonMessage(from, {
     body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null),
     buttons: [

@@ -33,6 +33,8 @@ export default function SettingsPage() {
   const [deliveryFee, setDeliveryFee] = useState('');
   const [deliveryZone, setDeliveryZone] = useState('');
   const [deliverySaveStatus, setDeliverySaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [minimumOrderValue, setMinimumOrderValue] = useState('');
+  const [minOrderSaveStatus, setMinOrderSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [dayMap, setDayMap] = useState<DayMap>({
     0: null, 1: { ...DEFAULT_DAY }, 2: { ...DEFAULT_DAY },
     3: { ...DEFAULT_DAY }, 4: { ...DEFAULT_DAY }, 5: { ...DEFAULT_DAY }, 6: null,
@@ -54,6 +56,7 @@ export default function SettingsPage() {
         setDeliveryEnabled(data.deliveryEnabled ?? false);
         setDeliveryFee(data.deliveryFee != null ? String(data.deliveryFee) : '');
         setDeliveryZone(data.deliveryZone ?? '');
+        setMinimumOrderValue(data.minimumOrderValue != null ? String(data.minimumOrderValue) : '');
         if (data.botLanguage) setBotLanguage(data.botLanguage);
         if (data.schedule) {
           setDayMap(prev => {
@@ -116,6 +119,21 @@ export default function SettingsPage() {
       setTimeout(() => setDeliverySaveStatus('idle'), 2500);
     } catch {
       setDeliverySaveStatus('error');
+    }
+  }
+
+  async function handleSaveMinimumOrder() {
+    if (!businessId) return;
+    const parsedMin = minimumOrderValue === '' ? null : parseFloat(minimumOrderValue);
+    if (parsedMin != null && (isNaN(parsedMin) || parsedMin < 0)) { setMinOrderSaveStatus('error'); return; }
+    setMinOrderSaveStatus('saving');
+    try {
+      await updateDoc(doc(db, 'businesses', businessId), { minimumOrderValue: parsedMin });
+      setBusiness(prev => prev ? { ...prev, minimumOrderValue: parsedMin ?? undefined } : prev);
+      setMinOrderSaveStatus('saved');
+      setTimeout(() => setMinOrderSaveStatus('idle'), 2500);
+    } catch {
+      setMinOrderSaveStatus('error');
     }
   }
 
@@ -255,6 +273,25 @@ export default function SettingsPage() {
             </button>
             {deliverySaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>{t('settings.delivery.saved')}</span>}
             {deliverySaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{t('settings.delivery.invalidFee')}</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* Minimum Order Value */}
+      <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
+        <h3 style={{ margin: '0 0 0.25rem' }}>{t('settings.minimumOrder.title')}</h3>
+        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>{t('settings.minimumOrder.description')}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div>
+            <div style={LABEL_STYLE}>{t('settings.minimumOrder.label')}</div>
+            <input type="number" value={minimumOrderValue} onChange={e => setMinimumOrderValue(e.target.value)} placeholder="e.g. 10" min="0" step="0.5" style={INPUT_STYLE} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button onClick={handleSaveMinimumOrder} disabled={minOrderSaveStatus === 'saving'} style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: minOrderSaveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
+              {minOrderSaveStatus === 'saving' ? t('settings.minimumOrder.saving') : t('settings.minimumOrder.save')}
+            </button>
+            {minOrderSaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>{t('settings.minimumOrder.saved')}</span>}
+            {minOrderSaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{t('settings.minimumOrder.invalidValue')}</span>}
           </div>
         </div>
       </div>
