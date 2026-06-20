@@ -71,3 +71,4 @@ out/
 coverage/
 **/coverage/
 .vercel
+backend/.env.production
