@@ -188,8 +188,11 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     }
 
     if (id === 'btn_clear_basket') {
+      // Full reset, not just the basket: orderType/deliveryAddress/specialRequests must not
+      // survive, otherwise the customer stays "delivery-gated" after re-adding items even
+      // though they haven't been asked pickup-or-delivery again yet.
       const menuId = await sendCatalog(from, lang, businessId);
-      await setSession(from, { ...session, basket: [], pendingDeleteIds: menuId ? [menuId] : [] });
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: menuId ? [menuId] : [] });
       return;
     }
 
