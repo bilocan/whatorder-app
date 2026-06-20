@@ -3,38 +3,48 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-MOBILE="$ROOT/mobile"
+DASHBOARD="$ROOT/dashboard"
 
 step() { echo; echo "==> $1"; }
 pass() { echo "  PASS: $1"; }
 skip() { echo "  SKIP: $1"; }
 
-# 1. Dart format
-step "1. Dart format"
-cd "$MOBILE"
-dart format --check lib
-pass "dart format"
+# 1. TypeScript check
+step "1. TypeScript check"
+if [ -f "$DASHBOARD/package.json" ]; then
+    cd "$DASHBOARD"
+    npx tsc --noEmit
+    pass "tsc --noEmit"
+    cd "$ROOT"
+else
+    skip "dashboard/package.json not found"
+fi
 
-# 2. Flutter analyze
-step "2. Flutter analyze"
-flutter analyze --no-fatal-infos
-pass "flutter analyze"
-cd "$ROOT"
+# 2. ESLint
+step "2. ESLint"
+if [ -f "$DASHBOARD/package.json" ]; then
+    cd "$DASHBOARD"
+    npx eslint src --max-warnings 0
+    pass "eslint src --max-warnings 0"
+    cd "$ROOT"
+else
+    skip "dashboard/package.json not found"
+fi
 
-# 3. Flutter tests
-step "3. Flutter tests"
-if [ -d "$MOBILE/test" ]; then
-    count=$(find "$MOBILE/test" -name "*_test.dart" | wc -l)
+# 3. Dashboard tests
+step "3. Dashboard tests"
+if [ -d "$DASHBOARD/src/__tests__" ]; then
+    count=$(find "$DASHBOARD/src/__tests__" -name "*.test.*" 2>/dev/null | wc -l)
     if [ "$count" -gt 0 ]; then
-        cd "$MOBILE"
-        flutter test
-        pass "flutter test ($count test files)"
+        cd "$DASHBOARD"
+        npm test -- --watchAll=false
+        pass "npm test ($count test files)"
         cd "$ROOT"
     else
-        skip "no test files in mobile/test/ yet"
+        skip "no test files in dashboard/src/__tests__/ yet"
     fi
 else
-    skip "mobile/test/ does not exist yet"
+    skip "dashboard/src/__tests__/ does not exist yet"
 fi
 
 # 3b. Backend tests

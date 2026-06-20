@@ -1,0 +1,17 @@
+---
+description: WhatsApp API — read vault SSOT before messaging or webhook changes
+globs: backend/src/lib/whatsapp.js,backend/src/bot/templates.js,backend/src/controllers/webhookController.js
+alwaysApply: false
+---
+
+# WhatsApp API
+
+**SSOT:** `../whatorder-vault/Projects/WhatOrder/ai-rules/whatsapp-api.md` — read before editing.
+
+**Critical:**
+- Read `specs/whatsapp-business-api-reference.md` first; quote section numbers
+- Ack webhook within 5 seconds; process async
+- Never log tokens or full phone numbers in production paths
+- Do not guess Meta payload field names
+
+Must-read spec: `../whatorder-vault/Projects/WhatOrder/specs/whatsapp-business-api-reference.md`

@@ -1,0 +1,17 @@
+---
+description: Multitenant security — read vault SSOT before auth or tenant-scoped routes
+globs: backend/src/routes/admin.js,backend/src/routes/orders.js,dashboard/src/contexts/**
+alwaysApply: false
+---
+
+# Multitenant security
+
+**SSOT:** `../whatorder-vault/Projects/WhatOrder/ai-rules/security-multitenant.md` — read before editing.
+
+**Critical:**
+- Two boundaries: dashboard (Firestore rules) + bot (Admin SDK, no rules)
+- Never trust `businessId` from message body or unvalidated client input
+- Dashboard queries must scope to active `businessId`; include in `useEffect` deps
+- Deploy Firestore rules when client access patterns change
+
+Must-read spec: `../whatorder-vault/Projects/WhatOrder/specs/security-multitenant.md`

@@ -1,0 +1,18 @@
+---
+description: Bot state machine — read vault SSOT before editing bot code
+globs: backend/src/bot/**
+alwaysApply: false
+---
+
+# Bot handler
+
+**SSOT:** `../whatorder-vault/Projects/WhatOrder/ai-rules/bot-handler.md` — read before editing.
+
+**Critical (enforce even if you skip the full read):**
+- `specs/bot-state-machine.md` is co-authoritative with `botHandler.js` / `sessionStore.js`
+- Spec + diagram + session schema must stay in sync with code changes
+- `session.businessId` is security-critical; validate trusted routing
+- Locale keys: add de, en, tr together
+- Run `npm test -- --testPathPattern=bot` after non-trivial changes
+
+Must-read spec: `../whatorder-vault/Projects/WhatOrder/specs/bot-state-machine.md`

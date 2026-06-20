@@ -1,0 +1,17 @@
+---
+description: Firestore collections — read vault SSOT before schema changes
+globs: backend/src/lib/collections.js,backend/src/bot/orderService.js,backend/src/bot/menuService.js
+alwaysApply: false
+---
+
+# Firestore schema
+
+**SSOT:** `../whatorder-vault/Projects/WhatOrder/ai-rules/firestore-schema.md` — read before editing.
+
+**Critical:**
+- All backend Firestore access via `collections.js` only (no raw `db.collection()`)
+- New/changed collection → update `collections.js` + `specs/technical-architecture.md` schema section
+- Admin SDK bypasses rules: every write scoped by trusted `businessId`
+- Update `collections.test.js` when helper shape changes
+
+Must-read spec: `../whatorder-vault/Projects/WhatOrder/specs/technical-architecture.md` (Firestore Collections Schema)

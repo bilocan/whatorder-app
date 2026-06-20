@@ -1,0 +1,16 @@
+---
+description: WhatOrder AI rules — vault is SSOT for all rule content
+alwaysApply: true
+---
+
+# Vault SSOT for path rules
+
+Path-specific engineering rules live in the vault. Scoped rules below include **Critical** bullets; full rules in vault SSOT files.
+
+**Session start:** `../whatorder-vault/Projects/WhatOrder/ai-index.md` → latest `session-*.md`
+
+**Index:** `../whatorder-vault/Projects/WhatOrder/ai-rules/README.md`
+
+**Onboarding:** `../whatorder-vault/Onboarding/developer-onboarding.md`
+
+When a scoped rule activates, read the vault SSOT file before editing. To change rules, edit vault `ai-rules/*.md` only, not these `.mdc` wrappers.
