@@ -1,49 +1,55 @@
 # Run from repo root: .\scripts\windows\task_done.ps1
-# Flags: -Check (format check only, no fix)
-
-param([switch]$Check)
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent | Split-Path -Parent
-$mobile = Join-Path $root "mobile"
+$dashboard = Join-Path $root "dashboard"
 
 function Step($label) { Write-Host "`n==> $label" -ForegroundColor Cyan }
 function Pass($msg)   { Write-Host "  PASS: $msg" -ForegroundColor Green }
 function Fail($msg)   { Write-Host "  FAIL: $msg" -ForegroundColor Red; exit 1 }
 function Skip($msg)   { Write-Host "  SKIP: $msg" -ForegroundColor Yellow }
 
-# 1. Dart format
-Step "1. Dart format"
-Push-Location $mobile
-dart format --check lib
-if ($LASTEXITCODE -ne 0) { Fail "dart format --check lib (run dart format lib to fix)" }
-Pass "dart format"
-Pop-Location
+# 1. TypeScript check
+Step "1. TypeScript check"
+$dashboardPkg = Join-Path $dashboard "package.json"
+if (Test-Path $dashboardPkg) {
+    Push-Location $dashboard
+    npx tsc --noEmit
+    if ($LASTEXITCODE -ne 0) { Fail "tsc --noEmit" }
+    Pass "tsc --noEmit"
+    Pop-Location
+} else {
+    Skip "dashboard/package.json not found"
+}
 
-# 2. Flutter analyze
-Step "2. Flutter analyze"
-Push-Location $mobile
-flutter analyze --no-fatal-infos
-if ($LASTEXITCODE -ne 0) { Fail "flutter analyze" }
-Pass "flutter analyze"
-Pop-Location
+# 2. ESLint
+Step "2. ESLint"
+if (Test-Path $dashboardPkg) {
+    Push-Location $dashboard
+    npx eslint src --max-warnings 0
+    if ($LASTEXITCODE -ne 0) { Fail "eslint src --max-warnings 0" }
+    Pass "eslint src --max-warnings 0"
+    Pop-Location
+} else {
+    Skip "dashboard/package.json not found"
+}
 
-# 3. Flutter tests
-Step "3. Flutter tests"
-$testDir = Join-Path $mobile "test"
+# 3. Dashboard tests
+Step "3. Dashboard tests"
+$testDir = Join-Path $dashboard "src" "__tests__"
 if (Test-Path $testDir) {
-    $testFiles = Get-ChildItem $testDir -Recurse -Filter "*_test.dart" -ErrorAction SilentlyContinue
+    $testFiles = Get-ChildItem $testDir -Recurse -Include "*.test.ts", "*.test.tsx" -ErrorAction SilentlyContinue
     if ($testFiles.Count -gt 0) {
-        Push-Location $mobile
-        flutter test
-        if ($LASTEXITCODE -ne 0) { Fail "flutter test" }
-        Pass "flutter test ($($testFiles.Count) test files)"
+        Push-Location $dashboard
+        npm test -- --watchAll=false
+        if ($LASTEXITCODE -ne 0) { Fail "npm test" }
+        Pass "npm test ($($testFiles.Count) test files)"
         Pop-Location
     } else {
-        Skip "no test files in mobile/test/ yet"
+        Skip "no test files in dashboard/src/__tests__/ yet"
     }
 } else {
-    Skip "mobile/test/ does not exist yet"
+    Skip "dashboard/src/__tests__/ does not exist yet"
 }
 
 # 3b. Backend tests

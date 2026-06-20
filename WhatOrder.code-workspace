@@ -1,0 +1,17 @@
+{
+  "folders": [
+    {
+      "name": "whatorder-app",
+      "path": "."
+    },
+    {
+      "name": "whatorder-vault",
+      "path": "../whatorder-vault"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true
+    }
+  }
+}
