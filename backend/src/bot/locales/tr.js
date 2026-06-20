@@ -114,6 +114,14 @@ module.exports = {
   intentEachOptsBtn: () => 'Tek tek seç',
   intentCustomizeSkip: () => 'Atla',
   intentChooseBtn: () => 'Seç',
-  intentMultiSelected: (labels) => `Seçilen: ${labels}`,
-  intentMultiDoneBtn: () => 'Tamam',
+  intentMultiPrompt: (qty, itemName, groupLabel, optionList, defaultSummary) =>
+    `${qty}x ${itemName}\n${groupLabel} — varsayılan: ${defaultSummary}.\nSeçimlerini yaz (virgülle ayır) veya all / none:\n\n${optionList}\n\nÖrnek: domates, salata`,
+  intentMultiUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel, optionList, defaultSummary) =>
+    `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} — varsayılan: ${defaultSummary}.\nSeçimlerini yaz (virgülle ayır) veya all / none:\n\n${optionList}`,
+  intentMultiInvalid: (unmatched, optionList) =>
+    `Tanınmadı: ${unmatched}\n\nMevcut:\n${optionList}\n\nTekrar dene (virgülle ayır, all veya none):`,
+  intentMultiDefaultAll: () => 'hepsi dahil',
+  intentMultiDefaultNone: () => 'hiçbiri',
+  intentMultiDefaultHint: () => 'Varsayılanı kullan\'a bas veya all / none / skip yaz (yukarıdaki varsayılan).',
+  intentMultiDefaultBtn: () => 'Varsayılan',
 };

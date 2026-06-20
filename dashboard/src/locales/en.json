@@ -157,7 +157,13 @@
       "options": "Options",
       "optionPlaceholder": "Chicken",
       "addOption": "+ Add option",
-      "badge": "{{summary}} customizations"
+      "badge": "{{summary}} customizations",
+      "defaultLabel": "Default when customer skips or replies skip",
+      "defaultAll": "All options",
+      "defaultNone": "None",
+      "defaultCustom": "Selected options",
+      "defaultCustomHint": "Check which options are included in the default.",
+      "defaultOption": "Included in default"
     }
   },
   "income": {

@@ -47,6 +47,10 @@ export interface MenuOptionGroup {
   type: 'single' | 'multi';
   required?: boolean;
   options: MenuOption[];
+  /** multi only: preset when customer taps default / replies skip */
+  multiDefault?: 'all' | 'none' | 'custom';
+  /** multi + custom: which options are included in the default */
+  defaultOptionIds?: string[];
 }
 
 export interface MenuItem {

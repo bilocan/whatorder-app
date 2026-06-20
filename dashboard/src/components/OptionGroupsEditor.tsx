@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import type { DraftOptionGroup } from '../lib/optionGroups';
+import type { DraftOptionGroup, MultiDefaultMode } from '../lib/optionGroups';
 import { emptyDraftGroup } from '../lib/optionGroups';
 
 const inputStyle: React.CSSProperties = {
@@ -40,6 +40,26 @@ export default function OptionGroupsEditor({ value, onChange }: OptionGroupsEdit
     onChange([...value, emptyDraftGroup(type)]);
   }
 
+  function setGroupType(gi: number, type: 'single' | 'multi') {
+    const group = value[gi];
+    if (type === 'multi') {
+      updateGroup(gi, {
+        type,
+        multiDefault: group.multiDefault ?? 'all',
+        defaultOptionIndices: group.defaultOptionIndices ?? [],
+      });
+      return;
+    }
+    updateGroup(gi, { type, multiDefault: undefined, defaultOptionIndices: undefined });
+  }
+
+  function setMultiDefault(gi: number, multiDefault: MultiDefaultMode) {
+    updateGroup(gi, {
+      multiDefault,
+      defaultOptionIndices: multiDefault === 'custom' ? (value[gi].defaultOptionIndices ?? []) : [],
+    });
+  }
+
   function updateOption(gi: number, oi: number, label: string) {
     onChange(value.map((g, i) => {
       if (i !== gi) return g;
@@ -60,7 +80,24 @@ export default function OptionGroupsEditor({ value, onChange }: OptionGroupsEdit
     onChange(value.map((g, i) => {
       if (i !== gi) return g;
       const options = g.options.filter((_, j) => j !== oi);
-      return { ...g, options: options.length ? options : [{ id: '', label: '' }] };
+      const defaultOptionIndices = (g.defaultOptionIndices ?? [])
+        .filter((idx) => idx !== oi)
+        .map((idx) => (idx > oi ? idx - 1 : idx));
+      return {
+        ...g,
+        options: options.length ? options : [{ id: '', label: '' }],
+        defaultOptionIndices,
+      };
+    }));
+  }
+
+  function toggleDefaultOption(gi: number, oi: number) {
+    onChange(value.map((g, i) => {
+      if (i !== gi) return g;
+      const set = new Set(g.defaultOptionIndices ?? []);
+      if (set.has(oi)) set.delete(oi);
+      else set.add(oi);
+      return { ...g, defaultOptionIndices: [...set].sort((a, b) => a - b) };
     }));
   }
 
@@ -102,7 +139,7 @@ export default function OptionGroupsEditor({ value, onChange }: OptionGroupsEdit
               <select
                 style={{ ...inputStyle, width: 'auto', minWidth: 120 }}
                 value={group.type}
-                onChange={(e) => updateGroup(gi, { type: e.target.value as 'single' | 'multi' })}
+                onChange={(e) => setGroupType(gi, e.target.value as 'single' | 'multi')}
               >
                 <option value="single">{t('menu.optionGroups.typeSingle')}</option>
                 <option value="multi">{t('menu.optionGroups.typeMulti')}</option>
@@ -121,9 +158,47 @@ export default function OptionGroupsEditor({ value, onChange }: OptionGroupsEdit
             </button>
           </div>
 
+          {group.type === 'multi' && (
+            <div style={{ marginBottom: '0.65rem', padding: '0.5rem', background: '#f9fafb', borderRadius: 6 }}>
+              <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.35rem' }}>
+                {t('menu.optionGroups.defaultLabel')}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', fontSize: '0.82rem' }}>
+                {(['all', 'none', 'custom'] as MultiDefaultMode[]).map((mode) => (
+                  <label key={mode} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                      type="radio"
+                      name={`multi-default-${gi}`}
+                      checked={(group.multiDefault ?? 'all') === mode}
+                      onChange={() => setMultiDefault(gi, mode)}
+                    />
+                    {t(`menu.optionGroups.default${mode === 'all' ? 'All' : mode === 'none' ? 'None' : 'Custom'}`)}
+                  </label>
+                ))}
+              </div>
+              {(group.multiDefault ?? 'all') === 'custom' && (
+                <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.35rem' }}>
+                  {t('menu.optionGroups.defaultCustomHint')}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: 4 }}>{t('menu.optionGroups.options')}</div>
           {group.options.map((opt, oi) => (
-            <div key={oi} style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.35rem' }}>
+            <div key={oi} style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.35rem', alignItems: 'center' }}>
+              {group.type === 'multi' && (group.multiDefault ?? 'all') === 'custom' && (
+                <label
+                  title={t('menu.optionGroups.defaultOption')}
+                  style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={(group.defaultOptionIndices ?? []).includes(oi)}
+                    onChange={() => toggleDefaultOption(gi, oi)}
+                  />
+                </label>
+              )}
               <input
                 style={inputStyle}
                 value={opt.label}

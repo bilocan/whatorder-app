@@ -114,6 +114,14 @@ module.exports = {
   intentEachOptsBtn: () => 'Einzeln wählen',
   intentCustomizeSkip: () => 'Überspringen',
   intentChooseBtn: () => 'Wählen',
-  intentMultiSelected: (labels) => `Ausgewählt: ${labels}`,
-  intentMultiDoneBtn: () => 'Fertig',
+  intentMultiPrompt: (qty, itemName, groupLabel, optionList, defaultSummary) =>
+    `${qty}x ${itemName}\n${groupLabel} — Standard: ${defaultSummary}.\nAntwort mit Auswahl (kommagetrennt) oder all / none:\n\n${optionList}\n\nBeispiel: Tomate, Salat`,
+  intentMultiUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel, optionList, defaultSummary) =>
+    `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} — Standard: ${defaultSummary}.\nAntwort mit Auswahl (kommagetrennt) oder all / none:\n\n${optionList}`,
+  intentMultiInvalid: (unmatched, optionList) =>
+    `Nicht erkannt: ${unmatched}\n\nVerfügbar:\n${optionList}\n\nNochmal versuchen (kommagetrennt, all oder none):`,
+  intentMultiDefaultAll: () => 'alles dabei',
+  intentMultiDefaultNone: () => 'keine',
+  intentMultiDefaultHint: () => 'Tippe Standard verwenden, oder antworte all / none / skip (nutzt Standard oben).',
+  intentMultiDefaultBtn: () => 'Standard',
 };

@@ -43,6 +43,7 @@ const SAMPLE_OPTION_GROUPS = [
     label: 'Inserts',
     type: 'multi',
     required: false,
+    multiDefault: 'all',
     options: [
       { id: 'tomato', label: 'Tomato' },
       { id: 'salad',  label: 'Salad'  },
