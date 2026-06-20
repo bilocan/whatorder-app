@@ -1,6 +1,6 @@
 ---
 name: task-done
-description: Run the Definition of Done workflow — checks, vault release log, Asana, commit messages. Use when the user says "task done", "done", "finish", "wrap up", or "mark complete".
+description: Run the Definition of Done workflow — use an explicit mode (full, vault, vault-asana, asana, verify). Use when the user says "task done", "task done vault", "done", "finish", "wrap up", or "mark complete".
 ---
 
 When invoked, follow the prompt at:
