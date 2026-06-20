@@ -51,8 +51,10 @@ async function proceedToDeliveryAddress({ from, session, lang, businessId }) {
 
 // Called whenever a delivery order's basket may have changed (add more / re-submit cart)
 // while still gated on minimumOrderValue (no deliveryAddress collected yet). Re-checks the
-// minimum and either re-shows the gate or resumes the address step — never re-asks
-// special requests or pickup/delivery, since those are already answered.
+// minimum: if still short, re-shows the gate. If now met, re-asks special requests (the
+// basket changed since the customer last answered that prompt — they may want to add a
+// note for the new item) before resuming into address selection. Never re-asks
+// pickup/delivery, since that's already answered.
 async function resumeDeliveryCheckout({ from, session, lang, businessId, basket }) {
   const info = await getBusinessInfo(businessId);
   const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
@@ -61,7 +63,11 @@ async function resumeDeliveryCheckout({ from, session, lang, businessId, basket 
     await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
     return;
   }
-  await proceedToDeliveryAddress({ from, session, lang, businessId });
+  const reqId = await sendButtonMessage(from, {
+    body: t('specialRequestsPrompt', lang),
+    buttons: [{ id: 'btn_skip_requests', title: t('skipBtn', lang) }],
+  });
+  await setSession(from, { ...session, state: 'awaiting_special_requests', pendingDeleteIds: reqId ? [reqId] : [] });
 }
 
 // "View basket" while gated: re-renders the gate (Confirm shown only once minimumOrderValue
@@ -150,6 +156,13 @@ async function handleAwaitingSpecialRequests({ from, session, lang, businessId, 
   const notes = isSkip ? '' : (type === 'text' && norm.length > 0 ? text.trim() : null);
 
   if (notes !== null) {
+    // Resumed after the delivery minimum gate: pickup/delivery is already answered
+    // (this re-ask of special requests only happens because the basket changed).
+    if (session.orderType === 'delivery') {
+      await proceedToDeliveryAddress({ from, session: { ...session, specialRequests: notes }, lang, businessId });
+      return;
+    }
+
     const info = await getBusinessInfo(businessId);
     if (info.deliveryEnabled) {
       const typeId = await sendButtonMessage(from, {

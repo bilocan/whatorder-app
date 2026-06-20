@@ -30,6 +30,15 @@ async function handleSelecting({ from, session, lang, businessId, basket, type, 
       ? basket.map(i => i.name === name ? { ...i, qty: i.qty + qty } : i)
       : [...basket, { name, qty, price }];
 
+    const newSession = { ...session, state: 'browsing', language: lang, basket: newBasket, pendingDeleteIds: [] };
+
+    // Gated on the delivery minimum: show the gate/basket directly (Confirm only once met)
+    // instead of the generic item-added screen, which would always offer "Done".
+    if (isGatedOnDeliveryMinimum(session)) {
+      await showDeliveryBasketGate({ from, session: newSession, lang, basket: newBasket, businessId });
+      return;
+    }
+
     const totalItems = newBasket.reduce((s, i) => s + i.qty, 0);
     const totalPrice = newBasket.reduce((s, i) => s + i.price * i.qty, 0);
 
@@ -42,7 +51,7 @@ async function handleSelecting({ from, session, lang, businessId, basket, type, 
         { id: 'btn_done',        title: t('doneBtn', lang) },
       ],
     });
-    await setSession(from, { ...session, state: 'browsing', language: lang, basket: newBasket, pendingDeleteIds: [] });
+    await setSession(from, newSession);
     return;
   }
 
