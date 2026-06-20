@@ -140,6 +140,24 @@
       "mains": "Mains",
       "sides": "Sides",
       "drinks": "Drinks"
+    },
+    "optionGroups": {
+      "title": "WhatsApp customizations",
+      "hint": "Protein, inserts, sauces — customers pick these when ordering by text or menu.",
+      "empty": "No customizations yet. Add a single-choice group (e.g. Protein) or multi-choice (e.g. Inserts).",
+      "addSingle": "+ Single choice",
+      "addMulti": "+ Multiple choice",
+      "groupLabel": "Group name",
+      "groupLabelPlaceholder": "Protein",
+      "groupType": "Type",
+      "typeSingle": "Pick one",
+      "typeMulti": "Pick many",
+      "required": "Required",
+      "removeGroup": "Remove",
+      "options": "Options",
+      "optionPlaceholder": "Chicken",
+      "addOption": "+ Add option",
+      "badge": "{{summary}} customizations"
     }
   },
   "income": {

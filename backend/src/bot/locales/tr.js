@@ -101,4 +101,19 @@ module.exports = {
 
   ordersClosedByOwner: (name) => `⏸️ ${name} şu an sipariş almıyor. Lütfen daha sonra tekrar deneyin! 🙏`,
   deliveryClosedByOwner: () => '🚫 Teslimat şu an mevcut değil. Lütfen gel-al seçeneğini seçin.',
+
+  intentConfirmHeader: () => 'Anladım:',
+  intentConfirmPrompt: () => 'Sepete eklensin mi?',
+  intentConfirmBtn: () => 'Sepete ekle',
+  intentEditMenuBtn: () => 'Menüye bak',
+  intentUnmatched: (items) => `Bulunamadı: ${items}`,
+  intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\n${groupLabel} seçin:`,
+  intentCustomizeUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel) => `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} seçin:`,
+  intentSameOrEachPrompt: (qty, itemName) => `${qty}x ${itemName} sipariş ettiniz.\nHepsi aynı olsun mu, tek tek mi seçelim?`,
+  intentSameOptsBtn: () => 'Hepsi aynı',
+  intentEachOptsBtn: () => 'Tek tek seç',
+  intentCustomizeSkip: () => 'Atla',
+  intentChooseBtn: () => 'Seç',
+  intentMultiSelected: (labels) => `Seçilen: ${labels}`,
+  intentMultiDoneBtn: () => 'Tamam',
 };
