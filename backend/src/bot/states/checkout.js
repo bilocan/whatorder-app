@@ -26,9 +26,16 @@ async function transitionToConfirming(from, session, lang, businessId, basket, n
   const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
   const info = await getBusinessInfo(businessId);
 
-  if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
-    await sendText(from, t('belowMinimumOrderValue', lang, info.minimumOrderValue.toFixed(2)));
-    await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: [] });
+  if (session.orderType === 'delivery' && info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    const msgId = await sendButtonMessage(from, {
+      body: `${t('belowMinimumOrderValue', lang, info.minimumOrderValue.toFixed(2))}\n\n${buildBasketText(basket, lang)}`,
+      buttons: [
+        { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
+        { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },
+        { id: 'btn_confirm',      title: t('confirmBtn', lang) },
+      ],
+    });
+    await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
     return;
   }
 

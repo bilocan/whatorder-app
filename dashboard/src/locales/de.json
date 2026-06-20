@@ -192,7 +192,7 @@
     },
     "minimumOrder": {
       "title": "Mindestbestellwert",
-      "description": "Legen Sie einen Mindestwert für den Warenkorb fest, den Kunden erreichen müssen, um bestellen zu können.",
+      "description": "Legen Sie einen Mindestwert für den Warenkorb fest, den Kunden bei Lieferbestellungen erreichen müssen. Abholbestellungen sind davon nicht betroffen.",
       "label": "Mindestbestellwert (€)",
       "save": "Mindestbestellwert speichern",
       "saving": "Speichern…",

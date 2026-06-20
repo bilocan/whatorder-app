@@ -192,7 +192,7 @@
     },
     "minimumOrder": {
       "title": "Minimum Order Value",
-      "description": "Set a minimum cart value customers must reach before they can place an order.",
+      "description": "Set a minimum cart value customers must reach for delivery orders. Pickup orders are not affected.",
       "label": "Minimum order value (€)",
       "save": "Save minimum order value",
       "saving": "Saving…",
