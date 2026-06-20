@@ -6,8 +6,12 @@ alwaysApply: false
 
 # Dashboard
 
-**SSOT:** `../whatorder-vault/Projects/WhatOrder/ai-rules/dashboard.md`
+**SSOT:** `../whatorder-vault/Projects/WhatOrder/ai-rules/dashboard.md` — read before editing.
 
-Before editing dashboard code, read that vault file and apply all rules. Edit the vault file to change this rule.
+**Critical:**
+- Check scope against `specs/mvp-spec.md` (no Phase 2 unless asked)
+- i18n: de, en, tr locale files together
+- Firestore reads scoped to auth `businessId`
+- Before done: `tsc --noEmit`, `eslint`, `npm test`
 
 Scope check: `../whatorder-vault/Projects/WhatOrder/specs/mvp-spec.md`
