@@ -5,6 +5,9 @@ import {
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import OptionGroupsEditor from '../components/OptionGroupsEditor';
+import { draftGroupsFromMenu, customizationSummary, buildMenuPayload } from '../lib/optionGroups';
+import type { DraftOptionGroup } from '../lib/optionGroups';
 import { useConfirm } from '../components/ConfirmDialog';
 import type { MenuItem } from '../types';
 
@@ -86,9 +89,10 @@ type FormValues = {
   category: MenuItem['category'];
   description: string;
   available: boolean;
+  optionGroups: DraftOptionGroup[];
 };
 
-const EMPTY: FormValues = { name: '', price: '', category: 'mains', description: '', available: true };
+const EMPTY: FormValues = { name: '', price: '', category: 'mains', description: '', available: true, optionGroups: [] };
 
 interface MenuFormProps {
   values: FormValues;
@@ -167,6 +171,10 @@ function MenuForm({ values, onChange, onSubmit, onCancel, submitting, submitLabe
         </button>
         <button type="button" style={btnSecondary} onClick={onCancel}>{t('menu.cancel')}</button>
       </div>
+      <OptionGroupsEditor
+        value={values.optionGroups}
+        onChange={(optionGroups) => onChange({ ...values, optionGroups })}
+      />
     </form>
   );
 }
@@ -203,13 +211,7 @@ export default function MenuPage() {
     e.preventDefault();
     if (!businessId) return;
     setSaving(true);
-    await addDoc(collection(db, 'businesses', businessId, 'menu'), {
-      name: newItem.name.trim(),
-      price: parseFloat(newItem.price),
-      category: newItem.category,
-      description: newItem.description.trim(),
-      available: newItem.available,
-    });
+    await addDoc(collection(db, 'businesses', businessId, 'menu'), buildMenuPayload(newItem));
     setNewItem(EMPTY);
     setShowAddForm(false);
     setSaving(false);
@@ -223,6 +225,7 @@ export default function MenuPage() {
       category: item.category,
       description: item.description ?? '',
       available: item.available,
+      optionGroups: draftGroupsFromMenu(item.optionGroups),
     });
     setShowAddForm(false);
   }
@@ -231,13 +234,7 @@ export default function MenuPage() {
     e.preventDefault();
     if (!businessId || !editingId) return;
     setSaving(true);
-    await updateDoc(doc(db, 'businesses', businessId, 'menu', editingId), {
-      name: editItem.name.trim(),
-      price: parseFloat(editItem.price),
-      category: editItem.category,
-      description: editItem.description.trim(),
-      available: editItem.available,
-    });
+    await updateDoc(doc(db, 'businesses', businessId, 'menu', editingId), buildMenuPayload(editItem, true));
     setSaving(false);
     setEditingId(null);
   }
@@ -308,6 +305,11 @@ export default function MenuPage() {
               >
                 <div>
                   <span style={{ fontWeight: 600 }}>{item.name}</span>
+                  {customizationSummary(item.optionGroups) && (
+                    <span style={{ color: '#6366f1', fontSize: '0.75rem', marginLeft: '0.45rem' }}>
+                      {t('menu.optionGroups.badge', { summary: customizationSummary(item.optionGroups) })}
+                    </span>
+                  )}
                   {item.description && (
                     <span style={{ color: '#999', fontSize: '0.85rem', marginLeft: '0.5rem' }}>
                       {item.description}

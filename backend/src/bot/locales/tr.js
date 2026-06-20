@@ -102,4 +102,27 @@ module.exports = {
 
   ordersClosedByOwner: (name) => `⏸️ ${name} şu an sipariş almıyor. Lütfen daha sonra tekrar deneyin! 🙏`,
   deliveryClosedByOwner: () => '🚫 Teslimat şu an mevcut değil. Lütfen gel-al seçeneğini seçin.',
+
+  intentConfirmHeader: () => 'Anladım:',
+  intentConfirmPrompt: () => 'Sepete eklensin mi?',
+  intentConfirmBtn: () => 'Sepete ekle',
+  intentEditMenuBtn: () => 'Menüye bak',
+  intentUnmatched: (items) => `Bulunamadı: ${items}`,
+  intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\n${groupLabel} seçin:`,
+  intentCustomizeUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel) => `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} seçin:`,
+  intentSameOrEachPrompt: (qty, itemName) => `${qty}x ${itemName} sipariş ettiniz.\nHepsi aynı olsun mu, tek tek mi seçelim?`,
+  intentSameOptsBtn: () => 'Hepsi aynı',
+  intentEachOptsBtn: () => 'Tek tek seç',
+  intentCustomizeSkip: () => 'Atla',
+  intentChooseBtn: () => 'Seç',
+  intentMultiPrompt: (qty, itemName, groupLabel, optionList, defaultSummary) =>
+    `${qty}x ${itemName}\n${groupLabel} — varsayılan: ${defaultSummary}.\nSeçimlerini yaz (virgülle ayır) veya all / none:\n\n${optionList}\n\nÖrnek: domates, salata`,
+  intentMultiUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel, optionList, defaultSummary) =>
+    `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} — varsayılan: ${defaultSummary}.\nSeçimlerini yaz (virgülle ayır) veya all / none:\n\n${optionList}`,
+  intentMultiInvalid: (unmatched, optionList) =>
+    `Tanınmadı: ${unmatched}\n\nMevcut:\n${optionList}\n\nTekrar dene (virgülle ayır, all veya none):`,
+  intentMultiDefaultAll: () => 'hepsi dahil',
+  intentMultiDefaultNone: () => 'hiçbiri',
+  intentMultiDefaultHint: () => 'Varsayılanı kullan\'a bas veya all / none / skip yaz (yukarıdaki varsayılan).',
+  intentMultiDefaultBtn: () => 'Varsayılan',
 };

@@ -4,6 +4,7 @@ const { t } = require('../templates');
 const { buildBasketText, sendMenu, sendCatalog } = require('../botHelpers');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
+const { tryTextIntentOrder, handleIntentButtons } = require('../intentOrder');
 const { resumeDeliveryCheckout, showDeliveryBasketGate } = require('./checkout');
 
 // Gated on minimumOrderValue: order type is 'delivery' but no address has been collected
@@ -68,7 +69,7 @@ async function handleSelecting({ from, session, lang, businessId, basket, type, 
   }
 }
 
-async function handleBrowsing({ from, session, lang, businessId, basket, isMulti, type, id, items, norm }) {
+async function handleBrowsing({ from, session, lang, businessId, basket, isMulti, type, id, items, norm, text }) {
   // Cart submitted from catalog UI
   if (type === 'cart_submitted') {
     if (!items || !items.length) {
@@ -156,6 +157,8 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
 
   // Action buttons (post-add or basket view)
   if (type === 'button_reply') {
+    if (await handleIntentButtons({ from, session, lang, businessId, basket, id })) return;
+
     if (id === 'btn_add_more') {
       if (session.flow === 'list') {
         const menuId = await sendMenu(from, lang, businessId);
@@ -232,6 +235,11 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       }
       return;
     }
+  }
+
+  // Text: natural-language order intent (Tier A rules parser)
+  if (type === 'text' && text?.trim()) {
+    if (await tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm })) return;
   }
 
   // Text: basket keyword

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Adds sample optionGroups to every menu item that doesn't have them yet.
-// Safe to run multiple times — skips items that already have optionGroups.
+// Dev helper: seed sample optionGroups when menu items have none yet.
+// Owners should configure customizations in the dashboard (Menu → edit item).
 //
 // Usage:
 //   node src/scripts/seedOptionGroups.js <businessId>
@@ -36,6 +36,18 @@ const SAMPLE_OPTION_GROUPS = [
       { id: 'garlic', label: 'Garlic sauce' },
       { id: 'chili',  label: 'Chili sauce'  },
       { id: 'none',   label: 'No sauce'     },
+    ],
+  },
+  {
+    id: 'inserts',
+    label: 'Inserts',
+    type: 'multi',
+    required: false,
+    multiDefault: 'all',
+    options: [
+      { id: 'tomato', label: 'Tomato' },
+      { id: 'salad',  label: 'Salad'  },
+      { id: 'onion',  label: 'Onion'  },
     ],
   },
 ];

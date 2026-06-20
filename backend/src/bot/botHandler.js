@@ -9,6 +9,8 @@ const { sendCatalog, getBusinessesInfo, sendRestaurantPicker } = require('./botH
 const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/restaurant');
 const { handleAwaitingSpecialRequests, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
+const { tryTextIntentOrder } = require('./intentOrder');
+const { handleIntentCustomize } = require('./intentCustomize');
 
 const SWITCH_KEYWORDS = new Set(['switch', 'change', 'restaurants', 'back', 'home', 'wechseln', 'zurück', 'zuruck', 'değiştir', 'degistir', 'restoranlar', 'start']);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsing sessions
@@ -17,6 +19,7 @@ const STATE_HANDLERS = {
   awaiting_location:                handleAwaitingLocation,
   selecting_restaurant:             handleSelectingRestaurant,
   selecting:                        handleSelecting,
+  customizing_intent:               handleIntentCustomize,
   awaiting_special_requests:        handleAwaitingSpecialRequests,
   awaiting_order_type:              handleAwaitingOrderType,
   awaiting_delivery_address_choice: handleAwaitingDeliveryAddressChoice,
@@ -120,8 +123,15 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
       return;
     }
+    const freshSession = { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] };
+    if (type === 'text' && text?.trim()) {
+      const handled = await tryTextIntentOrder({
+        from, session: freshSession, lang, businessId: bid, basket: [], text, norm,
+      });
+      if (handled) return;
+    }
     const menuId = await sendCatalog(from, lang, bid);
-    await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: menuId ? [menuId] : [] });
+    await setSession(from, { ...freshSession, pendingDeleteIds: menuId ? [menuId] : [] });
     return;
   }
 

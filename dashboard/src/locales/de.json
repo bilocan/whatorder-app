@@ -146,6 +146,30 @@
       "mains": "Hauptgerichte",
       "sides": "Beilagen",
       "drinks": "Getränke"
+    },
+    "optionGroups": {
+      "title": "WhatsApp-Anpassungen",
+      "hint": "Protein, Extras, Saucen — Kunden wählen diese bei Text- oder Menübestellung.",
+      "empty": "Noch keine Anpassungen. Einzelwahl (z. B. Protein) oder Mehrfachwahl (z. B. Extras) hinzufügen.",
+      "addSingle": "+ Einzelwahl",
+      "addMulti": "+ Mehrfachwahl",
+      "groupLabel": "Gruppenname",
+      "groupLabelPlaceholder": "Protein",
+      "groupType": "Typ",
+      "typeSingle": "Eine Option",
+      "typeMulti": "Mehrere Optionen",
+      "required": "Pflicht",
+      "removeGroup": "Entfernen",
+      "options": "Optionen",
+      "optionPlaceholder": "Hähnchen",
+      "addOption": "+ Option hinzufügen",
+      "badge": "{{summary}} Anpassungen",
+      "defaultLabel": "Standard wenn Kunde überspringt oder skip schreibt",
+      "defaultAll": "Alle Optionen",
+      "defaultNone": "Keine",
+      "defaultCustom": "Ausgewählte Optionen",
+      "defaultCustomHint": "Hake an, welche Optionen im Standard enthalten sind.",
+      "defaultOption": "Im Standard enthalten"
     }
   },
   "income": {
