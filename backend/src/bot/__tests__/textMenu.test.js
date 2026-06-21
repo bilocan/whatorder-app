@@ -55,4 +55,15 @@ describe('buildNumberedMenuChunks', () => {
     expect(messages[0]).toContain('1. Margherita');
     expect(messages[0]).toContain('Reply with item numbers');
   });
+
+  test('splits very long category lists into continued messages', () => {
+    const many = Array.from({ length: 120 }, (_, i) => ({
+      id: `i${i}`,
+      name: `Item number ${i} with a longer label`,
+      price: 5 + (i % 10),
+    }));
+    const { messages } = buildNumberedMenuChunks(many, 'en', 'Pizza');
+    expect(messages.length).toBeGreaterThan(1);
+    expect(messages[1]).toContain('continued');
+  });
 });
