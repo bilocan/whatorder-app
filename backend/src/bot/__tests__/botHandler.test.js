@@ -1,12 +1,20 @@
 jest.mock('../../lib/firebase', () => ({ db: {}, admin: {} }));
 jest.mock('../sessionStore', () => {
   const actual = jest.requireActual('../sessionStore');
-  return {
-    ...actual,
-    getSession: jest.fn(),
-    setSession: jest.fn(),
-    clearSession: jest.fn(),
-  };
+  const getSession = jest.fn();
+  const setSession = jest.fn();
+  const clearSession = jest.fn();
+  const patchSession = jest.fn(async (phone, overrides = {}, baseSession = null) => {
+    const fresh = await getSession(phone);
+    const merged = baseSession ? { ...baseSession, ...fresh } : { ...fresh };
+    const payload = { ...overrides };
+    if ('menuId' in payload) {
+      payload.pendingDeleteIds = payload.menuId ? [payload.menuId] : [];
+      delete payload.menuId;
+    }
+    await setSession(phone, actual.buildSessionWrite(merged, payload));
+  });
+  return { ...actual, getSession, setSession, clearSession, patchSession };
 });
 jest.mock('../menuService');
 jest.mock('../orderService');
@@ -276,8 +284,8 @@ describe('Language detection', () => {
     // 'naber' is TR (score TR:1), 'ja' is DE (score DE:1) — tie, no change; not order-like text
     await handleMessage(ROUTING, msg({ text: 'naber ja' }));
 
-    // No setSession call: re-detect didn't flip (same language), browsing default has no state change
-    expect(setSession).not.toHaveBeenCalled();
+    // Re-detect didn't flip language (stays tr)
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'de' }));
   });
 });
 
@@ -288,7 +296,7 @@ describe('Edge cases', () => {
     await handleMessage(ROUTING, msg({ type: 'cart_submitted', items: [] }));
 
     expect(sendListMessage).toHaveBeenCalled();
-    expect(setSession).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ textMenuIndex: expect.any(Array) }));
   });
 
   test('no WHATSAPP_FLOW_ID falls back to list menu', async () => {
@@ -1081,7 +1089,7 @@ describe('Browsing state: list_reply item selection', () => {
     await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'item_unknown_999' }));
 
     expect(sendListMessage).toHaveBeenCalled();
-    expect(setSession).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ textMenuIndex: expect.any(Array) }));
   });
 
   test('item with https:// photoUrl sends image before qty buttons', async () => {
@@ -1230,7 +1238,7 @@ describe('Browsing state: button actions', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_done', title: 'Done' }));
 
     expect(sendListMessage).toHaveBeenCalled();
-    expect(setSession).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ textMenuIndex: expect.any(Array) }));
   });
 
   test('btn_confirm with items transitions to awaiting_special_requests', async () => {
@@ -1299,6 +1307,24 @@ describe('Browsing state: basket keyword', () => {
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('Döner'),
     }));
+  });
+
+  test('text menu number "1" shows confirm buttons instead of reopening catalog', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ, basket: [],
+      textMenuCategory: 'mains',
+      textMenuIndex: [
+        { id: 'item_1', name: 'Döner', price: 8.5 },
+        { id: 'item_2', name: 'Ayran', price: 2.0 },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: '1' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 });
 

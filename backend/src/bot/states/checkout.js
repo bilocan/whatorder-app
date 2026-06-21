@@ -356,7 +356,7 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
       await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [] });
       await sendText(from, t('checkoutCancelled', lang));
     } else {
-      const menuId = await sendCatalog(from, lang, businessId, t('checkoutCancelled', lang));
+      const { menuId } = await sendCatalog(from, lang, businessId, t('checkoutCancelled', lang));
       await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: menuId ? [menuId] : [] });
     }
     return;
