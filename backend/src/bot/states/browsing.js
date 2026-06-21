@@ -7,7 +7,7 @@ const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 const { tryTextIntentOrder, handleIntentButtons } = require('../intentOrder');
 const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
-const { resumeDeliveryCheckout, showDeliveryBasketGate } = require('./checkout');
+const { resumeDeliveryCheckout, showDeliveryBasketGate, proceedFromConfirmedBasket } = require('./checkout');
 
 async function openCatalog(from, session, lang, businessId, bodyOverride, sessionOverrides = {}) {
   const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId, bodyOverride);
@@ -122,11 +122,8 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     const prepMins = info.avgPrepTime || 30;
     const pickupTime = new Date(Date.now() + prepMins * 60000)
       .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
-    const reqId = await sendButtonMessage(from, {
-      body: t('specialRequestsPrompt', lang),
-      buttons: [{ id: 'btn_skip_requests', title: t('skipBtn', lang) }],
-    });
-    await setSession(from, { state: 'awaiting_special_requests', language: lang, basket: newBasket, pickupTime, prepMins, businessId, lat: session.lat ?? null, lng: session.lng ?? null, pendingDeleteIds: reqId ? [reqId] : [] });
+    const newSession = { ...session, state: 'browsing', language: lang, basket: newBasket, pickupTime, prepMins, businessId, lat: session.lat ?? null, lng: session.lng ?? null, pendingDeleteIds: [] };
+    await proceedFromConfirmedBasket({ from, session: newSession, lang, businessId, basket: newBasket });
     return;
   }
 
@@ -146,14 +143,8 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     const prepMins = info.avgPrepTime || 30;
     const pickupTime = new Date(Date.now() + prepMins * 60000)
       .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
-    const reqId = await sendButtonMessage(from, {
-      body: t('specialRequestsPrompt', lang),
-      buttons: [
-        { id: 'btn_skip_requests', title: t('skipBtn', lang) },
-        { id: 'btn_edit_cart',     title: t('editCartBtn', lang) },
-      ],
-    });
-    await setSession(from, { ...session, state: 'awaiting_special_requests', basket: flowBasket, pickupTime, prepMins, businessId, pendingDeleteIds: reqId ? [reqId] : [] });
+    const newSession = { ...session, state: 'browsing', basket: flowBasket, pickupTime, prepMins, businessId, pendingDeleteIds: [] };
+    await proceedFromConfirmedBasket({ from, session: newSession, lang, businessId, basket: flowBasket });
     return;
   }
 
@@ -270,11 +261,8 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       const prepMins = info.avgPrepTime || 30;
       const pickupTime = new Date(Date.now() + prepMins * 60000)
         .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
-      const reqId = await sendButtonMessage(from, {
-        body: t('specialRequestsPrompt', lang),
-        buttons: [{ id: 'btn_skip_requests', title: t('skipBtn', lang) }],
-      });
-      await setSession(from, { ...session, state: 'awaiting_special_requests', pickupTime, prepMins, pendingDeleteIds: reqId ? [reqId] : [] });
+      const newSession = { ...session, pickupTime, prepMins, pendingDeleteIds: [] };
+      await proceedFromConfirmedBasket({ from, session: newSession, lang, businessId, basket });
       return;
     }
 
