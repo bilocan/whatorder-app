@@ -1,4 +1,4 @@
-const { setSession, buildSessionWrite } = require('./sessionStore');
+const { patchSession, getSession } = require('./sessionStore');
 const { sendButtonMessage } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildBasketText, sendCatalog } = require('./botHelpers');
@@ -28,6 +28,15 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   const { matched, unmatched } = matchIntentToMenu(intent, menu);
   if (!matched.length) return false;
 
+  await patchSession(from, {
+    state: 'browsing',
+    language: lang,
+    businessId,
+    basket,
+    pendingIntentItems: matched,
+    unmatchedIntentItems: unmatched.length ? unmatched : undefined,
+  }, session);
+
   const msgId = await sendButtonMessage(from, {
     body: buildIntentConfirmBody(matched, unmatched, lang),
     buttons: [
@@ -37,21 +46,15 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
     ],
   });
 
-  await setSession(from, buildSessionWrite(session, {
-    state: 'browsing',
-    language: lang,
-    businessId,
-    basket,
-    pendingIntentItems: matched,
-    unmatchedIntentItems: unmatched.length ? unmatched : undefined,
-    pendingDeleteIds: msgId ? [msgId] : [],
-  }));
+  await patchSession(from, { pendingDeleteIds: msgId ? [msgId] : [] });
   return true;
 }
 
 async function handleIntentButtons({ from, session, lang, businessId, basket, id }) {
   if (id === 'btn_intent_confirm') {
-    const pending = session.pendingIntentItems ?? [];
+    const live = await getSession(from);
+    const pending = live.pendingIntentItems ?? [];
+    const liveBasket = live.basket ?? basket;
     if (!pending.length) {
       await sendCatalog(from, lang, businessId);
       return true;
@@ -59,19 +62,20 @@ async function handleIntentButtons({ from, session, lang, businessId, basket, id
     const { simple, customize } = splitPendingItems(pending);
     if (customize.length) {
       await startIntentCustomization({
-        from, session, lang, businessId, basket, simpleItems: simple, customizeItems: customize,
+        from, session: live, lang, businessId, basket: liveBasket, simpleItems: simple, customizeItems: customize,
       });
       return true;
     }
-    const newBasket = mergeIntoBasket(basket, pending);
-    // Persist before sending — user can tap "View basket" as soon as the message appears.
-    await setSession(from, buildSessionWrite(session, {
+    const newBasket = mergeIntoBasket(liveBasket, pending);
+    await patchSession(from, {
       state: 'browsing',
       language: lang,
       businessId,
       basket: newBasket,
+      pendingIntentItems: undefined,
+      unmatchedIntentItems: undefined,
       pendingDeleteIds: [],
-    }));
+    }, live);
     await sendButtonMessage(from, {
       body: buildBasketText(newBasket, lang),
       buttons: [
@@ -84,14 +88,16 @@ async function handleIntentButtons({ from, session, lang, businessId, basket, id
   }
 
   if (id === 'btn_intent_edit_menu' || id === 'btn_intent_view_menu') {
-    const menuId = await sendCatalog(from, lang, businessId);
-    await setSession(from, buildSessionWrite(session, {
+    const { menuId } = await sendCatalog(from, lang, businessId);
+    await patchSession(from, {
       state: 'browsing',
       language: lang,
       businessId,
       basket,
-      pendingDeleteIds: menuId ? [menuId] : [],
-    }));
+      pendingIntentItems: undefined,
+      unmatchedIntentItems: undefined,
+      menuId,
+    }, session);
     return true;
   }
 

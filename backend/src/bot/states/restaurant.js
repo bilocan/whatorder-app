@@ -46,8 +46,8 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
       await sendText(from, t('ordersClosedByOwner', lang, selectedInfo.name));
       return;
     }
-    const menuId = await sendCatalog(from, lang, selectedBid);
-    await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: selectedBid, lat: session.lat ?? null, lng: session.lng ?? null, pendingDeleteIds: menuId ? [menuId] : [] });
+    const { menuId, textMenuIndex } = await sendCatalog(from, lang, selectedBid);
+    await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: selectedBid, lat: session.lat ?? null, lng: session.lng ?? null, textMenuIndex, pendingDeleteIds: menuId ? [menuId] : [] });
     return;
   }
 
