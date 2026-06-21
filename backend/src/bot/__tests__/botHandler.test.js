@@ -112,7 +112,7 @@ function msg(overrides) {
   return { from: FROM, contactName: 'Test User', type: 'text', text: '', id: null, items: null, ...overrides };
 }
 
-describe('Full flow: language detection → catalog → cart → special requests → name → confirm → order', () => {
+describe('Full flow: language detection → catalog → cart → name → confirm → order', () => {
 
   test('Step 1: first message triggers language detection and shows catalog', async () => {
     getSession.mockResolvedValue({});
@@ -123,7 +123,7 @@ describe('Full flow: language detection → catalog → cart → special request
     expect(sendListMessage).toHaveBeenCalled();
   });
 
-  test('Step 2: cart_submitted moves to awaiting_special_requests and shows prompt', async () => {
+  test('Step 2: cart_submitted skips notes and moves straight to awaiting_name (no known name)', async () => {
     getSession.mockResolvedValue({ language: 'tr', state: 'browsing' });
 
     await handleMessage(ROUTING, msg({
@@ -132,55 +132,19 @@ describe('Full flow: language detection → catalog → cart → special request
     }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_special_requests',
+      state: 'awaiting_name',
       basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
       pickupTime: expect.any(String),
       prepMins: 20,
     }));
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_skip_requests' }),
-      ]),
-    }));
-  });
-
-  test('Step 3a: text special request moves to awaiting_name', async () => {
-    getSession.mockResolvedValue({
-      language: 'tr', state: 'awaiting_special_requests',
-      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
-      pickupTime: '14:30', prepMins: 20,
-    });
-
-    await handleMessage(ROUTING, msg({ text: 'No onions please' }));
-
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_name',
-      specialRequests: 'No onions please',
-    }));
     expect(sendText).toHaveBeenCalledWith(FROM, expect.any(String));
   });
 
-  test('Step 3b: btn_skip_requests moves to awaiting_name with empty notes', async () => {
-    getSession.mockResolvedValue({
-      language: 'tr', state: 'awaiting_special_requests',
-      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
-      pickupTime: '14:30', prepMins: 20,
-    });
-
-    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_skip_requests', title: 'Atla' }));
-
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_name',
-      specialRequests: '',
-    }));
-  });
-
-  test('Step 4: user sends name → shows final confirm button message', async () => {
+  test('Step 3: user sends name → shows final confirm button message', async () => {
     getSession.mockResolvedValue({
       language: 'tr', state: 'awaiting_name',
       basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
       pickupTime: '14:30', prepMins: 20,
-      specialRequests: '',
     });
 
     await handleMessage(ROUTING, msg({ text: 'Ahmet' }));
@@ -193,12 +157,13 @@ describe('Full flow: language detection → catalog → cart → special request
       body: expect.stringContaining('Ahmet'),
       buttons: expect.arrayContaining([
         expect.objectContaining({ id: 'btn_place_order' }),
-        expect.objectContaining({ id: 'btn_cancel_order' }),
+        expect.objectContaining({ id: 'btn_add_note' }),
+        expect.objectContaining({ id: 'btn_back_to_cart' }),
       ]),
     }));
   });
 
-  test('Step 5: btn_place_order creates order with notes and sends confirmation', async () => {
+  test('Step 4: btn_place_order creates order with notes and sends confirmation', async () => {
     getSession.mockResolvedValue({
       language: 'tr', state: 'confirming',
       basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
@@ -220,6 +185,67 @@ describe('Full flow: language detection → catalog → cart → special request
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'));
   });
 
+});
+
+describe('Add note / Back to cart on the final confirmation screen', () => {
+  test('btn_add_note asks for the note and moves to awaiting_confirm_note', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'confirming',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_add_note', title: 'Add note 📝' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.any(String));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_confirm_note' }));
+  });
+
+  test('typed text in awaiting_confirm_note stores the note and re-shows the confirm screen', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'awaiting_confirm_note',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+      pickupTime: '14:30',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'No onions please' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      specialRequests: 'No onions please',
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('No onions please'),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_place_order' }),
+        expect.objectContaining({ id: 'btn_add_note' }),
+        expect.objectContaining({ id: 'btn_back_to_cart' }),
+      ]),
+    }));
+  });
+
+  test('btn_back_to_cart shows the basket and moves to browsing without clearing it', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'confirming',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_back_to_cart', title: 'Back to cart 🛒' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_add_more' }),
+        expect.objectContaining({ id: 'btn_clear_basket' }),
+        expect.objectContaining({ id: 'btn_confirm' }),
+      ]),
+    }));
+  });
 });
 
 describe('Cancel flow', () => {
@@ -1214,7 +1240,7 @@ describe('Browsing state: button actions', () => {
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ orderType: 'delivery' }));
   });
 
-  test('btn_done with items transitions to awaiting_special_requests', async () => {
+  test('btn_done with items skips notes and transitions to awaiting_name', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'browsing', businessId: BIZ,
       basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
@@ -1223,13 +1249,11 @@ describe('Browsing state: button actions', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_done', title: 'Done' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_special_requests',
+      state: 'awaiting_name',
       pickupTime: expect.any(String),
       prepMins: 20,
     }));
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: [expect.objectContaining({ id: 'btn_skip_requests' })],
-    }));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.any(String));
   });
 
   test('btn_done with empty basket shows catalog', async () => {
@@ -1241,7 +1265,7 @@ describe('Browsing state: button actions', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ textMenuIndex: expect.any(Array) }));
   });
 
-  test('btn_confirm with items transitions to awaiting_special_requests', async () => {
+  test('btn_confirm with items skips notes and transitions to awaiting_name', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'browsing', businessId: BIZ,
       basket: [{ name: 'Ayran', qty: 2, price: 2.00 }],
@@ -1250,7 +1274,7 @@ describe('Browsing state: button actions', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm', title: 'Confirm' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_special_requests',
+      state: 'awaiting_name',
     }));
   });
 
@@ -1351,37 +1375,33 @@ describe('Browsing state: basket keyword', () => {
   });
 });
 
-// ─── awaiting_special_requests fallback ──────────────────────────────────────
+// ─── awaiting_confirm_note fallback ──────────────────────────────────────────
 
-describe('awaiting_special_requests: invalid input re-prompts', () => {
-  test('button_reply other than btn_skip_requests re-prompts for special requests', async () => {
+describe('awaiting_confirm_note: invalid input re-prompts', () => {
+  test('button_reply re-prompts for the note', async () => {
     getSession.mockResolvedValue({
-      language: 'en', state: 'awaiting_special_requests',
+      language: 'en', state: 'awaiting_confirm_note',
       basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
-      pickupTime: '14:30', prepMins: 20,
+      pickupTime: '14:30',
     });
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_other', title: 'Other' }));
 
     expect(setSession).not.toHaveBeenCalled();
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_skip_requests' })]),
-    }));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.any(String));
   });
 
-  test('empty text re-prompts for special requests', async () => {
+  test('empty text re-prompts for the note', async () => {
     getSession.mockResolvedValue({
-      language: 'de', state: 'awaiting_special_requests',
+      language: 'de', state: 'awaiting_confirm_note',
       basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
-      pickupTime: '14:30', prepMins: 20,
+      pickupTime: '14:30',
     });
 
     await handleMessage(ROUTING, msg({ text: '' }));
 
     expect(setSession).not.toHaveBeenCalled();
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_skip_requests' })]),
-    }));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.any(String));
   });
 });
 
@@ -1552,12 +1572,12 @@ const BASE_SESSION = {
   specialRequests: '',
 };
 
-describe('Delivery flow: awaiting_special_requests → awaiting_order_type', () => {
-  test('delivery-enabled business shows Pickup/Delivery buttons after special requests', async () => {
+describe('Delivery flow: confirming basket → awaiting_order_type (notes skipped)', () => {
+  test('delivery-enabled business shows Pickup/Delivery buttons straight from the basket', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, deliveryFee: 2.5 });
-    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_special_requests' });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing' });
 
-    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_skip_requests' }));
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_order_type' }));
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
@@ -1570,9 +1590,9 @@ describe('Delivery flow: awaiting_special_requests → awaiting_order_type', () 
 
   test('pickup-only business skips order type prompt and goes straight to awaiting_name', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: false });
-    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_special_requests' });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing' });
 
-    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_skip_requests' }));
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_name' }));
     expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
@@ -1695,20 +1715,19 @@ describe('Delivery minimum order value gate', () => {
     }));
   });
 
-  test('btn_confirm while still below minimum re-shows the gate, does not restart special requests', async () => {
+  test('btn_confirm while still below minimum re-shows the gate', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 50 });
     getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing', orderType: 'delivery' }); // subtotal 17
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_special_requests' }));
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: expect.not.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
     }));
   });
 
-  test('btn_done resumes via special requests (not pickup/delivery) once minimum is met', async () => {
+  test('btn_done resumes straight into the delivery address step (not pickup/delivery, no notes ask) once minimum is met', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 10 });
     getSession.mockResolvedValue({
       ...BASE_SESSION,
@@ -1719,26 +1738,7 @@ describe('Delivery minimum order value gate', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_done' }));
 
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_special_requests' }));
-    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_delivery' })]),
-    }));
-  });
-
-  test('special requests given while orderType is already delivery skip the pickup/delivery question', async () => {
-    getSession.mockResolvedValue({
-      ...BASE_SESSION,
-      state: 'awaiting_special_requests',
-      orderType: 'delivery',
-      basket: [{ name: 'Döner', qty: 3, price: 8.5 }],
-    });
-
-    await handleMessage(ROUTING, msg({ text: 'Bitte ohne Zwiebel' }));
-
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_delivery_address',
-      specialRequests: 'Bitte ohne Zwiebel',
-    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_delivery_address' }));
     expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_delivery' })]),
     }));
@@ -1992,9 +1992,9 @@ describe('Delivery flow: awaiting_delivery_address_choice', () => {
 describe('Known-name skip: awaiting_name bypassed for returning customers', () => {
   test('returning customer (name in profile) skips awaiting_name and jumps to confirming', async () => {
     mockCustomerProfile({ name: 'Ahmet' });
-    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_special_requests' });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing' });
 
-    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_skip_requests' }));
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
@@ -2005,9 +2005,9 @@ describe('Known-name skip: awaiting_name bypassed for returning customers', () =
 
   test('new customer (no profile name) still asks for name', async () => {
     mockCustomerProfile(null);
-    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_special_requests' });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing' });
 
-    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_skip_requests' }));
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_name' }));
     expect(sendText).toHaveBeenCalledWith(FROM, expect.any(String));
@@ -2015,9 +2015,9 @@ describe('Known-name skip: awaiting_name bypassed for returning customers', () =
 
   test('anonymous fallback name ("WhatsApp Customer") is treated as no name — still asks', async () => {
     mockCustomerProfile({ name: 'WhatsApp Customer' });
-    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_special_requests' });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing' });
 
-    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_skip_requests' }));
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_name' }));
   });

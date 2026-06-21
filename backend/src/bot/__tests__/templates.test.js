@@ -10,7 +10,7 @@ const FUNCTION_KEYS = [
   'itemAdded', 'addMoreBtn', 'viewBasketBtn', 'doneBtn',
   'basketHeader', 'basketEmpty', 'clearBasketBtn', 'confirmBtn',
   'orderTotal', 'confirmSummary', 'finalConfirmBody',
-  'confirmOrderBtn', 'cancelOrderBtn', 'confirmPrompt', 'yesNoOnly',
+  'confirmOrderBtn', 'addNoteBtn', 'backToCartBtn', 'addNotePrompt', 'confirmPrompt', 'yesNoOnly',
   'orderConfirmed', 'orderCancelled', 'checkoutCancelled', 'orderReceipt',
   'menuEmpty',
   'orderReady',
