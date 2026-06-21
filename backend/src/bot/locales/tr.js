@@ -140,4 +140,10 @@ module.exports = {
   intentMultiDefaultNone: () => 'hiçbiri',
   intentMultiDefaultHint: () => 'Varsayılanı kullan\'a bas veya all / none / skip yaz (yukarıdaki varsayılan).',
   intentMultiDefaultBtn: () => 'Varsayılan',
+
+  reorderPromptHeader: () => '👋 Tekrar hoş geldin! Son siparişin:',
+  reorderConfirmPrompt: () => 'Aynısını tekrar sipariş et?',
+  reorderConfirmBtn: () => 'Aynısı ✅',
+  reorderBrowseBtn: () => 'Başka bir şey',
+  reorderUnmatched: (items) => `Artık mevcut değil: ${items}`,
 };

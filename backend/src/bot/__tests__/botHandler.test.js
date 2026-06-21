@@ -25,7 +25,7 @@ jest.mock('../../lib/collections', () => ({ customersRef: jest.fn() }));
 const { handleMessage } = require('../botHandler');
 const { getSession, setSession, patchSession } = require('../sessionStore');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
-const { createOrder } = require('../orderService');
+const { createOrder, getLastOrderForCustomer } = require('../orderService');
 const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage } = require('../../lib/whatsapp');
 const { reverseGeocode } = require('../../lib/geocode');
 const { customersRef } = require('../../lib/collections');
@@ -93,6 +93,7 @@ beforeEach(() => {
   getMenu.mockResolvedValue(MENU);
   getBusinessInfo.mockResolvedValue(BIZ_INFO);
   createOrder.mockResolvedValue('order_abc123');
+  getLastOrderForCustomer.mockResolvedValue(null);
   sendText.mockResolvedValue();
   sendListMessage.mockResolvedValue('list_msg_id');
   sendButtonMessage.mockResolvedValue();
@@ -764,6 +765,7 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
   });
 
   test('valid restaurant list_reply → browsing state and catalog for selected restaurant', async () => {
+    getLastOrderForCustomer.mockResolvedValue(null);
     getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_biz_b' }));
@@ -773,6 +775,24 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
       businessId: 'biz_b',
     }));
     expect(sendListMessage).toHaveBeenCalled();
+  });
+
+  test('valid restaurant list_reply → reorder prompt when order history exists', async () => {
+    getLastOrderForCustomer.mockResolvedValue({
+      items: [{ name: 'Döner', qty: 2, price: 8.5 }],
+      status: 'delivered',
+    });
+    getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_biz_b' }));
+
+    expect(getLastOrderForCustomer).toHaveBeenCalledWith('biz_b', FROM);
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_reorder_confirm' }),
+      ]),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('invalid restaurant id in list_reply → re-shows picker without state change', async () => {
@@ -1418,6 +1438,22 @@ describe('Confirming state: ambiguous input', () => {
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('YES or NO'));
   });
 
+  test('greeting in confirming state restarts ordering instead of yesNoOnly', async () => {
+    getLastOrderForCustomer.mockResolvedValue(null);
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'confirming',
+      businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'Ahmet',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('YES'));
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+
   test('text "yes" confirms order (text-path CONFIRM keyword)', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'confirming',
@@ -1986,6 +2022,81 @@ describe('Delivery flow: awaiting_delivery_address_choice', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_delivery_address_choice',
     }));
+  });
+});
+
+describe('Layer 0: reorder-first for returning customers', () => {
+  const LAST_ORDER = {
+    items: [{ name: 'Döner', qty: 2, price: 8.5 }, { name: 'Ayran', qty: 1, price: 2.0 }],
+    status: 'delivered',
+    createdAt: { toMillis: () => Date.now() },
+  };
+
+  test('first message shows reorder prompt when order history exists', async () => {
+    getLastOrderForCustomer.mockResolvedValue(LAST_ORDER);
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ text: 'Hallo' }));
+
+    expect(getLastOrderForCustomer).toHaveBeenCalledWith(BIZ, FROM);
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_reorder_confirm' }),
+        expect.objectContaining({ id: 'btn_reorder_browse' }),
+      ]),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('explicit new order text skips reorder and uses intent parser', async () => {
+    getLastOrderForCustomer.mockResolvedValue(LAST_ORDER);
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ text: '2x döner 1 ayran' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_intent_confirm' }),
+      ]),
+    }));
+  });
+
+  test('btn_reorder_confirm loads last order into basket', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'browsing',
+      businessId: BIZ,
+      basket: [],
+      pendingReorderItems: [{ name: 'Döner', qty: 2, price: 8.5 }],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_reorder_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: [{ name: 'Döner', qty: 2, price: 8.5 }],
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_confirm' }),
+      ]),
+    }));
+  });
+
+  test('btn_reorder_browse opens catalog instead', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'browsing',
+      businessId: BIZ,
+      basket: [],
+      pendingReorderItems: [{ name: 'Döner', qty: 2, price: 8.5 }],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_reorder_browse' }));
+
+    expect(sendListMessage).toHaveBeenCalled();
   });
 });
 

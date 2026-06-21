@@ -4,6 +4,7 @@ const { db } = require('../lib/firebase');
 const CHECKOUT_FIELDS = ['flow', 'orderType', 'deliveryAddress', 'specialRequests', 'customerName', 'prepMins', 'pickupTime'];
 const MENU_BROWSE_FIELDS = ['textMenuIndex', 'textMenuCategory'];
 const INTENT_FIELDS = ['pendingIntentItems', 'unmatchedIntentItems', 'intentCustomize', 'pendingItem'];
+const REORDER_FIELDS = ['pendingReorderItems', 'pendingReorderUnmatched'];
 
 function buildSessionWrite(session, overrides) {
   const data = {
@@ -15,7 +16,7 @@ function buildSessionWrite(session, overrides) {
     lng: session.lng ?? null,
     pendingDeleteIds: session.pendingDeleteIds ?? [],
   };
-  for (const key of [...CHECKOUT_FIELDS, ...MENU_BROWSE_FIELDS, ...INTENT_FIELDS]) {
+  for (const key of [...CHECKOUT_FIELDS, ...MENU_BROWSE_FIELDS, ...INTENT_FIELDS, ...REORDER_FIELDS]) {
     if (session[key] != null) data[key] = session[key];
   }
   const merged = { ...data, ...overrides };

@@ -5,6 +5,8 @@ const { buildBasketText, sendMenu, sendMenuPage, sendCatalog, groupMenuByCategor
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 const { tryTextIntentOrder, handleIntentButtons } = require('../intentOrder');
+const { handleReorderButtons, tryOfferReorder } = require('../reorder');
+const { isGreetingOnly } = require('../intentParser');
 const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
 const { resumeDeliveryCheckout, showDeliveryBasketGate } = require('./checkout');
@@ -207,6 +209,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
 
   // Action buttons (post-add or basket view)
   if (type === 'button_reply') {
+    if (await handleReorderButtons({ from, session, lang, businessId, basket, id })) return;
     if (await handleIntentButtons({ from, session, lang, businessId, basket, id })) return;
 
     if (id === 'btn_add_more') {
@@ -325,6 +328,11 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       ],
     });
     return;
+  }
+
+  // Text: greeting with empty basket — offer reorder (Layer 0) before catalog
+  if (type === 'text' && text?.trim() && isGreetingOnly(norm) && !basket.length) {
+    if (await tryOfferReorder({ from, session, lang, businessId, basket })) return;
   }
 
   // Default: show catalog (with list fallback)

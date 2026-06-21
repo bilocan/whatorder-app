@@ -13,7 +13,7 @@ jest.mock('../../lib/firebase', () => ({
 jest.mock('../../lib/whatsapp');
 jest.mock('../templates');
 
-const { createOrder, approveOrder, rejectOrder, startPreparation, markReady, markOnTheWay, markPickedUp, markDelivered, cancelOrder } = require('../orderService');
+const { createOrder, getLastOrderForCustomer, approveOrder, rejectOrder, startPreparation, markReady, markOnTheWay, markPickedUp, markDelivered, cancelOrder } = require('../orderService');
 const { ordersRef, businessRef, customersRef } = require('../../lib/collections');
 const { sendText } = require('../../lib/whatsapp');
 const { t } = require('../templates');
@@ -63,7 +63,8 @@ describe('createOrder', () => {
     expect(mockSet).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'order_abc123',
-        customerPhone: '+43699000001',
+        customerPhone: '43699000001',
+        customerId: '43699000001',
         customerName: 'Ahmet',
         items: ORDER_PARAMS.items,
         total: 17,
@@ -105,7 +106,7 @@ describe('createOrder', () => {
     const msg = sendText.mock.calls[0][1];
     expect(msg).toContain('Döner');
     expect(msg).toContain('€17.00');
-    expect(msg).toContain('+43699000001');
+    expect(msg).toContain('43699000001');
   });
 
   test('uses the last 6 chars of the id (uppercased) as shortId in notification', async () => {
@@ -181,7 +182,7 @@ describe('createOrder', () => {
     await createOrder(BIZ, ORDER_PARAMS);
 
     expect(mockCustomerSet).toHaveBeenCalledWith(
-      expect.objectContaining({ phone: '+43699000001', name: 'Ahmet' }),
+      expect.objectContaining({ phone: '43699000001', name: 'Ahmet' }),
       { merge: true },
     );
   });
@@ -427,5 +428,94 @@ describe('Order state machine', () => {
     makeRef(ORDER('pending'));
     await approveOrder(BIZ, 'order_ABCDEF123456');
     expect(t).toHaveBeenCalledWith('orderApproved', 'tr', '123456');
+  });
+});
+
+describe('getLastOrderForCustomer', () => {
+  test('returns most recent non-cancelled order with items', async () => {
+    const older = {
+      items: [{ name: 'Ayran', qty: 1, price: 2 }],
+      status: 'delivered',
+      createdAt: { toMillis: () => 1000 },
+    };
+    const newer = {
+      items: [{ name: 'Döner', qty: 2, price: 8.5 }],
+      status: 'picked_up',
+      createdAt: { toMillis: () => 2000 },
+    };
+    ordersRef.mockReturnValue({
+      where: jest.fn().mockReturnValue({
+        limit: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue({
+            empty: false,
+            docs: [{ data: () => older }, { data: () => newer }],
+          }),
+        }),
+      }),
+    });
+
+    const result = await getLastOrderForCustomer(BIZ, '+43699000001');
+    expect(result).toEqual(newer);
+  });
+
+  test('skips cancelled and rejected orders', async () => {
+    const cancelled = {
+      items: [{ name: 'Döner', qty: 1, price: 8.5 }],
+      status: 'cancelled',
+      createdAt: { toMillis: () => 3000 },
+    };
+    const valid = {
+      items: [{ name: 'Ayran', qty: 1, price: 2 }],
+      status: 'pending',
+      createdAt: { toMillis: () => 1000 },
+    };
+    ordersRef.mockReturnValue({
+      where: jest.fn().mockReturnValue({
+        limit: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue({
+            empty: false,
+            docs: [{ data: () => cancelled }, { data: () => valid }],
+          }),
+        }),
+      }),
+    });
+
+    const result = await getLastOrderForCustomer(BIZ, '+43699000001');
+    expect(result).toEqual(valid);
+  });
+
+  test('returns null when no orders exist', async () => {
+    ordersRef.mockReturnValue({
+      where: jest.fn().mockReturnValue({
+        limit: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue({ empty: true, docs: [] }),
+        }),
+      }),
+    });
+
+    expect(await getLastOrderForCustomer(BIZ, '+43699000001')).toBeNull();
+  });
+
+  test('finds order stored with + when webhook phone has no +', async () => {
+    const order = {
+      items: [{ name: 'Döner', qty: 1, price: 8.5 }],
+      status: 'delivered',
+      customerId: '+43699000001',
+      createdAt: { toMillis: () => 2000 },
+    };
+    ordersRef.mockReturnValue({
+      where: jest.fn().mockReturnValue({
+        limit: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue({
+            empty: false,
+            docs: [{ data: () => order }],
+          }),
+        }),
+      }),
+    });
+
+    const result = await getLastOrderForCustomer(BIZ, '43699000001');
+    expect(result).toEqual(order);
+    expect(ordersRef().where).toHaveBeenCalledWith('customerId', 'in', expect.arrayContaining(['43699000001', '+43699000001']));
   });
 });
