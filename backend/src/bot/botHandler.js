@@ -1,4 +1,4 @@
-const { getSession, setSession } = require('./sessionStore');
+const { getSession, setSession, patchSession } = require('./sessionStore');
 const { getBusinessInfo } = require('./menuService');
 const { sendText, sendLocationRequest, sendFlowMessage, deleteMessage } = require('../lib/whatsapp');
 const { sortByDistance } = require('../lib/distance');
@@ -130,8 +130,8 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       });
       if (handled) return;
     }
-    const menuId = await sendCatalog(from, lang, bid);
-    await setSession(from, { ...freshSession, pendingDeleteIds: menuId ? [menuId] : [] });
+    const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, bid);
+    await patchSession(from, { textMenuIndex, textMenuCategory, menuId }, freshSession);
     return;
   }
 

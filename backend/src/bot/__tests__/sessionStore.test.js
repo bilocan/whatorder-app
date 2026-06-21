@@ -1,11 +1,21 @@
 // Mock firebase so the Admin SDK never initialises.
 // db.collection is a jest.fn() so each test can configure its own chain.
 jest.mock('../../lib/firebase', () => ({
-  db: { collection: jest.fn() },
+  db: { collection: jest.fn(), runTransaction: jest.fn() },
 }));
 
 const { db } = require('../../lib/firebase');
-const { getSession, setSession, clearSession, buildSessionWrite } = require('../sessionStore');
+const { getSession, setSession, patchSession, clearSession, buildSessionWrite } = require('../sessionStore');
+
+function mockTransaction(ref) {
+  db.runTransaction.mockImplementation(async (fn) => {
+    await fn({
+      get: (r) => r.get(),
+      set: (r, data) => r.set(data),
+    });
+  });
+  return ref;
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -87,27 +97,106 @@ describe('setSession', () => {
 // buildSessionWrite
 // ---------------------------------------------------------------------------
 describe('buildSessionWrite', () => {
-  test('omits pending intent fields on confirm-style overwrite', () => {
+  test('preserves pending intent when only menu list id is updated', () => {
     const payload = buildSessionWrite(
       {
         state: 'browsing',
         language: 'tr',
         businessId: 'biz_test',
         basket: [],
+        textMenuCategory: 'Pizza',
+        textMenuIndex: [{ id: 'p1', name: 'Margherita', price: 8.5 }],
+        pendingIntentItems: [{ menuItemId: 'p1', name: 'Margherita', qty: 1, price: 8.5 }],
+      },
+      { pendingDeleteIds: ['list_msg_id'] },
+    );
+
+    expect(payload.pendingIntentItems).toHaveLength(1);
+    expect(payload.textMenuCategory).toBe('Pizza');
+    expect(payload.pendingDeleteIds).toEqual(['list_msg_id']);
+  });
+
+  test('clears pending intent fields when explicitly undefined', () => {
+    const payload = buildSessionWrite(
+      {
+        state: 'browsing',
+        language: 'tr',
+        businessId: 'biz_test',
+        basket: [],
+        textMenuCategory: 'Pizza',
+        textMenuIndex: [{ id: 'p1', name: 'Margherita', price: 8.5 }],
         pendingIntentItems: [{ name: 'Döner', qty: 2, price: 8.5 }],
-        unmatchedIntentItems: ['burger'],
       },
       {
         basket: [{ name: 'Döner', qty: 2, price: 8.5 }],
         pendingDeleteIds: [],
+        pendingIntentItems: undefined,
       },
     );
 
     expect(payload.basket).toHaveLength(1);
     expect(payload).not.toHaveProperty('pendingIntentItems');
-    expect(payload).not.toHaveProperty('unmatchedIntentItems');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// patchSession
+// ---------------------------------------------------------------------------
+describe('patchSession', () => {
+  test('late menuId-only patch preserves pendingIntentItems from live doc', async () => {
+    const liveDoc = {
+      state: 'browsing',
+      language: 'tr',
+      businessId: 'biz_test',
+      basket: [],
+      textMenuCategory: 'Pizza',
+      textMenuIndex: [{ id: 'p1', name: 'Margherita', price: 8.5 }],
+      pendingIntentItems: [{ menuItemId: 'p1', name: 'Margherita', qty: 1, price: 8.5 }],
+    };
+    const mockSet = jest.fn().mockResolvedValue(undefined);
+    const mockRef = {
+      get: jest.fn().mockResolvedValue({ exists: true, data: () => liveDoc }),
+      set: mockSet,
+    };
+    db.collection.mockReturnValue({ doc: jest.fn().mockReturnValue(mockRef) });
+    mockTransaction(mockRef);
+
+    await patchSession('+43699000001', { menuId: 'list_msg_id' });
+
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({
+      pendingIntentItems: liveDoc.pendingIntentItems,
+      textMenuCategory: 'Pizza',
+      pendingDeleteIds: ['list_msg_id'],
+    }));
   });
 
+  test('sequential pending then menuId patch keeps pendingIntentItems', async () => {
+    let stored = {
+      state: 'browsing',
+      language: 'tr',
+      businessId: 'biz_test',
+      basket: [],
+      textMenuCategory: 'Pizza',
+      textMenuIndex: [{ id: 'p1', name: 'Margherita', price: 8.5 }],
+    };
+    const mockRef = {
+      get: jest.fn(async () => ({ exists: true, data: () => ({ ...stored }) })),
+      set: jest.fn(async (data) => { stored = { ...data }; }),
+    };
+    db.collection.mockReturnValue({ doc: jest.fn().mockReturnValue(mockRef) });
+    mockTransaction(mockRef);
+
+    await patchSession('+43699000001', {
+      pendingIntentItems: [{ menuItemId: 'p1', name: 'Margherita', qty: 1, price: 8.5 }],
+    });
+    await patchSession('+43699000001', { menuId: 'list_msg_id' });
+
+    expect(stored.pendingIntentItems).toHaveLength(1);
+    expect(stored.pendingDeleteIds).toEqual(['list_msg_id']);
+  });
+});
+
+describe('buildSessionWrite checkout', () => {
   test('preserves checkout context fields', () => {
     const payload = buildSessionWrite(
       {
