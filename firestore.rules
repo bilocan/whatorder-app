@@ -67,6 +67,13 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // WhatOrder platform fee config. Owners read it to show their fee on Income;
+    // only admins edit it (Admin Earnings page).
+    match /config/{configId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Bot sessions. Backend (Admin SDK) only — no client access.
     match /sessions/{sessionId} {
       allow read, write: if false;
