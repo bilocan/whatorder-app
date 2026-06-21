@@ -51,7 +51,15 @@
       "time": "Zeit"
     },
     "delivery": "Lieferung",
-    "deliveryFee": "+ €{{fee}} Liefergebühr"
+    "deliveryFee": "+ €{{fee}} Liefergebühr",
+    "filter": {
+      "label": "Anzeigen",
+      "active": "Aktive Bestellungen",
+      "completed2w": "Abgeschlossen — letzte 2 Wochen",
+      "completedCustom": "Abgeschlossen — benutzerdefiniert",
+      "from": "Von",
+      "to": "Bis"
+    }
   },
   "orderDetail": {
     "loading": "Lade Bestellung...",

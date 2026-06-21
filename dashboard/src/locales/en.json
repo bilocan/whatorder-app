@@ -51,7 +51,15 @@
       "time": "Time"
     },
     "delivery": "Delivery",
-    "deliveryFee": "+ €{{fee}} delivery fee"
+    "deliveryFee": "+ €{{fee}} delivery fee",
+    "filter": {
+      "label": "Show",
+      "active": "Active orders",
+      "completed2w": "Completed — last 2 weeks",
+      "completedCustom": "Completed — custom range",
+      "from": "From",
+      "to": "To"
+    }
   },
   "orderDetail": {
     "loading": "Loading order...",
