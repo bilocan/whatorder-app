@@ -1,11 +1,38 @@
-const { setSession } = require('../sessionStore');
+const { setSession, patchSession } = require('../sessionStore');
 const { sendText, sendButtonMessage, sendImage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
-const { buildBasketText, sendMenu, sendCatalog } = require('../botHelpers');
+const { buildBasketText, sendMenu, sendMenuPage, sendCatalog, groupMenuByCategory, decodeCategory } = require('../botHelpers');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 const { tryTextIntentOrder, handleIntentButtons } = require('../intentOrder');
+const { tryNumberSelectionOrder } = require('../textMenuOrder');
+const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
 const { resumeDeliveryCheckout, showDeliveryBasketGate } = require('./checkout');
+
+async function openCatalog(from, session, lang, businessId, bodyOverride, sessionOverrides = {}) {
+  const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId, bodyOverride);
+  await patchSession(from, {
+    menuId,
+    textMenuIndex,
+    textMenuCategory,
+    ...sessionOverrides,
+  }, session);
+}
+
+async function openCategoryMenu(from, session, lang, businessId, category) {
+  const menu = await getMenu(businessId);
+  const multiCategory = Object.keys(groupMenuByCategory(menu)).length > 1;
+  const categoryItems = menu.filter(i => (i.category || 'other') === category);
+  const { messages, indexed: textMenuIndex } = buildNumberedMenuChunks(categoryItems, lang, category);
+
+  // Persist index before any outbound messages so a fast "1" reply still resolves.
+  await patchSession(from, { menuId: null, textMenuIndex, textMenuCategory: category }, session);
+
+  const menuId = await sendMenuPage(from, lang, businessId, null, menu, { category, page: 0, multiCategory });
+  await sendPreparedTextMenu(from, messages);
+  // menuId only — never pass stale textMenuIndex/null here (race with confirm flow).
+  await patchSession(from, { menuId }, session);
+}
 
 // Gated on minimumOrderValue: order type is 'delivery' but no address has been collected
 // yet, meaning the customer was redirected back here by the delivery minimum gate.
@@ -73,7 +100,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
   // Cart submitted from catalog UI
   if (type === 'cart_submitted') {
     if (!items || !items.length) {
-      await sendCatalog(from, lang, businessId);
+      await openCatalog(from, session, lang, businessId);
       return;
     }
     const [menu, info] = await Promise.all([getMenu(businessId), getBusinessInfo(businessId)]);
@@ -107,7 +134,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
   if (type === 'flow_completion') {
     const flowBasket = session.basket ?? [];
     if (!flowBasket.length) {
-      await sendCatalog(from, lang, businessId);
+      await openCatalog(from, session, lang, businessId);
       return;
     }
     const info = await getBusinessInfo(businessId);
@@ -132,11 +159,34 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
 
   // Item selected from list menu (fallback flow)
   if (type === 'list_reply') {
+    if (id === 'nav_cats') {
+      const { menuId, textMenuIndex, textMenuCategory } = await sendMenu(from, lang, businessId);
+      await patchSession(from, { menuId, textMenuIndex, textMenuCategory }, session);
+      return;
+    }
+
+    const navMatch = id.match(/^navp_([0-9a-f]+)_(\d+)$/);
+    if (navMatch) {
+      const category = decodeCategory(navMatch[1]);
+      const page = parseInt(navMatch[2], 10);
+      const menu = await getMenu(businessId);
+      const multiCategory = Object.keys(groupMenuByCategory(menu)).length > 1;
+      const menuId = await sendMenuPage(from, lang, businessId, null, menu, { category, page, multiCategory });
+      await patchSession(from, { menuId }, session);
+      return;
+    }
+
+    if (id.startsWith('cat_')) {
+      const category = decodeCategory(id.slice(4));
+      await openCategoryMenu(from, session, lang, businessId, category);
+      return;
+    }
+
     const itemId = id.replace('item_', '');
     const menu = await getMenu(businessId);
     const item = menu.find(i => i.id === itemId);
     if (!item) {
-      await sendCatalog(from, lang, businessId);
+      await openCatalog(from, session, lang, businessId);
       return;
     }
     const photoUrl = resolvePhotoUrl(item.photoUrl);
@@ -161,18 +211,17 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
 
     if (id === 'btn_add_more') {
       if (session.flow === 'list') {
-        const menuId = await sendMenu(from, lang, businessId);
-        await setSession(from, { ...session, pendingDeleteIds: menuId ? [menuId] : [] });
+        const { menuId, textMenuIndex, textMenuCategory } = await sendMenu(from, lang, businessId);
+        await patchSession(from, { menuId, textMenuIndex, textMenuCategory }, session);
       } else {
-        const menuId = await sendCatalog(from, lang, businessId);
-        await setSession(from, { ...session, pendingDeleteIds: menuId ? [menuId] : [] });
+        await openCatalog(from, session, lang, businessId);
       }
       return;
     }
 
     if (id === 'btn_view_basket') {
       if (!basket.length) {
-        await sendCatalog(from, lang, businessId, t('basketEmpty', lang));
+        await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
         return;
       }
       if (isGatedOnDeliveryMinimum(session)) {
@@ -194,14 +243,18 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       // Full reset, not just the basket: orderType/deliveryAddress/specialRequests must not
       // survive, otherwise the customer stays "delivery-gated" after re-adding items even
       // though they haven't been asked pickup-or-delivery again yet.
-      const menuId = await sendCatalog(from, lang, businessId);
-      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: menuId ? [menuId] : [] });
+      await openCatalog(from, session, lang, businessId, undefined, {
+        basket: [],
+        flow: undefined,
+        orderType: undefined,
+        deliveryAddress: undefined,
+        specialRequests: undefined,
+      });
       return;
     }
-
     if (id === 'btn_done' || id === 'btn_confirm') {
       if (!basket.length) {
-        await sendCatalog(from, lang, businessId, t('basketEmpty', lang));
+        await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
         return;
       }
       if (isGatedOnDeliveryMinimum(session)) {
@@ -230,11 +283,22 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
         await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [] });
         await sendText(from, t('checkoutCancelled', lang));
       } else {
-        const menuId = await sendCatalog(from, lang, businessId, t('checkoutCancelled', lang));
-        await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: menuId ? [menuId] : [] });
-      }
-      return;
+        await openCatalog(from, session, lang, businessId, t('checkoutCancelled', lang), {
+          basket: [],
+          flow: undefined,
+          orderType: undefined,
+          deliveryAddress: undefined,
+          specialRequests: undefined,
+        });
+      }      return;
     }
+  }
+
+  // Text: numbered selection — skip default catalog resend for digit-only replies
+  if (type === 'text' && text?.trim() && /^[\d\s,;xX×*.+-]+$/.test(text.trim()) && /\d/.test(text)) {
+    if (await tryNumberSelectionOrder({ from, session, lang, businessId, basket, text })) return;
+    await sendText(from, t('textMenuPickCategory', lang));
+    return;
   }
 
   // Text: natural-language order intent (Tier A rules parser)
@@ -245,7 +309,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
   // Text: basket keyword
   if (type === 'text' && BASKET_KEYWORDS.has(norm)) {
     if (!basket.length) {
-      await sendCatalog(from, lang, businessId, t('basketEmpty', lang));
+      await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
       return;
     }
     if (isGatedOnDeliveryMinimum(session)) {
@@ -264,7 +328,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
   }
 
   // Default: show catalog (with list fallback)
-  await sendCatalog(from, lang, businessId);
+  await openCatalog(from, session, lang, businessId);
 }
 
 module.exports = { handleSelecting, handleBrowsing };

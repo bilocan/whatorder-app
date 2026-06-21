@@ -85,3 +85,57 @@ describe('order status notification keys — all locales', () => {
     expect(str(tr[key]('ABC123'))).toBe(true);
   });
 });
+
+const MENU_TEXT_INTENT_CALLS = [
+  ['menuCategoryBody', []],
+  ['menuCategoriesSection', []],
+  ['menuCategoryCount', [3]],
+  ['menuBackCategories', []],
+  ['menuNextPage', []],
+  ['menuPrevPage', []],
+  ['menuMoreItemsDesc', [4]],
+  ['textMenuCategoryHeader', ['Pizza']],
+  ['textMenuSelectHint', []],
+  ['textMenuInvalid', ['99']],
+  ['textMenuPickCategory', []],
+  ['textMenuContinued', ['Pizza', 2]],
+  ['textMenuContinuedHint', []],
+  ['closedLabel', []],
+  ['ordersClosedByOwner', ['Bistro']],
+  ['deliveryClosedByOwner', []],
+  ['intentConfirmHeader', []],
+  ['intentConfirmPrompt', []],
+  ['intentConfirmBtn', []],
+  ['intentEditMenuBtn', []],
+  ['intentUnmatched', ['cola']],
+  ['intentCustomizePrompt', ['Döner', 2, 'Protein']],
+  ['intentCustomizeUnitPrompt', [1, 2, 'Döner', 'Protein']],
+  ['intentSameOrEachPrompt', [2, 'Döner']],
+  ['intentSameOptsBtn', []],
+  ['intentEachOptsBtn', []],
+  ['intentCustomizeSkip', []],
+  ['intentChooseBtn', []],
+  ['intentMultiPrompt', [2, 'Döner', 'Sauce', '• Garlic', 'all']],
+  ['intentMultiUnitPrompt', [1, 2, 'Döner', 'Sauce', '• Garlic', 'all']],
+  ['intentMultiInvalid', ['foo', '• Garlic']],
+  ['intentMultiDefaultAll', []],
+  ['intentMultiDefaultNone', []],
+  ['intentMultiDefaultHint', []],
+  ['intentMultiDefaultBtn', []],
+];
+
+for (const [name, locale] of Object.entries({ de, tr, en })) {
+  describe(`${name} menu/text/intent locale functions`, () => {
+    test.each(MENU_TEXT_INTENT_CALLS)('%s', (key, args) => {
+      expect(str(locale[key](...args))).toBe(true);
+    });
+
+    test('restaurantClosed with order window', () => {
+      expect(str(locale.restaurantClosed('Bistro', '10:00', '22:00'))).toBe(true);
+    });
+
+    test('restaurantClosed without order window', () => {
+      expect(str(locale.restaurantClosed('Bistro', null, null))).toBe(true);
+    });
+  });
+}
