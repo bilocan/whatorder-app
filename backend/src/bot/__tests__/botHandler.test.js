@@ -23,7 +23,7 @@ jest.mock('../../lib/geocode');
 jest.mock('../../lib/collections', () => ({ customersRef: jest.fn() }));
 
 const { handleMessage } = require('../botHandler');
-const { getSession, setSession } = require('../sessionStore');
+const { getSession, setSession, patchSession } = require('../sessionStore');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { createOrder } = require('../orderService');
 const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage } = require('../../lib/whatsapp');
@@ -1325,6 +1325,29 @@ describe('Browsing state: basket keyword', () => {
       body: expect.stringContaining('Döner'),
     }));
     expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('category list_reply opens paginated menu and numbered text', async () => {
+    const { encodeCategory } = require('../botHelpers');
+    const bigMenu = Array.from({ length: 12 }, (_, i) => ({
+      id: `item_${i}`,
+      name: `Dish ${i}`,
+      price: 9,
+      category: i < 6 ? 'Pizza' : 'Kebap',
+      available: true,
+    }));
+    getMenu.mockResolvedValue(bigMenu);
+    getSession.mockResolvedValue({ language: 'de', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({
+      type: 'list_reply',
+      id: `cat_${encodeCategory('Pizza')}`,
+      title: 'Pizza',
+    }));
+
+    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('1.'));
+    expect(patchSession).toHaveBeenCalled();
   });
 });
 
