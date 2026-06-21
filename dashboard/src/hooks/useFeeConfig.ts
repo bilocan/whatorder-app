@@ -7,7 +7,7 @@ export interface FeeConfig {
   feeValue: number;
 }
 
-const DEFAULT: FeeConfig = { feeType: 'fixed', feeValue: 0 };
+const DEFAULT: FeeConfig = { feeType: 'percent', feeValue: 10 };
 
 export function calcFee(orderTotal: number, config: FeeConfig): number {
   if (config.feeType === 'fixed') return config.feeValue;
