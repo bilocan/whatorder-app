@@ -140,4 +140,10 @@ module.exports = {
   intentMultiDefaultNone: () => 'none',
   intentMultiDefaultHint: () => 'Tap Use default, or reply all / none / skip (uses default above).',
   intentMultiDefaultBtn: () => 'Use default',
+
+  reorderPromptHeader: () => '👋 Welcome back! Your last order:',
+  reorderConfirmPrompt: () => 'Order the same again?',
+  reorderConfirmBtn: () => 'Same again ✅',
+  reorderBrowseBtn: () => 'Something else',
+  reorderUnmatched: (items) => `No longer available: ${items}`,
 };

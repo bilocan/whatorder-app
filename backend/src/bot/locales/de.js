@@ -140,4 +140,10 @@ module.exports = {
   intentMultiDefaultNone: () => 'keine',
   intentMultiDefaultHint: () => 'Tippe Standard verwenden, oder antworte all / none / skip (nutzt Standard oben).',
   intentMultiDefaultBtn: () => 'Standard',
+
+  reorderPromptHeader: () => '👋 Willkommen zurück! Deine letzte Bestellung:',
+  reorderConfirmPrompt: () => 'Gleich nochmal bestellen?',
+  reorderConfirmBtn: () => 'Gleich wieder ✅',
+  reorderBrowseBtn: () => 'Etwas anderes',
+  reorderUnmatched: (items) => `Nicht mehr verfügbar: ${items}`,
 };
