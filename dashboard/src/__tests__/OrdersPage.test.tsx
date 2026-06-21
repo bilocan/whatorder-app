@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import OrdersPage from '../pages/OrdersPage'
@@ -46,7 +47,8 @@ const ORDERS = [
     items: [{ name: 'Wrap', qty: 1, price: 6.5 }],
     total: 6.5,
     status: 'completed',
-    createdAt: '2026-06-09T08:00:00.000Z',
+    // 2 days ago, relative to "now" so it reliably falls within the "last 2 weeks" filter
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ]
 
@@ -76,7 +78,7 @@ describe('OrdersPage', () => {
     expect(screen.getByText('No orders yet.')).toBeInTheDocument()
   })
 
-  it('renders customer names and links', () => {
+  it('renders customer names and links for active orders, hides completed by default', () => {
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
       return vi.fn()
@@ -84,6 +86,16 @@ describe('OrdersPage', () => {
     renderPage()
     expect(screen.getByRole('link', { name: 'Ali Veli' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Max Muster' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Sara Schmidt' })).not.toBeInTheDocument()
+  })
+
+  it('shows completed orders when the "last 2 weeks" filter is selected', async () => {
+    mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+      cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage()
+    await userEvent.selectOptions(screen.getByLabelText('Show'), 'completed-2w')
     expect(screen.getByRole('link', { name: 'Sara Schmidt' })).toBeInTheDocument()
   })
 
@@ -97,7 +109,7 @@ describe('OrdersPage', () => {
     expect(screen.getByText('1x Falafel, 1x Ayran')).toBeInTheDocument()
   })
 
-  it('renders totals formatted to 2 decimal places', () => {
+  it('renders totals formatted to 2 decimal places for active orders', () => {
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
       return vi.fn()
@@ -105,10 +117,10 @@ describe('OrdersPage', () => {
     renderPage()
     expect(screen.getByText('€17.00')).toBeInTheDocument()
     expect(screen.getByText('€9.00')).toBeInTheDocument()
-    expect(screen.getByText('€6.50')).toBeInTheDocument()
+    expect(screen.queryByText('€6.50')).not.toBeInTheDocument()
   })
 
-  it('renders status badges for all statuses', () => {
+  it('renders status badges for active statuses, omits completed by default', () => {
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
       return vi.fn()
@@ -116,7 +128,7 @@ describe('OrdersPage', () => {
     renderPage()
     expect(screen.getByText('pending')).toBeInTheDocument()
     expect(screen.getByText('ready')).toBeInTheDocument()
-    expect(screen.getByText('completed')).toBeInTheDocument()
+    expect(screen.queryByText('completed')).not.toBeInTheDocument()
   })
 
   it('renders a non-empty timestamp for each order', () => {

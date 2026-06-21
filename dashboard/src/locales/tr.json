@@ -51,7 +51,15 @@
       "time": "Saat"
     },
     "delivery": "Teslimat",
-    "deliveryFee": "+ €{{fee}} teslimat ücreti"
+    "deliveryFee": "+ €{{fee}} teslimat ücreti",
+    "filter": {
+      "label": "Göster",
+      "active": "Aktif siparişler",
+      "completed2w": "Tamamlanan — son 2 hafta",
+      "completedCustom": "Tamamlanan — özel aralık",
+      "from": "Başlangıç",
+      "to": "Bitiş"
+    }
   },
   "orderDetail": {
     "loading": "Sipariş yükleniyor...",
