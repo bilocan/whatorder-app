@@ -4,8 +4,10 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import type { Order } from '../types';
+import type { Order, OrderStatus } from '../types';
 import { toDate } from '../types';
+
+const TERMINAL_STATUSES = new Set<OrderStatus>(['delivered', 'picked_up', 'rejected', 'cancelled', 'completed']);
 
 const statusColor: Record<string, string> = {
   pending:    '#f59e0b',
@@ -24,6 +26,9 @@ export default function OrdersPage() {
   const { t } = useTranslation();
   const { businessId } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [filter, setFilter] = useState<'active' | 'completed-2w' | 'completed-custom'>('active');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
 
   useEffect(() => {
     if (!businessId) return;
@@ -32,14 +37,94 @@ export default function OrdersPage() {
       orderBy('createdAt', 'desc'),
     );
     return onSnapshot(q, (snap) => {
-      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) } as Order)));
+      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) } as Order));
+      // Firestore's orderBy sorts by type before value, so legacy string `createdAt`
+      // values don't interleave correctly with Timestamp values — re-sort client-side.
+      docs.sort((a, b) => toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime());
+      setOrders(docs);
     });
   }, [businessId]);
 
+  let visibleOrders: Order[];
+  if (filter === 'active') {
+    visibleOrders = orders.filter((o) => !TERMINAL_STATUSES.has(o.status));
+  } else {
+    const completed = orders.filter((o) => TERMINAL_STATUSES.has(o.status));
+    if (filter === 'completed-2w') {
+      const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+      visibleOrders = completed.filter((o) => toDate(o.createdAt).getTime() >= cutoff);
+    } else {
+      const fromTime = customFrom ? new Date(customFrom).getTime() : -Infinity;
+      const toTime = customTo ? new Date(customTo).getTime() + 24 * 60 * 60 * 1000 - 1 : Infinity;
+      visibleOrders = completed.filter((o) => {
+        const t = toDate(o.createdAt).getTime();
+        return t >= fromTime && t <= toTime;
+      });
+    }
+  }
+
   return (
     <div>
-      <h2>{t('orders.title')}</h2>
-      {orders.length === 0 && <p style={{ color: '#999' }}>{t('orders.noOrders')}</p>}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+        <h2>{t('orders.title')}</h2>
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as 'active' | 'completed-2w' | 'completed-custom')}
+            aria-label={t('orders.filter.label')}
+            style={{
+              padding: '0.35rem 2rem 0.35rem 0.6rem',
+              fontSize: '0.78rem',
+              color: '#555',
+              background: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: 6,
+              cursor: 'pointer',
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              outline: 'none',
+            }}
+          >
+            <option value="active">{t('orders.filter.active')}</option>
+            <option value="completed-2w">{t('orders.filter.completed2w')}</option>
+            <option value="completed-custom">{t('orders.filter.completedCustom')}</option>
+          </select>
+          <span style={{
+            position: 'absolute',
+            right: '0.5rem',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            pointerEvents: 'none',
+            fontSize: '0.6rem',
+            color: '#999',
+          }}>
+            ▼
+          </span>
+        </div>
+        {filter === 'completed-custom' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: '#555' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              {t('orders.filter.from')}
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem', border: '1px solid #e5e7eb', borderRadius: 6, outline: 'none' }}
+              />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              {t('orders.filter.to')}
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem', border: '1px solid #e5e7eb', borderRadius: 6, outline: 'none' }}
+              />
+            </label>
+          </div>
+        )}
+      </div>
+      {visibleOrders.length === 0 && <p style={{ color: '#999' }}>{t('orders.noOrders')}</p>}
       <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
         <thead>
@@ -52,7 +137,7 @@ export default function OrdersPage() {
           </tr>
         </thead>
         <tbody>
-          {orders.map((order) => (
+          {visibleOrders.map((order) => (
             <tr key={order.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
               <td style={{ padding: '0.75rem 0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
