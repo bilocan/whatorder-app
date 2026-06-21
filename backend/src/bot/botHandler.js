@@ -7,7 +7,7 @@ const { t } = require('./templates');
 const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { sendCatalog, getBusinessesInfo, sendRestaurantPicker } = require('./botHelpers');
 const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/restaurant');
-const { handleAwaitingSpecialRequests, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming } = require('./states/checkout');
+const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { tryTextIntentOrder } = require('./intentOrder');
 const { handleIntentCustomize } = require('./intentCustomize');
@@ -20,12 +20,12 @@ const STATE_HANDLERS = {
   selecting_restaurant:             handleSelectingRestaurant,
   selecting:                        handleSelecting,
   customizing_intent:               handleIntentCustomize,
-  awaiting_special_requests:        handleAwaitingSpecialRequests,
   awaiting_order_type:              handleAwaitingOrderType,
   awaiting_delivery_address_choice: handleAwaitingDeliveryAddressChoice,
   awaiting_delivery_address:        handleAwaitingDeliveryAddress,
   awaiting_name:                    handleAwaitingName,
   confirming:                       handleConfirming,
+  awaiting_confirm_note:            handleAwaitingConfirmNote,
 };
 
 async function deleteStale(phone, session) {
