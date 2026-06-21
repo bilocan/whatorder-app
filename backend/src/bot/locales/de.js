@@ -38,14 +38,17 @@ module.exports = {
 
   orderTotal: (total) => `Gesamt: €${total}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Fertig in ~${prepMins} Min. (gegen ${pickupTime})\n\nWie lautet Ihr Name?`,
-  finalConfirmBody: (name, total, pickupTime, deliveryAddress) => {
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes) => {
     const detail = deliveryAddress
       ? `🚚 Lieferung an: ${deliveryAddress}`
       : `⏱️ Fertig gegen ${pickupTime}`;
-    return `✅ Fast fertig!\n\n👤 ${name}\n💶 Gesamt: €${total}\n${detail}\n\nBestellung bestätigen?`;
+    const notesLine = notes ? `\n📝 Notiz: ${notes}` : '';
+    return `✅ Fast fertig!\n\n👤 ${name}\n💶 Gesamt: €${total}\n${detail}${notesLine}\n\nBestellung bestätigen?`;
   },
   confirmOrderBtn: () => 'Bestätigen ✅',
-  cancelOrderBtn: () => 'Abbrechen ❌',
+  addNoteBtn: () => 'Notiz hinzufügen 📝',
+  backToCartBtn: () => 'Zurück zum Warenkorb 🛒',
+  addNotePrompt: () => 'Schreiben Sie Ihren besonderen Wunsch, Ihre Allergie oder Notiz.',
   confirmPrompt: () => 'YES zum Bestätigen, NO zum Abbrechen.',
   yesNoOnly: () => 'Bitte YES oder NO schreiben.',
   orderConfirmed: (shortId) => `✅ Bestellung erhalten! Bestellnr.: #${shortId}\n\nWir benachrichtigen Sie wenn sie fertig ist. Danke! 🙏`,
@@ -62,10 +65,6 @@ module.exports = {
   catalogBody: (name) => `👋 Willkommen bei ${name}!\n\nStöbern Sie im Menü und tippen Sie auf "In den Warenkorb". Wenn Sie fertig sind, senden Sie Ihren Warenkorb.`,
   catalogUnavailable: () => 'Unser Katalog ist noch nicht eingerichtet. Bitte kontaktieren Sie uns direkt.',
 
-  specialRequestsPrompt: () => 'Haben Sie besondere Wünsche, Allergien oder Anmerkungen?\n\nTippen Sie diese hier ein oder tippen Sie auf Überspringen.',
-  skipBtn: () => 'Überspringen',
-  editCartBtn:  () => 'Warenkorb bearbeiten',
-  editCartBody: () => 'Tippen Sie unten, um Ihren Warenkorb zu bearbeiten.',
   askName: () => 'Wie lautet Ihr Name für die Bestellung?',
 
   orderApproved:  (shortId) => `✅ Bestellung #${shortId} angenommen! Wir beginnen bald mit der Zubereitung.`,

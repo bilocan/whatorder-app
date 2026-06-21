@@ -38,14 +38,17 @@ module.exports = {
 
   orderTotal: (total) => `Toplam: €${total}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Tahmini hazırlık: ~${prepMins} dk (saat ${pickupTime} civarı)\n\nAdınızı yazar mısınız?`,
-  finalConfirmBody: (name, total, pickupTime, deliveryAddress) => {
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes) => {
     const detail = deliveryAddress
       ? `🚚 Teslimat adresi: ${deliveryAddress}`
       : `⏱️ Hazır saat: ~${pickupTime}`;
-    return `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n${detail}\n\nSiparişi onaylıyor musunuz?`;
+    const notesLine = notes ? `\n📝 Not: ${notes}` : '';
+    return `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n${detail}${notesLine}\n\nSiparişi onaylıyor musunuz?`;
   },
   confirmOrderBtn: () => 'Onayla ✅',
-  cancelOrderBtn: () => 'İptal ❌',
+  addNoteBtn: () => 'Not ekle 📝',
+  backToCartBtn: () => 'Sepete dön 🛒',
+  addNotePrompt: () => 'Özel isteğinizi, alerjinizi veya notunuzu yazın.',
   confirmPrompt: () => 'Onaylamak için YES, iptal için NO yazın.',
   yesNoOnly: () => 'Lütfen YES veya NO yazın.',
   orderConfirmed: (shortId) => `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\nHazır olduğunda size bildireceğiz. Teşekkürler! 🙏`,
@@ -62,10 +65,6 @@ module.exports = {
   catalogBody: (name) => `👋 ${name}'a hoş geldiniz!\n\nMenüye göz atın ve istediğiniz ürünleri sepete ekleyin. Hazır olduğunuzda sepetinizi gönderin.`,
   catalogUnavailable: () => 'Kataloğumuz henüz hazır değil. Sipariş için lütfen bize doğrudan ulaşın.',
 
-  specialRequestsPrompt: () => 'Özel isteğiniz, alerji durumunuz veya notunuz var mı?\n\nBuraya yazabilirsiniz, yoksa Atla tuşuna basın.',
-  skipBtn: () => 'Atla',
-  editCartBtn:  () => 'Sepeti düzenle',
-  editCartBody: () => 'Sepetinizi düzenlemek için aşağıya dokunun.',
   askName: () => 'Sipariş için adınızı yazar mısınız?',
 
   orderApproved:  (shortId) => `✅ Sipariş #${shortId} onaylandı! Kısa süre içinde hazırlanmaya başlanacak.`,
