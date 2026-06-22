@@ -132,6 +132,20 @@ const MENU_TEXT_INTENT_CALLS = [
   ['disambigEachBtn', []],
 ];
 
+const BUTTON_LABEL_KEYS = Object.keys(en).filter(k => k.endsWith('Btn') || k === 'restaurantPickerButton');
+
+describe('WhatsApp button label length (max 20)', () => {
+  for (const [name, locale] of Object.entries({ de, tr, en })) {
+    test.each(BUTTON_LABEL_KEYS)(`${name}.%s`, (key) => {
+      const fn = locale[key];
+      if (typeof fn !== 'function') return;
+      const label = fn();
+      expect([...label].length).toBeLessThanOrEqual(20);
+      expect(label.trim().length).toBeGreaterThan(0);
+    });
+  }
+});
+
 for (const [name, locale] of Object.entries({ de, tr, en })) {
   describe(`${name} menu/text/intent locale functions`, () => {
     test.each(MENU_TEXT_INTENT_CALLS)('%s', (key, args) => {

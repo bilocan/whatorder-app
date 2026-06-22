@@ -4,7 +4,7 @@
 // axios so the real API call code is also exercised.
 jest.mock('axios');
 
-const { sendText, sendListMessage, sendButtonMessage, deleteMessage } = require('../whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, deleteMessage, clampWaButtonTitle } = require('../whatsapp');
 
 let consoleSpy;
 
@@ -97,6 +97,39 @@ describe('sendButtonMessage', () => {
     const { footer: _omit, ...noFooter } = payload;
     await expect(sendButtonMessage('+43123456789', noFooter)).resolves.toMatch(/^test-wamid-/);
   });
+
+  test('clamps button titles longer than 20 chars', async () => {
+    await sendButtonMessage('+43123456789', {
+      body: 'Pick',
+      buttons: [{ id: 'btn_long', title: 'Zurück zum Warenkorb 🛒' }],
+    });
+    const logged = consoleSpy.mock.calls.map(c => c.join(' ')).join('\n');
+    expect(logged).toContain('Zurück zum Warenkorb');
+    expect(logged).not.toContain('Zurück zum Warenkorb 🛒');
+  });
+
+  test('uses fallback when button title is empty', async () => {
+    await sendButtonMessage('+43123456789', {
+      body: 'Pick',
+      buttons: [{ id: 'btn_empty', title: '   ' }],
+    });
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('…'));
+  });
+});
+
+describe('clampWaButtonTitle', () => {
+  test('passes through short titles', () => {
+    expect(clampWaButtonTitle('Confirm')).toBe('Confirm');
+  });
+
+  test('truncates to 20 code points', () => {
+    expect([...clampWaButtonTitle('Zurück zum Warenkorb 🛒')].length).toBeLessThanOrEqual(20);
+  });
+
+  test('returns fallback for blank input', () => {
+    expect(clampWaButtonTitle('')).toBe('…');
+    expect(clampWaButtonTitle('   ')).toBe('…');
+  });
 });
 
 describe('deleteMessage', () => {
@@ -188,6 +221,19 @@ describe('production paths (NODE_ENV overridden)', () => {
     const payload = axios.post.mock.calls[0][1];
     expect(payload.interactive.action.buttons).toHaveLength(2);
     expect(payload.interactive.action.buttons[0]).toEqual({ type: 'reply', reply: { id: 'btn_yes', title: 'Yes' } });
+  });
+
+  test('sendButtonMessage clamps overlong titles in API payload', async () => {
+    axios.post.mockResolvedValue({ data: {} });
+
+    await sendButtonMessage('+43123456789', {
+      body: 'Confirm?',
+      buttons: [{ id: 'btn_back', title: 'Zurück zum Warenkorb 🛒' }],
+    });
+
+    const title = axios.post.mock.calls[0][1].interactive.action.buttons[0].reply.title;
+    expect([...title].length).toBeLessThanOrEqual(20);
+    expect(title.length).toBeGreaterThan(0);
   });
 
   test('sendButtonMessage omits footer field when not provided', async () => {
