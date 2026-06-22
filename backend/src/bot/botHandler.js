@@ -7,7 +7,7 @@ const { t } = require('./templates');
 const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { getBusinessesInfo, sendRestaurantPicker } = require('./botHelpers');
 const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/restaurant');
-const { handleAwaitingSpecialRequests, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming } = require('./states/checkout');
+const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
 const { isGreetingOnly } = require('./intentParser');
@@ -20,12 +20,13 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsi
 const GREETING_FRESH_START_STATES = new Set([
   'confirming',
   'awaiting_name',
-  'awaiting_special_requests',
   'awaiting_order_type',
   'awaiting_delivery_address',
   'awaiting_delivery_address_choice',
+  'awaiting_confirm_note',
   'selecting',
   'customizing_intent',
+  'disambiguating_intent',
 ]);
 
 const STATE_HANDLERS = {
@@ -34,12 +35,12 @@ const STATE_HANDLERS = {
   selecting:                        handleSelecting,
   customizing_intent:               handleIntentCustomize,
   disambiguating_intent:            handleDisambiguatingIntent,
-  awaiting_special_requests:        handleAwaitingSpecialRequests,
   awaiting_order_type:              handleAwaitingOrderType,
   awaiting_delivery_address_choice: handleAwaitingDeliveryAddressChoice,
   awaiting_delivery_address:        handleAwaitingDeliveryAddress,
   awaiting_name:                    handleAwaitingName,
   confirming:                       handleConfirming,
+  awaiting_confirm_note:            handleAwaitingConfirmNote,
 };
 
 async function deleteStale(phone, session) {

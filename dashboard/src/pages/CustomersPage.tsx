@@ -233,7 +233,7 @@ export default function CustomersPage() {
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>
                     €{(c.totalSpent ?? 0).toFixed(2)}
                   </td>
-                  <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', color: '#666' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', fontWeight: 600 }}>
                     {c.lastOrderDate
                       ? toDate(c.lastOrderDate).toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: '2-digit' })
                       : '—'}

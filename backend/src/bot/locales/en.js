@@ -38,14 +38,17 @@ module.exports = {
 
   orderTotal: (total) => `Total: €${total}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Ready in ~${prepMins} min (around ${pickupTime})\n\nWhat's your name for the order?`,
-  finalConfirmBody: (name, total, pickupTime, deliveryAddress) => {
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes) => {
     const detail = deliveryAddress
       ? `🚚 Delivery to: ${deliveryAddress}`
       : `⏱️ Ready around ${pickupTime}`;
-    return `✅ Almost done!\n\n👤 ${name}\n💶 Total: €${total}\n${detail}\n\nConfirm your order?`;
+    const notesLine = notes ? `\n📝 Note: ${notes}` : '';
+    return `✅ Almost done!\n\n👤 ${name}\n💶 Total: €${total}\n${detail}${notesLine}\n\nConfirm your order?`;
   },
   confirmOrderBtn: () => 'Confirm ✅',
-  cancelOrderBtn: () => 'Cancel ❌',
+  addNoteBtn: () => 'Add note 📝',
+  backToCartBtn: () => 'Back to cart 🛒',
+  addNotePrompt: () => 'Type your special request, allergy, or note.',
   confirmPrompt: () => 'Type YES to confirm, NO to cancel.',
   yesNoOnly: () => 'Please type YES or NO.',
   orderConfirmed: (shortId) => `✅ Order received! Order #${shortId}\n\nWe'll notify you when it's ready. Thank you! 🙏`,
@@ -62,10 +65,6 @@ module.exports = {
   catalogBody: (name) => `👋 Welcome to ${name}!\n\nBrowse the menu and tap "Add to Cart" on items you'd like to order. When you're done, send your cart.`,
   catalogUnavailable: () => 'Our catalog is not set up yet. Please contact us directly to order.',
 
-  specialRequestsPrompt: () => 'Any special requests, allergies, or notes?\n\nType them here, or tap Skip if none.',
-  skipBtn: () => 'Skip',
-  editCartBtn:  () => 'Edit cart',
-  editCartBody: () => 'Tap below to edit your cart.',
   askName: () => "What's your name for the order?",
 
   orderApproved:  (shortId) => `✅ Order #${shortId} accepted! We'll start preparing it shortly.`,
