@@ -20,12 +20,19 @@ jest.mock('../menuService');
 jest.mock('../orderService');
 jest.mock('../../lib/whatsapp');
 jest.mock('../../lib/geocode');
-jest.mock('../../lib/collections', () => ({ customersRef: jest.fn() }));
+jest.mock('../../lib/collections', () => ({
+  customersRef: jest.fn(),
+  ordersRef: jest.fn(() => ({
+    limit: jest.fn(() => ({
+      get: jest.fn().mockResolvedValue({ docs: [] }),
+    })),
+  })),
+}));
 
 const { handleMessage } = require('../botHandler');
 const { getSession, setSession, patchSession } = require('../sessionStore');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
-const { createOrder } = require('../orderService');
+const { createOrder, getLastOrderForCustomer } = require('../orderService');
 const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage } = require('../../lib/whatsapp');
 const { reverseGeocode } = require('../../lib/geocode');
 const { customersRef } = require('../../lib/collections');
@@ -81,6 +88,20 @@ const MENU = [
   { id: 'item_2', name: 'Ayran',  price: 2.00, category: 'drinks', description: 'Yogurt drink', available: true },
 ];
 
+const BEILAGEN_WITH_CHILI = {
+  id: 'inserts',
+  label: 'Inserts',
+  type: 'multi',
+  required: false,
+  multiDefault: 'all',
+  options: [
+    { id: 'tomato', label: 'Tomato' },
+    { id: 'salad', label: 'Salad' },
+    { id: 'onion', label: 'Onion' },
+    { id: 'chili', label: 'Scharfe Sauce' },
+  ],
+};
+
 const BIZ_INFO = { name: 'Döner Palace', avgPrepTime: 20, catalogId: 'cat_123', alertPhone: '+43699123456', address: 'Musterstrasse 1, 1010 Wien', botLanguage: 'de' };
 
 function mockCustomerProfile(data) {
@@ -93,6 +114,7 @@ beforeEach(() => {
   getMenu.mockResolvedValue(MENU);
   getBusinessInfo.mockResolvedValue(BIZ_INFO);
   createOrder.mockResolvedValue('order_abc123');
+  getLastOrderForCustomer.mockResolvedValue(null);
   sendText.mockResolvedValue();
   sendListMessage.mockResolvedValue('list_msg_id');
   sendButtonMessage.mockResolvedValue();
@@ -112,15 +134,24 @@ function msg(overrides) {
   return { from: FROM, contactName: 'Test User', type: 'text', text: '', id: null, items: null, ...overrides };
 }
 
+function expectOrderEntryPrompt() {
+  expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+    buttons: expect.arrayContaining([
+      expect.objectContaining({ id: 'btn_search' }),
+      expect.objectContaining({ id: 'btn_view_full_menu' }),
+    ]),
+  }));
+}
+
 describe('Full flow: language detection → catalog → cart → name → confirm → order', () => {
 
-  test('Step 1: first message triggers language detection and shows catalog', async () => {
+  test('Step 1: first message triggers language detection and shows order entry prompt', async () => {
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'tr', state: 'browsing' }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expectOrderEntryPrompt();
   });
 
   test('Step 2: cart_submitted skips notes and moves straight to awaiting_name (no known name)', async () => {
@@ -325,13 +356,13 @@ describe('Edge cases', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ textMenuIndex: expect.any(Array) }));
   });
 
-  test('no WHATSAPP_FLOW_ID falls back to list menu', async () => {
+  test('no WHATSAPP_FLOW_ID falls back to order entry on first message', async () => {
     delete process.env.WHATSAPP_FLOW_ID;
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Hello' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expectOrderEntryPrompt();
     expect(sendFlowMessage).not.toHaveBeenCalled();
   });
 
@@ -348,21 +379,21 @@ describe('Edge cases', () => {
     }));
   });
 
-  test('default text in browsing state shows catalog', async () => {
+  test('default text in browsing state shows order entry prompt', async () => {
     getSession.mockResolvedValue({ language: 'en', state: 'browsing' });
 
     await handleMessage(ROUTING, msg({ text: 'something random' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expectOrderEntryPrompt();
   });
 
-  test('flow failure falls back to list menu', async () => {
+  test('flow failure falls back to order entry on first message', async () => {
     sendFlowMessage.mockRejectedValue(new Error('API error'));
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Hello' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expectOrderEntryPrompt();
   });
 });
 
@@ -692,7 +723,7 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expectOrderEntryPrompt();
   });
 
   test('9h idle + browsing with no updatedAt → does NOT show picker (no timestamp = no TTL)', async () => {
@@ -700,7 +731,7 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expectOrderEntryPrompt();
   });
 });
 
@@ -768,14 +799,16 @@ describe('Language override via keyword', () => {
 // ─── Empty menu ───────────────────────────────────────────────────────────────
 
 describe('Empty menu', () => {
-  test('shows menuEmpty text when no items in menu', async () => {
-    getBusinessInfo.mockResolvedValue({ name: 'Empty Bistro', avgPrepTime: 20 }); // no catalogId → falls to sendMenu
+  test('shows order entry when no items and customer types unknown item', async () => {
+    getBusinessInfo.mockResolvedValue({ name: 'Empty Bistro', avgPrepTime: 20 });
     getMenu.mockResolvedValue([]);
     getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
 
     await handleMessage(ROUTING, msg({ text: 'anything' }));
 
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('No items'));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('anything'),
+    }));
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 });
@@ -789,7 +822,8 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
     );
   });
 
-  test('valid restaurant list_reply → browsing state and catalog for selected restaurant', async () => {
+  test('valid restaurant list_reply → browsing state and order entry for selected restaurant', async () => {
+    getLastOrderForCustomer.mockResolvedValue(null);
     getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_biz_b' }));
@@ -798,7 +832,25 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
       state: 'browsing',
       businessId: 'biz_b',
     }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expectOrderEntryPrompt();
+  });
+
+  test('valid restaurant list_reply → reorder prompt when order history exists', async () => {
+    getLastOrderForCustomer.mockResolvedValue({
+      items: [{ name: 'Döner', qty: 2, price: 8.5 }],
+      status: 'delivered',
+    });
+    getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_biz_b' }));
+
+    expect(getLastOrderForCustomer).toHaveBeenCalledWith('biz_b', FROM);
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_reorder_confirm' }),
+      ]),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('invalid restaurant id in list_reply → re-shows picker without state change', async () => {
@@ -902,7 +954,7 @@ describe('Intent ordering (Tier A)', () => {
       body: expect.stringContaining('Döner'),
       buttons: expect.arrayContaining([
         expect.objectContaining({ id: 'btn_intent_confirm' }),
-        expect.objectContaining({ id: 'btn_intent_edit_menu' }),
+        expect.objectContaining({ id: 'btn_intent_change' }),
       ]),
     }));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
@@ -948,6 +1000,104 @@ describe('Intent ordering (Tier A)', () => {
     expect(setSession.mock.invocationCallOrder[0]).toBeLessThan(sendButtonMessage.mock.invocationCallOrder[0]);
   });
 
+  test('proposal edit: remove item re-shows confirm without catalog', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ, basket: [],
+      pendingIntentItems: [
+        { name: 'Döner', qty: 2, price: 8.50, menuItemId: 'item_1', optionGroups: [] },
+        { name: 'Ayran', qty: 1, price: 2.00, menuItemId: 'item_2', optionGroups: [] },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'remove ayran' }));
+
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.not.stringContaining('Ayran'),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      pendingIntentItems: [expect.objectContaining({ name: 'Döner', qty: 2 })],
+    }));
+  });
+
+  test('proposal edit: pizza cikar removes pizza (TR suffix remove)', async () => {
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'browsing', businessId: BIZ, basket: [],
+      pendingIntentItems: [
+        { name: 'Kebap Sandwich Huhn', qty: 2, price: 15.00, menuItemId: 'item_1', optionGroups: [] },
+        { name: 'Pizza della Casa (33cm)', qty: 1, price: 14.90, menuItemId: 'item_p1', optionGroups: [] },
+        { name: 'Coca Cola 0.33L', qty: 1, price: 2.90, menuItemId: 'item_2', optionGroups: [] },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Pizza cikar' }));
+
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.not.stringContaining('Pizza'),
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Kebap'),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      pendingIntentItems: expect.not.arrayContaining([
+        expect.objectContaining({ name: expect.stringMatching(/pizza/i) }),
+      ]),
+    }));
+  });
+
+  test('proposal edit: make it 1 döner changes qty in proposal', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ, basket: [],
+      pendingIntentItems: [
+        { name: 'Döner', qty: 2, price: 8.50, menuItemId: 'item_1', optionGroups: [] },
+        { name: 'Ayran', qty: 1, price: 2.00, menuItemId: 'item_2', optionGroups: [] },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'make it 1 döner' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      pendingIntentItems: expect.arrayContaining([
+        expect.objectContaining({ name: 'Döner', qty: 1 }),
+        expect.objectContaining({ name: 'Ayran', qty: 1 }),
+      ]),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('proposal edit: actually replaces whole proposal', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ, basket: [],
+      pendingIntentItems: [
+        { name: 'Döner', qty: 2, price: 8.50, menuItemId: 'item_1', optionGroups: [] },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'actually 1 ayran' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      pendingIntentItems: [expect.objectContaining({ name: 'Ayran', qty: 1 })],
+    }));
+  });
+
+  test('btn_intent_change sends edit hint without opening catalog', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ, basket: [],
+      pendingIntentItems: [
+        { name: 'Ayran', qty: 1, price: 2.00, menuItemId: 'item_2', optionGroups: [] },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_intent_change' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('remove'));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
   test('btn_intent_confirm asks same-or-each when qty > 1', async () => {
     getSession.mockResolvedValue({
       language: 'tr', state: 'browsing', businessId: BIZ, basket: [],
@@ -976,6 +1126,41 @@ describe('Intent ordering (Tier A)', () => {
         expect.objectContaining({ id: 'btn_intent_each_opts' }),
       ]),
     }));
+  });
+
+  test('customizing_intent per-unit modifier text skips same-or-each buttons', async () => {
+    const inserts = BEILAGEN_WITH_CHILI;
+    let stored = {
+      language: 'de',
+      state: 'customizing_intent',
+      businessId: BIZ,
+      basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+      intentCustomize: {
+        queue: [{
+          name: 'Kebap Sandwich Huhn', qty: 2, price: 7.50, menuItemId: 'item_1',
+          optionGroups: [inserts],
+        }],
+        groupIdx: 0,
+        selections: {},
+        readyBasket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+        unitMode: null,
+        unitIndex: 1,
+        unitTotal: 2,
+      },
+    };
+    getSession.mockImplementation(async () => ({ ...stored }));
+    setSession.mockImplementation(async (_phone, data) => { stored = { ...data }; });
+
+    await handleMessage(ROUTING, msg({
+      text: 'Eine mit allem und andere ohne Zwiebel und Schaf bitte',
+    }));
+
+    expect(stored.state).toBe('browsing');
+    expect(stored.basket).toEqual([
+      { name: 'Ayran', qty: 1, price: 2.00 },
+      { name: 'Kebap Sandwich Huhn — Tomato, Salad, Onion, Scharfe Sauce', qty: 1, price: 7.50 },
+      { name: 'Kebap Sandwich Huhn — Tomato, Salad', qty: 1, price: 7.50 },
+    ]);
   });
 
   test('customizing_intent same mode completes with multi inserts', async () => {
@@ -1070,21 +1255,85 @@ describe('Intent ordering (Tier A)', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
-  test('unmatched intent text falls back to catalog', async () => {
+  test('unmatched intent text shows order entry with no-match hint', async () => {
     getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
 
     await handleMessage(ROUTING, msg({ text: '2x burger and fries' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('burger'),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_search' }),
+        expect.objectContaining({ id: 'btn_view_full_menu' }),
+      ]),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
-  test('greeting first message still shows menu', async () => {
+  test('greeting first message shows order entry prompt', async () => {
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
-    expect(sendButtonMessage).not.toHaveBeenCalled();
+    expectOrderEntryPrompt();
+  });
+
+  test('btn_search opens search prompt', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_search' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('looking for'),
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_search_cancel' })]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ menuSearchActive: true }));
+  });
+
+  test('search mode text shows ranked search results', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ, basket: [], menuSearchActive: true,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'ayran' }));
+
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([
+            expect.objectContaining({ id: 'item_item_2', title: 'Ayran' }),
+          ]),
+        }),
+      ]),
+    }));
+  });
+
+  test('short lookup shows no-match hint when intent and search both fail', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: 'snack' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('No matches'),
+    }));
+  });
+
+  test('btn_popular shows configured popular items', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, popularItemIds: ['item_1', 'item_2'] });
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_popular' }));
+
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([
+            expect.objectContaining({ id: 'item_item_1' }),
+            expect.objectContaining({ id: 'item_item_2' }),
+          ]),
+        }),
+      ]),
+    }));
   });
 });
 
@@ -1311,13 +1560,12 @@ describe('Browsing state: basket keyword', () => {
     }));
   });
 
-  test('"sepet" keyword with empty basket shows catalog', async () => {
+  test('"sepet" keyword with empty basket shows order entry', async () => {
     getSession.mockResolvedValue({ language: 'tr', state: 'browsing', businessId: BIZ, basket: [] });
 
     await handleMessage(ROUTING, msg({ text: 'sepet' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
-    expect(sendButtonMessage).not.toHaveBeenCalled();
+    expectOrderEntryPrompt();
   });
 
   test('"warenkorb" keyword with items shows basket text', async () => {
@@ -1438,6 +1686,22 @@ describe('Confirming state: ambiguous input', () => {
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('YES or NO'));
   });
 
+  test('greeting in confirming state restarts ordering instead of yesNoOnly', async () => {
+    getLastOrderForCustomer.mockResolvedValue(null);
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'confirming',
+      businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'Ahmet',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('YES'));
+    expectOrderEntryPrompt();
+  });
+
   test('text "yes" confirms order (text-path CONFIRM keyword)', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'confirming',
@@ -1498,7 +1762,8 @@ describe('Multi-restaurant: newly added restaurant appears in picker', () => {
     expect(rows).toHaveLength(3);
   });
 
-  test('newly added restaurant (biz_c) is selectable and opens its catalog', async () => {
+  test('newly added restaurant (biz_c) is selectable and shows order entry', async () => {
+    getLastOrderForCustomer.mockResolvedValue(null);
     getSession.mockResolvedValue({ state: 'selecting_restaurant', language: 'en', basket: [], businessId: null });
 
     await handleMessage(ROUTING_3, msg({ type: 'list_reply', id: 'restaurant_biz_c' }));
@@ -1507,7 +1772,7 @@ describe('Multi-restaurant: newly added restaurant appears in picker', () => {
       state: 'browsing',
       businessId: 'biz_c',
     }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expectOrderEntryPrompt();
   });
 
   test('picker row title shows newly added restaurant name', async () => {
@@ -1986,6 +2251,266 @@ describe('Delivery flow: awaiting_delivery_address_choice', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_delivery_address_choice',
     }));
+  });
+});
+
+describe('Layer 0: reorder-first for returning customers', () => {
+  const LAST_ORDER = {
+    items: [{ name: 'Döner', qty: 2, price: 8.5 }, { name: 'Ayran', qty: 1, price: 2.0 }],
+    status: 'delivered',
+    createdAt: { toMillis: () => Date.now() },
+  };
+
+  test('first message shows reorder prompt when order history exists', async () => {
+    getLastOrderForCustomer.mockResolvedValue(LAST_ORDER);
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ text: 'Hallo' }));
+
+    expect(getLastOrderForCustomer).toHaveBeenCalledWith(BIZ, FROM);
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_reorder_confirm' }),
+        expect.objectContaining({ id: 'btn_reorder_browse' }),
+      ]),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('explicit new order text skips reorder and uses intent parser', async () => {
+    getLastOrderForCustomer.mockResolvedValue(LAST_ORDER);
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ text: '2x döner 1 ayran' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_intent_confirm' }),
+      ]),
+    }));
+  });
+
+  test('btn_reorder_confirm loads last order into basket', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'browsing',
+      businessId: BIZ,
+      basket: [],
+      pendingReorderItems: [{ name: 'Döner', qty: 2, price: 8.5 }],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_reorder_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: [{ name: 'Döner', qty: 2, price: 8.5 }],
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_confirm' }),
+      ]),
+    }));
+  });
+
+  test('btn_reorder_browse opens catalog instead', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'browsing',
+      businessId: BIZ,
+      basket: [],
+      pendingReorderItems: [{ name: 'Döner', qty: 2, price: 8.5 }],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_reorder_browse' }));
+
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+});
+
+describe('Layer 1: disambiguation for ambiguous item names', () => {
+  const AMBIG_MENU = [
+    { id: 'd1', name: 'Döner', price: 8.5, category: 'mains', available: true },
+    { id: 'd2', name: 'Döner Box', price: 9.5, category: 'mains', available: true },
+    { id: 'd3', name: 'Döner Teller', price: 11, category: 'mains', available: true },
+    { id: 'item_2', name: 'Ayran', price: 2, category: 'drinks', available: true },
+  ];
+
+  beforeEach(() => {
+    getMenu.mockResolvedValue(AMBIG_MENU);
+  });
+
+  test('single-word döner shows disambiguation list', async () => {
+    getSession.mockResolvedValue({ language: 'de', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: 'döner' }));
+
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: [expect.objectContaining({
+        rows: expect.arrayContaining([
+          expect.objectContaining({ id: 'disamb_d1' }),
+          expect.objectContaining({ id: 'disamb_d2' }),
+        ]),
+      })],
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_disamb_each' })]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'disambiguating_intent' }));
+  });
+
+  test('2x döner asks same-or-each then picks one by one', async () => {
+    const KEBAP_AMBIG = [
+      { id: 'd1', name: 'Adana Kebap', price: 9.5, category: 'Kebap', available: true },
+      { id: 'd2', name: 'Urfa Kebap', price: 9.5, category: 'Kebap', available: true },
+    ];
+    getMenu.mockResolvedValue(KEBAP_AMBIG);
+
+    let liveSession = { language: 'tr', state: 'browsing', businessId: BIZ, basket: [] };
+    getSession.mockImplementation(() => Promise.resolve({ ...liveSession }));
+    setSession.mockImplementation(async (_phone, data) => {
+      liveSession = { ...data };
+    });
+
+    await handleMessage(ROUTING, msg({ text: '2 döner' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_disamb_same' }),
+        expect.objectContaining({ id: 'btn_disamb_each' }),
+      ]),
+    }));
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_disamb_each' }));
+
+    expect(sendListMessage).toHaveBeenLastCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/1\/2/),
+    }));
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'disamb_d1' }));
+
+    expect(sendListMessage).toHaveBeenLastCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/2\/2/),
+    }));
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'disamb_d2' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Adana Kebap'),
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_confirm' })]),
+    }));
+    expect(liveSession.pendingIntentItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Adana Kebap', qty: 1 }),
+      expect.objectContaining({ name: 'Urfa Kebap', qty: 1 }),
+    ]));
+  });
+
+  test('menu keyword opens full catalog', async () => {
+    getSession.mockResolvedValue({ language: 'de', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: 'menü' }));
+
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+
+  test('typed cola pick during disambiguation completes intent proposal', async () => {
+    const COLA_MENU = [
+      { id: 'd1', name: 'Döner', price: 8.5, category: 'mains', available: true },
+      { id: 'item_2', name: 'Ayran', price: 2, category: 'drinks', available: true },
+      { id: 'cola_033', name: 'Coca Cola 0.33L', price: 2.9, category: 'drinks', available: true },
+      { id: 'cola_05', name: 'Coca Cola 0.5L', price: 3.5, category: 'drinks', available: true },
+    ];
+    getMenu.mockResolvedValue(COLA_MENU);
+
+    getSession.mockResolvedValue({
+      language: 'tr',
+      state: 'disambiguating_intent',
+      businessId: BIZ,
+      basket: [],
+      disambiguation: {
+        rawName: 'cola',
+        qty: 1,
+        candidates: [
+          { id: 'cola_033', name: 'Coca Cola 0.33L', price: 2.9 },
+          { id: 'cola_05', name: 'Coca Cola 0.5L', price: 3.5 },
+        ],
+        resolvedMatched: [
+          { menuItemId: 'd1', name: 'Döner', qty: 2, price: 8.5, optionGroups: [] },
+          { menuItemId: 'item_2', name: 'Ayran', qty: 1, price: 2, optionGroups: [] },
+        ],
+        unmatchedSoFar: [],
+        pendingRest: [],
+      },
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Coca Cola 0.33L €2.90' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Coca Cola 0.33L'),
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_confirm' })]),
+    }));
+    const proposalWrite = setSession.mock.calls.find(
+      ([, data]) => data.pendingIntentItems?.some(i => i.name === 'Coca Cola 0.33L'),
+    );
+    expect(proposalWrite).toBeDefined();
+    expect(proposalWrite[1]).not.toHaveProperty('disambiguation');
+    expect(proposalWrite[1].state).toBe('browsing');
+  });
+
+  test('confirm works when proposal pending but state stuck on disambiguating_intent', async () => {
+    getSession.mockResolvedValue({
+      language: 'tr',
+      state: 'disambiguating_intent',
+      businessId: BIZ,
+      basket: [],
+      disambiguation: { rawName: 'cola', qty: 1, candidates: [] },
+      pendingIntentItems: [
+        { menuItemId: 'd1', name: 'Döner', qty: 2, price: 8.5, optionGroups: [] },
+        { menuItemId: 'item_2', name: 'Ayran', qty: 1, price: 2, optionGroups: [] },
+        { menuItemId: 'cola_033', name: 'Coca Cola 0.33L', qty: 1, price: 2.9, optionGroups: [] },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_intent_confirm' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+    }));
+    const confirmWrite = setSession.mock.calls.find(
+      ([, data]) => data.basket?.some(i => i.name === 'Döner' && i.qty === 2),
+    );
+    expect(confirmWrite).toBeDefined();
+    expect(confirmWrite[1].state).toBe('browsing');
+    expect(confirmWrite[1]).not.toHaveProperty('pendingIntentItems');
+  });
+
+  test('iptal during disambiguation clears flow', async () => {
+    getSession.mockResolvedValue({
+      language: 'tr',
+      state: 'disambiguating_intent',
+      businessId: BIZ,
+      basket: [],
+      disambiguation: {
+        rawName: 'cola',
+        qty: 1,
+        candidates: [{ id: 'cola_033', name: 'Coca Cola 0.33L', price: 2.9 }],
+        resolvedMatched: [],
+        pendingRest: [],
+      },
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'iptal' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_search' }),
+        expect.objectContaining({ id: 'btn_view_full_menu' }),
+      ]),
+    }));
+    const clearedWrite = setSession.mock.calls.find(([, data]) => !data.disambiguation && !data.pendingIntentItems);
+    expect(clearedWrite).toBeDefined();
   });
 });
 

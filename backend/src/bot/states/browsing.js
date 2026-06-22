@@ -4,10 +4,39 @@ const { t } = require('../templates');
 const { buildBasketText, sendMenu, sendMenuPage, sendCatalog, groupMenuByCategory, decodeCategory } = require('../botHelpers');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
-const { tryTextIntentOrder, handleIntentButtons } = require('../intentOrder');
+const { tryTextIntentOrder, handleIntentButtons, isIntentConfirmText } = require('../intentOrder');
+const { tryProposalEdit, parseProposalEdit } = require('../proposalEdit');
+const { handleReorderButtons, tryOfferReorder } = require('../reorder');
+const { isMenuRequest, sendOrderEntryPrompt } = require('../orderEntry');
+const { isGreetingOnly, looksLikeOrderText } = require('../intentParser');
 const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
 const { resumeDeliveryCheckout, showDeliveryBasketGate, proceedFromConfirmedBasket } = require('./checkout');
+const { sendPopularBoard } = require('../popularBoard');
+const {
+  sendSearchPrompt,
+  handleSearchModeText,
+  tryMenuSearch,
+  isShortLookupText,
+  isSearchKeyword,
+} = require('../menuSearch');
+
+const INTENT_PROPOSAL_CLEAR = {
+  pendingIntentItems: undefined,
+  unmatchedIntentItems: undefined,
+  disambiguation: undefined,
+};
+
+function isFullOrderReplace(text, norm) {
+  const edit = parseProposalEdit(text, norm);
+  return edit?.type === 'replace';
+}
+
+function isShortProposalEdit(text, norm) {
+  const edit = parseProposalEdit(text, norm);
+  if (!edit) return false;
+  return edit.type !== 'replace';
+}
 
 async function openCatalog(from, session, lang, businessId, bodyOverride, sessionOverrides = {}) {
   const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId, bodyOverride);
@@ -15,6 +44,7 @@ async function openCatalog(from, session, lang, businessId, bodyOverride, sessio
     menuId,
     textMenuIndex,
     textMenuCategory,
+    ...INTENT_PROPOSAL_CLEAR,
     ...sessionOverrides,
   }, session);
 }
@@ -198,7 +228,27 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
 
   // Action buttons (post-add or basket view)
   if (type === 'button_reply') {
+    if (await handleReorderButtons({ from, session, lang, businessId, basket, id })) return;
     if (await handleIntentButtons({ from, session, lang, businessId, basket, id })) return;
+
+    if (id === 'btn_view_full_menu') {
+      await openCatalog(from, session, lang, businessId);
+      return;
+    }
+
+    if (id === 'btn_popular') {
+      await sendPopularBoard({ from, session, lang, businessId, basket });
+      return;
+    }
+
+    if (id === 'btn_search' || id === 'btn_search_cancel') {
+      if (id === 'btn_search_cancel') {
+        await sendOrderEntryPrompt({ from, session, lang, businessId, basket });
+        return;
+      }
+      await sendSearchPrompt({ from, session, lang, businessId, basket });
+      return;
+    }
 
     if (id === 'btn_add_more') {
       if (session.flow === 'list') {
@@ -282,22 +332,16 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     }
   }
 
-  // Text: numbered selection — skip default catalog resend for digit-only replies
-  if (type === 'text' && text?.trim() && /^[\d\s,;xX×*.+-]+$/.test(text.trim()) && /\d/.test(text)) {
-    if (await tryNumberSelectionOrder({ from, session, lang, businessId, basket, text })) return;
-    await sendText(from, t('textMenuPickCategory', lang));
+  // Text: full menu keyword (Layer 5 escape hatch)
+  if (type === 'text' && isMenuRequest(norm)) {
+    await openCatalog(from, session, lang, businessId);
     return;
   }
 
-  // Text: natural-language order intent (Tier A rules parser)
-  if (type === 'text' && text?.trim()) {
-    if (await tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm })) return;
-  }
-
-  // Text: basket keyword
+  // Text: basket keyword (before intent — "basket" is also ≥3 chars)
   if (type === 'text' && BASKET_KEYWORDS.has(norm)) {
     if (!basket.length) {
-      await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
+      await sendOrderEntryPrompt({ from, session, lang, businessId, bodyOverride: t('basketEmpty', lang) });
       return;
     }
     if (isGatedOnDeliveryMinimum(session)) {
@@ -315,8 +359,76 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     return;
   }
 
-  // Default: show catalog (with list fallback)
-  await openCatalog(from, session, lang, businessId);
+  // Text: search keyword → search prompt (Layer 2)
+  if (type === 'text' && isSearchKeyword(norm)) {
+    await sendSearchPrompt({ from, session, lang, businessId, basket });
+    return;
+  }
+
+  // Text: active search mode
+  if (type === 'text' && text?.trim() && session.menuSearchActive) {
+    if (await handleSearchModeText({ from, session, lang, businessId, basket, text, norm })) return;
+  }
+
+  // Text: numbered selection — skip default catalog resend for digit-only replies
+  if (type === 'text' && text?.trim() && /^[\d\s,;xX×*.+-]+$/.test(text.trim()) && /\d/.test(text)) {
+    if (await tryNumberSelectionOrder({ from, session, lang, businessId, basket, text })) return;
+    await sendText(from, t('textMenuPickCategory', lang));
+    return;
+  }
+
+  // Text: short edits / confirm while a proposal is pending (ohne ayran, cola, Hinzufügen)
+  if (type === 'text' && text?.trim() && session.pendingIntentItems?.length) {
+    if (isIntentConfirmText(text, lang)) {
+      if (await handleIntentButtons({
+        from, session, lang, businessId, basket, id: 'btn_intent_confirm',
+      })) return;
+    }
+    if (isShortProposalEdit(text, norm) && !isFullOrderReplace(text, norm)) {
+      if (await tryProposalEdit({ from, session, lang, businessId, basket, text, norm })) return;
+    }
+  }
+
+  // Text: natural-language order (clears stale proposals before AI/rules parse)
+  if (type === 'text' && text?.trim() && looksLikeOrderText(text, norm)) {
+    if (session.pendingIntentItems?.length && isFullOrderReplace(text, norm)) {
+      await patchSession(from, INTENT_PROPOSAL_CLEAR, session);
+      session = { ...session, ...INTENT_PROPOSAL_CLEAR };
+    }
+    const intentHandled = await tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm });
+    if (intentHandled === true) return;
+    if (intentHandled === 'llm_failed') {
+      await sendOrderEntryPrompt({
+        from, session, lang, businessId, basket,
+        bodyOverride: t('intentParseFailed', lang),
+      });
+      return;
+    }
+    if (isShortLookupText(text, norm)) {
+      if (await tryMenuSearch({ from, session, lang, businessId, basket, text })) return;
+    }
+    if (!session.pendingIntentItems?.length) {
+      await sendOrderEntryPrompt({
+        from, session, lang, businessId, basket,
+        bodyOverride: t('intentNoMatch', lang, text.trim()),
+      });
+      return;
+    }
+  }
+
+  // Text: greeting with empty basket — offer reorder (Layer 0) before order entry
+  if (type === 'text' && text?.trim() && isGreetingOnly(norm) && !basket.length) {
+    if (await tryOfferReorder({ from, session, lang, businessId, basket })) return;
+    await sendOrderEntryPrompt({ from, session, lang, businessId, basket });
+    return;
+  }
+
+  // Default: order entry prompt (Layer 1) when basket empty, else re-show menu
+  if (!basket.length) {
+    await sendOrderEntryPrompt({ from, session, lang, businessId, basket });
+  } else {
+    await openCatalog(from, session, lang, businessId);
+  }
 }
 
 module.exports = { handleSelecting, handleBrowsing };

@@ -11,6 +11,22 @@ jest.mock('../../lib/whatsapp');
 jest.mock('../menuService');
 jest.mock('../intentOrder', () => ({
   buildIntentConfirmBody: jest.fn(() => 'confirm body'),
+  sendIntentProposal: jest.fn(async (args) => {
+    const { patchSession } = require('../sessionStore');
+    const { sendButtonMessage } = require('../../lib/whatsapp');
+    await patchSession(args.from, {
+      state: 'browsing',
+      language: args.lang,
+      businessId: args.businessId,
+      basket: args.basket,
+      pendingIntentItems: args.matched,
+      unmatchedIntentItems: args.unmatched?.length ? args.unmatched : undefined,
+      textMenuIndex: args.session.textMenuIndex,
+      textMenuCategory: args.session.textMenuCategory,
+    }, args.session);
+    await sendButtonMessage(args.from, { body: 'confirm body', buttons: [] });
+    await patchSession(args.from, { pendingDeleteIds: ['btn_msg'] });
+  }),
 }));
 
 describe('tryNumberSelectionOrder', () => {

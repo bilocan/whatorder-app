@@ -2,8 +2,25 @@ const { sessionRef } = require('../lib/collections');
 const { db } = require('../lib/firebase');
 
 const CHECKOUT_FIELDS = ['flow', 'orderType', 'deliveryAddress', 'specialRequests', 'customerName', 'prepMins', 'pickupTime'];
-const MENU_BROWSE_FIELDS = ['textMenuIndex', 'textMenuCategory'];
+const MENU_BROWSE_FIELDS = ['textMenuIndex', 'textMenuCategory', 'menuSearchActive'];
 const INTENT_FIELDS = ['pendingIntentItems', 'unmatchedIntentItems', 'intentCustomize', 'pendingItem'];
+const REORDER_FIELDS = ['pendingReorderItems', 'pendingReorderUnmatched'];
+const DISAMBIGUATION_FIELDS = ['disambiguation'];
+
+/** Firestore rejects undefined at any depth — strip before write. */
+function stripUndefinedDeep(value) {
+  if (value === undefined) return undefined;
+  if (value === null || typeof value !== 'object') return value;
+  if (value instanceof Date) return value;
+  if (typeof value.toDate === 'function') return value; // Firestore Timestamp
+  if (Array.isArray(value)) return value.map(stripUndefinedDeep);
+  const out = {};
+  for (const [key, val] of Object.entries(value)) {
+    if (val === undefined) continue;
+    out[key] = stripUndefinedDeep(val);
+  }
+  return out;
+}
 
 function buildSessionWrite(session, overrides) {
   const data = {
@@ -15,14 +32,11 @@ function buildSessionWrite(session, overrides) {
     lng: session.lng ?? null,
     pendingDeleteIds: session.pendingDeleteIds ?? [],
   };
-  for (const key of [...CHECKOUT_FIELDS, ...MENU_BROWSE_FIELDS, ...INTENT_FIELDS]) {
+  for (const key of [...CHECKOUT_FIELDS, ...MENU_BROWSE_FIELDS, ...INTENT_FIELDS, ...REORDER_FIELDS, ...DISAMBIGUATION_FIELDS]) {
     if (session[key] != null) data[key] = session[key];
   }
   const merged = { ...data, ...overrides };
-  for (const key of Object.keys(merged)) {
-    if (merged[key] === undefined) delete merged[key];
-  }
-  return merged;
+  return stripUndefinedDeep(merged);
 }
 
 async function getSession(phone) {
@@ -31,10 +45,7 @@ async function getSession(phone) {
 }
 
 async function setSession(phone, data) {
-  const payload = { ...data, updatedAt: new Date() };
-  for (const key of Object.keys(payload)) {
-    if (payload[key] === undefined) delete payload[key];
-  }
+  const payload = stripUndefinedDeep({ ...data, updatedAt: new Date() });
   await sessionRef(phone).set(payload);
 }
 
@@ -56,10 +67,7 @@ async function patchSession(phone, overrides = {}, _baseSession = null) {
     const live = doc.exists ? doc.data() : DEFAULT_SESSION;
     const payload = buildSessionWrite(live, payloadOverrides);
     payload.updatedAt = new Date();
-    for (const key of Object.keys(payload)) {
-      if (payload[key] === undefined) delete payload[key];
-    }
-    transaction.set(ref, payload);
+    transaction.set(ref, stripUndefinedDeep(payload));
   });
 }
 
@@ -67,4 +75,6 @@ async function clearSession(phone) {
   await sessionRef(phone).delete();
 }
 
-module.exports = { getSession, setSession, patchSession, clearSession, buildSessionWrite };
+module.exports = {
+  getSession, setSession, patchSession, clearSession, buildSessionWrite, stripUndefinedDeep,
+};

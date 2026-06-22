@@ -1,25 +1,40 @@
-const { getSession, setSession, patchSession } = require('./sessionStore');
+const { getSession, setSession } = require('./sessionStore');
 const { getBusinessInfo } = require('./menuService');
 const { sendText, sendLocationRequest, sendFlowMessage, deleteMessage } = require('../lib/whatsapp');
 const { sortByDistance } = require('../lib/distance');
 const { detectLanguage, scoreLanguage, getOverride } = require('./languageDetector');
 const { t } = require('./templates');
 const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
-const { sendCatalog, getBusinessesInfo, sendRestaurantPicker } = require('./botHelpers');
+const { getBusinessesInfo, sendRestaurantPicker } = require('./botHelpers');
 const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/restaurant');
 const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
-const { tryTextIntentOrder } = require('./intentOrder');
+const { startRestaurantBrowsing } = require('./reorder');
+const { isGreetingOnly } = require('./intentParser');
 const { handleIntentCustomize } = require('./intentCustomize');
+const { handleDisambiguatingIntent } = require('./intentDisambiguate');
 
 const SWITCH_KEYWORDS = new Set(['switch', 'change', 'restaurants', 'back', 'home', 'wechseln', 'zurück', 'zuruck', 'değiştir', 'degistir', 'restoranlar', 'start']);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsing sessions
+// Greeting while stuck in checkout → fresh menu/reorder, not "type YES or NO"
+const GREETING_FRESH_START_STATES = new Set([
+  'confirming',
+  'awaiting_name',
+  'awaiting_order_type',
+  'awaiting_delivery_address',
+  'awaiting_delivery_address_choice',
+  'awaiting_confirm_note',
+  'selecting',
+  'customizing_intent',
+  'disambiguating_intent',
+]);
 
 const STATE_HANDLERS = {
   awaiting_location:                handleAwaitingLocation,
   selecting_restaurant:             handleSelectingRestaurant,
   selecting:                        handleSelecting,
   customizing_intent:               handleIntentCustomize,
+  disambiguating_intent:            handleDisambiguatingIntent,
   awaiting_order_type:              handleAwaitingOrderType,
   awaiting_delivery_address_choice: handleAwaitingDeliveryAddressChoice,
   awaiting_delivery_address:        handleAwaitingDeliveryAddress,
@@ -124,14 +139,9 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       return;
     }
     const freshSession = { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] };
-    if (type === 'text' && text?.trim()) {
-      const handled = await tryTextIntentOrder({
-        from, session: freshSession, lang, businessId: bid, basket: [], text, norm,
-      });
-      if (handled) return;
-    }
-    const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, bid);
-    await patchSession(from, { textMenuIndex, textMenuCategory, menuId }, freshSession);
+    await startRestaurantBrowsing({
+      from, session: freshSession, lang, businessId: bid, type, text, norm,
+    });
     return;
   }
 
@@ -143,6 +153,40 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     ? session.businessId
     : (routing.defaultBusinessId || routing.businessIds[0]);
   const basket = session.basket ?? [];
+
+  // Abandoned checkout + greeting → restart ordering (Layer 0 / catalog), not yesNoOnly
+  if (type === 'text' && isGreetingOnly(norm) && GREETING_FRESH_START_STATES.has(session.state)) {
+    const bidInfo = await getBusinessInfo(businessId);
+    if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
+      const _w = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
+      await sendText(from, t('restaurantClosed', lang, bidInfo.name, _w?.firstOrderTime ?? null, _w?.lastOrderTime ?? null));
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [] });
+      return;
+    }
+    if (bidInfo.isOnline === false || bidInfo.ordersOpen === false) {
+      await sendText(from, t('ordersClosedByOwner', lang, bidInfo.name));
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [] });
+      return;
+    }
+    await startRestaurantBrowsing({
+      from,
+      session: {
+        state: 'browsing',
+        language: lang,
+        basket: [],
+        businessId,
+        lat: session.lat ?? null,
+        lng: session.lng ?? null,
+        pendingDeleteIds: [],
+      },
+      lang,
+      businessId,
+      type,
+      text,
+      norm,
+    });
+    return;
+  }
 
   // Switch restaurant command — available from any state (multi only)
   if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {

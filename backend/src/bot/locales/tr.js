@@ -120,6 +120,7 @@ module.exports = {
   intentConfirmHeader: () => 'Anladım:',
   intentConfirmPrompt: () => 'Sepete eklensin mi?',
   intentConfirmBtn: () => 'Sepete ekle',
+  intentChangeBtn: () => 'Değiştir',
   intentEditMenuBtn: () => 'Menüye bak',
   intentUnmatched: (items) => `Bulunamadı: ${items}`,
   intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\n${groupLabel} seçin:`,
@@ -139,4 +140,43 @@ module.exports = {
   intentMultiDefaultNone: () => 'hiçbiri',
   intentMultiDefaultHint: () => 'Varsayılanı kullan\'a bas veya all / none / skip yaz (yukarıdaki varsayılan).',
   intentMultiDefaultBtn: () => 'Varsayılan',
+
+  reorderPromptHeader: () => '👋 Tekrar hoş geldin! Son siparişin:',
+  reorderConfirmPrompt: () => 'Aynısını tekrar sipariş et?',
+  reorderConfirmBtn: () => 'Aynısı ✅',
+  reorderBrowseBtn: () => 'Başka bir şey',
+  reorderUnmatched: (items) => `Artık mevcut değil: ${items}`,
+
+  orderEntryBody: () =>
+    'Ne sipariş etmek istersin?\n\nSiparişini yaz, örn. "2x döner, 1 ayran".\nVeya Popüler, Ara veya Tam menüye bas.',
+  popularBtn: () => 'Popüler',
+  searchBtn: () => 'Ara',
+  viewFullMenuBtn: () => 'Tam menü',
+  popularHeader: () => 'Popüler',
+  popularBody: () => 'En çok tercih edilenler. Eklemek için seç.',
+  popularSection: () => 'Popüler',
+  popularEmpty: () => 'Henüz popüler ürün yok. Ara veya Tam menüyü dene.',
+  searchPromptBody: () => 'Ne arıyorsun?\n\n1–2 kelime yaz, örn. "pizza" veya "kola".',
+  searchCancelBtn: () => 'Geri',
+  searchHeader: () => 'Ara',
+  searchResultsBody: (query) => `"${query}" için sonuçlar:`,
+  searchSection: () => 'Sonuçlar',
+  searchNoResults: (query) => `"${query}" için sonuç yok. Başka kelime dene veya Ara / Tam menü.`,
+  intentNoMatch: (text) => `"${text}" menüde yok. Ara veya Tam menüyü dene.`,
+  intentParseFailed: () => 'Siparişi anlayamadım. Örn. „2x döner, 1 ayran“ yaz veya Ara\'ya dokun.',
+
+  disambigHeader: () => 'Hangisini istiyorsun?',
+  disambigBody: (rawName, qty) => `${qty}x ${rawName} yazdın. Hangi ürün?`,
+  disambigUnitBody: (rawName, unitIndex, unitTotal) => `${rawName} ${unitIndex}/${unitTotal} — hangisi?`,
+  disambigSameOrEachPrompt: (qty, rawName) =>
+    `${qty}x ${rawName} sipariş ettin.\nHepsi aynı mı, tek tek mi seçelim?`,
+  disambigSameBtn: () => 'Hepsi aynı',
+  disambigEachBtn: () => 'Tek tek',
+  disambigBtn: () => 'Seç',
+  disambigSection: () => 'Eşleşenler',
+
+  proposalEditHint: () =>
+    'Ne değiştireyim?\n\nÖrnekler:\n• ayran çıkar\n• sadece 1 döner\n• ve 1 kola\n\nVeya yeni bir sipariş yaz.',
+  proposalEditNotFound: (name) => `"${name}" siparişinde yok. Tekrar dene veya Sepete ekle'ye bas.`,
+  proposalEditEmpty: () => 'Siparişin boş. Ne sipariş etmek istersin?',
 };
