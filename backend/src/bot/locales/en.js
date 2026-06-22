@@ -166,4 +166,7 @@ module.exports = {
     'What should I change?\n\nExamples:\n• remove ayran\n• make it 1 döner\n• add 1 cola\n\nOr send a new full order.',
   proposalEditNotFound: (name) => `Couldn't find "${name}" in your order. Try again or tap Add to basket.`,
   proposalEditEmpty: () => 'Your order is empty. What would you like?',
+  keypadCtaBody: () => 'Tap the button below to open the order keypad. Your basket stays saved.',
+  keypadCtaBtn: () => 'Open keypad',
+  keypadNotConfigured: () => 'The order keypad is not set up yet. Use the menu buttons or type your order.',
 };

@@ -4,7 +4,7 @@
 // axios so the real API call code is also exercised.
 jest.mock('axios');
 
-const { sendText, sendListMessage, sendButtonMessage, deleteMessage } = require('../whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, deleteMessage } = require('../whatsapp');
 
 let consoleSpy;
 
@@ -69,6 +69,26 @@ describe('sendListMessage', () => {
   test('works without optional footer', async () => {
     const { footer: _omit, ...noFooter } = payload;
     await expect(sendListMessage('+43123456789', noFooter)).resolves.toMatch(/^test-wamid-/);
+  });
+});
+
+describe('sendCtaUrlMessage', () => {
+  test('resolves without calling API and returns stub wamid', async () => {
+    await expect(sendCtaUrlMessage('+43123456789', {
+      body: 'Open keypad',
+      buttonLabel: 'Open keypad',
+      url: 'http://192.168.0.60:5173/keypad/biz',
+    })).resolves.toMatch(/^test-wamid-/);
+  });
+
+  test('includes url in output', async () => {
+    await sendCtaUrlMessage('43123456789', {
+      body: 'Tap below',
+      buttonLabel: 'Open keypad',
+      url: 'http://192.168.0.60/keypad/x',
+    });
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('192.168.0.60'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Open keypad'));
   });
 });
 

@@ -16,6 +16,7 @@ import RestaurantsPage from './pages/admin/RestaurantsPage';
 import RestaurantDetailPage from './pages/admin/RestaurantDetailPage';
 import EarningsPage from './pages/admin/EarningsPage';
 import SelectRestaurantPage from './pages/SelectRestaurantPage';
+import KeypadPage from './pages/KeypadPage';
 
 function DefaultRedirect() {
   const { isAdmin, businessId, businessIds } = useAuth();
@@ -32,6 +33,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/keypad/:businessId" element={<KeypadPage />} />
             <Route path="/select-restaurant" element={<SelectRestaurantPage />} />
             <Route path="/" element={<AuthGuard><Layout /></AuthGuard>}>
               <Route index element={<DefaultRedirect />} />

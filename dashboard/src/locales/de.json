@@ -232,6 +232,13 @@
       "saved": "Gespeichert",
       "error": "Fehler beim Speichern"
     },
+    "keypad": {
+      "title": "Bestell-Tastatur (POC)",
+      "description": "Große Aktionsbuttons für Kunden — öffnet WhatsApp mit vorausgefüllter Nachricht. Für Theken-QR oder Mitarbeiter-Tablet.",
+      "open": "Tastatur öffnen",
+      "copyLink": "Link kopieren",
+      "copied": "Kopiert"
+    },
     "hours": {
       "title": "Öffnungszeiten",
       "description": "Zeiten pro Tag festlegen. Der Bot lehnt Bestellungen außerhalb des Bestellfensters ab. Geschlossene Tage werden als gesperrt angezeigt.",

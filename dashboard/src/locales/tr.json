@@ -232,6 +232,13 @@
       "saved": "Kaydedildi",
       "error": "Kaydedilirken hata oluştu"
     },
+    "keypad": {
+      "title": "Sipariş klavyesi (POC)",
+      "description": "Müşteriler için büyük işlem düğmeleri — WhatsApp'ı hazır mesajla açar. Tezgah QR veya personel tableti için.",
+      "open": "Klavyeyi aç",
+      "copyLink": "Linki kopyala",
+      "copied": "Kopyalandı"
+    },
     "hours": {
       "title": "Çalışma Saatleri",
       "description": "Günlük saatleri ayarlayın. Bot, sipariş penceresi dışındaki siparişleri reddeder. Kapalı günler restoran seçicisinde \"🔒 Kapalı\" olarak gösterilir.",

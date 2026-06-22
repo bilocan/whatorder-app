@@ -26,7 +26,7 @@ const { handleMessage } = require('../botHandler');
 const { getSession, setSession, patchSession } = require('../sessionStore');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { createOrder, getLastOrderForCustomer } = require('../orderService');
-const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage } = require('../../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendFlowMessage, sendLocationRequest, sendImage } = require('../../lib/whatsapp');
 const { reverseGeocode } = require('../../lib/geocode');
 const { customersRef } = require('../../lib/collections');
 
@@ -97,6 +97,7 @@ beforeEach(() => {
   sendText.mockResolvedValue();
   sendListMessage.mockResolvedValue('list_msg_id');
   sendButtonMessage.mockResolvedValue();
+  sendCtaUrlMessage.mockResolvedValue();
   sendFlowMessage.mockResolvedValue(null);
   sendLocationRequest.mockResolvedValue();
   sendImage.mockResolvedValue();
@@ -1367,6 +1368,38 @@ describe('Browsing state: button actions', () => {
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
     expect(sendListMessage).toHaveBeenCalled();
+  });
+});
+
+// ─── Browsing state: keypad keyword ─────────────────────────────────────────
+
+describe('Browsing state: keypad keyword', () => {
+  const origKeypad = process.env.KEYPAD_BASE_URL;
+
+  afterEach(() => {
+    if (origKeypad === undefined) delete process.env.KEYPAD_BASE_URL;
+    else process.env.KEYPAD_BASE_URL = origKeypad;
+  });
+
+  test('"keypad" with basket sends CTA URL button and basket buttons', async () => {
+    process.env.KEYPAD_BASE_URL = 'http://test.local:5173';
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'keypad' }));
+
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: expect.stringContaining('http://test.local:5173/keypad'),
+      buttonLabel: expect.any(String),
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_confirm' }),
+      ]),
+    }));
   });
 });
 

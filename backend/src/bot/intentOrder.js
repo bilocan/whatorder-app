@@ -2,6 +2,7 @@ const { patchSession, getSession } = require('./sessionStore');
 const { sendButtonMessage, sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildBasketText, sendCatalog } = require('./botHelpers');
+const { sendBasketWithKeypad } = require('./keypadLink');
 const { getMenu } = require('./menuService');
 const { parseIntent, looksLikeOrderText } = require('./intentParser');
 const { matchIntentToMenu, mergeIntoBasket } = require('./intentMatcher');
@@ -105,8 +106,8 @@ async function handleIntentButtons({ from, session, lang, businessId, basket, id
       disambiguation: undefined,
       pendingDeleteIds: [],
     }, live);
-    await sendButtonMessage(from, {
-      body: buildBasketText(newBasket, lang),
+    await sendBasketWithKeypad({
+      from, lang, businessId, basket: newBasket,
       buttons: [
         { id: 'btn_add_more', title: t('addMoreBtn', lang) },
         { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },

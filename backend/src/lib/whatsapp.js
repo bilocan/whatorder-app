@@ -75,6 +75,28 @@ async function sendButtonMessage(to, { body, footer, buttons }) {
   return send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive });
 }
 
+// Opens URL in device browser when tapped (use instead of raw http links in message body).
+async function sendCtaUrlMessage(to, { body, footer, buttonLabel, url }) {
+  const normalized = normalizePhone(to);
+  if (process.env.NODE_ENV === 'test') {
+    console.log(`\n[WA CTA URL → ${normalized}]\n${body}\n[${buttonLabel}] → ${url}\n`);
+    return testId();
+  }
+  const interactive = {
+    type: 'cta_url',
+    body: { text: body },
+    action: {
+      name: 'cta_url',
+      parameters: {
+        display_text: String(buttonLabel).slice(0, 20),
+        url,
+      },
+    },
+  };
+  if (footer) interactive.footer = { text: footer };
+  return send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive });
+}
+
 // catalogId: Meta Commerce Manager catalog ID for the business
 // thumbnailProductId: retailer ID of the product to show as thumbnail (required by WhatsApp API)
 // Catalog message IDs are not returned — Meta does not support deleting catalog messages.
@@ -179,4 +201,4 @@ async function deleteMessage(messageId) {
   }
 }
 
-module.exports = { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendFlowMessage, sendLocationRequest, sendImage, deleteMessage };
+module.exports = { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendCatalogMessage, sendFlowMessage, sendLocationRequest, sendImage, deleteMessage };

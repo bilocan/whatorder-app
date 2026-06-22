@@ -232,6 +232,13 @@
       "saved": "Saved",
       "error": "Error saving"
     },
+    "keypad": {
+      "title": "Order keypad (POC)",
+      "description": "Big action buttons for customers — opens WhatsApp with a pre-filled message. For counter QR or staff tablet.",
+      "open": "Open keypad",
+      "copyLink": "Copy link",
+      "copied": "Copied"
+    },
     "hours": {
       "title": "Operating Hours",
       "description": "Set hours per day. Bot rejects orders outside the order window. Closed days show \"🔒 Closed\" in the restaurant picker.",

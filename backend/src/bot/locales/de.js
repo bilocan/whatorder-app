@@ -166,4 +166,7 @@ module.exports = {
     'Was soll ich ändern?\n\nBeispiele:\n• ohne ayran\n• nur 1 döner\n• und 1 cola\n\nOder schick eine neue Bestellung.',
   proposalEditNotFound: (name) => `"${name}" ist nicht in deiner Bestellung. Versuch es nochmal oder tippe auf Hinzufügen.`,
   proposalEditEmpty: () => 'Deine Bestellung ist leer. Was möchtest du?',
+  keypadCtaBody: () => 'Tippe unten auf den Button für die Bestell-Tastatur. Dein Warenkorb bleibt gespeichert.',
+  keypadCtaBtn: () => 'Tastatur öffnen',
+  keypadNotConfigured: () => 'Die Bestell-Tastatur ist noch nicht eingerichtet. Nutze die Menü-Buttons oder tippe deine Bestellung.',
 };

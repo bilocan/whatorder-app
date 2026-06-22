@@ -43,6 +43,7 @@ export default function SettingsPage() {
   const [scheduleSaveStatus, setScheduleSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [botLanguage, setBotLanguage] = useState<'de' | 'tr' | 'en'>('de');
   const [langSaveStatus, setLangSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [keypadCopied, setKeypadCopied] = useState(false);
 
   useEffect(() => {
     if (!businessId) return;
@@ -322,6 +323,37 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Web order keypad (POC) */}
+      {businessId && (
+        <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
+          <h3 style={{ margin: '0 0 0.25rem' }}>{t('settings.keypad.title')}</h3>
+          <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>{t('settings.keypad.description')}</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+            <a
+              href={`/keypad/${businessId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ padding: '0.4rem 1rem', background: '#f97316', color: '#fff', borderRadius: 4, textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem' }}
+            >
+              {t('settings.keypad.open')}
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                const url = `${window.location.origin}/keypad/${businessId}`;
+                navigator.clipboard.writeText(url).then(() => {
+                  setKeypadCopied(true);
+                  setTimeout(() => setKeypadCopied(false), 2000);
+                });
+              }}
+              style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+            >
+              {keypadCopied ? t('settings.keypad.copied') : t('settings.keypad.copyLink')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Operating Hours */}
       <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>

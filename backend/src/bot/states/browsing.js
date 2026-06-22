@@ -8,6 +8,7 @@ const { tryTextIntentOrder, handleIntentButtons } = require('../intentOrder');
 const { tryProposalEdit } = require('../proposalEdit');
 const { handleReorderButtons, tryOfferReorder } = require('../reorder');
 const { isMenuRequest, sendOrderEntryPrompt } = require('../orderEntry');
+const { KEYPAD_KEYWORDS, sendBasketWithKeypad, sendKeypadLink } = require('../keypadLink');
 const { isGreetingOnly, looksLikeOrderText } = require('../intentParser');
 const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
@@ -45,6 +46,7 @@ function isGatedOnDeliveryMinimum(session) {
 }
 
 const BASKET_KEYWORDS = new Set(['basket', 'sepet', 'warenkorb']);
+const CHECKOUT_KEYWORDS = new Set(['checkout', 'kasse', 'odeme', 'ödeme']);
 
 async function handleSelecting({ from, session, lang, businessId, basket, type, id, norm }) {
   let qty = null;
@@ -238,8 +240,8 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
         await showDeliveryBasketGate({ from, session, lang, basket, businessId });
         return;
       }
-      await sendButtonMessage(from, {
-        body: buildBasketText(basket, lang),
+      await sendBasketWithKeypad({
+        from, lang, businessId, basket,
         buttons: [
           { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
           { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },
@@ -310,6 +312,39 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     return;
   }
 
+  // Text: keypad link (web order keypad POC)
+  if (type === 'text' && KEYPAD_KEYWORDS.has(norm)) {
+    await sendKeypadLink({ from, lang, businessId, basket });
+    return;
+  }
+
+  // Text: checkout keyword (web keypad POC — same as btn_confirm)
+  if (type === 'text' && CHECKOUT_KEYWORDS.has(norm)) {
+    if (!basket.length) {
+      await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
+      return;
+    }
+    if (isGatedOnDeliveryMinimum(session)) {
+      await resumeDeliveryCheckout({ from, session, lang, businessId, basket });
+      return;
+    }
+    const info = await getBusinessInfo(businessId);
+    if (!isOrderingOpen(info.schedule, info.timezone || 'Europe/Vienna')) {
+      const _w = getTodayOrderWindow(info.schedule, info.timezone || 'Europe/Vienna');
+      await sendText(from, t('restaurantClosed', lang, info.name, _w?.firstOrderTime ?? null, _w?.lastOrderTime ?? null));
+      return;
+    }
+    const prepMins = info.avgPrepTime || 30;
+    const pickupTime = new Date(Date.now() + prepMins * 60000)
+      .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+    const reqId = await sendButtonMessage(from, {
+      body: t('specialRequestsPrompt', lang),
+      buttons: [{ id: 'btn_skip_requests', title: t('skipBtn', lang) }],
+    });
+    await setSession(from, { ...session, state: 'awaiting_special_requests', pickupTime, prepMins, pendingDeleteIds: reqId ? [reqId] : [] });
+    return;
+  }
+
   // Text: basket keyword (before intent — "basket" is also ≥3 chars)
   if (type === 'text' && BASKET_KEYWORDS.has(norm)) {
     if (!basket.length) {
@@ -320,8 +355,8 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       await showDeliveryBasketGate({ from, session, lang, basket, businessId });
       return;
     }
-    await sendButtonMessage(from, {
-      body: buildBasketText(basket, lang),
+    await sendBasketWithKeypad({
+      from, lang, businessId, basket,
       buttons: [
         { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
         { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },

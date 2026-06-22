@@ -166,4 +166,7 @@ module.exports = {
     'Ne değiştireyim?\n\nÖrnekler:\n• ayran çıkar\n• sadece 1 döner\n• ve 1 kola\n\nVeya yeni bir sipariş yaz.',
   proposalEditNotFound: (name) => `"${name}" siparişinde yok. Tekrar dene veya Sepete ekle'ye bas.`,
   proposalEditEmpty: () => 'Siparişin boş. Ne sipariş etmek istersin?',
+  keypadCtaBody: () => 'Sipariş klavyesini açmak için aşağıdaki düğmeye dokun. Sepetin kayıtlı kalır.',
+  keypadCtaBtn: () => 'Klavyeyi aç',
+  keypadNotConfigured: () => 'Sipariş klavyesi henüz ayarlanmadı. Menü düğmelerini kullan veya siparişini yaz.',
 };

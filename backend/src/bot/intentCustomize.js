@@ -2,6 +2,7 @@ const { setSession, buildSessionWrite } = require('./sessionStore');
 const { sendButtonMessage, sendListMessage, sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildBasketText } = require('./botHelpers');
+const { sendBasketWithKeypad } = require('./keypadLink');
 const { mergeIntoBasket } = require('./intentMatcher');
 const { norm } = require('./menuMatch');
 
@@ -313,8 +314,8 @@ async function finishCustomization({ from, session, lang, businessId, readyBaske
     intentCustomize: undefined,
     pendingDeleteIds: [],
   }));
-  await sendButtonMessage(from, {
-    body: buildBasketText(readyBasket, lang),
+  await sendBasketWithKeypad({
+    from, lang, businessId, basket: readyBasket,
     buttons: [
       { id: 'btn_add_more', title: t('addMoreBtn', lang) },
       { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },
