@@ -47,7 +47,7 @@ module.exports = {
   },
   confirmOrderBtn: () => 'Bestätigen ✅',
   addNoteBtn: () => 'Notiz hinzufügen 📝',
-  backToCartBtn: () => 'Zurück zum Warenkorb 🛒',
+  backToCartBtn: () => 'Zum Warenkorb 🛒',
   addNotePrompt: () => 'Schreiben Sie Ihren besonderen Wunsch, Ihre Allergie oder Notiz.',
   confirmPrompt: () => 'YES zum Bestätigen, NO zum Abbrechen.',
   yesNoOnly: () => 'Bitte YES oder NO schreiben.',
