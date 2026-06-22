@@ -106,6 +106,7 @@ const MENU_TEXT_INTENT_CALLS = [
   ['intentConfirmHeader', []],
   ['intentConfirmPrompt', []],
   ['intentConfirmBtn', []],
+  ['intentChangeBtn', []],
   ['intentEditMenuBtn', []],
   ['intentUnmatched', ['cola']],
   ['intentCustomizePrompt', ['Döner', 2, 'Protein']],
@@ -122,6 +123,13 @@ const MENU_TEXT_INTENT_CALLS = [
   ['intentMultiDefaultNone', []],
   ['intentMultiDefaultHint', []],
   ['intentMultiDefaultBtn', []],
+  ['proposalEditHint', []],
+  ['proposalEditNotFound', ['ayran']],
+  ['proposalEditEmpty', []],
+  ['disambigSameOrEachPrompt', [2, 'Döner']],
+  ['disambigUnitBody', ['Döner', 1, 2]],
+  ['disambigSameBtn', []],
+  ['disambigEachBtn', []],
 ];
 
 for (const [name, locale] of Object.entries({ de, tr, en })) {

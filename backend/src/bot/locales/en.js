@@ -121,6 +121,7 @@ module.exports = {
   intentConfirmHeader: () => 'Got it:',
   intentConfirmPrompt: () => 'Add these to your order?',
   intentConfirmBtn: () => 'Add to basket',
+  intentChangeBtn: () => 'Change',
   intentEditMenuBtn: () => 'Browse menu',
   intentUnmatched: (items) => `Couldn't find: ${items}`,
   intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\nChoose ${groupLabel}:`,
@@ -146,4 +147,23 @@ module.exports = {
   reorderConfirmBtn: () => 'Same again ✅',
   reorderBrowseBtn: () => 'Something else',
   reorderUnmatched: (items) => `No longer available: ${items}`,
+
+  orderEntryBody: () => 'What would you like?\n\nType your order, e.g. "2x döner, 1 ayran".\nOr tap Full menu to browse.',
+  viewFullMenuBtn: () => 'Full menu',
+  intentNoMatch: (text) => `Couldn't find "${text}" on the menu. Try again or tap Full menu.`,
+
+  disambigHeader: () => 'Which one?',
+  disambigBody: (rawName, qty) => `You said ${qty}x ${rawName}. Which item did you mean?`,
+  disambigUnitBody: (rawName, unitIndex, unitTotal) => `${rawName} ${unitIndex}/${unitTotal} — which one?`,
+  disambigSameOrEachPrompt: (qty, rawName) =>
+    `You ordered ${qty}x ${rawName}.\nSame type for all, or pick each one separately?`,
+  disambigSameBtn: () => 'All the same',
+  disambigEachBtn: () => 'One by one',
+  disambigBtn: () => 'Choose',
+  disambigSection: () => 'Matches',
+
+  proposalEditHint: () =>
+    'What should I change?\n\nExamples:\n• remove ayran\n• make it 1 döner\n• add 1 cola\n\nOr send a new full order.',
+  proposalEditNotFound: (name) => `Couldn't find "${name}" in your order. Try again or tap Add to basket.`,
+  proposalEditEmpty: () => 'Your order is empty. What would you like?',
 };

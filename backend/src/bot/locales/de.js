@@ -121,6 +121,7 @@ module.exports = {
   intentConfirmHeader: () => 'Verstanden:',
   intentConfirmPrompt: () => 'Zum Warenkorb hinzufügen?',
   intentConfirmBtn: () => 'Hinzufügen',
+  intentChangeBtn: () => 'Ändern',
   intentEditMenuBtn: () => 'Menü ansehen',
   intentUnmatched: (items) => `Nicht gefunden: ${items}`,
   intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\n${groupLabel} wählen:`,
@@ -146,4 +147,23 @@ module.exports = {
   reorderConfirmBtn: () => 'Gleich wieder ✅',
   reorderBrowseBtn: () => 'Etwas anderes',
   reorderUnmatched: (items) => `Nicht mehr verfügbar: ${items}`,
+
+  orderEntryBody: () => 'Was möchtest du bestellen?\n\nSchreib deine Bestellung, z. B. "2x Döner, 1 Ayran".\nOder tippe auf Volles Menü.',
+  viewFullMenuBtn: () => 'Volles Menü',
+  intentNoMatch: (text) => `"${text}" nicht auf der Karte gefunden. Nochmal versuchen oder Volles Menü.`,
+
+  disambigHeader: () => 'Welches meinst du?',
+  disambigBody: (rawName, qty) => `Du hast ${qty}x ${rawName} geschrieben. Welches Gericht?`,
+  disambigUnitBody: (rawName, unitIndex, unitTotal) => `${rawName} ${unitIndex}/${unitTotal} — welches?`,
+  disambigSameOrEachPrompt: (qty, rawName) =>
+    `Du hast ${qty}x ${rawName} bestellt.\nAlle gleich oder einzeln auswählen?`,
+  disambigSameBtn: () => 'Alle gleich',
+  disambigEachBtn: () => 'Einzeln',
+  disambigBtn: () => 'Wählen',
+  disambigSection: () => 'Treffer',
+
+  proposalEditHint: () =>
+    'Was soll ich ändern?\n\nBeispiele:\n• ohne ayran\n• nur 1 döner\n• und 1 cola\n\nOder schick eine neue Bestellung.',
+  proposalEditNotFound: (name) => `"${name}" ist nicht in deiner Bestellung. Versuch es nochmal oder tippe auf Hinzufügen.`,
+  proposalEditEmpty: () => 'Deine Bestellung ist leer. Was möchtest du?',
 };

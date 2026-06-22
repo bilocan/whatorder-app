@@ -32,6 +32,22 @@ describe('matchIntentToMenu', () => {
     expect(matched[0].name).toBe('Cola');
   });
 
+  test('reports ambiguous match for döner variants', () => {
+    const menu = [
+      { id: '1', name: 'Döner', price: 8.5 },
+      { id: '2', name: 'Döner Box', price: 9.5 },
+      { id: '3', name: 'Döner Teller', price: 11 },
+    ];
+    const { matched, unmatched, disambiguation } = matchIntentToMenu(
+      { items: [{ name: 'döner', qty: 1 }] },
+      menu,
+    );
+    expect(matched).toEqual([]);
+    expect(unmatched).toEqual([]);
+    expect(disambiguation).toMatchObject({ rawName: 'döner', qty: 1 });
+    expect(disambiguation.candidates.length).toBeGreaterThan(1);
+  });
+
   test('matches space-separated order regardless of menu order', () => {
     const menu = [
       { id: '3', name: 'Ayran', price: 2, aliases: [] },

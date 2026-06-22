@@ -121,6 +121,7 @@ module.exports = {
   intentConfirmHeader: () => 'Anladım:',
   intentConfirmPrompt: () => 'Sepete eklensin mi?',
   intentConfirmBtn: () => 'Sepete ekle',
+  intentChangeBtn: () => 'Değiştir',
   intentEditMenuBtn: () => 'Menüye bak',
   intentUnmatched: (items) => `Bulunamadı: ${items}`,
   intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\n${groupLabel} seçin:`,
@@ -146,4 +147,23 @@ module.exports = {
   reorderConfirmBtn: () => 'Aynısı ✅',
   reorderBrowseBtn: () => 'Başka bir şey',
   reorderUnmatched: (items) => `Artık mevcut değil: ${items}`,
+
+  orderEntryBody: () => 'Ne sipariş etmek istersin?\n\nSiparişini yaz, örn. "2x döner, 1 ayran".\nVeya Tam menüye bas.',
+  viewFullMenuBtn: () => 'Tam menü',
+  intentNoMatch: (text) => `"${text}" menüde bulunamadı. Tekrar dene veya Tam menüye bas.`,
+
+  disambigHeader: () => 'Hangisini istiyorsun?',
+  disambigBody: (rawName, qty) => `${qty}x ${rawName} yazdın. Hangi ürün?`,
+  disambigUnitBody: (rawName, unitIndex, unitTotal) => `${rawName} ${unitIndex}/${unitTotal} — hangisi?`,
+  disambigSameOrEachPrompt: (qty, rawName) =>
+    `${qty}x ${rawName} sipariş ettin.\nHepsi aynı mı, tek tek mi seçelim?`,
+  disambigSameBtn: () => 'Hepsi aynı',
+  disambigEachBtn: () => 'Tek tek',
+  disambigBtn: () => 'Seç',
+  disambigSection: () => 'Eşleşenler',
+
+  proposalEditHint: () =>
+    'Ne değiştireyim?\n\nÖrnekler:\n• ayran çıkar\n• sadece 1 döner\n• ve 1 kola\n\nVeya yeni bir sipariş yaz.',
+  proposalEditNotFound: (name) => `"${name}" siparişinde yok. Tekrar dene veya Sepete ekle'ye bas.`,
+  proposalEditEmpty: () => 'Siparişin boş. Ne sipariş etmek istersin?',
 };

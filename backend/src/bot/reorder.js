@@ -6,6 +6,7 @@ const { getMenu } = require('./menuService');
 const { getLastOrderForCustomer } = require('./orderService');
 const { matchMenuItem } = require('./menuMatch');
 const { tryTextIntentOrder } = require('./intentOrder');
+const { isMenuRequest, sendOrderEntryPrompt } = require('./orderEntry');
 
 function buildReorderBasket(orderItems, menu) {
   const matched = [];
@@ -112,7 +113,7 @@ async function handleReorderButtons({ from, session, lang, businessId, basket, i
   return false;
 }
 
-// Layer 0 entry: intent first, then reorder offer, then catalog.
+// Layer 0–1 entry: menu keyword → catalog; intent → disambiguate/confirm; reorder → offer; else order entry prompt.
 async function startRestaurantBrowsing({ from, session, lang, businessId, type, text, norm }) {
   const freshSession = {
     ...session,
@@ -123,6 +124,20 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
     pendingDeleteIds: [],
   };
 
+  if (type === 'text' && isMenuRequest(norm)) {
+    const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
+    await patchSession(from, {
+      state: 'browsing',
+      language: lang,
+      businessId,
+      basket: [],
+      textMenuIndex,
+      textMenuCategory,
+      menuId,
+    });
+    return;
+  }
+
   if (type === 'text' && text?.trim()) {
     const handled = await tryTextIntentOrder({
       from, session: freshSession, lang, businessId, basket: [], text, norm,
@@ -132,16 +147,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
 
   if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [] })) return;
 
-  const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
-  await patchSession(from, {
-    state: 'browsing',
-    language: lang,
-    businessId,
-    basket: [],
-    textMenuIndex,
-    textMenuCategory,
-    menuId,
-  });
+  await sendOrderEntryPrompt({ from, session: freshSession, lang, businessId, basket: [] });
 }
 
 module.exports = {

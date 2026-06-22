@@ -1,10 +1,9 @@
 const { patchSession } = require('./sessionStore');
-const { sendText, sendButtonMessage } = require('../lib/whatsapp');
+const { sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
-const { sendCatalog } = require('./botHelpers');
 const { looksLikeNumberSelection, parseNumberSelection } = require('./textMenu');
 const { getMenu } = require('./menuService');
-const { buildIntentConfirmBody } = require('./intentOrder');
+const { sendIntentProposal } = require('./intentOrder');
 
 async function resolveTextMenuIndex(session, businessId) {
   if (session.textMenuIndex?.length) return session.textMenuIndex;
@@ -30,27 +29,11 @@ async function tryNumberSelectionOrder({ from, session, lang, businessId, basket
   }
 
   // Persist pending before outbound send — openCategoryMenu may still be patching menuId.
-  await patchSession(from, {
-    state: 'browsing',
-    language: lang,
-    businessId,
-    basket,
-    textMenuIndex,
-    ...(session.textMenuCategory ? { textMenuCategory: session.textMenuCategory } : {}),
-    pendingIntentItems: matched,
-    unmatchedIntentItems: invalid.length ? invalid : undefined,
-  }, session);
-
-  const msgId = await sendButtonMessage(from, {
-    body: buildIntentConfirmBody(matched, invalid, lang),
-    buttons: [
-      { id: 'btn_intent_confirm', title: t('intentConfirmBtn', lang) },
-      { id: 'btn_intent_edit_menu', title: t('intentEditMenuBtn', lang) },
-      { id: 'btn_intent_view_menu', title: t('viewMenuBtn', lang) },
-    ],
+  await sendIntentProposal({
+    from, session, lang, businessId, basket,
+    matched,
+    unmatched: invalid,
   });
-
-  await patchSession(from, { pendingDeleteIds: msgId ? [msgId] : [] });
   return true;
 }
 module.exports = { tryNumberSelectionOrder };

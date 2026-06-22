@@ -12,6 +12,7 @@ const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
 const { isGreetingOnly } = require('./intentParser');
 const { handleIntentCustomize } = require('./intentCustomize');
+const { handleDisambiguatingIntent } = require('./intentDisambiguate');
 
 const SWITCH_KEYWORDS = new Set(['switch', 'change', 'restaurants', 'back', 'home', 'wechseln', 'zurück', 'zuruck', 'değiştir', 'degistir', 'restoranlar', 'start']);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsing sessions
@@ -32,6 +33,7 @@ const STATE_HANDLERS = {
   selecting_restaurant:             handleSelectingRestaurant,
   selecting:                        handleSelecting,
   customizing_intent:               handleIntentCustomize,
+  disambiguating_intent:            handleDisambiguatingIntent,
   awaiting_special_requests:        handleAwaitingSpecialRequests,
   awaiting_order_type:              handleAwaitingOrderType,
   awaiting_delivery_address_choice: handleAwaitingDeliveryAddressChoice,
