@@ -4,8 +4,8 @@ const { t } = require('../templates');
 const { buildBasketText, sendMenu, sendMenuPage, sendCatalog, groupMenuByCategory, decodeCategory } = require('../botHelpers');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
-const { tryTextIntentOrder, handleIntentButtons } = require('../intentOrder');
-const { tryProposalEdit } = require('../proposalEdit');
+const { tryTextIntentOrder, handleIntentButtons, isIntentConfirmText } = require('../intentOrder');
+const { tryProposalEdit, parseProposalEdit } = require('../proposalEdit');
 const { handleReorderButtons, tryOfferReorder } = require('../reorder');
 const { isMenuRequest, sendOrderEntryPrompt } = require('../orderEntry');
 const { isGreetingOnly, looksLikeOrderText } = require('../intentParser');
@@ -21,12 +21,30 @@ const {
   isSearchKeyword,
 } = require('../menuSearch');
 
+const INTENT_PROPOSAL_CLEAR = {
+  pendingIntentItems: undefined,
+  unmatchedIntentItems: undefined,
+  disambiguation: undefined,
+};
+
+function isFullOrderReplace(text, norm) {
+  const edit = parseProposalEdit(text, norm);
+  return edit?.type === 'replace';
+}
+
+function isShortProposalEdit(text, norm) {
+  const edit = parseProposalEdit(text, norm);
+  if (!edit) return false;
+  return edit.type !== 'replace';
+}
+
 async function openCatalog(from, session, lang, businessId, bodyOverride, sessionOverrides = {}) {
   const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId, bodyOverride);
   await patchSession(from, {
     menuId,
     textMenuIndex,
     textMenuCategory,
+    ...INTENT_PROPOSAL_CLEAR,
     ...sessionOverrides,
   }, session);
 }
@@ -371,18 +389,37 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     return;
   }
 
-  // Text: edit proposed basket (Layer 1) while awaiting confirm
+  // Text: short edits / confirm while a proposal is pending (ohne ayran, cola, Hinzufügen)
   if (type === 'text' && text?.trim() && session.pendingIntentItems?.length) {
-    if (await tryProposalEdit({ from, session, lang, businessId, basket, text, norm })) return;
+    if (isIntentConfirmText(text, lang)) {
+      if (await handleIntentButtons({
+        from, session, lang, businessId, basket, id: 'btn_intent_confirm',
+      })) return;
+    }
+    if (isShortProposalEdit(text, norm) && !isFullOrderReplace(text, norm)) {
+      if (await tryProposalEdit({ from, session, lang, businessId, basket, text, norm })) return;
+    }
   }
 
-  // Text: natural-language order intent (Tier A rules parser)
-  if (type === 'text' && text?.trim()) {
-    if (await tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm })) return;
+  // Text: natural-language order (clears stale proposals before AI/rules parse)
+  if (type === 'text' && text?.trim() && looksLikeOrderText(text, norm)) {
+    if (session.pendingIntentItems?.length && isFullOrderReplace(text, norm)) {
+      await patchSession(from, INTENT_PROPOSAL_CLEAR, session);
+      session = { ...session, ...INTENT_PROPOSAL_CLEAR };
+    }
+    const intentHandled = await tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm });
+    if (intentHandled === true) return;
+    if (intentHandled === 'llm_failed') {
+      await sendOrderEntryPrompt({
+        from, session, lang, businessId, basket,
+        bodyOverride: t('intentParseFailed', lang),
+      });
+      return;
+    }
     if (isShortLookupText(text, norm)) {
       if (await tryMenuSearch({ from, session, lang, businessId, basket, text })) return;
     }
-    if (looksLikeOrderText(text, norm)) {
+    if (!session.pendingIntentItems?.length) {
       await sendOrderEntryPrompt({
         from, session, lang, businessId, basket,
         bodyOverride: t('intentNoMatch', lang, text.trim()),

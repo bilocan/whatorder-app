@@ -37,6 +37,65 @@ describe('parseIntent', () => {
     ]);
   });
 
+  test('German zwei with einer ohne zwiebel splits into two lines', () => {
+    const r = parseIntent('zum mitnehmen zwei döner mit allem einer ohne zwiebel');
+    expect(r.items).toEqual([
+      { name: 'döner mit allem', qty: 1 },
+      { name: 'döner ohne zwiebel', qty: 1 },
+    ]);
+  });
+
+  test('German zwei Hühner kebap Sandwich takeaway order', () => {
+    const r = parseIntent('Zum Mitnehmen zwei Hühner kebap Sandwich mit allem einer ohne zwiebel');
+    expect(r.items).toEqual([
+      { name: 'Hühner kebap Sandwich mit allem', qty: 1 },
+      { name: 'Hühner kebap Sandwich ohne zwiebel', qty: 1 },
+    ]);
+  });
+
+  test('German eine X und eine Y splits into two pizzas', () => {
+    const r = parseIntent('Eine Pizza Margarita und eine spinati');
+    expect(r.items).toEqual([
+      { name: 'Pizza Margarita', qty: 1 },
+      { name: 'spinati', qty: 1 },
+    ]);
+  });
+
+  test('jeweils einer drink adds one per food item', () => {
+    const r = parseIntent('Eine Margarete und eine spinati und jeweils einer bitte ayram bitte');
+    expect(r.items).toEqual([
+      { name: 'Margarete', qty: 1 },
+      { name: 'spinati', qty: 1 },
+      { name: 'ayram', qty: 2 },
+    ]);
+  });
+
+  test('zwei kebab ein cola splits food and embedded drink', () => {
+    const r = parseIntent('Zwei Hühner Kebab ein Cola und ein ayran bitte');
+    expect(r.items).toEqual([
+      { name: 'Hühner Kebab', qty: 2 },
+      { name: 'Cola', qty: 1 },
+      { name: 'ayran', qty: 1 },
+    ]);
+  });
+
+  test('zwei kebab einen döner splits two food lines and drops noise', () => {
+    const r = parseIntent('Zwei Hühner Kebab einen Döner und an einem bitte');
+    expect(r.items).toEqual([
+      { name: 'Hühner Kebab', qty: 2 },
+      { name: 'Döner', qty: 1 },
+    ]);
+  });
+
+  test('TTS eier typo in drink slot', () => {
+    const r = parseIntent('Zwei Hühner Kebab ein Cola und ein Eier bitte');
+    expect(r.items).toEqual([
+      { name: 'Hühner Kebab', qty: 2 },
+      { name: 'Cola', qty: 1 },
+      { name: 'Eier', qty: 1 },
+    ]);
+  });
+
   test('was empfehlt ihr still parses but matching happens downstream', () => {
     const r = parseIntent('was empfehlt ihr');
     expect(r.items.length).toBeGreaterThan(0);

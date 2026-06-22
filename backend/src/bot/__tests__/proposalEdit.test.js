@@ -1,4 +1,4 @@
-const { parseProposalEdit, findProposalItemIndex } = require('../proposalEdit');
+const { parseProposalEdit, findProposalItemIndex, removeProposalItem } = require('../proposalEdit');
 
 const PENDING = [
   { menuItemId: 'd1', name: 'Döner', qty: 2, price: 8.5 },
@@ -20,6 +20,20 @@ describe('parseProposalEdit', () => {
       type: 'remove',
       rawName: 'döner',
     });
+    expect(parseProposalEdit('pizza cikar', 'pizza cikar')).toEqual({
+      type: 'remove',
+      rawName: 'pizza',
+    });
+    expect(parseProposalEdit('ayran çıkar', 'ayran çıkar')).toEqual({
+      type: 'remove',
+      rawName: 'ayran',
+    });
+  });
+
+  test('pizza cikar is not treated as maybe_add', () => {
+    expect(parseProposalEdit('pizza cikar', 'pizza cikar')).not.toEqual(
+      expect.objectContaining({ type: 'maybe_add' }),
+    );
   });
 
   test('add fragment', () => {
@@ -81,5 +95,16 @@ describe('findProposalItemIndex', () => {
     expect(findProposalItemIndex(PENDING, 'ayran')).toBe(1);
     expect(findProposalItemIndex(PENDING, 'döner')).toBe(0);
     expect(findProposalItemIndex(PENDING, 'pizza')).toBe(-1);
+  });
+});
+
+describe('removeProposalItem', () => {
+  test('removes all lines matching a generic name', () => {
+    const pending = [
+      { name: 'Pizza della Casa', qty: 1 },
+      { name: 'Pizza Marinara', qty: 1 },
+      { name: 'Ayran', qty: 1 },
+    ];
+    expect(removeProposalItem(pending, 'pizza')).toEqual([{ name: 'Ayran', qty: 1 }]);
   });
 });

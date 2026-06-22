@@ -43,10 +43,10 @@ describe('classifyMenuMatch with synonyms', () => {
     expect(matchMenuItem('Döner', KEBAP_MENU)?.name).toMatch(/Kebap/);
   });
 
-  test('cola still ambiguous across sizes', () => {
+  test('bare cola defaults to 0.33L without disambiguation', () => {
     const result = classifyMenuMatch('cola', KEBAP_MENU);
-    expect(result.type).toBe('ambiguous');
-    expect(result.items.length).toBe(2);
+    expect(result.type).toBe('unique');
+    expect(result.item.name).toBe('Coca Cola 0.33L');
   });
 
   test('turkish pizza matches lahmacun menu item', () => {
