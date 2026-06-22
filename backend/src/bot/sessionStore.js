@@ -2,7 +2,7 @@ const { sessionRef } = require('../lib/collections');
 const { db } = require('../lib/firebase');
 
 const CHECKOUT_FIELDS = ['flow', 'orderType', 'deliveryAddress', 'specialRequests', 'customerName', 'prepMins', 'pickupTime'];
-const MENU_BROWSE_FIELDS = ['textMenuIndex', 'textMenuCategory'];
+const MENU_BROWSE_FIELDS = ['textMenuIndex', 'textMenuCategory', 'menuSearchActive'];
 const INTENT_FIELDS = ['pendingIntentItems', 'unmatchedIntentItems', 'intentCustomize', 'pendingItem'];
 const REORDER_FIELDS = ['pendingReorderItems', 'pendingReorderUnmatched'];
 const DISAMBIGUATION_FIELDS = ['disambiguation'];

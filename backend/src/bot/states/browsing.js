@@ -12,6 +12,14 @@ const { isGreetingOnly, looksLikeOrderText } = require('../intentParser');
 const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
 const { resumeDeliveryCheckout, showDeliveryBasketGate } = require('./checkout');
+const { sendPopularBoard } = require('../popularBoard');
+const {
+  sendSearchPrompt,
+  handleSearchModeText,
+  tryMenuSearch,
+  isShortLookupText,
+  isSearchKeyword,
+} = require('../menuSearch');
 
 async function openCatalog(from, session, lang, businessId, bodyOverride, sessionOverrides = {}) {
   const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId, bodyOverride);
@@ -219,6 +227,20 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       return;
     }
 
+    if (id === 'btn_popular') {
+      await sendPopularBoard({ from, session, lang, businessId, basket });
+      return;
+    }
+
+    if (id === 'btn_search' || id === 'btn_search_cancel') {
+      if (id === 'btn_search_cancel') {
+        await sendOrderEntryPrompt({ from, session, lang, businessId, basket });
+        return;
+      }
+      await sendSearchPrompt({ from, session, lang, businessId, basket });
+      return;
+    }
+
     if (id === 'btn_add_more') {
       if (session.flow === 'list') {
         const { menuId, textMenuIndex, textMenuCategory } = await sendMenu(from, lang, businessId);
@@ -331,6 +353,17 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     return;
   }
 
+  // Text: search keyword → search prompt (Layer 2)
+  if (type === 'text' && isSearchKeyword(norm)) {
+    await sendSearchPrompt({ from, session, lang, businessId, basket });
+    return;
+  }
+
+  // Text: active search mode
+  if (type === 'text' && text?.trim() && session.menuSearchActive) {
+    if (await handleSearchModeText({ from, session, lang, businessId, basket, text, norm })) return;
+  }
+
   // Text: numbered selection — skip default catalog resend for digit-only replies
   if (type === 'text' && text?.trim() && /^[\d\s,;xX×*.+-]+$/.test(text.trim()) && /\d/.test(text)) {
     if (await tryNumberSelectionOrder({ from, session, lang, businessId, basket, text })) return;
@@ -346,6 +379,9 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
   // Text: natural-language order intent (Tier A rules parser)
   if (type === 'text' && text?.trim()) {
     if (await tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm })) return;
+    if (isShortLookupText(text, norm)) {
+      if (await tryMenuSearch({ from, session, lang, businessId, basket, text })) return;
+    }
     if (looksLikeOrderText(text, norm)) {
       await sendOrderEntryPrompt({
         from, session, lang, businessId, basket,

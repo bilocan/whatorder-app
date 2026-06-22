@@ -99,4 +99,4 @@ function classifyMenuMatch(rawName, menuItems) {
   };
 }
 
-module.exports = { norm, matchMenuItem, classifyMenuMatch, scoreMatch };
+module.exports = { norm, matchMenuItem, classifyMenuMatch, scoreMatch, scoreItemForNeedle };

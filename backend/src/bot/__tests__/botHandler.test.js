@@ -20,7 +20,14 @@ jest.mock('../menuService');
 jest.mock('../orderService');
 jest.mock('../../lib/whatsapp');
 jest.mock('../../lib/geocode');
-jest.mock('../../lib/collections', () => ({ customersRef: jest.fn() }));
+jest.mock('../../lib/collections', () => ({
+  customersRef: jest.fn(),
+  ordersRef: jest.fn(() => ({
+    limit: jest.fn(() => ({
+      get: jest.fn().mockResolvedValue({ docs: [] }),
+    })),
+  })),
+}));
 
 const { handleMessage } = require('../botHandler');
 const { getSession, setSession, patchSession } = require('../sessionStore');
@@ -115,7 +122,10 @@ function msg(overrides) {
 
 function expectOrderEntryPrompt() {
   expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-    buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_view_full_menu' })]),
+    buttons: expect.arrayContaining([
+      expect.objectContaining({ id: 'btn_search' }),
+      expect.objectContaining({ id: 'btn_view_full_menu' }),
+    ]),
   }));
 }
 
@@ -1151,7 +1161,10 @@ describe('Intent ordering (Tier A)', () => {
 
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('burger'),
-      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_view_full_menu' })]),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_search' }),
+        expect.objectContaining({ id: 'btn_view_full_menu' }),
+      ]),
     }));
     expect(sendListMessage).not.toHaveBeenCalled();
   });
@@ -1162,6 +1175,64 @@ describe('Intent ordering (Tier A)', () => {
     await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
     expectOrderEntryPrompt();
+  });
+
+  test('btn_search opens search prompt', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_search' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('looking for'),
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_search_cancel' })]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ menuSearchActive: true }));
+  });
+
+  test('search mode text shows ranked search results', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ, basket: [], menuSearchActive: true,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'ayran' }));
+
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([
+            expect.objectContaining({ id: 'item_item_2', title: 'Ayran' }),
+          ]),
+        }),
+      ]),
+    }));
+  });
+
+  test('short lookup shows no-match hint when intent and search both fail', async () => {
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: 'snack' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('No matches'),
+    }));
+  });
+
+  test('btn_popular shows configured popular items', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, popularItemIds: ['item_1', 'item_2'] });
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_popular' }));
+
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([
+            expect.objectContaining({ id: 'item_item_1' }),
+            expect.objectContaining({ id: 'item_item_2' }),
+          ]),
+        }),
+      ]),
+    }));
   });
 });
 
@@ -2358,7 +2429,10 @@ describe('Layer 1: disambiguation for ambiguous item names', () => {
     await handleMessage(ROUTING, msg({ text: 'iptal' }));
 
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_view_full_menu' })]),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_search' }),
+        expect.objectContaining({ id: 'btn_view_full_menu' }),
+      ]),
     }));
     const clearedWrite = setSession.mock.calls.find(([, data]) => !data.disambiguation && !data.pendingIntentItems);
     expect(clearedWrite).toBeDefined();
