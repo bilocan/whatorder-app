@@ -116,6 +116,25 @@ describe('buildSessionWrite', () => {
     expect(payload.pendingDeleteIds).toEqual(['list_msg_id']);
   });
 
+  test('strips nested undefined inside disambiguation', () => {
+    const payload = buildSessionWrite(
+      { state: 'disambiguating_intent', language: 'tr', businessId: 'biz', basket: [] },
+      {
+        disambiguation: {
+          rawName: 'cola',
+          qty: 1,
+          proposalEditMode: undefined,
+          proposalEditBase: undefined,
+          candidates: [{ id: 'c1', name: 'Cola 0.33L', price: 2.9 }],
+        },
+      },
+    );
+
+    expect(payload.disambiguation).toMatchObject({ rawName: 'cola', qty: 1 });
+    expect(payload.disambiguation).not.toHaveProperty('proposalEditMode');
+    expect(payload.disambiguation).not.toHaveProperty('proposalEditBase');
+  });
+
   test('clears pending intent fields when explicitly undefined', () => {
     const payload = buildSessionWrite(
       {

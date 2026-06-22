@@ -2,6 +2,7 @@ const { ordersRef, businessRef, customersRef } = require('../lib/collections');
 const { admin } = require('../lib/firebase');
 const { sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
+const { normalizeCustomerPhone, customerPhoneVariants } = require('../lib/phone');
 
 // Valid source states for each target status
 const VALID_FROM = {
@@ -26,6 +27,38 @@ const STATUS_TS_FIELD = {
   cancelled:  'cancelledAt',
 };
 
+const EXCLUDED_REORDER_STATUSES = new Set(['cancelled', 'rejected']);
+
+async function getLastOrderForCustomer(businessId, customerPhone) {
+  const variants = customerPhoneVariants(customerPhone);
+  if (!variants.length) return null;
+
+  let orders = [];
+  for (const field of ['customerId', 'customerPhone']) {
+    const snap = await ordersRef(businessId)
+      .where(field, 'in', variants.slice(0, 10))
+      .limit(25)
+      .get();
+    if (!snap.empty) {
+      orders = snap.docs.map(doc => doc.data());
+      break;
+    }
+  }
+  if (!orders.length) return null;
+
+  orders = orders
+    .filter(o => !EXCLUDED_REORDER_STATUSES.has(o.status))
+    .sort((a, b) => {
+      const aMs = a.createdAt?.toMillis?.() ?? a.createdAt?.seconds * 1000 ?? 0;
+      const bMs = b.createdAt?.toMillis?.() ?? b.createdAt?.seconds * 1000 ?? 0;
+      return bMs - aMs;
+    });
+
+  const latest = orders[0];
+  if (!latest?.items?.length) return null;
+  return latest;
+}
+
 const STATUS_NOTIFY_KEY = {
   approved:   'orderApproved',
   rejected:   'orderRejected',
@@ -40,10 +73,11 @@ const STATUS_NOTIFY_KEY = {
 async function createOrder(businessId, { customerPhone, customerName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee }) {
   const ref = ordersRef(businessId).doc();
   const resolvedName = customerName || 'WhatsApp Customer';
+  const phone = normalizeCustomerPhone(customerPhone) || customerPhone;
   const doc = {
     id: ref.id,
-    customerId: customerPhone,
-    customerPhone,
+    customerId: phone,
+    customerPhone: phone,
     customerName: resolvedName,
     items,
     total,
@@ -64,9 +98,9 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
 
   // Upsert customer profile
   try {
-    const customerDoc = customersRef(businessId).doc(customerPhone);
+    const customerDoc = customersRef(businessId).doc(phone);
     await customerDoc.set({
-      phone: customerPhone,
+      phone,
       name: resolvedName,
       lastOrderDate: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -94,7 +128,7 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
       const itemLines = items.map(i => `• ${i.qty}x ${i.name} — €${(i.price * i.qty).toFixed(2)}`).join('\n');
       const typeLabel = doc.orderType === 'delivery' ? '🚚 Delivery' : '🛍️ Pickup';
       const addressLine = doc.deliveryAddress ? `\nAddress: ${doc.deliveryAddress}` : '';
-      const ownerMsg = `🔔 New Order #${shortId} (${typeLabel})\n\n${itemLines}\n\nTotal: €${doc.total.toFixed(2)}${addressLine}\nCustomer: ${resolvedName} (${customerPhone})`;
+      const ownerMsg = `🔔 New Order #${shortId} (${typeLabel})\n\n${itemLines}\n\nTotal: €${doc.total.toFixed(2)}${addressLine}\nCustomer: ${resolvedName} (${phone})`;
       await sendText(biz.alertPhone, ownerMsg);
     }
   } catch (err) {
@@ -139,6 +173,7 @@ const markDelivered     = (bid, oid) => transitionOrder(bid, oid, 'delivered');
 const cancelOrder       = (bid, oid) => transitionOrder(bid, oid, 'cancelled');
 
 module.exports = {
+  getLastOrderForCustomer,
   createOrder,
   approveOrder,
   rejectOrder,

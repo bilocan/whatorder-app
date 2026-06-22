@@ -4,7 +4,7 @@ const { matchMenuItem } = require('./menuMatch');
 
 async function getMenu(businessId) {
   const snap = await menuRef(businessId).where('available', '==', true).get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(d => ({ ...d.data(), id: d.id }));
 }
 
 async function getBusinessInfo(businessId) {

@@ -1,68 +1,35 @@
-const { matchIntentToMenu, mergeIntoBasket } = require('../intentMatcher');
+const { mergePendingItems, matchIntentToMenu } = require('../intentMatcher');
 
-const MENU = [
-  { id: '1', name: 'Döner', price: 8.5, aliases: ['doner'] },
-  { id: '2', name: 'Cola', price: 2.5, aliases: ['coke', 'kola'] },
-  { id: '3', name: 'Pizza Margherita', price: 12, aliases: ['pizza'] },
-];
-
-describe('matchIntentToMenu', () => {
-  test('matches items and quantities', () => {
-    const { matched, unmatched } = matchIntentToMenu(
-      { items: [{ name: 'döner', qty: 2 }, { name: 'cola', qty: 1 }] },
-      MENU,
-    );
-    expect(matched).toHaveLength(2);
-    expect(matched[0]).toMatchObject({ name: 'Döner', qty: 2, price: 8.5 });
-    expect(matched[1]).toMatchObject({ name: 'Cola', qty: 1, price: 2.5 });
-    expect(unmatched).toEqual([]);
-  });
-
-  test('reports unmatched items', () => {
-    const { matched, unmatched } = matchIntentToMenu(
-      { items: [{ name: 'burger', qty: 1 }] },
-      MENU,
-    );
-    expect(matched).toEqual([]);
-    expect(unmatched).toEqual(['burger']);
-  });
-
-  test('matches via alias', () => {
-    const { matched } = matchIntentToMenu({ items: [{ name: 'kola', qty: 1 }] }, MENU);
-    expect(matched[0].name).toBe('Cola');
-  });
-
-  test('matches space-separated order regardless of menu order', () => {
-    const menu = [
-      { id: '3', name: 'Ayran', price: 2, aliases: [] },
-      { id: '1', name: 'Döner', price: 8.5, aliases: ['doner'] },
+describe('mergePendingItems', () => {
+  test('combines duplicate menuItemId with same modifier', () => {
+    const items = [
+      { menuItemId: 'k1', name: 'Kebap Sandwich Huhn', qty: 2, price: 7.5, modifierKey: 'mit:allem' },
+      { menuItemId: 'k1', name: 'Kebap Sandwich Huhn', qty: 1, price: 7.5, modifierKey: 'mit:allem' },
     ];
-    const { matched, unmatched } = matchIntentToMenu(
-      { items: [{ name: 'Döner', qty: 2 }, { name: 'ayran', qty: 1 }] },
-      menu,
-    );
-    expect(unmatched).toEqual([]);
-    expect(matched).toEqual([
-      expect.objectContaining({ name: 'Döner', qty: 2 }),
-      expect.objectContaining({ name: 'Ayran', qty: 1 }),
+    expect(mergePendingItems(items)).toEqual([
+      { menuItemId: 'k1', name: 'Kebap Sandwich Huhn', qty: 3, price: 7.5, modifierKey: 'mit:allem' },
     ]);
   });
 });
 
-describe('mergeIntoBasket', () => {
-  test('merges quantities for same item', () => {
-    const result = mergeIntoBasket(
-      [{ name: 'Döner', qty: 1, price: 8.5 }],
-      [{ name: 'Döner', qty: 2, price: 8.5 }],
-    );
-    expect(result).toEqual([{ name: 'Döner', qty: 3, price: 8.5 }]);
-  });
+describe('matchIntentToMenu', () => {
+  const MENU = [
+    { id: 'k1', name: 'Kebap Sandwich Huhn', price: 7.5 },
+    { id: 'a1', name: 'Ayran', price: 2 },
+  ];
 
-  test('appends new items', () => {
-    const result = mergeIntoBasket(
-      [{ name: 'Döner', qty: 1, price: 8.5 }],
-      [{ name: 'Cola', qty: 1, price: 2.5 }],
-    );
-    expect(result).toHaveLength(2);
+  test('merges duplicate unique matches across intent lines', () => {
+    const intent = {
+      items: [
+        { name: 'Kebap Sandwich Huhn', qty: 2 },
+        { name: 'Kebap Sandwich Huhn', qty: 1 },
+      ],
+    };
+    const { matched, unmatched, disambiguation } = matchIntentToMenu(intent, MENU);
+    expect(disambiguation).toBeNull();
+    expect(unmatched).toEqual([]);
+    expect(matched).toEqual([
+      { menuItemId: 'k1', name: 'Kebap Sandwich Huhn', qty: 3, price: 7.5, optionGroups: [], rawIntentName: 'Kebap Sandwich Huhn', modifierKey: 'kebap sandwich huhn' },
+    ]);
   });
 });

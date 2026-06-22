@@ -3,6 +3,7 @@ const {
   parseOptionReply,
   parseMultiTextInput,
   parseMultiReply,
+  parsePerUnitModifierText,
   getDefaultMultiSelection,
   allOptionIds,
 } = require('../intentCustomize');
@@ -102,6 +103,17 @@ describe('buildOptionLabel', () => {
       { protein: 'chicken', inserts: ['tomato', 'salad', 'onion'] },
     );
     expect(label).toBe('Döner — Chicken, Tomato, Salad, Onion');
+  });
+});
+
+describe('parsePerUnitModifierText', () => {
+  test('splits eine mit allem und andere ohne', () => {
+    expect(parsePerUnitModifierText('Eine mit allem und andere ohne Zwiebel und Schaf bitte', 2))
+      .toEqual(['mit allem', 'ohne Zwiebel und Schaf']);
+  });
+
+  test('returns null when qty does not match', () => {
+    expect(parsePerUnitModifierText('Eine mit allem und andere ohne Zwiebel', 3)).toBeNull();
   });
 });
 

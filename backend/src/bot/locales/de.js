@@ -120,6 +120,7 @@ module.exports = {
   intentConfirmHeader: () => 'Verstanden:',
   intentConfirmPrompt: () => 'Zum Warenkorb hinzufügen?',
   intentConfirmBtn: () => 'Hinzufügen',
+  intentChangeBtn: () => 'Ändern',
   intentEditMenuBtn: () => 'Menü ansehen',
   intentUnmatched: (items) => `Nicht gefunden: ${items}`,
   intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\n${groupLabel} wählen:`,
@@ -139,4 +140,43 @@ module.exports = {
   intentMultiDefaultNone: () => 'keine',
   intentMultiDefaultHint: () => 'Tippe Standard verwenden, oder antworte all / none / skip (nutzt Standard oben).',
   intentMultiDefaultBtn: () => 'Standard',
+
+  reorderPromptHeader: () => '👋 Willkommen zurück! Deine letzte Bestellung:',
+  reorderConfirmPrompt: () => 'Gleich nochmal bestellen?',
+  reorderConfirmBtn: () => 'Gleich wieder ✅',
+  reorderBrowseBtn: () => 'Etwas anderes',
+  reorderUnmatched: (items) => `Nicht mehr verfügbar: ${items}`,
+
+  orderEntryBody: () =>
+    'Was möchtest du bestellen?\n\nSchreib deine Bestellung, z. B. "2x Döner, 1 Ayran".\nOder tippe Beliebt, Suche oder Volles Menü.',
+  popularBtn: () => 'Beliebt',
+  searchBtn: () => 'Suche',
+  viewFullMenuBtn: () => 'Volles Menü',
+  popularHeader: () => 'Beliebt',
+  popularBody: () => 'Die beliebtesten Gerichte. Tippe zum Hinzufügen.',
+  popularSection: () => 'Beliebt',
+  popularEmpty: () => 'Noch keine Beliebtheiten. Probier Suche oder Volles Menü.',
+  searchPromptBody: () => 'Wonach suchst du?\n\nSchreib 1–2 Wörter, z. B. "pizza" oder "cola".',
+  searchCancelBtn: () => 'Zurück',
+  searchHeader: () => 'Suche',
+  searchResultsBody: (query) => `Treffer für "${query}":`,
+  searchSection: () => 'Treffer',
+  searchNoResults: (query) => `Keine Treffer für "${query}". Anderes Wort oder Suche / Volles Menü.`,
+  intentNoMatch: (text) => `"${text}" nicht auf der Karte. Probier Suche oder Volles Menü.`,
+  intentParseFailed: () => 'Konnte die Bestellung nicht verstehen. Probier z. B. „2x Döner, 1 Ayran“ oder tippe Suche.',
+
+  disambigHeader: () => 'Welches meinst du?',
+  disambigBody: (rawName, qty) => `Du hast ${qty}x ${rawName} geschrieben. Welches Gericht?`,
+  disambigUnitBody: (rawName, unitIndex, unitTotal) => `${rawName} ${unitIndex}/${unitTotal} — welches?`,
+  disambigSameOrEachPrompt: (qty, rawName) =>
+    `Du hast ${qty}x ${rawName} bestellt.\nAlle gleich oder einzeln auswählen?`,
+  disambigSameBtn: () => 'Alle gleich',
+  disambigEachBtn: () => 'Einzeln',
+  disambigBtn: () => 'Wählen',
+  disambigSection: () => 'Treffer',
+
+  proposalEditHint: () =>
+    'Was soll ich ändern?\n\nBeispiele:\n• ohne ayran\n• nur 1 döner\n• und 1 cola\n\nOder schick eine neue Bestellung.',
+  proposalEditNotFound: (name) => `"${name}" ist nicht in deiner Bestellung. Versuch es nochmal oder tippe auf Hinzufügen.`,
+  proposalEditEmpty: () => 'Deine Bestellung ist leer. Was möchtest du?',
 };

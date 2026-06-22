@@ -2,7 +2,8 @@ const { setSession } = require('../sessionStore');
 const { sendText, sendLocationRequest } = require('../../lib/whatsapp');
 const { sortByDistance } = require('../../lib/distance');
 const { t } = require('../templates');
-const { getBusinessesInfo, sendRestaurantPicker, sendCatalog } = require('../botHelpers');
+const { getBusinessesInfo, sendRestaurantPicker } = require('../botHelpers');
+const { startRestaurantBrowsing } = require('../reorder');
 const { getBusinessInfo } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 
@@ -18,7 +19,7 @@ async function handleAwaitingLocation({ from, session, lang, routing, type, lati
   await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null, lat, lng, pendingDeleteIds: pickerId ? [pickerId] : [] });
 }
 
-async function handleSelectingRestaurant({ from, session, lang, routing, type, id, latitude, longitude }) {
+async function handleSelectingRestaurant({ from, session, lang, routing, type, id, text, norm, latitude, longitude }) {
   if (type === 'location' && latitude != null && longitude != null) {
     const businesses = sortByDistance(await getBusinessesInfo(routing.businessIds), latitude, longitude);
     const pickerId = await sendRestaurantPicker(from, businesses, lang);
@@ -46,8 +47,24 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
       await sendText(from, t('ordersClosedByOwner', lang, selectedInfo.name));
       return;
     }
-    const { menuId, textMenuIndex } = await sendCatalog(from, lang, selectedBid);
-    await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: selectedBid, lat: session.lat ?? null, lng: session.lng ?? null, textMenuIndex, pendingDeleteIds: menuId ? [menuId] : [] });
+    const baseSession = {
+      state: 'browsing',
+      language: lang,
+      basket: [],
+      businessId: selectedBid,
+      lat: session.lat ?? null,
+      lng: session.lng ?? null,
+      pendingDeleteIds: [],
+    };
+    await startRestaurantBrowsing({
+      from,
+      session: baseSession,
+      lang,
+      businessId: selectedBid,
+      type,
+      text: text ?? '',
+      norm: norm ?? '',
+    });
     return;
   }
 
