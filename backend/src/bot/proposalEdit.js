@@ -1,5 +1,5 @@
 const { norm } = require('./menuMatch');
-const { parseIntent, looksLikeOrderText } = require('./intentParser');
+const { parseIntent, parseIntentAsync, looksLikeOrderText } = require('./intentParser');
 const { parseOrderText } = require('./orderParser');
 
 const ORDER_SIGNAL_RE = /(\d+\s*x\b|\bx\s*\d+|\d+\s+\w|\+\s*\w|,\s*\w|\bund\b|\band\b|\bve\b|\bmit\b|\bwith\b)/i;
@@ -8,7 +8,7 @@ const CHAT_ONLY = new Set([
   'thanks', 'thank you', 'thx', 'ok', 'okay', 'yes', 'no', 'yep', 'nope',
   'ja', 'nein', 'danke', 'vielen dank', 'teşekkürler', 'tesekkurler', 'tamam', 'evet', 'hayır', 'hayir',
 ]);
-const { matchIntentToMenu } = require('./intentMatcher');
+const { matchIntentToMenu, mergePendingItems } = require('./intentMatcher');
 const { sendDisambiguationList } = require('./intentDisambiguate');
 const { sendIntentProposal } = require('./intentOrder');
 const { patchSession } = require('./sessionStore');
@@ -16,6 +16,7 @@ const { sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { sendOrderEntryPrompt } = require('./orderEntry');
 const { getMenu } = require('./menuService');
+const { canCallLlm, parseProposalEditWithLlm } = require('../lib/llm');
 
 const CANCEL_PHRASES = new Set([
   'cancel', 'start over', 'start again', 'never mind', 'nevermind', 'forget it',
@@ -23,7 +24,11 @@ const CANCEL_PHRASES = new Set([
   'iptal', 'vazgec', 'vazgeç', 'sifirla', 'sıfırla', 'bastan', 'baştan',
 ]);
 
-const REMOVE_RE = /^(remove|delete|without|no|kein|keine|ohne|sil|cikar|çıkar|kaldir|kaldır)\s+(.+)$/i;
+const REMOVE_VERBS =
+  'remove|delete|without|no|kein|keine|ohne|sil|cikar|çıkar|kaldir|kaldır|weg|raus';
+const REMOVE_RE = new RegExp(`^(${REMOVE_VERBS})\\s+(.+)$`, 'i');
+const REMOVE_SUFFIX_RE = new RegExp(`^(.+?)\\s+(${REMOVE_VERBS})$`, 'i');
+const EDIT_SIGNAL_RE = new RegExp(`\\b(${REMOVE_VERBS}|add|plus|und|ve|sadece|only|nur|actually|instead|ersetzen|yerine|stattdessen)\\b`, 'i');
 const ADD_RE = /^(add|and|plus|und|ve|\+)\s+(.+)$/i;
 const SET_QTY_RE = /^(make it|just|only|nur|sadece|stattdessen)\s+(.+)$/i;
 const REPLACE_RE = /^(actually|instead|change to|ersetzen durch|yerine)\s+(.+)$/i;
@@ -57,6 +62,9 @@ function parseProposalEdit(text, normText) {
 
   const removeMatch = trimmed.match(REMOVE_RE);
   if (removeMatch) return { type: 'remove', rawName: removeMatch[2].trim() };
+
+  const removeSuffix = trimmed.match(REMOVE_SUFFIX_RE);
+  if (removeSuffix) return { type: 'remove', rawName: removeSuffix[1].trim() };
 
   const addMatch = trimmed.match(ADD_RE);
   if (addMatch) return { type: 'add', fragment: addMatch[2].trim() };
@@ -109,14 +117,33 @@ function setProposalQty(pending, rawName, qty) {
   return next;
 }
 
-function removeProposalItem(pending, rawName) {
-  const idx = findProposalItemIndex(pending, rawName);
-  if (idx < 0) return null;
-  return pending.filter((_, i) => i !== idx);
+function looksLikeProposalEdit(text) {
+  return EDIT_SIGNAL_RE.test(text ?? '');
 }
 
-async function matchFragmentToMenu(fragment, menu) {
-  const intent = parseIntent(fragment);
+async function resolveProposalEdit(text, normText, pending, phone) {
+  const rules = parseProposalEdit(text, normText);
+  if (rules) return rules;
+  if (!pending?.length || !text?.trim() || !looksLikeProposalEdit(text)) return null;
+  if (!canCallLlm(phone)) return null;
+  return parseProposalEditWithLlm(text, pending, { phone });
+}
+
+function proposalItemMatchesName(pendingItem, rawName) {
+  const needle = norm(rawName);
+  if (!needle) return false;
+  const n = norm(pendingItem.name);
+  return n === needle || n.includes(needle) || needle.includes(n);
+}
+
+function removeProposalItem(pending, rawName) {
+  const next = pending.filter(p => !proposalItemMatchesName(p, rawName));
+  if (next.length === pending.length) return null;
+  return next;
+}
+
+async function matchFragmentToMenu(fragment, menu, phone) {
+  const intent = await parseIntentAsync(fragment, { phone });
   if (!intent.items.length) return null;
   return matchIntentToMenu(intent, menu);
 }
@@ -125,7 +152,7 @@ async function tryProposalEdit({ from, session, lang, businessId, basket, text, 
   const pending = session.pendingIntentItems ?? [];
   if (!pending.length || !text?.trim()) return false;
 
-  const edit = parseProposalEdit(text, normText);
+  const edit = await resolveProposalEdit(text, normText, pending, from);
   if (!edit) return false;
 
   const unmatched = session.unmatchedIntentItems ?? [];
@@ -140,7 +167,13 @@ async function tryProposalEdit({ from, session, lang, businessId, basket, text, 
   }
 
   if (edit.type === 'remove') {
-    const next = removeProposalItem(pending, edit.rawName);
+    let next = removeProposalItem(pending, edit.rawName);
+    if (!next && canCallLlm(from)) {
+      const llmEdit = await parseProposalEditWithLlm(text, pending, { phone: from });
+      if (llmEdit?.type === 'remove' && llmEdit.rawName) {
+        next = removeProposalItem(pending, llmEdit.rawName);
+      }
+    }
     if (!next) {
       await sendText(from, t('proposalEditNotFound', lang, edit.rawName));
       await sendIntentProposal({ from, session, lang, businessId, basket, matched: pending, unmatched });
@@ -196,7 +229,7 @@ async function tryProposalEdit({ from, session, lang, businessId, basket, text, 
     return false;
   }
 
-  const result = await matchFragmentToMenu(fragment, menu);
+  const result = await matchFragmentToMenu(fragment, menu, from);
   if (!result) return false;
 
   if (result.disambiguation) {
@@ -211,13 +244,14 @@ async function tryProposalEdit({ from, session, lang, businessId, basket, text, 
     return true;
   }
 
-  const nextMatched = [...baseProposal, ...result.matched];
+  const nextMatched = mergePendingItems([...baseProposal, ...result.matched]);
   const nextUnmatched = [
     ...unmatched,
     ...result.unmatched,
   ].filter(Boolean);
 
   if (!nextMatched.length) {
+    if (edit.type === 'replace') return false;
     await patchSession(from, { pendingIntentItems: undefined, unmatchedIntentItems: undefined }, session);
     await sendOrderEntryPrompt({
       from, session, lang, businessId, basket,
@@ -237,6 +271,11 @@ async function tryProposalEdit({ from, session, lang, businessId, basket, text, 
 module.exports = {
   parseProposalEdit,
   findProposalItemIndex,
+  removeProposalItem,
   tryProposalEdit,
+  looksLikeProposalEdit,
+  resolveProposalEdit,
   CANCEL_PHRASES,
+  hasExplicitOrderSignals,
+  REMOVE_SUFFIX_RE,
 };

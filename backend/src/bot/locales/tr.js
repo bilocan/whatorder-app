@@ -164,6 +164,7 @@ module.exports = {
   searchSection: () => 'Sonuçlar',
   searchNoResults: (query) => `"${query}" için sonuç yok. Başka kelime dene veya Ara / Tam menü.`,
   intentNoMatch: (text) => `"${text}" menüde yok. Ara veya Tam menüyü dene.`,
+  intentParseFailed: () => 'Siparişi anlayamadım. Örn. „2x döner, 1 ayran“ yaz veya Ara\'ya dokun.',
 
   disambigHeader: () => 'Hangisini istiyorsun?',
   disambigBody: (rawName, qty) => `${qty}x ${rawName} yazdın. Hangi ürün?`,

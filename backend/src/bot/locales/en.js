@@ -164,6 +164,7 @@ module.exports = {
   searchSection: () => 'Results',
   searchNoResults: (query) => `No matches for "${query}". Try another word or tap Search / Full menu.`,
   intentNoMatch: (text) => `Couldn't find "${text}" on the menu. Try Search or Full menu.`,
+  intentParseFailed: () => 'Could not understand your order. Try something like "2x döner, 1 ayran" or tap Search.',
 
   disambigHeader: () => 'Which one?',
   disambigBody: (rawName, qty) => `You said ${qty}x ${rawName}. Which item did you mean?`,

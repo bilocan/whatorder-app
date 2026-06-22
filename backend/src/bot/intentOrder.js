@@ -3,13 +3,39 @@ const { sendButtonMessage, sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildBasketText, sendCatalog } = require('./botHelpers');
 const { getMenu } = require('./menuService');
-const { parseIntent, looksLikeOrderText } = require('./intentParser');
-const { matchIntentToMenu, mergeIntoBasket } = require('./intentMatcher');
+const { parseIntentAsync, looksLikeOrderText } = require('./intentParser');
+const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
+const { matchIntentToMenu, mergeIntoBasket, mergePendingItems } = require('./intentMatcher');
 const { sendDisambiguationList } = require('./intentDisambiguate');
-const { splitPendingItems, startIntentCustomization } = require('./intentCustomize');
+const { splitPendingItems, startIntentCustomization, buildOptionLabel } = require('./intentCustomize');
+const { norm } = require('./menuMatch');
+const { enrichPendingWithModifier } = require('./intentModifiers');
+
+function isIntentConfirmText(text, lang) {
+  const cleaned = norm((text ?? '').replace(/[!?.]+/g, '').trim());
+  if (!cleaned) return false;
+  const labels = new Set([
+    norm(t('intentConfirmBtn', lang)),
+    'add', 'yes', 'ja', 'evet', 'ok', 'confirm', 'onayla',
+  ]);
+  return labels.has(cleaned);
+}
+
+function formatPendingLine(item) {
+  const enriched = enrichPendingWithModifier(item);
+  if (enriched.prefilledSelections) {
+    const label = buildOptionLabel(enriched, enriched.prefilledSelections);
+    return `• ${enriched.qty}x ${label} — €${(enriched.price * enriched.qty).toFixed(2)}`;
+  }
+  let hint = '';
+  if (enriched.rawIntentName && norm(enriched.rawIntentName) !== norm(enriched.name)) {
+    hint = ` (${enriched.rawIntentName})`;
+  }
+  return `• ${enriched.qty}x ${enriched.name}${hint} — €${(enriched.price * enriched.qty).toFixed(2)}`;
+}
 
 function buildIntentConfirmBody(matched, unmatched, lang) {
-  const lines = matched.map(i => `• ${i.qty}x ${i.name} — €${(i.price * i.qty).toFixed(2)}`);
+  const lines = matched.map(i => formatPendingLine(i));
   const total = matched.reduce((s, i) => s + i.price * i.qty, 0);
   let body = t('intentConfirmHeader', lang) + '\n\n' + lines.join('\n') + '\n\n' + t('orderTotal', lang, total.toFixed(2));
   if (unmatched.length) {
@@ -20,13 +46,14 @@ function buildIntentConfirmBody(matched, unmatched, lang) {
 }
 
 async function sendIntentProposal({ from, session, lang, businessId, basket, matched, unmatched = [] }) {
+  const merged = mergePendingItems(matched.map(enrichPendingWithModifier));
   const proposalSession = {
     ...session,
     state: 'browsing',
     language: lang,
     businessId,
     basket,
-    pendingIntentItems: matched,
+    pendingIntentItems: merged,
     unmatchedIntentItems: unmatched.length ? unmatched : undefined,
     disambiguation: undefined,
   };
@@ -36,13 +63,13 @@ async function sendIntentProposal({ from, session, lang, businessId, basket, mat
     language: lang,
     businessId,
     basket,
-    pendingIntentItems: matched,
+    pendingIntentItems: merged,
     unmatchedIntentItems: unmatched.length ? unmatched : undefined,
     disambiguation: undefined,
   }, session);
 
   const msgId = await sendButtonMessage(from, {
-    body: buildIntentConfirmBody(matched, unmatched, lang),
+    body: buildIntentConfirmBody(merged, unmatched, lang),
     buttons: [
       { id: 'btn_intent_confirm', title: t('intentConfirmBtn', lang) },
       { id: 'btn_intent_change', title: t('intentChangeBtn', lang) },
@@ -59,11 +86,27 @@ async function sendIntentProposal({ from, session, lang, businessId, basket, mat
 async function tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm }) {
   if (!looksLikeOrderText(text, norm)) return false;
 
-  const intent = parseIntent(text);
+  let intent = await parseIntentAsync(text, { phone: from });
   if (!intent.items.length) return false;
+  if (intent.confidence != null && intent.confidence < 0.6) return false;
 
-  const menu = await getMenu(businessId);
-  const { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu);
+  let menu = await getMenu(businessId);
+  let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu);
+
+  // Rules-only parse with zero menu hits — retry with LLM if we skipped it earlier
+  if (!matched.length && !intent.llmAttempted && intent.parsedBy === 'rules' && canCallLlm(from)) {
+    const llm = await parseOrderIntentWithLlm(text, { phone: from });
+    if (llm && llm.confidence >= 0.6 && llm.items.length) {
+      intent = {
+        items: llm.items.map(i => ({ name: i.name, qty: i.qty ?? 1 })),
+        partySize: llm.partySize ?? null,
+        rawText: text,
+        parsedBy: 'llm',
+        confidence: llm.confidence,
+      };
+      ({ matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu));
+    }
+  }
 
   if (disambiguation) {
     await sendDisambiguationList({
@@ -72,7 +115,10 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
     return true;
   }
 
-  if (!matched.length) return false;
+  if (!matched.length) {
+    if (intent.llmFailed) return 'llm_failed';
+    return false;
+  }
 
   await sendIntentProposal({ from, session, lang, businessId, basket, matched, unmatched });
   return true;
@@ -144,4 +190,5 @@ module.exports = {
   handleIntentButtons,
   buildIntentConfirmBody,
   sendIntentProposal,
+  isIntentConfirmText,
 };

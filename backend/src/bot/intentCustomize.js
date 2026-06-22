@@ -4,6 +4,7 @@ const { t } = require('./templates');
 const { buildBasketText } = require('./botHelpers');
 const { mergeIntoBasket } = require('./intentMatcher');
 const { norm } = require('./menuMatch');
+const { enrichPendingWithModifier, isCustomizationSatisfied, wantsAllIncluded, parseExclusions, resolveModifierSelections } = require('./intentModifiers');
 
 const MULTI_NONE_KEYWORDS = new Set([
   'none', 'no', 'nothing', 'zero',
@@ -23,12 +24,31 @@ function needsCustomization(item) {
   return (item.optionGroups?.length ?? 0) > 0;
 }
 
+function hasExplicitModifierIntent(rawIntentName) {
+  if (!rawIntentName?.trim()) return false;
+  return wantsAllIncluded(rawIntentName) || parseExclusions(rawIntentName).length > 0;
+}
+
 function splitPendingItems(pending) {
   const simple = [];
   const customize = [];
-  for (const item of pending) {
-    if (needsCustomization(item)) customize.push(item);
-    else simple.push(item);
+  for (const raw of pending) {
+    const item = enrichPendingWithModifier(raw);
+    if (!needsCustomization(item)) {
+      simple.push(item);
+      continue;
+    }
+    const prefilled = item.prefilledSelections;
+    // Only skip Beilagen prompt when customer stated modifiers (mit allem / ohne …)
+    if (prefilled && isCustomizationSatisfied(item, prefilled) && hasExplicitModifierIntent(item.rawIntentName)) {
+      simple.push({
+        name: buildOptionLabel(item, prefilled),
+        qty: item.qty,
+        price: item.price,
+      });
+      continue;
+    }
+    customize.push(item);
   }
   return { simple, customize };
 }
@@ -124,6 +144,33 @@ function isMultiAllText(text) {
 function isMultiDefaultText(text) {
   const n = norm(text);
   return !n || MULTI_DEFAULT_KEYWORDS.has(n);
+}
+
+/**
+ * "Eine mit allem und andere ohne Zwiebel" → per-unit modifier phrases (qty must match).
+ * Lets customers skip the Alle gleich / Einzeln buttons during inserts.
+ */
+function parsePerUnitModifierText(text, qty) {
+  if (!text?.trim() || qty < 2) return null;
+
+  const cleaned = text.trim().replace(/\s+bitte\s*$/i, '').trim();
+  if (!/\b(mit\s+allem|ohne\s+)/i.test(cleaned)) return null;
+
+  const pair = cleaned.match(
+    /^(?:(?:eine|einer|eins)\s+(.+?))\s+und\s+(?:(?:andere|anderer|anderes|die\s+andere|eine|einer|eins)\s+(.+))$/i,
+  );
+  if (!pair) return null;
+
+  const normalizePhrase = (raw) => {
+    const p = (raw ?? '').trim();
+    if (wantsAllIncluded(p)) return 'mit allem';
+    if (/\bohne\b/i.test(p)) return p.startsWith('ohne') ? p : `ohne ${p}`;
+    return null;
+  };
+
+  const phrases = [normalizePhrase(pair[1]), normalizePhrase(pair[2])].filter(Boolean);
+  if (phrases.length !== qty) return null;
+  return phrases;
 }
 
 function parseMultiTextInput(text, group) {
@@ -329,7 +376,32 @@ async function startNextItem(from, session, lang, businessId, queue, readyBasket
     return;
   }
   const item = queue[0];
-  const ic = newCustomizeState({ queue, readyBasket });
+  let ic = newCustomizeState({ queue, readyBasket });
+
+  if (item.prefilledSelections) {
+    ic.selections = { ...item.prefilledSelections };
+    const groups = item.optionGroups ?? [];
+    const firstUnset = groups.findIndex(g => {
+      if (g.type === 'single') return !ic.selections[g.id];
+      if (g.type === 'multi') return ic.selections[g.id] === undefined;
+      return false;
+    });
+    if (firstUnset < 0) {
+      await completeCurrentUnit({ from, session, lang, businessId, ic, selections: ic.selections });
+      return;
+    }
+    ic.groupIdx = firstUnset;
+    ic.unitMode = item.qty > 1 ? null : 'same';
+    if (item.qty > 1 && ic.unitMode == null) {
+      const msgId = await promptSameOrEach(from, lang, item);
+      await persistCustomize(from, session, lang, businessId, ic, msgId);
+      return;
+    }
+    const msgId = await promptOptionGroup(from, lang, ic);
+    await persistCustomize(from, session, lang, businessId, ic, msgId);
+    return;
+  }
+
   if (item.qty > 1) {
     const msgId = await promptSameOrEach(from, lang, item);
     await persistCustomize(from, session, lang, businessId, ic, msgId);
@@ -377,6 +449,32 @@ async function advanceCustomization({ from, session, lang, businessId, selection
   await completeCurrentUnit({ from, session, lang, businessId, ic, selections });
 }
 
+async function applyPerUnitModifiersFromText({ from, session, lang, businessId, ic, phrases }) {
+  const item = ic.queue[0];
+  let readyBasket = ic.readyBasket;
+
+  for (let i = 0; i < phrases.length; i++) {
+    const selections = resolveModifierSelections(phrases[i], item.optionGroups) ?? {};
+    if (!isCustomizationSatisfied(item, selections)) {
+      const nextIc = {
+        ...ic,
+        unitMode: 'each',
+        unitIndex: i + 1,
+        groupIdx: 0,
+        selections,
+        readyBasket,
+      };
+      const msgId = await promptOptionGroup(from, lang, nextIc);
+      await persistCustomize(from, session, lang, businessId, nextIc, msgId);
+      return;
+    }
+    const lineName = buildOptionLabel(item, selections);
+    readyBasket = mergeIntoBasket(readyBasket, [{ name: lineName, qty: 1, price: item.price }]);
+  }
+
+  await startNextItem(from, session, lang, businessId, ic.queue.slice(1), readyBasket);
+}
+
 async function startIntentCustomization({ from, session, lang, businessId, basket, simpleItems, customizeItems }) {
   const readyBasket = mergeIntoBasket(basket, simpleItems);
   await startNextItem(from, session, lang, businessId, customizeItems, readyBasket);
@@ -393,6 +491,35 @@ async function handleIntentCustomize({ from, session, lang, businessId, type, te
   const group = item.optionGroups?.[ic.groupIdx];
 
   if (item.qty > 1 && ic.unitMode == null) {
+    if (type === 'text' && text?.trim()) {
+      const normalized = norm(text).replace(/[!?.]+/g, '').trim();
+      const sameLabels = new Set([
+        norm(t('intentSameOptsBtn', lang)),
+        norm(t('disambigSameBtn', lang)),
+      ]);
+      const eachLabels = new Set([
+        norm(t('intentEachOptsBtn', lang)),
+        norm(t('disambigEachBtn', lang)),
+      ]);
+      if (sameLabels.has(normalized) || eachLabels.has(normalized)) {
+        const nextIc = {
+          ...ic,
+          unitMode: sameLabels.has(normalized) ? 'same' : 'each',
+          unitIndex: 1,
+        };
+        const msgId = await promptOptionGroup(from, lang, nextIc);
+        await persistCustomize(from, session, lang, businessId, nextIc, msgId);
+        return;
+      }
+
+      const perUnit = parsePerUnitModifierText(text, item.qty);
+      if (perUnit) {
+        await applyPerUnitModifiersFromText({
+          from, session, lang, businessId, ic, phrases: perUnit,
+        });
+        return;
+      }
+    }
     if (type !== 'button_reply') return;
     if (id === 'btn_intent_same_opts' || id === 'btn_intent_each_opts') {
       const nextIc = { ...ic, unitMode: id === 'btn_intent_same_opts' ? 'same' : 'each', unitIndex: 1 };
@@ -461,6 +588,7 @@ module.exports = {
   parseOptionReply,
   parseMultiTextInput,
   parseMultiReply,
+  parsePerUnitModifierText,
   allOptionIds,
   getDefaultMultiSelection,
   getMultiSelection,

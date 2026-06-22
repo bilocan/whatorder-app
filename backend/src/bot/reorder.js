@@ -153,7 +153,14 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
     const handled = await tryTextIntentOrder({
       from, session: freshSession, lang, businessId, basket: [], text, norm,
     });
-    if (handled) return;
+    if (handled === true) return;
+    if (handled === 'llm_failed') {
+      await sendOrderEntryPrompt({
+        from, session: freshSession, lang, businessId, basket: [],
+        bodyOverride: t('intentParseFailed', lang),
+      });
+      return;
+    }
     if (isShortLookupText(text, norm)) {
       if (await tryMenuSearch({
         from, session: freshSession, lang, businessId, basket: [], text,

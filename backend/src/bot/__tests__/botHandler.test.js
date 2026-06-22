@@ -88,6 +88,20 @@ const MENU = [
   { id: 'item_2', name: 'Ayran',  price: 2.00, category: 'drinks', description: 'Yogurt drink', available: true },
 ];
 
+const BEILAGEN_WITH_CHILI = {
+  id: 'inserts',
+  label: 'Inserts',
+  type: 'multi',
+  required: false,
+  multiDefault: 'all',
+  options: [
+    { id: 'tomato', label: 'Tomato' },
+    { id: 'salad', label: 'Salad' },
+    { id: 'onion', label: 'Onion' },
+    { id: 'chili', label: 'Scharfe Sauce' },
+  ],
+};
+
 const BIZ_INFO = { name: 'Döner Palace', avgPrepTime: 20, catalogId: 'cat_123', alertPhone: '+43699123456', address: 'Musterstrasse 1, 1010 Wien', botLanguage: 'de' };
 
 function mockCustomerProfile(data) {
@@ -983,6 +997,32 @@ describe('Intent ordering (Tier A)', () => {
     }));
   });
 
+  test('proposal edit: pizza cikar removes pizza (TR suffix remove)', async () => {
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'browsing', businessId: BIZ, basket: [],
+      pendingIntentItems: [
+        { name: 'Kebap Sandwich Huhn', qty: 2, price: 15.00, menuItemId: 'item_1', optionGroups: [] },
+        { name: 'Pizza della Casa (33cm)', qty: 1, price: 14.90, menuItemId: 'item_p1', optionGroups: [] },
+        { name: 'Coca Cola 0.33L', qty: 1, price: 2.90, menuItemId: 'item_2', optionGroups: [] },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Pizza cikar' }));
+
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.not.stringContaining('Pizza'),
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Kebap'),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      pendingIntentItems: expect.not.arrayContaining([
+        expect.objectContaining({ name: expect.stringMatching(/pizza/i) }),
+      ]),
+    }));
+  });
+
   test('proposal edit: make it 1 döner changes qty in proposal', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'browsing', businessId: BIZ, basket: [],
@@ -1060,6 +1100,41 @@ describe('Intent ordering (Tier A)', () => {
         expect.objectContaining({ id: 'btn_intent_each_opts' }),
       ]),
     }));
+  });
+
+  test('customizing_intent per-unit modifier text skips same-or-each buttons', async () => {
+    const inserts = BEILAGEN_WITH_CHILI;
+    let stored = {
+      language: 'de',
+      state: 'customizing_intent',
+      businessId: BIZ,
+      basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+      intentCustomize: {
+        queue: [{
+          name: 'Kebap Sandwich Huhn', qty: 2, price: 7.50, menuItemId: 'item_1',
+          optionGroups: [inserts],
+        }],
+        groupIdx: 0,
+        selections: {},
+        readyBasket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+        unitMode: null,
+        unitIndex: 1,
+        unitTotal: 2,
+      },
+    };
+    getSession.mockImplementation(async () => ({ ...stored }));
+    setSession.mockImplementation(async (_phone, data) => { stored = { ...data }; });
+
+    await handleMessage(ROUTING, msg({
+      text: 'Eine mit allem und andere ohne Zwiebel und Schaf bitte',
+    }));
+
+    expect(stored.state).toBe('browsing');
+    expect(stored.basket).toEqual([
+      { name: 'Ayran', qty: 1, price: 2.00 },
+      { name: 'Kebap Sandwich Huhn — Tomato, Salad, Onion, Scharfe Sauce', qty: 1, price: 7.50 },
+      { name: 'Kebap Sandwich Huhn — Tomato, Salad', qty: 1, price: 7.50 },
+    ]);
   });
 
   test('customizing_intent same mode completes with multi inserts', async () => {

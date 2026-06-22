@@ -1,21 +1,67 @@
 const { patchSession } = require('./sessionStore');
 const { sendListMessage, sendButtonMessage } = require('../lib/whatsapp');
 const { t } = require('./templates');
-const { matchIntentToMenu } = require('./intentMatcher');
+const { matchIntentToMenu, mergePendingLine, toPendingItem } = require('./intentMatcher');
 const { getMenu } = require('./menuService');
-const { classifyMenuMatch, norm } = require('./menuMatch');
+const { classifyMenuMatch, norm, scoreItemForNeedle } = require('./menuMatch');
+const { extractDishNameForMatch } = require('./intentModifiers');
 
-function toPendingItem(item, qty) {
-  if (!item?.id || !item?.name) {
-    throw new Error(`Invalid menu item for disambiguation: ${JSON.stringify(item)}`);
+const MIN_AUTO_SCORE = 50;
+const AUTO_SCORE_GAP = 25;
+
+function pickBestCandidate(rawName, candidates) {
+  const list = validCandidates(candidates);
+  if (!list.length) return null;
+
+  const dish = extractDishNameForMatch(rawName) || (rawName ?? '').trim();
+  const dishWords = dish.split(/\s+/).filter(w => w.length > 2).map(w => norm(w));
+
+  const exact = list.find(c => norm(c.name) === norm(dish));
+  if (exact && (dishWords.length >= 2 || list.length === 1)) return exact;
+
+  // Single-word queries (e.g. "döner") stay ambiguous — show the pick list
+  if (dishWords.length < 2) return null;
+
+  if (dishWords.length >= 2) {
+    const wordHits = list.filter(item => {
+      const n = norm(item.name);
+      return dishWords.every(w => n.includes(w));
+    });
+    if (wordHits.length === 1) return wordHits[0];
   }
-  return {
-    menuItemId: item.id,
-    name: item.name,
-    qty: Math.min(99, Math.max(1, qty ?? 1)),
-    price: Number(item.price),
-    optionGroups: item.optionGroups ?? [],
-  };
+
+  const scored = list
+    .map(item => ({ item, score: scoreItemForNeedle(item, dish) }))
+    .filter(x => x.score >= MIN_AUTO_SCORE)
+    .sort((a, b) => b.score - a.score);
+
+  if (!scored.length) return null;
+  if (scored.length === 1) return scored[0].item;
+  if (scored[0].score - scored[1].score >= AUTO_SCORE_GAP) return scored[0].item;
+
+  const partial = list.find(c => {
+    const n = norm(c.name);
+    const d = norm(dish);
+    return d.length >= 4 && (n.includes(d) || d.includes(n));
+  });
+  if (partial) return partial;
+
+  return null;
+}
+
+async function tryAutoResolveDisambiguation({
+  from, session, lang, businessId, basket, disambiguation,
+}) {
+  const hydrated = await hydrateDisambiguation(disambiguation, businessId);
+  const picked = pickBestCandidate(hydrated.rawName, hydrated.candidates);
+  if (!picked) return false;
+
+  await continueAfterResolvedItem({
+    from, session, lang, businessId, basket,
+    resolvedItem: picked,
+    disambiguation: hydrated,
+  });
+  return true;
 }
 
 function validCandidates(candidates) {
@@ -51,16 +97,6 @@ function resolveCandidateFromText(text, candidates) {
   return partial ?? null;
 }
 
-function mergePendingLine(matched, pending) {
-  const existing = matched.find(m => m.menuItemId === pending.menuItemId);
-  if (existing) {
-    return matched.map(m => (
-      m.menuItemId === pending.menuItemId ? { ...m, qty: m.qty + pending.qty } : m
-    ));
-  }
-  return [...matched, pending];
-}
-
 async function sendDisambiguationModePrompt({ from, session, lang, businessId, basket, disambiguation }) {
   const hydrated = await hydrateDisambiguation(disambiguation, businessId);
 
@@ -86,6 +122,10 @@ async function sendDisambiguationModePrompt({ from, session, lang, businessId, b
 async function sendDisambiguationList({ from, session, lang, businessId, basket, disambiguation }) {
   const hydrated = await hydrateDisambiguation(disambiguation, businessId);
   const { rawName, qty, candidates, unitMode, unitIndex } = hydrated;
+
+  if (await tryAutoResolveDisambiguation({
+    from, session, lang, businessId, basket, disambiguation: hydrated,
+  })) return;
 
   if ((qty ?? 1) > 1 && !unitMode) {
     await sendDisambiguationModePrompt({ from, session, lang, businessId, basket, disambiguation: hydrated });
@@ -131,8 +171,9 @@ async function sendDisambiguationList({ from, session, lang, businessId, basket,
 }
 
 async function finishIntentFromDisambiguation({ from, session, lang, businessId, basket, matched, unmatched, disambiguation }) {
+  const { mergePendingItems } = require('./intentMatcher');
   const base = disambiguation?.proposalEditMode ? (disambiguation.proposalEditBase ?? []) : [];
-  const finalMatched = [...base, ...matched];
+  const finalMatched = mergePendingItems([...base, ...matched]);
   const finalUnmatched = unmatched ?? [];
 
   if (!finalMatched.length) {
@@ -212,7 +253,7 @@ async function continueAfterResolvedItem({ from, session, lang, businessId, bask
     const unitIndex = disambiguation.unitIndex ?? 1;
     const matched = mergePendingLine(
       [...(disambiguation.resolvedMatched ?? [])],
-      toPendingItem(resolvedItem, 1),
+      toPendingItem(resolvedItem, 1, { rawIntentName: disambiguation.rawName }),
     );
 
     if (unitIndex < qty) {
@@ -234,10 +275,10 @@ async function continueAfterResolvedItem({ from, session, lang, businessId, bask
     return;
   }
 
-  const matched = [
-    ...(disambiguation.resolvedMatched ?? []),
-    toPendingItem(resolvedItem, qty),
-  ];
+  const matched = mergePendingLine(
+    disambiguation.resolvedMatched ?? [],
+    toPendingItem(resolvedItem, qty, { rawIntentName: disambiguation.rawName }),
+  );
   await continueAfterLineResolved({
     from, session, lang, businessId, basket, matched, unmatched, disambiguation,
   });
@@ -267,10 +308,15 @@ async function handleDisambiguatingIntent({ from, session, lang, businessId, bas
 
   // Recovery: proposal already written but state still disambiguating (failed mid-flow).
   if (session.pendingIntentItems?.length) {
-    const { handleIntentButtons } = require('./intentOrder');
+    const { handleIntentButtons, isIntentConfirmText } = require('./intentOrder');
     const { tryProposalEdit } = require('./proposalEdit');
     if (type === 'button_reply' && await handleIntentButtons({ from, session, lang, businessId, basket, id })) {
       return;
+    }
+    if (type === 'text' && text?.trim() && isIntentConfirmText(text, lang)) {
+      if (await handleIntentButtons({
+        from, session, lang, businessId, basket, id: 'btn_intent_confirm',
+      })) return;
     }
     if (type === 'text' && text?.trim() && await tryProposalEdit({ from, session, lang, businessId, basket, text, norm })) {
       return;
@@ -290,13 +336,47 @@ async function handleDisambiguatingIntent({ from, session, lang, businessId, bas
       await abortDisambiguation({ from, session, lang, businessId, basket });
       return;
     }
+    if ((disambiguation.qty ?? 1) > 1 && !disambiguation.unitMode) {
+      const sameLabels = new Set([
+        norm(t('disambigSameBtn', lang)),
+        norm(t('intentSameOptsBtn', lang)),
+      ]);
+      const eachLabels = new Set([
+        norm(t('disambigEachBtn', lang)),
+        norm(t('intentEachOptsBtn', lang)),
+      ]);
+      const normalized = norm(text).replace(/[!?.]+/g, '').trim();
+      if (sameLabels.has(normalized)) {
+        const next = { ...disambiguation, unitMode: 'same', unitIndex: 1 };
+        if (await tryAutoResolveDisambiguation({
+          from, session, lang, businessId, basket, disambiguation: next,
+        })) return;
+        await sendDisambiguationList({
+          from, session, lang, businessId, basket,
+          disambiguation: next,
+        });
+        return;
+      }
+      if (eachLabels.has(normalized)) {
+        const next = { ...disambiguation, unitMode: 'each', unitIndex: 1 };
+        await sendDisambiguationList({
+          from, session, lang, businessId, basket,
+          disambiguation: next,
+        });
+        return;
+      }
+    }
   }
 
   if (type === 'button_reply') {
     if (id === 'btn_disamb_same') {
+      const next = { ...disambiguation, unitMode: 'same', unitIndex: 1 };
+      if (await tryAutoResolveDisambiguation({
+        from, session, lang, businessId, basket, disambiguation: next,
+      })) return;
       await sendDisambiguationList({
         from, session, lang, businessId, basket,
-        disambiguation: { ...disambiguation, unitMode: 'same', unitIndex: 1 },
+        disambiguation: next,
       });
       return;
     }
@@ -336,4 +416,6 @@ module.exports = {
   hydrateDisambiguation,
   abortDisambiguation,
   mergePendingLine,
+  pickBestCandidate,
+  tryAutoResolveDisambiguation,
 };

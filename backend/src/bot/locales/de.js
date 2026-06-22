@@ -164,6 +164,7 @@ module.exports = {
   searchSection: () => 'Treffer',
   searchNoResults: (query) => `Keine Treffer für "${query}". Anderes Wort oder Suche / Volles Menü.`,
   intentNoMatch: (text) => `"${text}" nicht auf der Karte. Probier Suche oder Volles Menü.`,
+  intentParseFailed: () => 'Konnte die Bestellung nicht verstehen. Probier z. B. „2x Döner, 1 Ayran“ oder tippe Suche.',
 
   disambigHeader: () => 'Welches meinst du?',
   disambigBody: (rawName, qty) => `Du hast ${qty}x ${rawName} geschrieben. Welches Gericht?`,
