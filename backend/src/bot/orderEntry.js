@@ -12,21 +12,37 @@ function isMenuRequest(norm) {
   return MENU_KEYWORDS.has(cleaned);
 }
 
+async function buildOrderEntryButtons(lang, businessId) {
+  const { hasPopularItems } = require('./popularBoard');
+  const buttons = [];
+  if (await hasPopularItems(businessId)) {
+    buttons.push({ id: 'btn_popular', title: t('popularBtn', lang) });
+  }
+  buttons.push({ id: 'btn_search', title: t('searchBtn', lang) });
+  buttons.push({ id: 'btn_view_full_menu', title: t('viewFullMenuBtn', lang) });
+  return buttons.slice(0, 3);
+}
+
 async function sendOrderEntryPrompt({ from, session, lang, businessId, basket = [], bodyOverride }) {
+  const buttons = await buildOrderEntryButtons(lang, businessId);
   const msgId = await sendButtonMessage(from, {
     body: bodyOverride ?? t('orderEntryBody', lang),
-    buttons: [
-      { id: 'btn_view_full_menu', title: t('viewFullMenuBtn', lang) },
-    ],
+    buttons,
   });
   await patchSession(from, {
     state: 'browsing',
     language: lang,
     businessId,
     basket,
+    menuSearchActive: false,
     pendingDeleteIds: msgId ? [msgId] : [],
   }, session);
   return true;
 }
 
-module.exports = { isMenuRequest, sendOrderEntryPrompt, MENU_KEYWORDS };
+module.exports = {
+  isMenuRequest,
+  sendOrderEntryPrompt,
+  buildOrderEntryButtons,
+  MENU_KEYWORDS,
+};

@@ -7,6 +7,12 @@ const { getLastOrderForCustomer } = require('./orderService');
 const { matchMenuItem } = require('./menuMatch');
 const { tryTextIntentOrder } = require('./intentOrder');
 const { isMenuRequest, sendOrderEntryPrompt } = require('./orderEntry');
+const {
+  tryMenuSearch,
+  isShortLookupText,
+  isSearchKeyword,
+  sendSearchPrompt,
+} = require('./menuSearch');
 
 function buildReorderBasket(orderItems, menu) {
   const matched = [];
@@ -138,11 +144,21 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
     return;
   }
 
+  if (type === 'text' && isSearchKeyword(norm)) {
+    await sendSearchPrompt({ from, session: freshSession, lang, businessId, basket: [] });
+    return;
+  }
+
   if (type === 'text' && text?.trim()) {
     const handled = await tryTextIntentOrder({
       from, session: freshSession, lang, businessId, basket: [], text, norm,
     });
     if (handled) return;
+    if (isShortLookupText(text, norm)) {
+      if (await tryMenuSearch({
+        from, session: freshSession, lang, businessId, basket: [], text,
+      })) return;
+    }
   }
 
   if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [] })) return;
