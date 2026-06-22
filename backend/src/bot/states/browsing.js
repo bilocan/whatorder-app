@@ -5,8 +5,10 @@ const { buildBasketText, sendMenu, sendMenuPage, sendCatalog, groupMenuByCategor
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 const { tryTextIntentOrder, handleIntentButtons } = require('../intentOrder');
+const { tryProposalEdit } = require('../proposalEdit');
 const { handleReorderButtons, tryOfferReorder } = require('../reorder');
-const { isGreetingOnly } = require('../intentParser');
+const { isMenuRequest, sendOrderEntryPrompt } = require('../orderEntry');
+const { isGreetingOnly, looksLikeOrderText } = require('../intentParser');
 const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
 const { resumeDeliveryCheckout, showDeliveryBasketGate } = require('./checkout');
@@ -212,6 +214,11 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     if (await handleReorderButtons({ from, session, lang, businessId, basket, id })) return;
     if (await handleIntentButtons({ from, session, lang, businessId, basket, id })) return;
 
+    if (id === 'btn_view_full_menu') {
+      await openCatalog(from, session, lang, businessId);
+      return;
+    }
+
     if (id === 'btn_add_more') {
       if (session.flow === 'list') {
         const { menuId, textMenuIndex, textMenuCategory } = await sendMenu(from, lang, businessId);
@@ -297,22 +304,16 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     }
   }
 
-  // Text: numbered selection — skip default catalog resend for digit-only replies
-  if (type === 'text' && text?.trim() && /^[\d\s,;xX×*.+-]+$/.test(text.trim()) && /\d/.test(text)) {
-    if (await tryNumberSelectionOrder({ from, session, lang, businessId, basket, text })) return;
-    await sendText(from, t('textMenuPickCategory', lang));
+  // Text: full menu keyword (Layer 5 escape hatch)
+  if (type === 'text' && isMenuRequest(norm)) {
+    await openCatalog(from, session, lang, businessId);
     return;
   }
 
-  // Text: natural-language order intent (Tier A rules parser)
-  if (type === 'text' && text?.trim()) {
-    if (await tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm })) return;
-  }
-
-  // Text: basket keyword
+  // Text: basket keyword (before intent — "basket" is also ≥3 chars)
   if (type === 'text' && BASKET_KEYWORDS.has(norm)) {
     if (!basket.length) {
-      await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
+      await sendOrderEntryPrompt({ from, session, lang, businessId, bodyOverride: t('basketEmpty', lang) });
       return;
     }
     if (isGatedOnDeliveryMinimum(session)) {
@@ -330,13 +331,43 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     return;
   }
 
-  // Text: greeting with empty basket — offer reorder (Layer 0) before catalog
-  if (type === 'text' && text?.trim() && isGreetingOnly(norm) && !basket.length) {
-    if (await tryOfferReorder({ from, session, lang, businessId, basket })) return;
+  // Text: numbered selection — skip default catalog resend for digit-only replies
+  if (type === 'text' && text?.trim() && /^[\d\s,;xX×*.+-]+$/.test(text.trim()) && /\d/.test(text)) {
+    if (await tryNumberSelectionOrder({ from, session, lang, businessId, basket, text })) return;
+    await sendText(from, t('textMenuPickCategory', lang));
+    return;
   }
 
-  // Default: show catalog (with list fallback)
-  await openCatalog(from, session, lang, businessId);
+  // Text: edit proposed basket (Layer 1) while awaiting confirm
+  if (type === 'text' && text?.trim() && session.pendingIntentItems?.length) {
+    if (await tryProposalEdit({ from, session, lang, businessId, basket, text, norm })) return;
+  }
+
+  // Text: natural-language order intent (Tier A rules parser)
+  if (type === 'text' && text?.trim()) {
+    if (await tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm })) return;
+    if (looksLikeOrderText(text, norm)) {
+      await sendOrderEntryPrompt({
+        from, session, lang, businessId, basket,
+        bodyOverride: t('intentNoMatch', lang, text.trim()),
+      });
+      return;
+    }
+  }
+
+  // Text: greeting with empty basket — offer reorder (Layer 0) before order entry
+  if (type === 'text' && text?.trim() && isGreetingOnly(norm) && !basket.length) {
+    if (await tryOfferReorder({ from, session, lang, businessId, basket })) return;
+    await sendOrderEntryPrompt({ from, session, lang, businessId, basket });
+    return;
+  }
+
+  // Default: order entry prompt (Layer 1) when basket empty, else re-show menu
+  if (!basket.length) {
+    await sendOrderEntryPrompt({ from, session, lang, businessId, basket });
+  } else {
+    await openCatalog(from, session, lang, businessId);
+  }
 }
 
 module.exports = { handleSelecting, handleBrowsing };

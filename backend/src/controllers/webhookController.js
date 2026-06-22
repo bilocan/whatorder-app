@@ -48,13 +48,24 @@ async function receiveWebhook(req, res) {
   if (msg.type === 'text') {
     message = { type: 'text', text: msg.text?.body ?? '' };
   } else if (msg.type === 'interactive') {
-    const iType = msg.interactive?.type;
+    const interactive = msg.interactive ?? {};
+    const iType = interactive.type;
     if (iType === 'list_reply') {
-      const lr = msg.interactive.list_reply;
-      message = { type: 'list_reply', id: lr.id, title: lr.title };
+      const lr = interactive.list_reply;
+      if (!lr?.id) {
+        console.warn('[webhook] list_reply missing id', JSON.stringify(interactive));
+        res.status(200).json({ status: 'ok' });
+        return;
+      }
+      message = { type: 'list_reply', id: lr.id, title: lr.title ?? '' };
     } else if (iType === 'button_reply') {
-      const br = msg.interactive.button_reply;
-      message = { type: 'button_reply', id: br.id, title: br.title };
+      const br = interactive.button_reply;
+      if (!br?.id) {
+        console.warn('[webhook] button_reply missing id', JSON.stringify(interactive));
+        res.status(200).json({ status: 'ok' });
+        return;
+      }
+      message = { type: 'button_reply', id: br.id, title: br.title ?? '' };
     } else if (iType === 'nfm_reply') {
       let flowData = {};
       try { flowData = JSON.parse(msg.interactive.nfm_reply?.response_json ?? '{}'); } catch {}
