@@ -18,6 +18,17 @@ function testId() {
   return `test-wamid-${Date.now()}`;
 }
 
+const WA_BUTTON_TITLE_MAX = 20;
+
+/** WhatsApp reply-button titles: 1–20 chars (Meta Cloud API). */
+function clampWaButtonTitle(title, fallback = '…') {
+  const trimmed = String(title ?? '').trim();
+  const spread = [...trimmed];
+  const clamped = spread.slice(0, WA_BUTTON_TITLE_MAX).join('');
+  if (clamped.length >= 1) return clamped;
+  return fallback;
+}
+
 async function send(payload) {
   try {
     const response = await axios.post(apiUrl(), payload, { headers: headers() });
@@ -51,7 +62,7 @@ async function sendListMessage(to, { header, body, footer, buttonLabel, sections
     type: 'list',
     header: { type: 'text', text: header },
     body: { text: body },
-    action: { button: buttonLabel, sections },
+    action: { button: clampWaButtonTitle(buttonLabel, 'Menu'), sections },
   };
   if (footer) interactive.footer = { text: footer };
   return send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive });
@@ -60,15 +71,19 @@ async function sendListMessage(to, { header, body, footer, buttonLabel, sections
 // buttons: [{ id, title }] — max 3
 async function sendButtonMessage(to, { body, footer, buttons }) {
   const normalized = normalizePhone(to);
+  const safeButtons = (buttons ?? []).map(b => ({
+    id: b.id,
+    title: clampWaButtonTitle(b.title),
+  }));
   if (process.env.NODE_ENV === 'test') {
-    console.log(`\n[WA BUTTONS → ${normalized}]\n${body}\n[${buttons.map(b => b.title).join(' | ')}]\n`);
+    console.log(`\n[WA BUTTONS → ${normalized}]\n${body}\n[${safeButtons.map(b => b.title).join(' | ')}]\n`);
     return testId();
   }
   const interactive = {
     type: 'button',
     body: { text: body },
     action: {
-      buttons: buttons.map(b => ({ type: 'reply', reply: { id: b.id, title: b.title } })),
+      buttons: safeButtons.map(b => ({ type: 'reply', reply: { id: b.id, title: b.title } })),
     },
   };
   if (footer) interactive.footer = { text: footer };
@@ -139,7 +154,7 @@ async function sendFlowMessage(to, { flowId, flowToken, flowCta, screen, body, d
           flow_message_version: '3',
           flow_token: flowToken,
           flow_id: flowId,
-          flow_cta: flowCta,
+          flow_cta: clampWaButtonTitle(flowCta, 'Open'),
           flow_action: 'navigate',
           flow_action_payload: Object.keys(data).length ? { screen, data } : { screen },
         },
@@ -179,4 +194,7 @@ async function deleteMessage(messageId) {
   }
 }
 
-module.exports = { sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendFlowMessage, sendLocationRequest, sendImage, deleteMessage };
+module.exports = {
+  sendText, sendListMessage, sendButtonMessage, sendCatalogMessage, sendFlowMessage,
+  sendLocationRequest, sendImage, deleteMessage, clampWaButtonTitle, WA_BUTTON_TITLE_MAX,
+};
