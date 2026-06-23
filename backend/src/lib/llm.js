@@ -212,7 +212,7 @@ function validateEditPayload(data) {
 
 async function callOpenAiEdit(userText) {
   const model = process.env.LLM_MODEL || 'gpt-4o-mini';
-  const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '1500', 10);
+  const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
 
   const res = await axios.post(
     'https://api.openai.com/v1/chat/completions',
@@ -247,7 +247,7 @@ async function callOpenAiEdit(userText) {
 
 async function callGeminiEdit(userText) {
   const model = process.env.LLM_MODEL || 'gemini-2.5-flash-lite';
-  const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '1500', 10);
+  const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const key = process.env.GEMINI_API_KEY;
 
@@ -336,7 +336,7 @@ async function parseProposalEditWithLlm(text, pendingItems, { phone } = {}) {
 
 async function callOpenAi(userText) {
   const model = process.env.LLM_MODEL || 'gpt-4o-mini';
-  const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '1500', 10);
+  const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
 
   const res = await axios.post(
     'https://api.openai.com/v1/chat/completions',
@@ -371,7 +371,7 @@ async function callOpenAi(userText) {
 
 async function callGemini(userText) {
   const model = process.env.LLM_MODEL || 'gemini-2.5-flash-lite';
-  const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '1500', 10);
+  const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const key = process.env.GEMINI_API_KEY;
 

@@ -49,6 +49,23 @@ describe('classifyMenuMatch', () => {
     expect(result.item.name).toBe('Kebap Sandwich Huhn');
   });
 
+  test('matches glued hühnerkebab compound to Kebap Sandwich Huhn', () => {
+    const result = classifyMenuMatch('hühnerkebab mit allem', SANDWICH_MENU);
+    expect(result.type).toBe('unique');
+    expect(result.item.name).toBe('Kebap Sandwich Huhn');
+  });
+
+  test('full German order with glued hühnerkebab splits modifiers', () => {
+    const { parseIntent } = require('../intentParser');
+    const { matchIntentToMenu } = require('../intentMatcher');
+    const text = 'Ich hätte gerne zwei hühnerkebab eine mit allen eine ohne Sauce und Zwiebel';
+    const intent = parseIntent(text);
+    const { matched, unmatched } = matchIntentToMenu(intent, SANDWICH_MENU);
+    expect(matched).toHaveLength(2);
+    expect(matched.every(m => m.name === 'Kebap Sandwich Huhn')).toBe(true);
+    expect(unmatched).toEqual([]);
+  });
+
   test('matches full German takeaway order blob', () => {
     const text = 'Zum Mitnehmen zwei Hühner kebap Sandwich mit allem einer ohne zwiebel';
     const result = classifyMenuMatch(text, SANDWICH_MENU);

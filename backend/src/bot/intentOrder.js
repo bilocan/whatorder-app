@@ -104,13 +104,13 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   let menu = await getMenu(businessId);
   let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu);
 
-  // Rules-only parse with zero menu hits — retry with LLM if we skipped it earlier
-  if (!matched.length && !intent.llmAttempted && intent.parsedBy === 'rules' && canCallLlm(from)) {
+  // Zero menu hits — always retry with LLM when rules parse missed (even if quality looked "high")
+  if (!matched.length && intent.parsedBy !== 'llm' && canCallLlm(from)) {
     const llm = await parseOrderIntentWithLlm(text, { phone: from });
     if (llm && llm.confidence >= 0.6 && llm.items.length) {
       intent = {
         items: llm.items.map(i => ({ name: i.name, qty: i.qty ?? 1 })),
-        partySize: llm.partySize ?? null,
+        partySize: llm.partySize ?? intent.partySize ?? null,
         rawText: text,
         parsedBy: 'llm',
         confidence: llm.confidence,
@@ -127,7 +127,7 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   }
 
   if (!matched.length) {
-    if (intent.llmFailed) return 'llm_failed';
+    if (intent.llmFailed || canCallLlm(from)) return 'llm_failed';
     return false;
   }
 
