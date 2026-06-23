@@ -270,7 +270,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
         return;
       }
       await sendButtonMessage(from, {
-        body: buildBasketText(basket, lang),
+        body: buildBasketText(basket, lang, session.specialRequests),
         buttons: [
           { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
           { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },
@@ -349,7 +349,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       return;
     }
     await sendButtonMessage(from, {
-      body: buildBasketText(basket, lang),
+      body: buildBasketText(basket, lang, session.specialRequests),
       buttons: [
         { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
         { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },

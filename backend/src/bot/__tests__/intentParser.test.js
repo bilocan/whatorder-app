@@ -53,6 +53,24 @@ describe('parseIntent', () => {
     ]);
   });
 
+  test('German zwei kebab eine mit allem und andere ohne (polite prefix)', () => {
+    const r = parseIntent(
+      'ich hätte gerne zwei Hühner Kebab eine mit allem und andere ohne Schaf und Soße bitte',
+    );
+    expect(r.items).toEqual([
+      { name: 'Hühner Kebab mit allem', qty: 1 },
+      { name: 'Hühner Kebab ohne Schaf und Soße', qty: 1 },
+    ]);
+  });
+
+  test('German zwei döner einer mit allem einer ohne zwiebeln', () => {
+    const r = parseIntent('zum mitnehmen zwei döner einer mit allem einer ohne zwiebeln');
+    expect(r.items).toEqual([
+      { name: 'döner mit allem', qty: 1 },
+      { name: 'döner ohne zwiebeln', qty: 1 },
+    ]);
+  });
+
   test('German eine X und eine Y splits into two pizzas', () => {
     const r = parseIntent('Eine Pizza Margarita und eine spinati');
     expect(r.items).toEqual([
@@ -94,6 +112,11 @@ describe('parseIntent', () => {
       { name: 'Cola', qty: 1 },
       { name: 'Eier', qty: 1 },
     ]);
+  });
+
+  test('noch ein kebap mit allem und scharf keeps scharf on same line', () => {
+    const r = parseIntent('noch ein kebap mit allem und scharf bitte');
+    expect(r.items).toEqual([{ name: 'kebap mit allem und scharf', qty: 1 }]);
   });
 
   test('was empfehlt ihr still parses but matching happens downstream', () => {

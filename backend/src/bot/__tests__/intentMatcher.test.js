@@ -1,4 +1,4 @@
-const { mergePendingItems, matchIntentToMenu } = require('../intentMatcher');
+const { mergePendingItems, matchIntentToMenu, mergeIntoBasket } = require('../intentMatcher');
 
 describe('mergePendingItems', () => {
   test('combines duplicate menuItemId with same modifier', () => {
@@ -30,6 +30,25 @@ describe('matchIntentToMenu', () => {
     expect(unmatched).toEqual([]);
     expect(matched).toEqual([
       { menuItemId: 'k1', name: 'Kebap Sandwich Huhn', qty: 3, price: 7.5, optionGroups: [], rawIntentName: 'Kebap Sandwich Huhn', modifierKey: 'kebap sandwich huhn' },
+    ]);
+  });
+});
+
+describe('mergeIntoBasket', () => {
+  test('merges same name and note', () => {
+    const basket = [{ name: 'Kebap — Sauce', qty: 5, price: 7.5, note: 'extra scharf' }];
+    const added = [{ name: 'Kebap — Sauce', qty: 1, price: 7.5, note: 'extra scharf' }];
+    expect(mergeIntoBasket(basket, added)).toEqual([
+      { name: 'Kebap — Sauce', qty: 6, price: 7.5, note: 'extra scharf' },
+    ]);
+  });
+
+  test('keeps separate lines when note differs', () => {
+    const basket = [{ name: 'Kebap — Sauce', qty: 5, price: 7.5 }];
+    const added = [{ name: 'Kebap — Sauce', qty: 1, price: 7.5, note: 'extra scharf' }];
+    expect(mergeIntoBasket(basket, added)).toEqual([
+      { name: 'Kebap — Sauce', qty: 5, price: 7.5 },
+      { name: 'Kebap — Sauce', qty: 1, price: 7.5, note: 'extra scharf' },
     ]);
   });
 });

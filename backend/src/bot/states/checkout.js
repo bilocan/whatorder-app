@@ -1,7 +1,7 @@
 const { setSession } = require('../sessionStore');
 const { sendText, sendButtonMessage, sendListMessage, sendLocationRequest } = require('../../lib/whatsapp');
 const { t } = require('../templates');
-const { buildBasketText, sendCatalog } = require('../botHelpers');
+const { buildBasketText, sendCatalog, formatBasketItemLabel } = require('../botHelpers');
 const { getBusinessInfo } = require('../menuService');
 const { createOrder } = require('../orderService');
 const { customersRef } = require('../../lib/collections');
@@ -343,7 +343,7 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
     });
     const shortId = orderId.slice(-6).toUpperCase();
     const orderTotal = isDelivery ? subtotal + deliveryFee : subtotal;
-    const itemLines = basket.map(i => `• ${i.qty}× ${i.name} — €${(i.price * i.qty).toFixed(2)}`).join('\n');
+    const itemLines = basket.map(i => `• ${i.qty}× ${formatBasketItemLabel(i)} — €${(i.price * i.qty).toFixed(2)}`).join('\n');
     await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: isMulti ? null : businessId, pendingDeleteIds: [] });
     await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, orderTotal.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, info.alertPhone || null, info.address || null));
     return;
