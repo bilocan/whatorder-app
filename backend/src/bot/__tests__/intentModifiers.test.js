@@ -44,6 +44,16 @@ describe('resolveModifierSelections', () => {
     const sel = resolveModifierSelections('döner ohne zwiebel', [BEILAGEN_GROUP]);
     expect(sel.beilagen).toEqual(['tomato', 'salad', 'sauce']);
   });
+
+  test('mit allem und scharf includes all inserts', () => {
+    const sel = resolveModifierSelections('kebap mit allem und scharf', [BEILAGEN_WITH_CHILI]);
+    expect(sel.beilagen).toEqual(['tomato', 'salad', 'onion', 'sauce', 'chili']);
+  });
+
+  test('kebap mit scharf adds spicy to defaults', () => {
+    const sel = resolveModifierSelections('kebap mit scharf', [BEILAGEN_WITH_CHILI]);
+    expect(sel.beilagen).toContain('chili');
+  });
 });
 
 describe('mergePendingItems with modifiers', () => {
@@ -107,6 +117,11 @@ describe('parseExclusions', () => {
   test('ohne zwiebel und schaf excludes onion and spicy (DE TTS schaf → scharf)', () => {
     const sel = resolveModifierSelections('ohne Zwiebel und Schaf', [BEILAGEN_WITH_CHILI]);
     expect(sel.beilagen).toEqual(['tomato', 'salad', 'sauce']);
+  });
+
+  test('ohne schaf und soße excludes spicy and regular sauce (DE)', () => {
+    const sel = resolveModifierSelections('ohne Schaf und Soße', [BEILAGEN_WITH_CHILI]);
+    expect(sel.beilagen).toEqual(['tomato', 'salad', 'onion']);
   });
 
   test('without spicy excludes chili options (EN)', () => {

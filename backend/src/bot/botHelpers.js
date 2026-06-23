@@ -117,10 +117,18 @@ async function sendMenuPage(to, lang, businessId, info, menu, { category, page =
   });
 }
 
-function buildBasketText(basket, lang) {
-  const lines = basket.map(i => `• ${i.qty}x ${i.name} — €${(i.price * i.qty).toFixed(2)}`);
+function formatBasketItemLabel(item) {
+  const note = (item.note ?? '').trim();
+  return note ? `${item.name} (${note})` : item.name;
+}
+
+function buildBasketText(basket, lang, specialRequests) {
+  const lines = basket.map(i => `• ${i.qty}x ${formatBasketItemLabel(i)} — €${(i.price * i.qty).toFixed(2)}`);
   const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
-  return `${t('basketHeader', lang)}\n\n${lines.join('\n')}\n\n${t('orderTotal', lang, total.toFixed(2))}`;
+  let body = `${t('basketHeader', lang)}\n\n${lines.join('\n')}\n\n${t('orderTotal', lang, total.toFixed(2))}`;
+  const orderNote = (specialRequests ?? '').trim();
+  if (orderNote) body += `\n\n${t('intentSpecialNote', lang, orderNote)}`;
+  return body;
 }
 
 async function sendMenu(to, lang, businessId, bodyOverride) {
@@ -213,6 +221,7 @@ module.exports = {
   buildItemPageSections,
   shouldUseCategoryPicker,
   buildBasketText,
+  formatBasketItemLabel,
   sendMenu,
   sendMenuPage,
   sendCategoryPicker,
