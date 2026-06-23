@@ -123,6 +123,7 @@ module.exports = {
   intentChangeBtn: () => 'Değiştir',
   intentEditMenuBtn: () => 'Menüye bak',
   intentUnmatched: (items) => `Bulunamadı: ${items}`,
+  intentSpecialNote: (note) => `📝 Not: ${note}`,
   intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\n${groupLabel} seçin:`,
   intentCustomizeUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel) => `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} seçin:`,
   intentSameOrEachPrompt: (qty, itemName) => `${qty}x ${itemName} sipariş ettiniz.\nHepsi aynı olsun mu, tek tek mi seçelim?`,

@@ -109,6 +109,7 @@ const MENU_TEXT_INTENT_CALLS = [
   ['intentChangeBtn', []],
   ['intentEditMenuBtn', []],
   ['intentUnmatched', ['cola']],
+  ['intentSpecialNote', ['extra scharf']],
   ['intentCustomizePrompt', ['Döner', 2, 'Protein']],
   ['intentCustomizeUnitPrompt', [1, 2, 'Döner', 'Protein']],
   ['intentSameOrEachPrompt', [2, 'Döner']],

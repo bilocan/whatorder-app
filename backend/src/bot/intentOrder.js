@@ -10,6 +10,7 @@ const { sendDisambiguationList } = require('./intentDisambiguate');
 const { splitPendingItems, startIntentCustomization, buildOptionLabel } = require('./intentCustomize');
 const { norm } = require('./menuMatch');
 const { enrichPendingWithModifier } = require('./intentModifiers');
+const { collectSpicySpecialNote, tagLinesWithNote } = require('./intentNotes');
 
 function isIntentConfirmText(text, lang) {
   const cleaned = norm((text ?? '').replace(/[!?.]+/g, '').trim());
@@ -21,21 +22,24 @@ function isIntentConfirmText(text, lang) {
   return labels.has(cleaned);
 }
 
-function formatPendingLine(item) {
+function formatPendingLine(item, lineNote) {
   const enriched = enrichPendingWithModifier(item);
+  const note = (lineNote ?? '').trim();
+  const noteSuffix = note ? ` (${note})` : '';
   if (enriched.prefilledSelections) {
     const label = buildOptionLabel(enriched, enriched.prefilledSelections);
-    return `• ${enriched.qty}x ${label} — €${(enriched.price * enriched.qty).toFixed(2)}`;
+    return `• ${enriched.qty}x ${label}${noteSuffix} — €${(enriched.price * enriched.qty).toFixed(2)}`;
   }
   let hint = '';
   if (enriched.rawIntentName && norm(enriched.rawIntentName) !== norm(enriched.name)) {
     hint = ` (${enriched.rawIntentName})`;
   }
-  return `• ${enriched.qty}x ${enriched.name}${hint} — €${(enriched.price * enriched.qty).toFixed(2)}`;
+  return `• ${enriched.qty}x ${enriched.name}${hint}${noteSuffix} — €${(enriched.price * enriched.qty).toFixed(2)}`;
 }
 
-function buildIntentConfirmBody(matched, unmatched, lang) {
-  const lines = matched.map(i => formatPendingLine(i));
+function buildIntentConfirmBody(matched, unmatched, lang, specialNote) {
+  const note = (specialNote ?? '').trim();
+  const lines = matched.map(i => formatPendingLine(i, note));
   const total = matched.reduce((s, i) => s + i.price * i.qty, 0);
   let body = t('intentConfirmHeader', lang) + '\n\n' + lines.join('\n') + '\n\n' + t('orderTotal', lang, total.toFixed(2));
   if (unmatched.length) {
@@ -45,8 +49,10 @@ function buildIntentConfirmBody(matched, unmatched, lang) {
   return body;
 }
 
-async function sendIntentProposal({ from, session, lang, businessId, basket, matched, unmatched = [] }) {
+async function sendIntentProposal({ from, session, lang, businessId, basket, matched, unmatched = [], rawText }) {
   const merged = mergePendingItems(matched.map(enrichPendingWithModifier));
+  const sourceText = rawText ?? session.pendingIntentRawText;
+  const pendingIntentNote = collectSpicySpecialNote(sourceText, merged, lang);
   const proposalSession = {
     ...session,
     state: 'browsing',
@@ -54,6 +60,8 @@ async function sendIntentProposal({ from, session, lang, businessId, basket, mat
     businessId,
     basket,
     pendingIntentItems: merged,
+    pendingIntentRawText: sourceText || undefined,
+    pendingIntentNote: pendingIntentNote || undefined,
     unmatchedIntentItems: unmatched.length ? unmatched : undefined,
     disambiguation: undefined,
   };
@@ -64,12 +72,14 @@ async function sendIntentProposal({ from, session, lang, businessId, basket, mat
     businessId,
     basket,
     pendingIntentItems: merged,
+    pendingIntentRawText: sourceText || undefined,
+    pendingIntentNote: pendingIntentNote || undefined,
     unmatchedIntentItems: unmatched.length ? unmatched : undefined,
     disambiguation: undefined,
   }, session);
 
   const msgId = await sendButtonMessage(from, {
-    body: buildIntentConfirmBody(merged, unmatched, lang),
+    body: buildIntentConfirmBody(merged, unmatched, lang, pendingIntentNote),
     buttons: [
       { id: 'btn_intent_confirm', title: t('intentConfirmBtn', lang) },
       { id: 'btn_intent_change', title: t('intentChangeBtn', lang) },
@@ -120,7 +130,9 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
     return false;
   }
 
-  await sendIntentProposal({ from, session, lang, businessId, basket, matched, unmatched });
+  await sendIntentProposal({
+    from, session, lang, businessId, basket, matched, unmatched, rawText: intent.rawText,
+  });
   return true;
 }
 
@@ -140,19 +152,22 @@ async function handleIntentButtons({ from, session, lang, businessId, basket, id
       });
       return true;
     }
-    const newBasket = mergeIntoBasket(liveBasket, pending);
+    const linesToAdd = tagLinesWithNote(simple, live.pendingIntentNote);
+    const newBasket = mergeIntoBasket(liveBasket, linesToAdd);
     await patchSession(from, {
       state: 'browsing',
       language: lang,
       businessId,
       basket: newBasket,
       pendingIntentItems: undefined,
+      pendingIntentNote: undefined,
+      pendingIntentRawText: undefined,
       unmatchedIntentItems: undefined,
       disambiguation: undefined,
       pendingDeleteIds: [],
     }, live);
     await sendButtonMessage(from, {
-      body: buildBasketText(newBasket, lang),
+      body: buildBasketText(newBasket, lang, live.specialRequests),
       buttons: [
         { id: 'btn_add_more', title: t('addMoreBtn', lang) },
         { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },

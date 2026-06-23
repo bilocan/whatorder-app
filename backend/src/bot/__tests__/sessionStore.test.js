@@ -135,6 +135,25 @@ describe('buildSessionWrite', () => {
     expect(payload.disambiguation).not.toHaveProperty('proposalEditBase');
   });
 
+  test('preserves pending intent note on proposal', () => {
+    const payload = buildSessionWrite(
+      { state: 'browsing', language: 'de', businessId: 'biz_test', basket: [] },
+      { pendingIntentNote: 'extra scharf', pendingIntentRawText: 'kebap mit scharf' },
+    );
+
+    expect(payload.pendingIntentNote).toBe('extra scharf');
+    expect(payload.pendingIntentRawText).toBe('kebap mit scharf');
+  });
+
+  test('preserves specialRequests on basket update', () => {
+    const payload = buildSessionWrite(
+      { state: 'browsing', language: 'de', businessId: 'biz_test', basket: [], specialRequests: 'extra scharf' },
+      { basket: [{ name: 'Kebap', qty: 1, price: 7.5 }] },
+    );
+
+    expect(payload.specialRequests).toBe('extra scharf');
+  });
+
   test('clears pending intent fields when explicitly undefined', () => {
     const payload = buildSessionWrite(
       {

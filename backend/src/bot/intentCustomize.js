@@ -2,9 +2,10 @@ const { setSession, buildSessionWrite } = require('./sessionStore');
 const { sendButtonMessage, sendListMessage, sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildBasketText } = require('./botHelpers');
+const { toBasketLine, tagLinesWithNote } = require('./intentNotes');
 const { mergeIntoBasket } = require('./intentMatcher');
 const { norm } = require('./menuMatch');
-const { enrichPendingWithModifier, isCustomizationSatisfied, wantsAllIncluded, parseExclusions, resolveModifierSelections } = require('./intentModifiers');
+const { enrichPendingWithModifier, isCustomizationSatisfied, wantsAllIncluded, wantsSpicyIncluded, parseExclusions, resolveModifierSelections } = require('./intentModifiers');
 
 const MULTI_NONE_KEYWORDS = new Set([
   'none', 'no', 'nothing', 'zero',
@@ -26,7 +27,7 @@ function needsCustomization(item) {
 
 function hasExplicitModifierIntent(rawIntentName) {
   if (!rawIntentName?.trim()) return false;
-  return wantsAllIncluded(rawIntentName) || parseExclusions(rawIntentName).length > 0;
+  return wantsAllIncluded(rawIntentName) || parseExclusions(rawIntentName).length > 0 || wantsSpicyIncluded(rawIntentName);
 }
 
 function splitPendingItems(pending) {
@@ -351,6 +352,10 @@ async function persistCustomize(from, session, lang, businessId, intentCustomize
   }));
 }
 
+function lineForBasket(session, { name, qty, price }) {
+  return toBasketLine({ name, qty, price }, session.pendingIntentNote);
+}
+
 async function finishCustomization({ from, session, lang, businessId, readyBasket }) {
   await setSession(from, buildSessionWrite(session, {
     state: 'browsing',
@@ -358,10 +363,12 @@ async function finishCustomization({ from, session, lang, businessId, readyBaske
     businessId,
     basket: readyBasket,
     intentCustomize: undefined,
+    pendingIntentNote: undefined,
+    pendingIntentRawText: undefined,
     pendingDeleteIds: [],
   }));
   await sendButtonMessage(from, {
-    body: buildBasketText(readyBasket, lang),
+    body: buildBasketText(readyBasket, lang, session.specialRequests),
     buttons: [
       { id: 'btn_add_more', title: t('addMoreBtn', lang) },
       { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },
@@ -416,7 +423,7 @@ async function completeCurrentUnit({ from, session, lang, businessId, ic, select
   const item = ic.queue[0];
   const lineName = buildOptionLabel(item, selections);
   const lineQty = ic.unitMode === 'each' ? 1 : item.qty;
-  const readyBasket = mergeIntoBasket(ic.readyBasket, [{ name: lineName, qty: lineQty, price: item.price }]);
+  const readyBasket = mergeIntoBasket(ic.readyBasket, [lineForBasket(session, { name: lineName, qty: lineQty, price: item.price })]);
 
   if (ic.unitMode === 'each' && ic.unitIndex < ic.unitTotal) {
     const nextIc = {
@@ -469,14 +476,15 @@ async function applyPerUnitModifiersFromText({ from, session, lang, businessId, 
       return;
     }
     const lineName = buildOptionLabel(item, selections);
-    readyBasket = mergeIntoBasket(readyBasket, [{ name: lineName, qty: 1, price: item.price }]);
+    readyBasket = mergeIntoBasket(readyBasket, [lineForBasket(session, { name: lineName, qty: 1, price: item.price })]);
   }
 
   await startNextItem(from, session, lang, businessId, ic.queue.slice(1), readyBasket);
 }
 
 async function startIntentCustomization({ from, session, lang, businessId, basket, simpleItems, customizeItems }) {
-  const readyBasket = mergeIntoBasket(basket, simpleItems);
+  const linesToAdd = tagLinesWithNote(simpleItems, session.pendingIntentNote);
+  const readyBasket = mergeIntoBasket(basket, linesToAdd);
   await startNextItem(from, session, lang, businessId, customizeItems, readyBasket);
 }
 

@@ -123,6 +123,7 @@ module.exports = {
   intentChangeBtn: () => 'Ändern',
   intentEditMenuBtn: () => 'Menü ansehen',
   intentUnmatched: (items) => `Nicht gefunden: ${items}`,
+  intentSpecialNote: (note) => `📝 Notiz: ${note}`,
   intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\n${groupLabel} wählen:`,
   intentCustomizeUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel) => `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} wählen:`,
   intentSameOrEachPrompt: (qty, itemName) => `${qty}x ${itemName} bestellt.\nGleiche Optionen für alle oder einzeln anpassen?`,

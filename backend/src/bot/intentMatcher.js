@@ -67,17 +67,26 @@ function matchIntentToMenu(intent, menuItems) {
   return { matched, unmatched, disambiguation };
 }
 
+function basketMergeKey(item) {
+  const note = (item.note ?? '').trim();
+  return note ? `${item.name}\0${note}` : item.name;
+}
+
 function mergeIntoBasket(basket, items) {
   let result = [...basket];
   for (const item of items) {
-    const existing = result.find(i => i.name === item.name);
+    const key = basketMergeKey(item);
+    const existing = result.find(i => basketMergeKey(i) === key);
     if (existing) {
-      result = result.map(i => (i.name === item.name ? { ...i, qty: i.qty + item.qty } : i));
+      result = result.map(i => (basketMergeKey(i) === key ? { ...i, qty: i.qty + item.qty } : i));
     } else {
-      result.push({ name: item.name, qty: item.qty, price: item.price });
+      const line = { name: item.name, qty: item.qty, price: item.price };
+      const note = (item.note ?? '').trim();
+      if (note) line.note = note;
+      result.push(line);
     }
   }
   return result;
 }
 
-module.exports = { matchIntentToMenu, mergeIntoBasket, mergePendingLine, mergePendingItems, toPendingItem };
+module.exports = { matchIntentToMenu, mergeIntoBasket, mergePendingLine, mergePendingItems, toPendingItem, basketMergeKey };

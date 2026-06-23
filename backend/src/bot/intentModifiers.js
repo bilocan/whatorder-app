@@ -43,6 +43,8 @@ function stripIntentModifiers(rawIntentName) {
   let s = (rawIntentName ?? '').trim();
   s = s.replace(/\b(zum mitnehmen|zum essen|takeaway|to go|abholen)\b/gi, ' ');
   s = s.replace(/\bmit allem\b/gi, ' ');
+  s = s.replace(/\bund\s+(?:scharf|scharfe|spicy|hot|chili|acili|aci|schaf)\b/gi, ' ');
+  s = s.replace(/\bmit\s+(?:scharf|scharfe|spicy|hot|chili|acili|aci)\b/gi, ' ');
   s = s.replace(/\bohne\s+[\wäöüÄÖÜß-]+/gi, ' ');
   s = s.replace(/\b\d+\s*cm\b/gi, ' ');
   s = s.replace(/\b(familienpizza|familien pizza|grosse pizza|große pizza)\b/gi, ' familienpizza ');
@@ -63,15 +65,11 @@ function extractModifierKey(rawIntentName) {
   const n = norm(rawIntentName ?? '');
   if (!n) return '';
 
-  const exclusions = [];
-  let m;
-  const re = /\b(?:ohne|kein(?:e)?|no|without)\s+([\wäöüß-]+)/gi;
-  while ((m = re.exec(rawIntentName)) !== null) {
-    exclusions.push(norm(m[1]));
-  }
-  if (exclusions.length) return `ohne:${exclusions.sort().join(',')}`;
+  const exclusions = parseExclusions(rawIntentName);
+  if (exclusions.length) return `ohne:${[...exclusions].sort().join(',')}`;
 
   if (ALL_PHRASES.test(rawIntentName)) return 'mit:allem';
+  if (wantsSpicyIncluded(rawIntentName)) return 'mit:scharf';
 
   const mit = n.match(/\bmit\s+([\wäöüß-]+(?:\s+[\wäöüß-]+)?)/);
   if (mit) return `mit:${mit[1]}`;
@@ -114,6 +112,12 @@ function isSpicyLabel(label) {
   return SPICY_LABEL_STEMS.some(stem => n.includes(stem));
 }
 
+function isRegularSauceExclusion(ex) {
+  if (isSpicyExclusion(ex)) return false;
+  const n = norm(ex);
+  return n.includes('sauce') || n.includes('sobe') || n === 'soße' || n === 'sosse';
+}
+
 function optionExcludedByHint(optionLabel, exclusionTokens) {
   const label = norm(optionLabel);
   for (const raw of exclusionTokens) {
@@ -123,7 +127,7 @@ function optionExcludedByHint(optionLabel, exclusionTokens) {
     if ((ex.includes('zwiebel') || ex === 'onion') && (label.includes('zwiebel') || label.includes('onion'))) return true;
     if ((ex.includes('tomate') || ex === 'tomato') && (label.includes('tomate') || label.includes('tomato'))) return true;
     if ((ex.includes('salat') || ex === 'salad') && (label.includes('salat') || label.includes('salad'))) return true;
-    if (ex.includes('sauce') && !isSpicyExclusion(ex) && label.includes('sauce') && !isSpicyLabel(label)) return true;
+    if (isRegularSauceExclusion(ex) && label.includes('sauce') && !isSpicyLabel(label)) return true;
     if (isSpicyExclusion(ex) && isSpicyLabel(label)) return true;
   }
   return false;
@@ -157,12 +161,38 @@ function wantsAllIncluded(rawIntentName) {
   return ALL_PHRASES.test(rawIntentName ?? '');
 }
 
+/** Standalone token after "und" — not a menu item (e.g. "… mit allem und scharf"). */
+function isModifierOnlyToken(token) {
+  const n = norm(stripPoliteSuffix(token));
+  if (!n) return false;
+  if (MODIFIER_ONLY_TOKENS.has(n)) return true;
+  return SPICY_EXCLUSION_STEMS.some(stem => n === stem);
+}
+
+function stripPoliteSuffix(name) {
+  return (name ?? '').replace(/\s+bitte\s*$/i, '').trim();
+}
+
+/** Explicit spicy inclusion: "mit scharf", "und scharf", TTS "und schaf". */
+function wantsSpicyIncluded(rawIntentName) {
+  const raw = rawIntentName ?? '';
+  if (wantsAllIncluded(raw)) return false;
+  return /\b(?:und\s+|mit\s+|extra\s+)?(scharf|scharfe|scharfer|spicy|hot|chili|chilli|acili|aci)\b/i.test(raw)
+    || /\bund\s+schaf\b/i.test(raw);
+}
+
+const MODIFIER_ONLY_TOKENS = new Set([
+  'scharf', 'scharfe', 'scharfer', 'spicy', 'hot', 'chili', 'chilli',
+  'aci', 'acili', 'schaf', 'schaff', 'schaaf',
+]);
+
 function resolveModifierSelections(rawIntentName, optionGroups) {
   if (!rawIntentName?.trim() || !optionGroups?.length) return null;
 
   const exclusions = parseExclusions(rawIntentName);
   const allIncluded = wantsAllIncluded(rawIntentName);
-  if (!exclusions.length && !allIncluded) return null;
+  const spicyWanted = wantsSpicyIncluded(rawIntentName);
+  if (!exclusions.length && !allIncluded && !spicyWanted) return null;
 
   const selections = {};
 
@@ -177,11 +207,16 @@ function resolveModifierSelections(rawIntentName, optionGroups) {
         const opt = group.options?.find(o => o.id === id);
         return opt && !optionExcludedByHint(opt.label, exclusions);
       });
+    } else if (spicyWanted) {
+      ids = [...getDefaultMultiSelection(group)];
+      for (const opt of group.options ?? []) {
+        if (isSpicyLabel(opt.label) && !ids.includes(opt.id)) ids.push(opt.id);
+      }
     } else {
       ids = getDefaultMultiSelection(group);
     }
 
-    if (ids.length || exclusions.length || allIncluded) {
+    if (ids.length || exclusions.length || allIncluded || spicyWanted) {
       selections[group.id] = ids;
     }
   }
@@ -218,5 +253,8 @@ module.exports = {
   isCustomizationSatisfied,
   enrichPendingWithModifier,
   wantsAllIncluded,
+  wantsSpicyIncluded,
+  isModifierOnlyToken,
+  isSpicyLabel,
   parseExclusions,
 };
