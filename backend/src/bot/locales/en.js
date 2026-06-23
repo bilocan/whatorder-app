@@ -123,6 +123,7 @@ module.exports = {
   intentChangeBtn: () => 'Change',
   intentEditMenuBtn: () => 'Browse menu',
   intentUnmatched: (items) => `Couldn't find: ${items}`,
+  intentSpecialNote: (note) => `📝 Note: ${note}`,
   intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\nChoose ${groupLabel}:`,
   intentCustomizeUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel) => `${itemName} ${unitIndex}/${unitTotal}\nChoose ${groupLabel}:`,
   intentSameOrEachPrompt: (qty, itemName) => `You ordered ${qty}x ${itemName}.\nSame options for all, or customize each one?`,

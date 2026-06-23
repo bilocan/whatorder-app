@@ -1,5 +1,6 @@
 const { parseOrderText, parseSpaceSeparatedQtyItems } = require('./orderParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
+const { stripIntentModifiers, wantsAllIncluded, parseExclusions, isModifierOnlyToken } = require('./intentModifiers');
 
 const GREETINGS = new Set([
   'hi', 'hello', 'hey', 'hallo', 'merhaba', 'selam', 'guten tag', 'guten morgen',
@@ -25,6 +26,48 @@ function stripOrderTypePrefix(text) {
   return (text ?? '')
     .replace(/^\s*(zum mitnehmen|zum essen|takeaway|to go|abholen)\s*,?\s*/i, '')
     .trim();
+}
+
+/** "ich hätte gerne zwei döner" → "zwei döner" */
+function stripPolitePrefix(text) {
+  return (text ?? '')
+    .replace(
+      /^\s*ich\s+(?:hätte|hatte|möchte|moechte|will|würde|wuerde)\s+(?:gerne\s+)?/i,
+      '',
+    )
+    .replace(/^\s*hätte\s+gerne\s+/i, '')
+    .trim();
+}
+
+/** "noch ein kebap" → "kebap" */
+function stripContinuationPrefix(text) {
+  return (text ?? '')
+    .replace(/^\s*noch\s+(?:ein|eine|einen|einer)\s+/i, '')
+    .replace(/^\s*(?:auch|nochmal)\s+(?:ein|eine|einen|einer)\s+/i, '')
+    .trim();
+}
+
+function attachOrphanModifierFragment(items, fragment) {
+  const token = stripPoliteSuffix((fragment ?? '').trim());
+  if (!token || !isModifierOnlyToken(token) || !items.length) return false;
+  const prev = items[items.length - 1];
+  prev.rawName = `${prev.rawName} und ${token}`;
+  return true;
+}
+
+function mergeOrphanModifierFragments(items) {
+  if (!items?.length) return items ?? [];
+  const out = [];
+  for (const item of items) {
+    const name = (item.rawName ?? item.name ?? '').trim();
+    if (isModifierOnlyToken(stripPoliteSuffix(name)) && out.length) {
+      const prev = out[out.length - 1];
+      prev.rawName = `${prev.rawName} und ${stripPoliteSuffix(name)}`;
+    } else {
+      out.push({ ...item });
+    }
+  }
+  return out;
 }
 
 function parseGermanLeadingQty(text) {
@@ -96,6 +139,7 @@ function parseGermanQtyItems(text) {
   const items = [];
   for (const part of parts) {
     if (isNoiseFragment(part)) continue;
+    if (attachOrphanModifierFragment(items, part)) continue;
     const embeddedFood = splitEmbeddedFoodInChunk(part);
     if (embeddedFood) {
       items.push(...embeddedFood);
@@ -121,26 +165,43 @@ function parseGermanQtyItems(text) {
   return items.length >= 2 ? items.map(i => ({ ...i, rawName: stripPoliteSuffix(i.rawName) })) : null;
 }
 
-/** "zwei döner mit allem einer ohne zwiebel" → 1x mit allem + 1x ohne (total = leading qty). */
+/**
+ * Split "N of same dish, one with all / one without …" phrasing into two lines.
+ * Covers: mit allem einer ohne … | einer mit allem einer ohne … | eine mit allem und andere ohne …
+ */
 function splitOneWithoutModifier(text) {
-  const m = (text ?? '').trim().match(
-    /^(zwei|drei|vier|funf|fünf|sechs|\d+)\s+(.+?)\s+mit\s+allem\s+(einer|eine|ein)\s+(ohne\s+[\wäöüÄÖÜß-]+)\s*$/i,
-  );
-  if (!m) return null;
-
-  const totalQty = GERMAN_NUMBERS[m[1].toLowerCase()] ?? parseInt(m[1], 10);
-  if (!totalQty || totalQty < 2) return null;
-
-  const dishBase = m[2].trim();
-  if (/\b(einer|eine|ein|eins)\b/i.test(dishBase)) return null;
-  const ohneSuffix = m[4].trim();
-  const withAllName = `${dishBase} mit allem`;
-  const ohneName = `${dishBase} ${ohneSuffix}`;
-
-  return [
-    { qty: totalQty - 1, rawName: withAllName },
-    { qty: 1, rawName: ohneName },
+  const trimmed = stripPoliteSuffix((text ?? '').trim());
+  const qty = '(zwei|drei|vier|funf|fünf|sechs|\\d+)';
+  const ohne = '(ohne\\s+.+?)';
+  const variants = [
+    new RegExp(`^${qty}\\s+(.+?)\\s+mit\\s+allem\\s+(?:einer|eine|ein)\\s+${ohne}\\s*$`, 'i'),
+    new RegExp(`^${qty}\\s+(.+?)\\s+(?:einer|eine|ein)\\s+mit\\s+allem\\s+(?:einer|eine|ein)\\s+${ohne}\\s*$`, 'i'),
+    new RegExp(
+      `^${qty}\\s+(.+?)\\s+(?:einer|eine|ein)\\s+mit\\s+allem\\s+und\\s+(?:die\\s+)?(?:andere|anderer|anderes)\\s+${ohne}\\s*$`,
+      'i',
+    ),
   ];
+
+  for (const re of variants) {
+    const m = trimmed.match(re);
+    if (!m) continue;
+
+    const totalQty = GERMAN_NUMBERS[m[1].toLowerCase()] ?? parseInt(m[1], 10);
+    if (!totalQty || totalQty < 2) continue;
+
+    const dishBase = m[2].trim();
+    if (/\b(einer|eine|ein|eins)\b/i.test(dishBase)) continue;
+
+    const ohneSuffix = m[3].trim();
+    const withAllName = `${dishBase} mit allem`;
+    const ohneName = `${dishBase} ${ohneSuffix}`;
+
+    return [
+      { qty: totalQty - 1, rawName: withAllName },
+      { qty: 1, rawName: ohneName },
+    ];
+  }
+  return null;
 }
 
 const ORDER_SIGNAL_RE = /(\d+\s*x\b|\bx\s*\d+|\d+\s+\w|\+\s*\w|,\s*\w|\bund\b|\band\b|\bve\b|\bmit\b|\bwith\b)/i;
@@ -152,9 +213,17 @@ function rulesItemsLookSuspicious(items) {
     const n = (i.rawName ?? i.name ?? '').trim();
     if (!n) return true;
     if (ORDER_FILLER_RE.test(n)) return true;
-    if (n.split(/\s+/).filter(Boolean).length > 4) return true;
+    const dishOnly = stripIntentModifiers(n);
+    if (dishOnly.split(/\s+/).filter(Boolean).length > 4) return true;
     return false;
   });
+}
+
+/** Rules split same dish into per-unit modifier lines — do not let LLM collapse to 2x bare item. */
+function rulesIntentHasModifierSplit(rulesIntent) {
+  const items = rulesIntent?.items ?? [];
+  if (items.length < 2) return false;
+  return items.every(i => wantsAllIncluded(i.name) || parseExclusions(i.name).length > 0);
 }
 
 /** Trailing "und jeweils einer Ayran" → one drink per food item already parsed. */
@@ -229,6 +298,8 @@ function parseIntent(text) {
   const partySize = extractPartySize(rawText);
   let stripped = stripPartySizePhrases(rawText);
   stripped = stripOrderTypePrefix(stripped);
+  stripped = stripPolitePrefix(stripped);
+  stripped = stripContinuationPrefix(stripped);
 
   const jeweils = extractJeweilsDrinkSuffix(stripped);
   if (jeweils) stripped = jeweils.main;
@@ -257,6 +328,8 @@ function parseIntent(text) {
     }));
   }
 
+  items = mergeOrphanModifierFragments(items);
+
   return toIntentResult(items, partySize, rawText, 'rules');
 }
 
@@ -265,6 +338,8 @@ function rulesParseQuality(text) {
   const rawText = (text ?? '').trim();
   let stripped = stripPartySizePhrases(rawText);
   stripped = stripOrderTypePrefix(stripped);
+  stripped = stripPolitePrefix(stripped);
+  stripped = stripContinuationPrefix(stripped);
 
   const jeweils = extractJeweilsDrinkSuffix(stripped);
   if (jeweils) stripped = jeweils.main;
@@ -274,10 +349,11 @@ function rulesParseQuality(text) {
   if (jeweils?.drink && items?.length) {
     items = [...items, { qty: items.length, rawName: jeweils.drink }];
   }
-  if (rulesItemsLookSuspicious(items)) return 'low';
 
   if (splitOneWithoutModifier(stripped)?.length >= 2) return 'high';
   if (parseGermanQtyItems(stripped)?.length >= 2) return 'high';
+  if (rulesItemsLookSuspicious(items)) return 'low';
+
   const germanLeading = parseGermanLeadingQty(stripped);
   if (germanLeading?.length === 1 && !/\b(ohne|einer|eine|und|mit)\b/i.test(germanLeading[0].rawName)) {
     return 'high';
@@ -294,8 +370,9 @@ function rulesParseQuality(text) {
 
 function shouldTryLlm(text, rulesIntent, phone) {
   if (!canCallLlm(phone)) return false;
-  if (rulesItemsLookSuspicious(rulesIntent.items)) return true;
+  if (rulesIntentHasModifierSplit(rulesIntent)) return false;
   if (rulesParseQuality(text) === 'high') return false;
+  if (rulesItemsLookSuspicious(rulesIntent.items)) return true;
   if (!rulesIntent.items.length) return true;
 
   const stripped = stripOrderTypePrefix(stripPartySizePhrases((text ?? '').trim()));
@@ -328,6 +405,10 @@ async function parseIntentAsync(text, { phone } = {}) {
 
   const llm = await parseOrderIntentWithLlm(text, { phone });
   if (!llm || llm.confidence < 0.6 || !llm.items.length) {
+    return { ...rulesIntent, llmAttempted: true, llmFailed: true };
+  }
+
+  if (rulesIntentHasModifierSplit(rulesIntent) && llm.items.length < rulesIntent.items.length) {
     return { ...rulesIntent, llmAttempted: true, llmFailed: true };
   }
 

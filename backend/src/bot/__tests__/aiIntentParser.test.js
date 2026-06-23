@@ -22,8 +22,17 @@ describe('rulesParseQuality', () => {
     expect(rulesParseQuality('2x döner und cola')).toBe('high');
   });
 
-  test('low for conversational single blob', () => {
-    expect(rulesParseQuality('zum mitnehmen zwei döner einer mit allem einer ohne zwiebeln')).toBe('low');
+  test('high for zwei döner einer mit allem einer ohne zwiebeln', () => {
+    expect(rulesParseQuality('zum mitnehmen zwei döner einer mit allem einer ohne zwiebeln')).toBe('high');
+  });
+
+  test('high for zwei kebab eine mit allem und andere ohne', () => {
+    const text = 'ich hätte gerne zwei Hühner Kebab eine mit allem und andere ohne Schaf und Soße bitte';
+    expect(rulesParseQuality(text)).toBe('high');
+  });
+
+  test('low for conversational single blob without structure', () => {
+    expect(rulesParseQuality('was empfehlt ihr für heute abend')).toBe('low');
   });
 });
 
@@ -37,17 +46,14 @@ describe('parseIntentAsync', () => {
   test('uses LLM for messy text when rules quality is low', async () => {
     parseOrderIntentWithLlm.mockResolvedValue({
       items: [
-        { name: 'Döner mit allem', qty: 1 },
-        { name: 'Döner ohne Zwiebeln', qty: 1 },
+        { name: 'Pizza Margherita', qty: 1 },
+        { name: 'Cola', qty: 1 },
       ],
       partySize: null,
       confidence: 0.92,
     });
 
-    const r = await parseIntentAsync(
-      'zum mitnehmen zwei döner einer mit allem einer ohne zwiebeln',
-      { phone: '+432' },
-    );
+    const r = await parseIntentAsync('was empfehlt ihr für heute abend', { phone: '+432' });
 
     expect(parseOrderIntentWithLlm).toHaveBeenCalled();
     expect(r.parsedBy).toBe('llm');
@@ -71,11 +77,27 @@ describe('parseIntentAsync', () => {
     const r = await parseIntentAsync('something light for the kids', { phone: '+434' });
     expect(r.parsedBy).toBe('rules');
   });
+
+  test('keeps rules per-unit modifier split without calling LLM', async () => {
+    const text = 'ich hätte gerne zwei Hühner Kebab eine mit allem und andere ohne Schaf und Soße bitte';
+    const r = await parseIntentAsync(text, { phone: '+437' });
+
+    expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
+    expect(r.parsedBy).toBe('rules');
+    expect(r.items).toHaveLength(2);
+  });
 });
 
 describe('shouldTryLlm', () => {
   test('false when rules quality is high', () => {
     const rules = { items: [{ name: 'Döner', qty: 2 }, { name: 'ayran', qty: 1 }], partySize: null };
     expect(shouldTryLlm('2 Döner 1 ayran', rules, '+435')).toBe(false);
+  });
+
+  test('false when rules split per-unit modifiers even with AI enabled', () => {
+    const { parseIntent } = require('../intentParser');
+    const text = 'ich hätte gerne zwei Hühner Kebab eine mit allem und andere ohne Schaf und Soße bitte';
+    const rules = parseIntent(text);
+    expect(shouldTryLlm(text, rules, '+436')).toBe(false);
   });
 });

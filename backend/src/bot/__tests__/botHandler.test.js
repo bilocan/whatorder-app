@@ -978,6 +978,122 @@ describe('Intent ordering (Tier A)', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
+  test('zwei kebab mit per-unit modifiers shows inserts and skips customize prompt', async () => {
+    const kebabMenu = [{
+      id: 'item_kebab',
+      name: 'Kebap Sandwich Huhn',
+      price: 7.50,
+      category: 'mains',
+      available: true,
+      optionGroups: [{
+        ...BEILAGEN_WITH_CHILI,
+        required: true,
+        options: [
+          ...BEILAGEN_WITH_CHILI.options,
+          { id: 'sauce', label: 'Sauce' },
+        ],
+      }],
+    }];
+    getMenu.mockResolvedValue(kebabMenu);
+    getSession.mockResolvedValue({ language: 'de', state: 'browsing', businessId: BIZ, basket: [] });
+
+    const orderText = 'ich hätte gerne zwei Hühner Kebab eine mit allem und andere ohne Schaf und Soße bitte';
+    await handleMessage(ROUTING, msg({ text: orderText }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/Scharfe Sauce/i),
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.not.stringMatching(/2x Kebap Sandwich Huhn \(Hühner Kebab\)/),
+    }));
+
+    const pendingCall = setSession.mock.calls.find(([, data]) => data.pendingIntentItems?.length);
+    expect(pendingCall?.[1].pendingIntentItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ qty: 1, rawIntentName: expect.stringMatching(/mit allem/i) }),
+        expect.objectContaining({ qty: 1, rawIntentName: expect.stringMatching(/ohne/i) }),
+      ]),
+    );
+
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'browsing',
+      businessId: BIZ,
+      basket: [],
+      pendingIntentItems: pendingCall[1].pendingIntentItems,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_intent_confirm' }));
+
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_same_opts' })]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: expect.arrayContaining([
+        expect.objectContaining({ name: expect.stringMatching(/Scharfe Sauce/), qty: 1 }),
+        expect.objectContaining({ name: expect.stringMatching(/Kebap Sandwich Huhn/), qty: 1 }),
+      ]),
+    }));
+  });
+
+  test('kebap mit scharf stores note when menu has no spicy insert', async () => {
+    const kebabMenu = [{
+      id: 'item_kebab',
+      name: 'Kebap Sandwich Huhn',
+      price: 7.50,
+      category: 'mains',
+      available: true,
+      optionGroups: [{
+        id: 'inserts',
+        label: 'Inserts',
+        type: 'multi',
+        required: true,
+        multiDefault: 'all',
+        options: [
+          { id: 'tomato', label: 'Tomaten' },
+          { id: 'salad', label: 'Salad' },
+          { id: 'onion', label: 'Zwiebel' },
+          { id: 'sauce', label: 'Sauce' },
+        ],
+      }],
+    }];
+    getMenu.mockResolvedValue(kebabMenu);
+    getSession.mockResolvedValue({ language: 'de', state: 'browsing', businessId: BIZ, basket: [] });
+
+    const orderText = 'noch ein kebap mit allem und scharf bitte';
+    await handleMessage(ROUTING, msg({ text: orderText }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/\(extra scharf\)/i),
+    }));
+
+    const pendingCall = setSession.mock.calls.find(([, data]) => data.pendingIntentNote);
+    expect(pendingCall?.[1].pendingIntentNote).toBe('extra scharf');
+
+    const storedSession = {
+      language: 'de',
+      state: 'browsing',
+      businessId: BIZ,
+      basket: [{ name: 'Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel, Sauce', qty: 2, price: 7.5 }],
+      pendingIntentItems: pendingCall[1].pendingIntentItems,
+      pendingIntentNote: 'extra scharf',
+      pendingIntentRawText: orderText,
+    };
+    getSession.mockResolvedValue(storedSession);
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_intent_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: expect.arrayContaining([
+        expect.objectContaining({ note: 'extra scharf' }),
+      ]),
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/\(extra scharf\)/i),
+    }));
+  });
+
   test('btn_intent_confirm merges items into basket', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'browsing', businessId: BIZ, basket: [],
