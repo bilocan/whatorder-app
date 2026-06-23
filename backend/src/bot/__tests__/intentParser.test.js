@@ -63,6 +63,16 @@ describe('parseIntent', () => {
     ]);
   });
 
+  test('German zwei hühnerkebab eine mit allen eine ohne Sauce und Zwiebel', () => {
+    const r = parseIntent(
+      'Ich hätte gerne zwei hühnerkebab eine mit allen eine ohne Sauce und Zwiebel',
+    );
+    expect(r.items).toEqual([
+      { name: 'hühnerkebab mit allem', qty: 1 },
+      { name: 'hühnerkebab ohne Sauce und Zwiebel', qty: 1 },
+    ]);
+  });
+
   test('German zwei döner einer mit allem einer ohne zwiebeln', () => {
     const r = parseIntent('zum mitnehmen zwei döner einer mit allem einer ohne zwiebeln');
     expect(r.items).toEqual([

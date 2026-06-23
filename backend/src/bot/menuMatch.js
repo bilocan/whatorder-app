@@ -1,6 +1,6 @@
 // Pure menu matching helpers (no Firestore). Used by menuService and intentMatcher.
 
-const { expandNeedle, wordMatchesInText } = require('./menuSynonyms');
+const { expandNeedle, wordMatchesInText, splitCompoundDish } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
 const { trySmartDefault } = require('./smartDefaults');
 
@@ -119,7 +119,11 @@ function classifyMenuMatch(rawName, menuItems) {
   if (!needles.length) return { type: 'none' };
 
   const available = menuItems.filter(i => i.available !== false);
-  const dishWords = dishName.split(/\s+/).filter(w => w.length > 2).map(w => norm(w));
+  let dishWords = dishName.split(/\s+/).filter(w => w.length > 2).map(w => norm(w));
+  if (dishWords.length < 2) {
+    const compound = splitCompoundDish(dishWords[0] ?? dishName);
+    if (compound) dishWords = compound;
+  }
 
   // Multi-word dish names (e.g. "Döner Sandwich") — require all words on the item name
   if (dishWords.length >= 2) {

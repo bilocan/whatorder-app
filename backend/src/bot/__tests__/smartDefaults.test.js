@@ -41,6 +41,10 @@ describe('trySmartDefault — kebab', () => {
     expect(result.item.id).toBe('s1');
   });
 
+  test('glued hühnerkebab prefers sandwich over pizza', () => {
+    expect(classifyMenuMatch('hühnerkebab', KEBAB_MENU).item.id).toBe('s1');
+  });
+
   test('döner box vs döner stays ambiguous', () => {
     const menu = [
       { id: 'd1', name: 'Döner', price: 8.5, available: true },

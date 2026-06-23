@@ -38,6 +38,20 @@ function termMatchesNeedle(needle, term) {
   return needle.startsWith(`${term} `) || needle.endsWith(` ${term}`);
 }
 
+/**
+ * TTS / fast speech often glues protein + dish: "hühnerkebab", "huhnerdoner".
+ * Returns normalized token pair or null.
+ */
+function splitCompoundDish(normText) {
+  const n = norm(normText);
+  if (!n) return null;
+  const m = n.match(
+    /^(huhn(?:er)?|hahnchen|chicken|tavuk)(kebap|kebab|kabap|doner|durum|sandwich|box|teller|pizza|pide)$/,
+  );
+  if (!m) return null;
+  return [m[1], m[2]];
+}
+
 /** True when word (or a synonym) appears as a word in textNorm. */
 function wordMatchesInText(word, textNorm) {
   const w = norm(word);
@@ -55,6 +69,8 @@ function expandNeedle(rawName) {
   const n = norm(rawName);
   if (!n) return [];
   const expanded = new Set([n]);
+  const compound = splitCompoundDish(n);
+  if (compound) compound.forEach(term => expanded.add(term));
   for (const group of SYNONYM_GROUPS) {
     const normalized = group.map(norm);
     if (normalized.some(term => termMatchesNeedle(n, term))) {
@@ -64,4 +80,4 @@ function expandNeedle(rawName) {
   return [...expanded];
 }
 
-module.exports = { SYNONYM_GROUPS, expandNeedle, wordMatchesInText, containsWord };
+module.exports = { SYNONYM_GROUPS, expandNeedle, wordMatchesInText, containsWord, splitCompoundDish };

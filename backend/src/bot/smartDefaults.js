@@ -1,4 +1,4 @@
-const { containsWord } = require('./menuSynonyms');
+const { containsWord, splitCompoundDish } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
 
 function norm(str) {
@@ -25,6 +25,7 @@ function isDrinkStem(word) {
 function isKebabQuery(rawName) {
   const dish = norm(extractDishNameForMatch(rawName) || rawName);
   if (dish.includes('pizza')) return false;
+  if (splitCompoundDish(dish)) return true;
   return KEBAB_STEMS.some(stem => containsWord(dish, stem) || dish === stem);
 }
 
@@ -108,6 +109,7 @@ function pickBySmallestVolume(candidates) {
 function shouldApplyKebabDefault(rawName, candidates) {
   const dish = norm(extractDishNameForMatch(rawName) || rawName);
   if (dish.includes('pizza')) return false;
+  if (splitCompoundDish(dish)) return true;
   const words = dish.split(/\s+/).filter(w => w.length > 2);
   if (words.length >= 2) return true;
   if (/sandwich/i.test(dish)) return true;

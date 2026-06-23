@@ -1,4 +1,4 @@
-const ALL_PHRASES = /\b(mit allem|mit alles|alles dabei|everything|with everything|hepsi|komplett|full)\b/i;
+const ALL_PHRASES = /\b(mit allem|mit allen|mit alles|alles dabei|everything|with everything|hepsi|komplett|full)\b/i;
 const EXCLUDE_RE = /\b(?:ohne|kein(?:e)?|no|without)\s+([\wäöüÄÖÜß-]+)/gi;
 
 function norm(str) {
@@ -42,10 +42,10 @@ function normalizeIntentItemName(rawName) {
 function stripIntentModifiers(rawIntentName) {
   let s = (rawIntentName ?? '').trim();
   s = s.replace(/\b(zum mitnehmen|zum essen|takeaway|to go|abholen)\b/gi, ' ');
-  s = s.replace(/\bmit allem\b/gi, ' ');
+  s = s.replace(/\bmit (?:allem|allen)\b/gi, ' ');
   s = s.replace(/\bund\s+(?:scharf|scharfe|spicy|hot|chili|acili|aci|schaf)\b/gi, ' ');
   s = s.replace(/\bmit\s+(?:scharf|scharfe|spicy|hot|chili|acili|aci)\b/gi, ' ');
-  s = s.replace(/\bohne\s+[\wäöüÄÖÜß-]+/gi, ' ');
+  s = s.replace(/\b(?:ohne|without|no)\s+.+$/i, ' ');
   s = s.replace(/\b\d+\s*cm\b/gi, ' ');
   s = s.replace(/\b(familienpizza|familien pizza|grosse pizza|große pizza)\b/gi, ' familienpizza ');
   s = s.replace(/\b(einer|eine|eins)\b/gi, ' ');
