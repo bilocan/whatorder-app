@@ -1,6 +1,10 @@
 const { parseOrderText, parseSpaceSeparatedQtyItems } = require('./orderParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
-const { stripIntentModifiers, wantsAllIncluded, parseExclusions, isModifierOnlyToken } = require('./intentModifiers');
+const {
+  stripIntentModifiers, wantsAllIncluded, parseExclusions, isModifierOnlyToken,
+} = require('./intentModifiers');
+
+const MIT_ALLEM_RE = 'mit\\s+(?:allem|allen)';
 
 const GREETINGS = new Set([
   'hi', 'hello', 'hey', 'hallo', 'merhaba', 'selam', 'guten tag', 'guten morgen',
@@ -184,10 +188,13 @@ function splitOneWithoutModifier(text) {
   const qty = '(zwei|drei|vier|funf|fünf|sechs|\\d+)';
   const ohne = '(ohne\\s+.+?)';
   const variants = [
-    new RegExp(`^${qty}\\s+(.+?)\\s+mit\\s+allem\\s+(?:einer|eine|ein)\\s+${ohne}\\s*$`, 'i'),
-    new RegExp(`^${qty}\\s+(.+?)\\s+(?:einer|eine|ein)\\s+mit\\s+allem\\s+(?:einer|eine|ein)\\s+${ohne}\\s*$`, 'i'),
+    new RegExp(`^${qty}\\s+(.+?)\\s+${MIT_ALLEM_RE}\\s+(?:einer|eine|ein)\\s+${ohne}\\s*$`, 'i'),
     new RegExp(
-      `^${qty}\\s+(.+?)\\s+(?:einer|eine|ein)\\s+mit\\s+allem\\s+und\\s+(?:die\\s+)?(?:andere|anderer|anderes)\\s+${ohne}\\s*$`,
+      `^${qty}\\s+(.+?)\\s+(?:einer|eine|ein)\\s+${MIT_ALLEM_RE}\\s+(?:einer|eine|ein)\\s+${ohne}\\s*$`,
+      'i',
+    ),
+    new RegExp(
+      `^${qty}\\s+(.+?)\\s+(?:einer|eine|ein)\\s+${MIT_ALLEM_RE}\\s+und\\s+(?:die\\s+)?(?:andere|anderer|anderes)\\s+${ohne}\\s*$`,
       'i',
     ),
   ];
@@ -223,6 +230,8 @@ function rulesItemsLookSuspicious(items) {
     const n = (i.rawName ?? i.name ?? '').trim();
     if (!n) return true;
     if (ORDER_FILLER_RE.test(n)) return true;
+    if (/^(?:mit\s+(?:allem|allen|alles)|ohne\s+)/i.test(n)) return true;
+    if (isModifierOnlyToken(n)) return true;
     const dishOnly = stripIntentModifiers(n);
     if (dishOnly.split(/\s+/).filter(Boolean).length > 4) return true;
     return false;
@@ -417,7 +426,10 @@ function rulesParseQuality(text) {
   }
 
   if (splitOneWithoutModifier(stripped)?.length >= 2) return 'high';
-  if (parseGermanQtyItems(stripped)?.length >= 2) return 'high';
+  const germanQtyItems = parseGermanQtyItems(stripped);
+  if (germanQtyItems?.length >= 2) {
+    return rulesItemsLookSuspicious(germanQtyItems) ? 'low' : 'high';
+  }
   if (rulesItemsLookSuspicious(items)) return 'low';
 
   const germanLeading = parseGermanLeadingQty(stripped);
