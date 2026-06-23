@@ -1,4 +1,4 @@
-const { parseIntent, looksLikeOrderText, extractPartySize } = require('../intentParser');
+const { parseIntent, looksLikeOrderText, extractPartySize, applyJeweilsBasketContext } = require('../intentParser');
 
 describe('parseIntent', () => {
   test('pizza and cola for 2', () => {
@@ -88,6 +88,38 @@ describe('parseIntent', () => {
     ]);
   });
 
+  test('jeweils drink uses food qty not line count', () => {
+    const r = parseIntent('zwei Hühner Kebab und jeweils einer ayran bitte');
+    expect(r.items).toEqual([
+      { name: 'Hühner Kebab', qty: 2 },
+      { name: 'ayran', qty: 2 },
+    ]);
+  });
+
+  test('standalone jeweils ayran parses drink only', () => {
+    const r = parseIntent('jeweils ayran noch bitte');
+    expect(r.items).toEqual([{ name: 'ayran', qty: 1 }]);
+  });
+
+  test('applyJeweilsBasketContext scales drink to basket meals', () => {
+    const intent = parseIntent('jeweils ayran noch bitte');
+    const basket = [
+      { name: 'Kebap Sandwich Huhn — Sauce', qty: 3, price: 7.5 },
+    ];
+    const scaled = applyJeweilsBasketContext(intent, basket);
+    expect(scaled.items).toEqual([{ name: 'ayran', qty: 3 }]);
+  });
+
+  test('applyJeweilsBasketContext ignores drinks already in basket', () => {
+    const intent = parseIntent('jeweils ayran noch bitte');
+    const basket = [
+      { name: 'Kebap Sandwich Huhn', qty: 2, price: 7.5 },
+      { name: 'Mis Ayran 0.25L', qty: 1, price: 2.5 },
+    ];
+    const scaled = applyJeweilsBasketContext(intent, basket);
+    expect(scaled.items).toEqual([{ name: 'ayran', qty: 2 }]);
+  });
+
   test('zwei kebab ein cola splits food and embedded drink', () => {
     const r = parseIntent('Zwei Hühner Kebab ein Cola und ein ayran bitte');
     expect(r.items).toEqual([
@@ -144,5 +176,6 @@ describe('looksLikeOrderText', () => {
   test('accepts order-like text', () => {
     expect(looksLikeOrderText('2x döner + cola', '2x döner + cola')).toBe(true);
     expect(looksLikeOrderText('döner', 'döner')).toBe(true);
+    expect(looksLikeOrderText('jeweils ayran noch bitte', 'jeweils ayran noch bitte')).toBe(true);
   });
 });

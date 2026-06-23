@@ -82,6 +82,16 @@ function parseGermanLeadingQty(text) {
 const GERMAN_CONJUNCTION_SPLIT = /\s+und\s+|\s+and\s+|\s*\+\s*|\s*,\s*|\bve\b/i;
 
 const { isDrinkStem } = require('./smartDefaults');
+const { extractDishNameForMatch } = require('./intentModifiers');
+
+function norm(str) {
+  return String(str ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .trim();
+}
 
 const ORDER_NOISE_RE = /^(an einem|am einem|damit|bitte|please)$/i;
 
@@ -226,15 +236,64 @@ function rulesIntentHasModifierSplit(rulesIntent) {
   return items.every(i => wantsAllIncluded(i.name) || parseExclusions(i.name).length > 0);
 }
 
-/** Trailing "und jeweils einer Ayran" → one drink per food item already parsed. */
-function extractJeweilsDrinkSuffix(text) {
-  const m = (text ?? '').trim().match(
-    /\s+und\s+jeweils\s+(?:einer|eine|ein)\s+(?:bitte\s+)?([a-zA-ZäöüÄÖÜß-]+)(?:\s+bitte)?\s*$/i,
+/** "und jeweils einer Ayran" on same utterance, or standalone "jeweils ayran noch bitte". */
+function extractJeweilsDrink(text) {
+  const trimmed = (text ?? '').trim();
+
+  const suffixM = trimmed.match(
+    /\s+und\s+jeweils\s+(?:einer|eine|ein|einen)\s+(?:bitte\s+)?([a-zA-ZäöüÄÖÜß-]+)(?:\s+bitte)?\s*$/i,
   );
-  if (!m) return null;
+  if (suffixM) {
+    return {
+      drink: stripPoliteSuffix(suffixM[1].trim()),
+      main: trimmed.slice(0, suffixM.index).trim(),
+    };
+  }
+
+  const standaloneM = trimmed.match(
+    /^(?:noch\s+)?jeweils\s+(?:(?:ein|eine|einer|einen)\s+)?(?:bitte\s+)?([a-zA-ZäöüÄÖÜß-]+)(?:\s+(?:noch|bitte))*\s*$/i,
+  );
+  if (standaloneM) {
+    return { drink: stripPoliteSuffix(standaloneM[1].trim()), main: '' };
+  }
+
+  return null;
+}
+
+function foodQtySum(items) {
+  return (items ?? []).reduce((sum, i) => sum + (i.qty ?? 1), 0);
+}
+
+function lineLooksLikeDrink(name) {
+  const dish = norm(extractDishNameForMatch(name) || name);
+  const words = dish.split(/[\s—,-]+/).filter(Boolean);
+  if (words.some(w => isDrinkStem(w))) return true;
+  return isDrinkStem(dish);
+}
+
+function basketMealQty(basket) {
+  return (basket ?? []).reduce((sum, line) => {
+    if (lineLooksLikeDrink(line.name)) return sum;
+    return sum + (line.qty ?? 1);
+  }, 0);
+}
+
+function isJeweilsContinuationText(rawText) {
+  return /^(?:noch\s+)?jeweils\b/i.test((rawText ?? '').trim());
+}
+
+/** Scale drink qty to basket meals for "jeweils ayran" after kebabs are already in cart. */
+function applyJeweilsBasketContext(intent, basket) {
+  if (!isJeweilsContinuationText(intent?.rawText)) return intent;
+  const items = intent.items ?? [];
+  if (items.length !== 1) return intent;
+
+  const mealQty = basketMealQty(basket);
+  if (mealQty < 1) return intent;
+
   return {
-    drink: m[1].trim(),
-    main: text.slice(0, m.index).trim(),
+    ...intent,
+    items: [{ ...items[0], qty: mealQty }],
   };
 }
 
@@ -276,6 +335,7 @@ function looksLikeOrderText(text, norm) {
   if (isGreetingOnly(norm)) return false;
   if (parseOrderText(text).length) return true;
   if (parseTurkishQtyItems(text).length) return true;
+  if (/^(?:noch\s+)?jeweils\b/i.test(text.trim())) return true;
   if (ORDER_SIGNAL_RE.test(text)) return true;
   // Single word ≥3 chars — try menu match later
   if (/^[a-zA-ZäöüÄÖÜßıİ0-9\s-]{3,}$/.test(text.trim()) && !isGreetingOnly(norm)) return true;
@@ -301,21 +361,26 @@ function parseIntent(text) {
   stripped = stripPolitePrefix(stripped);
   stripped = stripContinuationPrefix(stripped);
 
-  const jeweils = extractJeweilsDrinkSuffix(stripped);
+  const jeweils = extractJeweilsDrink(stripped);
   if (jeweils) stripped = jeweils.main;
 
   let items = splitOneWithoutModifier(stripped);
+  if (!items?.length && jeweils?.drink && !jeweils.main) {
+    items = [{ qty: 1, rawName: jeweils.drink }];
+  }
   if (!items?.length) items = parseGermanQtyItems(stripped);
   if (!items?.length) items = parseTurkishQtyItems(stripped);
   if (!items?.length) items = parseSpaceSeparatedQtyItems(stripped) ?? parseOrderText(stripped);
 
-  if (jeweils?.drink && items?.length) {
-    items = [...items, { qty: items.length, rawName: jeweils.drink }];
+  if (jeweils?.drink && items?.length && jeweils.main) {
+    const perMeal = foodQtySum(items.filter(i => !isDrinkStem(stripPoliteSuffix(i.rawName ?? ''))));
+    items = [...items, { qty: perMeal || items.length, rawName: jeweils.drink }];
   }
 
   const usedSingleBlobFallback = !items.length
     && stripped.length >= 2
-    && !isGreetingOnly(stripped.toLowerCase());
+    && !isGreetingOnly(stripped.toLowerCase())
+    && !jeweils?.drink;
 
   if (usedSingleBlobFallback) {
     items = [{ qty: 1, rawName: stripped }];
@@ -341,13 +406,14 @@ function rulesParseQuality(text) {
   stripped = stripPolitePrefix(stripped);
   stripped = stripContinuationPrefix(stripped);
 
-  const jeweils = extractJeweilsDrinkSuffix(stripped);
+  const jeweils = extractJeweilsDrink(stripped);
   if (jeweils) stripped = jeweils.main;
 
   let items = splitOneWithoutModifier(stripped);
   if (!items?.length) items = parseGermanQtyItems(stripped);
-  if (jeweils?.drink && items?.length) {
-    items = [...items, { qty: items.length, rawName: jeweils.drink }];
+  if (jeweils?.drink && items?.length && jeweils.main) {
+    const perMeal = foodQtySum(items.filter(i => !isDrinkStem(stripPoliteSuffix(i.rawName ?? ''))));
+    items = [...items, { qty: perMeal || items.length, rawName: jeweils.drink }];
   }
 
   if (splitOneWithoutModifier(stripped)?.length >= 2) return 'high';
@@ -423,4 +489,6 @@ module.exports = {
   extractPartySize,
   rulesParseQuality,
   shouldTryLlm,
+  applyJeweilsBasketContext,
+  basketMealQty,
 };

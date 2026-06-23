@@ -3,7 +3,7 @@ const { sendButtonMessage, sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildBasketText, sendCatalog } = require('./botHelpers');
 const { getMenu } = require('./menuService');
-const { parseIntentAsync, looksLikeOrderText } = require('./intentParser');
+const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext } = require('./intentParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
 const { matchIntentToMenu, mergeIntoBasket, mergePendingItems } = require('./intentMatcher');
 const { sendDisambiguationList } = require('./intentDisambiguate');
@@ -97,6 +97,7 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   if (!looksLikeOrderText(text, norm)) return false;
 
   let intent = await parseIntentAsync(text, { phone: from });
+  intent = applyJeweilsBasketContext(intent, basket);
   if (!intent.items.length) return false;
   if (intent.confidence != null && intent.confidence < 0.6) return false;
 
