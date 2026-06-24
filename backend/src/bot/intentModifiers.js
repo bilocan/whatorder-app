@@ -49,6 +49,8 @@ function stripIntentModifiers(rawIntentName) {
   s = s.replace(/\b\d+\s*cm\b/gi, ' ');
   s = s.replace(/\b(familienpizza|familien pizza|grosse pizza|große pizza)\b/gi, ' familienpizza ');
   s = s.replace(/\b(einer|eine|eins)\b/gi, ' ');
+  s = s.replace(/\bnoch\b/gi, ' ');
+  s = s.replace(/\bbitte\b/gi, ' ');
   s = s.replace(/\s+/g, ' ').trim();
   return s;
 }

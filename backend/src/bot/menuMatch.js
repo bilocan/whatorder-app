@@ -1,6 +1,6 @@
 // Pure menu matching helpers (no Firestore). Used by menuService and intentMatcher.
 
-const { expandNeedle, wordMatchesInText, splitCompoundDish } = require('./menuSynonyms');
+const { expandNeedle, wordMatchesInText, splitCompoundDish, nameTokens, typoTolerantWordMatch } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
 const { trySmartDefault } = require('./smartDefaults');
 
@@ -20,6 +20,7 @@ function scoreMatch(needle, candidate) {
   if (wordRe.test(needle)) return 80;
   if (candidate.startsWith(needle) || needle.startsWith(candidate)) return 50;
   if (candidate.includes(needle) || needle.includes(candidate)) return 10;
+  if (!needle.includes(' ') && nameTokens(candidate).some(t => typoTolerantWordMatch(needle, t))) return 75;
   return 0;
 }
 
@@ -148,8 +149,13 @@ function classifyMenuMatch(rawName, menuItems) {
   // Single-word or fallback stem match (e.g. "döner", "cola")
   const stemHits = filterCandidatesForQuery(available.filter(item => {
     const n = norm(item.name);
+    const tokens = nameTokens(n);
     return needles.some(needle =>
-      n === needle || n.startsWith(`${needle} `) || n.startsWith(needle) || n.includes(` ${needle}`),
+      n === needle
+      || n.startsWith(`${needle} `)
+      || n.startsWith(needle)
+      || n.includes(` ${needle}`)
+      || (!needle.includes(' ') && tokens.some(t => typoTolerantWordMatch(needle, t))),
     );
   }), dishName);
   if (stemHits.length > 1) {
