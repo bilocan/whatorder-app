@@ -161,6 +161,11 @@ describe('parseIntent', () => {
     expect(r.items).toEqual([{ name: 'kebap mit allem und scharf', qty: 1 }]);
   });
 
+  test('pide mit eier und gouda stays one line (mit-ingredient und)', () => {
+    const r = parseIntent('Eine pide mit Eier und gouda');
+    expect(r.items).toEqual([{ name: 'pide mit Eier und gouda', qty: 1 }]);
+  });
+
   test('sharf typo stays on kebap line not a separate item', () => {
     const r = parseIntent('bitte ein kebap mit allen und sharf und ayran dazu');
     expect(r.items).toEqual([

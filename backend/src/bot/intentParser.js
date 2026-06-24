@@ -85,6 +85,8 @@ function parseGermanLeadingQty(text) {
 }
 
 const GERMAN_CONJUNCTION_SPLIT = /\s+und\s+|\s+and\s+|\s*\+\s*|\s*,\s*|\bve\b/i;
+const GERMAN_CONJUNCTION_SEP_RE = /\s+und\s+|\s+and\s+|\s*\+\s*|\s*,\s*|\bve\b/gi;
+const GERMAN_QTY_WORD_RE = /^(?:ein|eine|eins|einen|einer|zwei|drei|vier|funf|fünf|sechs|\d+)\b/i;
 
 const { isDrinkStem } = require('./smartDefaults');
 const { extractDishNameForMatch } = require('./intentModifiers');
@@ -143,12 +145,52 @@ function stripPoliteSuffix(name) {
   return (name ?? '').replace(/\s+bitte\s*$/i, '').trim();
 }
 
+/** Keep "pide mit Eier und gouda" on one line; still split "Pizza und eine Cola". */
+function shouldSkipMitIngredientUndSplit(before, after) {
+  const left = (before ?? '').trim();
+  const right = (after ?? '').trim();
+  if (!left || !right) return false;
+  if (!/\bmit\s+/i.test(left)) return false;
+  if (GERMAN_QTY_WORD_RE.test(right)) return false;
+
+  const einArticle = right.match(/^(?:ein|eine|eins|einen|einer)\s+(\S+)/i);
+  if (einArticle && isDrinkStem(einArticle[1])) return false;
+  if (isDrinkStem(right.split(/\s+/)[0])) return false;
+
+  return right.split(/\s+/).filter(Boolean).length <= 2;
+}
+
+function splitGermanConjunctionParts(text) {
+  const trimmed = (text ?? '').trim();
+  if (!trimmed) return [];
+
+  const parts = [];
+  let lastIndex = 0;
+  let m;
+  const re = new RegExp(GERMAN_CONJUNCTION_SEP_RE.source, 'gi');
+  while ((m = re.exec(trimmed)) !== null) {
+    const isUndLike = /und|and/i.test(m[0]) || m[0].toLowerCase() === 've';
+    if (isUndLike && shouldSkipMitIngredientUndSplit(
+      trimmed.slice(lastIndex, m.index),
+      trimmed.slice(m.index + m[0].length),
+    )) {
+      continue;
+    }
+    const chunk = trimmed.slice(lastIndex, m.index).trim();
+    if (chunk) parts.push(chunk);
+    lastIndex = m.index + m[0].length;
+  }
+  const tail = trimmed.slice(lastIndex).trim();
+  if (tail) parts.push(tail);
+  return parts;
+}
+
 /** "Eine Pizza Margherita und eine Spinaci" → two items (split before leading-qty parse). */
 function parseGermanQtyItems(text) {
   const trimmed = (text ?? '').trim();
   if (!trimmed) return null;
 
-  const parts = trimmed.split(GERMAN_CONJUNCTION_SPLIT).map(s => s.trim()).filter(Boolean);
+  const parts = splitGermanConjunctionParts(trimmed);
   if (parts.length < 2) return parseGermanLeadingQty(trimmed);
 
   const items = [];
