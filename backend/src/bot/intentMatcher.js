@@ -72,6 +72,15 @@ function basketMergeKey(item) {
   return note ? `${item.name}\0${note}` : item.name;
 }
 
+function hydratePendingItems(pending, menuItems) {
+  const byId = new Map((menuItems ?? []).map(m => [m.id, m]));
+  return (pending ?? []).map(item => {
+    const menuItem = item.menuItemId ? byId.get(item.menuItemId) : null;
+    if (!menuItem?.optionGroups?.length) return item;
+    return { ...item, optionGroups: menuItem.optionGroups };
+  });
+}
+
 function mergeIntoBasket(basket, items) {
   let result = [...basket];
   for (const item of items) {
@@ -89,4 +98,12 @@ function mergeIntoBasket(basket, items) {
   return result;
 }
 
-module.exports = { matchIntentToMenu, mergeIntoBasket, mergePendingLine, mergePendingItems, toPendingItem, basketMergeKey };
+module.exports = {
+  matchIntentToMenu,
+  mergeIntoBasket,
+  mergePendingLine,
+  mergePendingItems,
+  toPendingItem,
+  basketMergeKey,
+  hydratePendingItems,
+};

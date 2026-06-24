@@ -1,7 +1,7 @@
 const { patchSession, getSession } = require('./sessionStore');
 const { sendButtonMessage } = require('../lib/whatsapp');
 const { t } = require('./templates');
-const { buildBasketText, sendCatalog } = require('./botHelpers');
+const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHelpers');
 const { getMenu } = require('./menuService');
 const { getLastOrderForCustomer } = require('./orderService');
 const { matchMenuItem } = require('./menuMatch');
@@ -90,12 +90,8 @@ async function handleReorderButtons({ from, session, lang, businessId, basket, i
       pendingDeleteIds: [],
     }, live);
     await sendButtonMessage(from, {
-      body: buildBasketText(pending, lang),
-      buttons: [
-        { id: 'btn_add_more', title: t('addMoreBtn', lang) },
-        { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },
-        { id: 'btn_confirm', title: t('confirmBtn', lang) },
-      ],
+      body: buildPostAddBody(lang, pending, { reorder: true }),
+      buttons: postAddBasketButtons(lang),
     });
     return true;
   }

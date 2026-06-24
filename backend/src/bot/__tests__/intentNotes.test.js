@@ -75,6 +75,21 @@ describe('tagLinesWithNote', () => {
       { name: 'Kebap', qty: 1, price: 7.5, note: 'extra scharf' },
     ]);
   });
+
+  test('keeps per-line raw intent phrasing when it differs from menu name', () => {
+    const items = [{
+      name: 'Enes Kebap Special Dürüm Huhn',
+      qty: 1,
+      price: 6.9,
+      rawIntentName: 'bitte ein kebap dürüm',
+    }];
+    expect(tagLinesWithNote(items, null)).toEqual([{
+      name: 'Enes Kebap Special Dürüm Huhn',
+      qty: 1,
+      price: 6.9,
+      note: 'bitte ein kebap dürüm',
+    }]);
+  });
 });
 
 describe('toBasketLine', () => {
