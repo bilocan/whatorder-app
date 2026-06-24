@@ -26,7 +26,9 @@ module.exports = {
 
   qtyBody: (name, price) => `${name} — €${price}\n\nKaç adet?`,
 
-  itemAdded: (qty, name, count, total) => `✅ ${qty}x ${name} eklendi.\n🛒 Sepet: ${count} ürün — €${total}`,
+  itemAdded: (qty, name, count, total) => `✅ ${qty}× ${name} eklendi.\n🛒 ${count} ürün · €${total}`,
+  itemsAdded: (addedQty, count, total) => `✅ ${addedQty} ürün eklendi.\n🛒 ${count} ürün · €${total}`,
+  reorderLoaded: (count, total) => `✅ Aynı sipariş yüklendi.\n🛒 ${count} ürün · €${total}`,
   addMoreBtn: () => 'Daha Ekle',
   viewBasketBtn: () => 'Sepeti Gör',
   doneBtn: () => 'Tamam',

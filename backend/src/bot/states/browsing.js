@@ -1,7 +1,7 @@
 const { setSession, patchSession } = require('../sessionStore');
 const { sendText, sendButtonMessage, sendImage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
-const { buildBasketText, sendMenu, sendMenuPage, sendCatalog, groupMenuByCategory, decodeCategory } = require('../botHelpers');
+const { buildBasketText, sendMenu, sendMenuPage, sendCatalog, groupMenuByCategory, decodeCategory, buildPostAddBody, postAddBasketButtons } = require('../botHelpers');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 const { tryTextIntentOrder, handleIntentButtons, isIntentConfirmText } = require('../intentOrder');
@@ -97,17 +97,10 @@ async function handleSelecting({ from, session, lang, businessId, basket, type, 
       return;
     }
 
-    const totalItems = newBasket.reduce((s, i) => s + i.qty, 0);
-    const totalPrice = newBasket.reduce((s, i) => s + i.price * i.qty, 0);
-
     // item-added buttons are kept visible — not tracked for deletion
     await sendButtonMessage(from, {
-      body: t('itemAdded', lang, qty, name, totalItems, totalPrice.toFixed(2)),
-      buttons: [
-        { id: 'btn_add_more',    title: t('addMoreBtn', lang) },
-        { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },
-        { id: 'btn_done',        title: t('doneBtn', lang) },
-      ],
+      body: buildPostAddBody(lang, newBasket, { qty, name }),
+      buttons: postAddBasketButtons(lang),
     });
     await setSession(from, newSession);
     return;

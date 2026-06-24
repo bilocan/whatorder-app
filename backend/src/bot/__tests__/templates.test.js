@@ -7,7 +7,7 @@ const FUNCTION_KEYS = [
   'greeting', 'langChanged',
   'menuListHeader', 'menuListBody', 'menuListFooter', 'viewMenuBtn',
   'qtyBody',
-  'itemAdded', 'addMoreBtn', 'viewBasketBtn', 'doneBtn',
+  'itemAdded', 'itemsAdded', 'reorderLoaded', 'addMoreBtn', 'viewBasketBtn', 'doneBtn',
   'basketHeader', 'basketEmpty', 'clearBasketBtn', 'confirmBtn',
   'orderTotal', 'confirmSummary', 'finalConfirmBody',
   'confirmOrderBtn', 'addNoteBtn', 'backToCartBtn', 'addNotePrompt', 'confirmPrompt', 'yesNoOnly',

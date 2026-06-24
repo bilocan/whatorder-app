@@ -1,7 +1,7 @@
 const { patchSession, getSession } = require('./sessionStore');
 const { sendButtonMessage, sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
-const { buildBasketText, sendCatalog } = require('./botHelpers');
+const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHelpers');
 const { getMenu } = require('./menuService');
 const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext } = require('./intentParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
@@ -168,12 +168,8 @@ async function handleIntentButtons({ from, session, lang, businessId, basket, id
       pendingDeleteIds: [],
     }, live);
     await sendButtonMessage(from, {
-      body: buildBasketText(newBasket, lang, live.specialRequests),
-      buttons: [
-        { id: 'btn_add_more', title: t('addMoreBtn', lang) },
-        { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },
-        { id: 'btn_confirm', title: t('confirmBtn', lang) },
-      ],
+      body: buildPostAddBody(lang, newBasket, { addedLines: linesToAdd }),
+      buttons: postAddBasketButtons(lang),
     });
     return true;
   }
