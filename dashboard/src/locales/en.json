@@ -83,6 +83,8 @@
     "orderedAt": "Ordered at {{time}}",
     "networkError": "Network error — is the backend running?",
     "saving": "Saving…",
+    "etaLabel": "Ready in",
+    "etaMinutesUnit": "min",
     "status": {
       "pending": "Pending",
       "approved": "Approved",

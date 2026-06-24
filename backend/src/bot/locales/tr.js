@@ -88,7 +88,7 @@ module.exports = {
 
   askName: () => 'Sipariş için adınızı yazar mısınız?',
 
-  orderApproved:  (shortId) => `✅ Sipariş #${shortId} onaylandı! Kısa süre içinde hazırlanmaya başlanacak.`,
+  orderApproved:  (shortId, etaTime) => `✅ Sipariş #${shortId} onaylandı! Tahmini hazır olma saati: ${etaTime}.`,
   orderPreparing: (shortId) => `👨‍🍳 Sipariş #${shortId} hazırlanıyor!`,
   orderReady:     (shortId) => `✅ Siparişiniz #${shortId} hazır! Sizi bekliyoruz 🙏`,
   orderOnTheWay:  (shortId) => `🚚 Sipariş #${shortId} yola çıktı!`,
