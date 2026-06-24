@@ -1,5 +1,6 @@
 const { parseOrderText, parseSpaceSeparatedQtyItems } = require('./orderParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
+const { lookupLearnedIntent } = require('./intentLearning');
 const {
   stripIntentModifiers, wantsAllIncluded, parseExclusions, isModifierOnlyToken,
 } = require('./intentModifiers');
@@ -43,10 +44,10 @@ function stripPolitePrefix(text) {
     .trim();
 }
 
-/** "noch ein kebap" → "kebap" */
+/** "noch ein kebap" / "noch dazu zwei cola" → strip leading continuation */
 function stripContinuationPrefix(text) {
   return (text ?? '')
-    .replace(/^\s*noch\s+(?:ein|eine|einen|einer)\s+/i, '')
+    .replace(/^\s*noch\s+(?:ein|eine|einen|einer|dazu)\s+/i, '')
     .replace(/^\s*(?:auch|nochmal)\s+(?:ein|eine|einen|einer)\s+/i, '')
     .trim();
 }
@@ -476,7 +477,22 @@ function mergeLlmIntent(llm, rawText, rulesIntent) {
   return toIntentResult(items, partySize, rawText, 'llm', llm.confidence);
 }
 
-async function parseIntentAsync(text, { phone } = {}) {
+async function parseIntentAsync(text, { phone, businessId } = {}) {
+  const rawText = (text ?? '').trim();
+
+  if (businessId) {
+    const learned = await lookupLearnedIntent(businessId, rawText);
+    if (learned?.items?.length) {
+      return toIntentResult(
+        learned.items.map(i => ({ rawName: i.name, qty: i.qty })),
+        learned.partySize,
+        rawText,
+        'learned',
+        1,
+      );
+    }
+  }
+
   const rulesIntent = parseIntent(text);
 
   if (!shouldTryLlm(text, rulesIntent, phone)) return rulesIntent;
