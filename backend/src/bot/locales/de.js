@@ -77,7 +77,8 @@ module.exports = {
   payCashBtn: () => 'Bar 💰',
   cancelOrderBtn: () => 'Abbrechen',
   choosePaymentMethod: () => 'Bitte tippe auf Karte oder Bar.',
-  paymentLink: (shortId, itemLines, total, url) => `Bestellung #${shortId} aufgegeben.\n\n${itemLines}\n\nGesamt: €${total}\n\nZum Bezahlen tippen:\n${url}`,
+  payNowBtn: () => 'Jetzt zahlen 💳',
+  paymentLink: (shortId, itemLines, total) => `Bestellung #${shortId} aufgegeben.\n\n${itemLines}\n\nGesamt: €${total}\n\nTippe unten auf den Button zum Bezahlen.`,
   paymentLinkFailed: (shortId) => `Bestellung #${shortId} wurde erstellt, aber der Zahlungslink ist fehlgeschlagen. Bitte kontaktiere das Restaurant.`,
   paymentConfirmed: (shortId) => `✅ Zahlung für Bestellung #${shortId} erhalten. Wir melden uns, wenn sie fertig ist. Danke! 🙏`,
 

@@ -77,7 +77,8 @@ module.exports = {
   payCashBtn: () => 'Cash 💰',
   cancelOrderBtn: () => 'Cancel',
   choosePaymentMethod: () => 'Please tap Card or Cash to continue.',
-  paymentLink: (shortId, itemLines, total, url) => `Order #${shortId} placed.\n\n${itemLines}\n\nTotal: €${total}\n\nTap to pay securely:\n${url}`,
+  payNowBtn: () => 'Pay now 💳',
+  paymentLink: (shortId, itemLines, total) => `Order #${shortId} placed.\n\n${itemLines}\n\nTotal: €${total}\n\nTap the button below to pay securely.`,
   paymentLinkFailed: (shortId) => `Order #${shortId} was created but the payment link failed. Please contact the restaurant or try again.`,
   paymentConfirmed: (shortId) => `✅ Payment received for order #${shortId}. We'll notify you when it's ready. Thank you! 🙏`,
 

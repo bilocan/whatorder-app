@@ -32,6 +32,25 @@ describe('matchIntentToMenu', () => {
       { menuItemId: 'k1', name: 'Kebap Sandwich Huhn', qty: 3, price: 7.5, optionGroups: [], rawIntentName: 'Kebap Sandwich Huhn', modifierKey: 'kebap sandwich huhn' },
     ]);
   });
+
+  test('merges ingredient split when tokens match multi-ingredient product name', () => {
+    const PIDE_MENU = [{ id: 'p1', name: 'Pide mit Gouda und Eiern', price: 9.9 }];
+    const intent = {
+      items: [
+        { name: 'pide mit Eier', qty: 1 },
+        { name: 'gouda', qty: 1 },
+      ],
+    };
+    const { matched, unmatched } = matchIntentToMenu(intent, PIDE_MENU);
+    expect(unmatched).toEqual([]);
+    expect(matched).toHaveLength(1);
+    expect(matched[0]).toMatchObject({
+      menuItemId: 'p1',
+      name: 'Pide mit Gouda und Eiern',
+      qty: 1,
+      rawIntentName: 'pide mit Eier und gouda',
+    });
+  });
 });
 
 describe('hydratePendingItems', () => {

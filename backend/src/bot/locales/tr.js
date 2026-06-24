@@ -77,7 +77,8 @@ module.exports = {
   payCashBtn: () => 'Nakit 💰',
   cancelOrderBtn: () => 'İptal',
   choosePaymentMethod: () => 'Lütfen Kart veya Nakit seçin.',
-  paymentLink: (shortId, itemLines, total, url) => `Sipariş #${shortId} alındı.\n\n${itemLines}\n\nToplam: €${total}\n\nÖdemek için dokunun:\n${url}`,
+  payNowBtn: () => 'Ödeme yap 💳',
+  paymentLink: (shortId, itemLines, total) => `Sipariş #${shortId} alındı.\n\n${itemLines}\n\nToplam: €${total}\n\nÖdemek için aşağıdaki düğmeye dokunun.`,
   paymentLinkFailed: (shortId) => `Sipariş #${shortId} oluşturuldu ancak ödeme bağlantısı başarısız oldu. Lütfen restoranla iletişime geçin.`,
   paymentConfirmed: (shortId) => `✅ Sipariş #${shortId} için ödeme alındı. Hazır olunca haber vereceğiz. Teşekkürler! 🙏`,
 
