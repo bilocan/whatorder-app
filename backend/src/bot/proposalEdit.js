@@ -25,7 +25,7 @@ const CANCEL_PHRASES = new Set([
 ]);
 
 const REMOVE_VERBS =
-  'remove|delete|without|no|kein|keine|ohne|sil|cikar|çıkar|kaldir|kaldır|weg|raus';
+  'remove|delete|without|no|kein|keine|ohne|entfernen|löschen|loschen|streichen|sil|cikar|çıkar|kaldir|kaldır|weg|raus';
 const REMOVE_RE = new RegExp(`^(${REMOVE_VERBS})\\s+(.+)$`, 'i');
 const REMOVE_SUFFIX_RE = new RegExp(`^(.+?)\\s+(${REMOVE_VERBS})$`, 'i');
 const EDIT_SIGNAL_RE = new RegExp(`\\b(${REMOVE_VERBS}|add|plus|und|ve|sadece|only|nur|actually|instead|ersetzen|yerine|stattdessen)\\b`, 'i');

@@ -1,11 +1,11 @@
 const { patchSession, getSession } = require('./sessionStore');
 const { sendButtonMessage, sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
-const { buildBasketText, sendCatalog } = require('./botHelpers');
+const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHelpers');
 const { getMenu } = require('./menuService');
 const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext } = require('./intentParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
-const { matchIntentToMenu, mergeIntoBasket, mergePendingItems } = require('./intentMatcher');
+const { matchIntentToMenu, mergeIntoBasket, mergePendingItems, hydratePendingItems } = require('./intentMatcher');
 const { sendDisambiguationList } = require('./intentDisambiguate');
 const { splitPendingItems, startIntentCustomization, buildOptionLabel } = require('./intentCustomize');
 const { norm } = require('./menuMatch');
@@ -146,7 +146,9 @@ async function handleIntentButtons({ from, session, lang, businessId, basket, id
       await sendCatalog(from, lang, businessId);
       return true;
     }
-    const { simple, customize } = splitPendingItems(pending);
+    const menu = await getMenu(businessId);
+    const hydrated = hydratePendingItems(pending, menu);
+    const { simple, customize } = splitPendingItems(hydrated);
     if (customize.length) {
       await startIntentCustomization({
         from, session: live, lang, businessId, basket: liveBasket, simpleItems: simple, customizeItems: customize,
@@ -168,12 +170,8 @@ async function handleIntentButtons({ from, session, lang, businessId, basket, id
       pendingDeleteIds: [],
     }, live);
     await sendButtonMessage(from, {
-      body: buildBasketText(newBasket, lang, live.specialRequests),
-      buttons: [
-        { id: 'btn_add_more', title: t('addMoreBtn', lang) },
-        { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },
-        { id: 'btn_confirm', title: t('confirmBtn', lang) },
-      ],
+      body: buildPostAddBody(lang, newBasket, { addedLines: linesToAdd }),
+      buttons: postAddBasketButtons(lang),
     });
     return true;
   }

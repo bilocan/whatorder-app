@@ -26,7 +26,9 @@ module.exports = {
 
   qtyBody: (name, price) => `${name} — €${price}\n\nKaç adet?`,
 
-  itemAdded: (qty, name, count, total) => `✅ ${qty}x ${name} eklendi.\n🛒 Sepet: ${count} ürün — €${total}`,
+  itemAdded: (qty, name, count, total) => `✅ ${qty}× ${name} eklendi.\n🛒 ${count} ürün · €${total}`,
+  itemsAdded: (addedQty, count, total) => `✅ ${addedQty} ürün eklendi.\n🛒 ${count} ürün · €${total}`,
+  reorderLoaded: (count, total) => `✅ Aynı sipariş yüklendi.\n🛒 ${count} ürün · €${total}`,
   addMoreBtn: () => 'Daha Ekle',
   viewBasketBtn: () => 'Sepeti Gör',
   doneBtn: () => 'Tamam',
@@ -34,6 +36,17 @@ module.exports = {
   basketHeader: () => '🛒 Siparişiniz:',
   basketEmpty: () => 'Sepetiniz boş. Menüden bir ürün seçin.',
   clearBasketBtn: () => 'Temizle',
+  removeItemBtn: () => 'Çıkar',
+  basketRemoveHint: () =>
+    'Neyi çıkarayım?\n\nÖrnekler:\n• 1 veya 1, 3, 4\n• ayran çıkar\n• döner ve cola çıkar\n\nİptal: iptal · Tümünü sil: hepsi',
+  basketRemoveNotFound: (text) => `"${text}" eşleşmedi. Satır numarası veya ürün adı dene.`,
+  basketRemoveAmbiguous: (linesText, count) => {
+    const hint = count === 2
+      ? 'Yanıt: 1, 2, ikisi veya hepsi'
+      : 'Yanıt: satır numarası veya hepsi';
+    return `Birden fazla eşleşme — hangi satırı kaldırayım?\n\n${linesText}\n\n${hint}`;
+  },
+  basketRemoveDisambigNotFound: () => 'Anlamadım. Listedeki bir satır numarasını yaz.',
   confirmBtn: () => 'Onayla',
 
   orderTotal: (total) => `Toplam: €${total}`,

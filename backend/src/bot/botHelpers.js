@@ -1,5 +1,5 @@
 const { getMenu, getBusinessInfo } = require('./menuService');
-const { sendText, sendListMessage } = require('../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage } = require('../lib/whatsapp');
 const { isOpenNow } = require('../lib/schedule');
 const { t, tCategory } = require('./templates');
 const { publishTextMenu } = require('./textMenu');
@@ -117,15 +117,216 @@ async function sendMenuPage(to, lang, businessId, info, menu, { category, page =
   });
 }
 
-function formatBasketItemLabel(item) {
+// Matches buildOptionLabel() in intentCustomize.js — base name vs modifier detail.
+const BASKET_MODIFIER_SEP = ' — ';
+const BASKET_TOTAL_RULE = '────────────────────────';
+
+function parseBasketItemName(item) {
+  const name = item.name ?? '';
   const note = (item.note ?? '').trim();
-  return note ? `${item.name} (${note})` : item.name;
+  const sepIdx = name.indexOf(BASKET_MODIFIER_SEP);
+  if (sepIdx >= 0) {
+    const baseName = name.slice(0, sepIdx);
+    const modifiers = name.slice(sepIdx + BASKET_MODIFIER_SEP.length).trim();
+    const detail = [modifiers, note].filter(Boolean).join(', ');
+    return { baseName, detail: detail || null };
+  }
+  return { baseName: name, detail: note || null };
+}
+
+function formatBasketItemLabel(item) {
+  const { baseName, detail } = parseBasketItemName(item);
+  return detail ? `${baseName} (${detail})` : baseName;
+}
+
+function parseDetailTokens(detail) {
+  if (!detail) return [];
+  return detail.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function joinDetailTokens(tokens) {
+  return tokens.length ? tokens.join(', ') : null;
+}
+
+function basketDisplayKey(item) {
+  return `${item.name}\0${item.note ?? ''}\0${item.price}`;
+}
+
+function mergeBasketForDisplay(basket) {
+  const merged = [];
+  for (const item of basket) {
+    const key = basketDisplayKey(item);
+    const existing = merged.find(m => basketDisplayKey(m) === key);
+    if (existing) {
+      existing.qty += item.qty;
+    } else {
+      merged.push({ ...item });
+    }
+  }
+  return merged;
+}
+
+function computeDiffDetails(basket) {
+  const parsed = basket.map(item => parseBasketItemName(item));
+  const byBase = new Map();
+  parsed.forEach((p, i) => {
+    if (!byBase.has(p.baseName)) byBase.set(p.baseName, []);
+    byBase.get(p.baseName).push({ index: i, tokens: parseDetailTokens(p.detail) });
+  });
+
+  const overrides = basket.map(() => null);
+  for (const group of byBase.values()) {
+    if (group.length < 2) continue;
+    const withDetail = group.filter(g => g.tokens.length > 0);
+    if (withDetail.length < 2) continue;
+
+    let commonTokens = withDetail[0].tokens;
+    for (let i = 1; i < withDetail.length; i++) {
+      const set = new Set(withDetail[i].tokens);
+      commonTokens = commonTokens.filter(t => set.has(t));
+    }
+    const commonSet = new Set(commonTokens);
+    const entries = group.map(({ index, tokens }) => {
+      const diff = tokens.filter(t => !commonSet.has(t));
+      return { index, tokens, diff };
+    });
+    const hasSubsetVariant = entries.some(e => e.tokens.length > 0 && e.diff.length === 0);
+
+    for (const { index, tokens, diff } of entries) {
+      if (hasSubsetVariant) {
+        overrides[index] = joinDetailTokens(tokens) ?? '';
+      } else {
+        overrides[index] = joinDetailTokens(diff) ?? '';
+      }
+    }
+  }
+  return overrides;
+}
+
+function formatBasketItemBlock(item, lineNumber, { detailOverride = null } = {}) {
+  const { baseName, detail } = parseBasketItemName(item);
+  const displayDetail = detailOverride !== null ? (detailOverride || null) : detail;
+  const lineTotal = (item.price * item.qty).toFixed(2);
+  const qtyLabel = `${item.qty}×`;
+  const numPrefix = lineNumber != null ? `${lineNumber}. ` : '';
+  const mainLine = `*${numPrefix}${qtyLabel} ${baseName}* · €${lineTotal}`;
+  if (!displayDetail) return mainLine;
+  return `${mainLine}\n   ${displayDetail}`;
+}
+
+function formatBasketItemsText(basket, { numbered = true, mergeIdentical } = {}) {
+  const shouldMerge = mergeIdentical ?? !numbered;
+  const displayBasket = shouldMerge ? mergeBasketForDisplay(basket) : basket;
+  const detailOverrides = computeDiffDetails(displayBasket);
+  const blocks = displayBasket.map((item, i) => formatBasketItemBlock(
+    item,
+    numbered ? i + 1 : null,
+    { detailOverride: detailOverrides[i] },
+  ));
+  const lines = [];
+  for (let i = 0; i < blocks.length; i++) {
+    if (i > 0) {
+      const prevHasDetail = blocks[i - 1].includes('\n');
+      const curHasDetail = blocks[i].includes('\n');
+      if (prevHasDetail || curHasDetail) lines.push('');
+    }
+    lines.push(blocks[i]);
+  }
+  return lines.join('\n');
+}
+
+function basketTotals(basket) {
+  const count = basket.reduce((s, i) => s + i.qty, 0);
+  const total = basket.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2);
+  return { count, total };
+}
+
+function basketLineKey(item) {
+  return `${item.name}|${item.note ?? ''}`;
+}
+
+function findAddedLines(before, after) {
+  const beforeQty = new Map();
+  for (const item of before) {
+    const key = basketLineKey(item);
+    beforeQty.set(key, (beforeQty.get(key) ?? 0) + item.qty);
+  }
+  const added = [];
+  for (const item of after) {
+    const key = basketLineKey(item);
+    const prev = beforeQty.get(key) ?? 0;
+    const delta = item.qty - prev;
+    if (delta > 0) added.push({ ...item, qty: delta });
+    beforeQty.set(key, Math.max(0, prev - item.qty));
+  }
+  return added;
+}
+
+function buildPostAddBody(lang, basket, { qty, name, addedLines, reorder } = {}) {
+  const { count, total } = basketTotals(basket);
+  if (reorder) return t('reorderLoaded', lang, count, total);
+  if (addedLines?.length === 1) {
+    const line = addedLines[0];
+    return t('itemAdded', lang, line.qty, formatBasketItemLabel(line), count, total);
+  }
+  if (addedLines?.length > 1) {
+    const addedQty = addedLines.reduce((s, i) => s + i.qty, 0);
+    return t('itemsAdded', lang, addedQty, count, total);
+  }
+  if (qty != null && name != null) {
+    return t('itemAdded', lang, qty, name, count, total);
+  }
+  return t('itemsAdded', lang, qty ?? count, count, total);
+}
+
+function postAddBasketButtons(lang) {
+  return [
+    { id: 'btn_add_more', title: t('addMoreBtn', lang) },
+    { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },
+    { id: 'btn_confirm', title: t('confirmBtn', lang) },
+  ];
+}
+
+function basketViewButtons(lang, { includeConfirm = true } = {}) {
+  const buttons = [
+    { id: 'btn_add_more', title: t('addMoreBtn', lang) },
+    { id: 'btn_remove_item', title: t('removeItemBtn', lang) },
+  ];
+  if (includeConfirm) buttons.push({ id: 'btn_confirm', title: t('confirmBtn', lang) });
+  return buttons;
+}
+
+function removeBasketAtIndex(basket, index) {
+  return removeBasketAtIndices(basket, [index + 1]) ?? basket;
+}
+
+function removeBasketAtIndices(basket, oneBasedIndices) {
+  const toRemove = new Set(
+    oneBasedIndices.map(n => n - 1).filter(i => i >= 0 && i < basket.length),
+  );
+  if (!toRemove.size) return null;
+  return basket.filter((_, i) => !toRemove.has(i));
+}
+
+async function sendBasketView(to, lang, basket, specialRequests, { includeConfirm = true, footer } = {}) {
+  let body = buildBasketText(basket, lang, specialRequests);
+  if (footer) body += `\n\n${footer}`;
+  return sendButtonMessage(to, {
+    body,
+    buttons: basketViewButtons(lang, { includeConfirm }),
+  });
 }
 
 function buildBasketText(basket, lang, specialRequests) {
-  const lines = basket.map(i => `• ${i.qty}x ${formatBasketItemLabel(i)} — €${(i.price * i.qty).toFixed(2)}`);
   const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
-  let body = `${t('basketHeader', lang)}\n\n${lines.join('\n')}\n\n${t('orderTotal', lang, total.toFixed(2))}`;
+  let body = [
+    t('basketHeader', lang),
+    '',
+    formatBasketItemsText(basket),
+    '',
+    BASKET_TOTAL_RULE,
+    `*${t('orderTotal', lang, total.toFixed(2))}*`,
+  ].join('\n');
   const orderNote = (specialRequests ?? '').trim();
   if (orderNote) body += `\n\n${t('intentSpecialNote', lang, orderNote)}`;
   return body;
@@ -222,6 +423,19 @@ module.exports = {
   shouldUseCategoryPicker,
   buildBasketText,
   formatBasketItemLabel,
+  parseBasketItemName,
+  formatBasketItemBlock,
+  formatBasketItemsText,
+  mergeBasketForDisplay,
+  computeDiffDetails,
+  basketTotals,
+  findAddedLines,
+  buildPostAddBody,
+  postAddBasketButtons,
+  basketViewButtons,
+  removeBasketAtIndex,
+  removeBasketAtIndices,
+  sendBasketView,
   sendMenu,
   sendMenuPage,
   sendCategoryPicker,

@@ -1,7 +1,7 @@
 const { setSession, buildSessionWrite } = require('./sessionStore');
 const { sendButtonMessage, sendListMessage, sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
-const { buildBasketText } = require('./botHelpers');
+const { buildPostAddBody, postAddBasketButtons, findAddedLines } = require('./botHelpers');
 const { toBasketLine, tagLinesWithNote } = require('./intentNotes');
 const { mergeIntoBasket } = require('./intentMatcher');
 const { norm } = require('./menuMatch');
@@ -357,6 +357,7 @@ function lineForBasket(session, { name, qty, price }) {
 }
 
 async function finishCustomization({ from, session, lang, businessId, readyBasket }) {
+  const beforeBasket = session.basket ?? [];
   await setSession(from, buildSessionWrite(session, {
     state: 'browsing',
     language: lang,
@@ -368,12 +369,8 @@ async function finishCustomization({ from, session, lang, businessId, readyBaske
     pendingDeleteIds: [],
   }));
   await sendButtonMessage(from, {
-    body: buildBasketText(readyBasket, lang, session.specialRequests),
-    buttons: [
-      { id: 'btn_add_more', title: t('addMoreBtn', lang) },
-      { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },
-      { id: 'btn_confirm', title: t('confirmBtn', lang) },
-    ],
+    body: buildPostAddBody(lang, readyBasket, { addedLines: findAddedLines(beforeBasket, readyBasket) }),
+    buttons: postAddBasketButtons(lang),
   });
 }
 

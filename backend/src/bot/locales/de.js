@@ -26,7 +26,9 @@ module.exports = {
 
   qtyBody: (name, price) => `${name} — €${price}\n\nWie viele?`,
 
-  itemAdded: (qty, name, count, total) => `✅ ${qty}x ${name} hinzugefügt.\n🛒 Warenkorb: ${count} Artikel — €${total}`,
+  itemAdded: (qty, name, count, total) => `✅ ${qty}× ${name} hinzugefügt.\n🛒 ${count} Artikel · €${total}`,
+  itemsAdded: (addedQty, count, total) => `✅ ${addedQty} Artikel hinzugefügt.\n🛒 ${count} Artikel · €${total}`,
+  reorderLoaded: (count, total) => `✅ Gleiche Bestellung übernommen.\n🛒 ${count} Artikel · €${total}`,
   addMoreBtn: () => 'Mehr hinzufügen',
   viewBasketBtn: () => 'Warenkorb',
   doneBtn: () => 'Fertig',
@@ -34,6 +36,17 @@ module.exports = {
   basketHeader: () => '🛒 Ihre Bestellung:',
   basketEmpty: () => 'Ihr Warenkorb ist leer. Wählen Sie etwas aus dem Menü.',
   clearBasketBtn: () => 'Löschen',
+  removeItemBtn: () => 'Entfernen',
+  basketRemoveHint: () =>
+    'Was soll ich entfernen?\n\nBeispiele:\n• 1 oder 1, 3, 4\n• ohne ayran\n• döner und cola entfernen\n\nAbbrechen: abbrechen · Alles löschen: alles',
+  basketRemoveNotFound: (text) => `"${text}" konnte ich nicht zuordnen. Versuch eine Zeilennummer oder einen Artikelnamen.`,
+  basketRemoveAmbiguous: (linesText, count) => {
+    const hint = count === 2
+      ? 'Antwort: 1, 2, beide oder alle'
+      : 'Antwort: Zeilennummer oder alle';
+    return `Mehrere Treffer — welche Zeile soll ich entfernen?\n\n${linesText}\n\n${hint}`;
+  },
+  basketRemoveDisambigNotFound: () => 'Das habe ich nicht verstanden. Nenne eine Zeilennummer aus der Liste.',
   confirmBtn: () => 'Bestätigen',
 
   orderTotal: (total) => `Gesamt: €${total}`,

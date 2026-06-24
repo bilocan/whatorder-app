@@ -1,4 +1,4 @@
-const { mergePendingItems, matchIntentToMenu, mergeIntoBasket } = require('../intentMatcher');
+const { mergePendingItems, matchIntentToMenu, mergeIntoBasket, hydratePendingItems } = require('../intentMatcher');
 
 describe('mergePendingItems', () => {
   test('combines duplicate menuItemId with same modifier', () => {
@@ -31,6 +31,29 @@ describe('matchIntentToMenu', () => {
     expect(matched).toEqual([
       { menuItemId: 'k1', name: 'Kebap Sandwich Huhn', qty: 3, price: 7.5, optionGroups: [], rawIntentName: 'Kebap Sandwich Huhn', modifierKey: 'kebap sandwich huhn' },
     ]);
+  });
+});
+
+describe('hydratePendingItems', () => {
+  const MENU = [
+    {
+      id: 'k1',
+      name: 'Kebap Sandwich Huhn',
+      price: 7.5,
+      optionGroups: [{ id: 'inserts', type: 'multi', options: [{ id: 'tomato', label: 'Tomato' }] }],
+    },
+    { id: 'a1', name: 'Ayran', price: 2 },
+  ];
+
+  test('restores optionGroups from menu when missing on pending line', () => {
+    const pending = [{ menuItemId: 'k1', name: 'Kebap Sandwich Huhn', qty: 1, price: 7.5, optionGroups: [] }];
+    const hydrated = hydratePendingItems(pending, MENU);
+    expect(hydrated[0].optionGroups).toHaveLength(1);
+  });
+
+  test('leaves lines without menu optionGroups unchanged', () => {
+    const pending = [{ menuItemId: 'a1', name: 'Ayran', qty: 1, price: 2, optionGroups: [] }];
+    expect(hydratePendingItems(pending, MENU)[0].optionGroups).toEqual([]);
   });
 });
 
