@@ -31,6 +31,7 @@ export interface Order {
   readyAt?: string;
   completedAt?: string;
   pickupTime?: string;
+  prepMins?: number;
   orderType?: 'pickup' | 'delivery';
   deliveryAddress?: string;
   deliveryFee?: number;

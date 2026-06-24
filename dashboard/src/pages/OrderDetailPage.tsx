@@ -53,6 +53,7 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [actionError, setActionError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [etaMinutes, setEtaMinutes] = useState(30);
 
   useEffect(() => {
     if (!orderId || !businessId) return;
@@ -66,7 +67,13 @@ export default function OrderDetailPage() {
     setLoading(true);
     setActionError('');
     try {
-      const res = await fetch(`${API_URL}/api/businesses/${businessId}/orders/${orderId}/${action}`, { method: 'POST' });
+      const res = await fetch(`${API_URL}/api/businesses/${businessId}/orders/${orderId}/${action}`, {
+        method: 'POST',
+        ...(action === 'approve' && {
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ etaMinutes }),
+        }),
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         setActionError(body.error ?? `Request failed (${res.status})`);
@@ -154,6 +161,22 @@ export default function OrderDetailPage() {
       <p style={{ fontWeight: 600, color }}>
         {t(`orderDetail.status.${order.status}`, { defaultValue: order.status })}
       </p>
+
+      {order.status === 'pending' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem' }}>
+          <label htmlFor="eta-minutes" style={{ fontSize: '0.85rem', color: '#666' }}>{t('orderDetail.etaLabel')}</label>
+          <input
+            id="eta-minutes"
+            type="number"
+            min={5}
+            step={5}
+            value={etaMinutes}
+            onChange={(e) => setEtaMinutes(Math.max(5, Number(e.target.value) || 5))}
+            style={{ width: 64, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #ddd' }}
+          />
+          <span style={{ fontSize: '0.85rem', color: '#666' }}>{t('orderDetail.etaMinutesUnit')}</span>
+        </div>
+      )}
 
       {buttons.length > 0 && (
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>

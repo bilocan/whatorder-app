@@ -83,6 +83,8 @@
     "orderedAt": "Sipariş zamanı: {{time}}",
     "networkError": "Ağ hatası — backend çalışıyor mu?",
     "saving": "Kaydediliyor…",
+    "etaLabel": "Hazır olma süresi",
+    "etaMinutesUnit": "dk",
     "status": {
       "pending": "Beklemede",
       "approved": "Onaylandı",

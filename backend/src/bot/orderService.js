@@ -142,7 +142,7 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
   return ref.id;
 }
 
-async function transitionOrder(businessId, orderId, toStatus) {
+async function transitionOrder(businessId, orderId, toStatus, options = {}) {
   const ref = ordersRef(businessId).doc(orderId);
   const snap = await ref.get();
   if (!snap.exists) throw new Error('Order not found');
@@ -153,21 +153,32 @@ async function transitionOrder(businessId, orderId, toStatus) {
     throw new Error(`Invalid transition: ${order.status} → ${toStatus}`);
   }
 
-  await ref.update({
+  const update = {
     status: toStatus,
     [STATUS_TS_FIELD[toStatus]]: new Date().toISOString(),
-  });
+  };
+
+  let etaTime = null;
+  if (toStatus === 'approved') {
+    const prepMins = Number(options.etaMinutes) > 0 ? Number(options.etaMinutes) : (order.prepMins || 30);
+    etaTime = new Date(Date.now() + prepMins * 60000).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+    update.prepMins = prepMins;
+    update.pickupTime = etaTime;
+  }
+
+  await ref.update(update);
 
   try {
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
-    await sendText(order.customerPhone, t(STATUS_NOTIFY_KEY[toStatus], lang, shortId));
+    const notifyArgs = toStatus === 'approved' ? [shortId, etaTime] : [shortId];
+    await sendText(order.customerPhone, t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs));
   } catch (err) {
     console.error('Customer notification failed:', err.message);
   }
 }
 
-const approveOrder      = (bid, oid) => transitionOrder(bid, oid, 'approved');
+const approveOrder      = (bid, oid, etaMinutes) => transitionOrder(bid, oid, 'approved', { etaMinutes });
 const rejectOrder       = (bid, oid) => transitionOrder(bid, oid, 'rejected');
 const startPreparation  = (bid, oid) => transitionOrder(bid, oid, 'preparing');
 const markReady         = (bid, oid) => transitionOrder(bid, oid, 'ready');

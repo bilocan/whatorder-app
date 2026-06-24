@@ -83,6 +83,8 @@
     "orderedAt": "Bestellt um {{time}}",
     "networkError": "Netzwerkfehler — läuft das Backend?",
     "saving": "Speichern…",
+    "etaLabel": "Fertig in",
+    "etaMinutesUnit": "Min.",
     "status": {
       "pending": "Ausstehend",
       "approved": "Angenommen",
