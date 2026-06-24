@@ -4,7 +4,7 @@
 // axios so the real API call code is also exercised.
 jest.mock('axios');
 
-const { sendText, sendListMessage, sendButtonMessage, deleteMessage, clampWaButtonTitle } = require('../whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, deleteMessage, clampWaButtonTitle } = require('../whatsapp');
 
 let consoleSpy;
 
@@ -114,6 +114,25 @@ describe('sendButtonMessage', () => {
       buttons: [{ id: 'btn_empty', title: '   ' }],
     });
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('…'));
+  });
+});
+
+describe('sendCtaUrlMessage', () => {
+  const payload = {
+    body: 'Order #ABC123 placed.\n\nTotal: €15.50',
+    buttonLabel: 'Pay now 💳',
+    url: 'https://checkout.stripe.com/c/pay/cs_test_long_hash_fragment',
+  };
+
+  test('resolves without calling API and returns stub wamid', async () => {
+    await expect(sendCtaUrlMessage('+43123456789', payload)).resolves.toMatch(/^test-wamid-/);
+  });
+
+  test('includes body and url in output without dumping url in body', async () => {
+    await sendCtaUrlMessage('+43123456789', payload);
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Order #ABC123'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Pay now'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining(payload.url));
   });
 });
 
@@ -246,6 +265,24 @@ describe('production paths (NODE_ENV overridden)', () => {
 
     const payload = axios.post.mock.calls[0][1];
     expect(payload.interactive).not.toHaveProperty('footer');
+  });
+
+  test('sendCtaUrlMessage POSTs an interactive cta_url payload', async () => {
+    axios.post.mockResolvedValue({ data: {} });
+
+    await sendCtaUrlMessage('+43123456789', {
+      body: 'Order placed. Total: €15.50',
+      buttonLabel: 'Pay now 💳',
+      url: 'https://checkout.stripe.com/c/pay/cs_test',
+    });
+
+    const payload = axios.post.mock.calls[0][1];
+    expect(payload.interactive.type).toBe('cta_url');
+    expect(payload.interactive.action).toEqual({
+      name: 'cta_url',
+      parameters: { display_text: 'Pay now 💳', url: 'https://checkout.stripe.com/c/pay/cs_test' },
+    });
+    expect(payload.interactive.body.text).not.toContain('checkout.stripe.com');
   });
 
   test('send() logs and rethrows on API error', async () => {
