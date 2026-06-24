@@ -1,5 +1,5 @@
 const { setSession } = require('../sessionStore');
-const { sendText, sendButtonMessage, sendListMessage, sendLocationRequest } = require('../../lib/whatsapp');
+const { sendText, sendButtonMessage, sendListMessage, sendLocationRequest, sendCtaUrlMessage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
 const { buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView } = require('../botHelpers');
 const { getBusinessInfo } = require('../menuService');
@@ -54,7 +54,11 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
         shortId,
       });
       await ordersRef(businessId).doc(orderId).update({ paymentStripeSessionId: sessionId });
-      await sendText(from, t('paymentLink', lang, shortId, itemLines, total.toFixed(2), url));
+      await sendCtaUrlMessage(from, {
+        body: t('paymentLink', lang, shortId, itemLines, total.toFixed(2)),
+        buttonLabel: t('payNowBtn', lang),
+        url,
+      });
     } catch (err) {
       console.error('[payment] checkout session failed:', err.message);
       await sendText(from, t('paymentLinkFailed', lang, shortId));
