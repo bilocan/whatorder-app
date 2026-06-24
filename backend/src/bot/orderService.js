@@ -71,7 +71,7 @@ const STATUS_NOTIFY_KEY = {
   cancelled:  'orderCancelled',
 };
 
-async function createOrder(businessId, { customerPhone, customerName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee }) {
+async function createOrder(businessId, { customerPhone, customerName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus }) {
   const ref = ordersRef(businessId).doc();
   const resolvedName = customerName || 'WhatsApp Customer';
   const phone = normalizeCustomerPhone(customerPhone) || customerPhone;
@@ -88,6 +88,9 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
     orderType: orderType || 'pickup',
     pickupTime: pickupTime || null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    paymentMethod: paymentMethod || 'cash',
+    paymentStatus: paymentStatus || (paymentMethod === 'stripe' ? 'pending' : 'cash'),
+    settlementStatus: 'none',
   };
   if (notes) doc.notes = notes;
   if (orderType === 'delivery' && deliveryAddress) {
