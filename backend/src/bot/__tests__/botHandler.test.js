@@ -272,7 +272,7 @@ describe('Add note / Back to cart on the final confirmation screen', () => {
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: expect.arrayContaining([
         expect.objectContaining({ id: 'btn_add_more' }),
-        expect.objectContaining({ id: 'btn_clear_basket' }),
+        expect.objectContaining({ id: 'btn_remove_item' }),
         expect.objectContaining({ id: 'btn_confirm' }),
       ]),
     }));
@@ -1214,6 +1214,45 @@ describe('Intent ordering (Tier A)', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
+  test('btn_intent_confirm re-hydrates optionGroups from menu when session lost them', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ, basket: [],
+      pendingIntentItems: [
+        { name: 'Döner', qty: 1, price: 8.50, menuItemId: 'item_1', optionGroups: [] },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_intent_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'customizing_intent',
+      intentCustomize: expect.objectContaining({
+        queue: [expect.objectContaining({ name: 'Döner', qty: 1 })],
+      }),
+    }));
+  });
+
+  test('btn_intent_confirm stores raw intent phrasing on basket line', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ, basket: [],
+      pendingIntentItems: [
+        {
+          name: 'Ayran', qty: 1, price: 2.00, menuItemId: 'item_2', optionGroups: [],
+          rawIntentName: 'einen ayran bitte',
+        },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_intent_confirm' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [expect.objectContaining({
+        name: 'Ayran',
+        note: 'einen ayran bitte',
+      })],
+    }), expect.anything());
+  });
+
   test('btn_intent_confirm asks same-or-each when qty > 1', async () => {
     getSession.mockResolvedValue({
       language: 'tr', state: 'browsing', businessId: BIZ, basket: [],
@@ -1565,7 +1604,7 @@ describe('Browsing state: button actions', () => {
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('Döner'),
       buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_clear_basket' }),
+        expect.objectContaining({ id: 'btn_remove_item' }),
         expect.objectContaining({ id: 'btn_confirm' }),
       ]),
     }));
@@ -1670,7 +1709,7 @@ describe('Browsing state: basket keyword', () => {
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('Döner'),
       buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_clear_basket' }),
+        expect.objectContaining({ id: 'btn_remove_item' }),
         expect.objectContaining({ id: 'btn_confirm' }),
       ]),
     }));
@@ -1736,6 +1775,153 @@ describe('Browsing state: basket keyword', () => {
     expect(sendListMessage).toHaveBeenCalled();
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('1.'));
     expect(patchSession).toHaveBeenCalled();
+  });
+});
+
+describe('Browsing state: basket remove (chat)', () => {
+  test('btn_remove_item shows numbered basket with hint and sets remove mode', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.50 },
+        { name: 'Ayran', qty: 1, price: 2.00 },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_remove_item', title: 'Entfernen' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/1\.\s+1× Döner/),
+    }));
+    expect(patchSession).toHaveBeenCalledWith(FROM, { basketRemovePending: true }, expect.anything());
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('text "1, 3" in remove mode drops matching lines', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: BIZ,
+      basketRemovePending: true,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.50 },
+        { name: 'Ayran', qty: 1, price: 2.00 },
+        { name: 'Cola', qty: 1, price: 2.90 },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: '1, 3' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+      basketRemovePending: undefined,
+    }), expect.anything());
+  });
+
+  test('text "ohne ayran" in remove mode drops matching line', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basketRemovePending: true,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.50 },
+        { name: 'Ayran', qty: 1, price: 2.00 },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'ohne ayran' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+    }), expect.anything());
+  });
+
+  test('text "cola entfernen" in remove mode does not open intent proposal', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basketRemovePending: true,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.50 },
+        { name: 'Coca Cola 0.33L', qty: 1, price: 2.90 },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'cola entfernen' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      basketRemovePending: undefined,
+    }), expect.anything());
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Zum Warenkorb hinzufügen'),
+    }));
+  });
+
+  test('text "kebap entfernen" with duplicate lines asks which to remove', async () => {
+    const dupBasket = [
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel, Sauce', qty: 1, price: 7.50 },
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad', qty: 1, price: 7.50 },
+    ];
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basketRemovePending: true,
+      basket: dupBasket,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'kebap entfernen' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, {
+      basketRemoveDisambig: { fragment: 'kebap', indices: [1, 2] },
+    }, expect.anything());
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Mehrere Treffer'));
+    expect(patchSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ basket: [] }), expect.anything());
+  });
+
+  test('disambig reply "1" removes only that line', async () => {
+    const dupBasket = [
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel, Sauce', qty: 1, price: 7.50 },
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad', qty: 1, price: 7.50 },
+    ];
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basketRemovePending: true,
+      basketRemoveDisambig: { fragment: 'kebap', indices: [1, 2] },
+      basket: dupBasket,
+    });
+
+    await handleMessage(ROUTING, msg({ text: '1' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [dupBasket[1]],
+      basketRemovePending: undefined,
+      basketRemoveDisambig: undefined,
+    }), expect.anything());
+  });
+
+  test('alles löschen in remove mode clears basket', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basketRemovePending: true,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      orderType: 'delivery',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'alles löschen' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ basket: [] }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ orderType: 'delivery' }));
+  });
+
+  test('alles in remove mode clears basket', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basketRemovePending: true,
+      basket: [
+        { name: 'Enes Kebap Special Dürüm Huhn', qty: 1, price: 6.90 },
+        { name: 'Pizza Margherita (33cm)', qty: 1, price: 12.90 },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'alles' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ basket: [] }));
   });
 });
 

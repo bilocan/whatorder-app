@@ -36,6 +36,17 @@ module.exports = {
   basketHeader: () => '🛒 Siparişiniz:',
   basketEmpty: () => 'Sepetiniz boş. Menüden bir ürün seçin.',
   clearBasketBtn: () => 'Temizle',
+  removeItemBtn: () => 'Çıkar',
+  basketRemoveHint: () =>
+    'Neyi çıkarayım?\n\nÖrnekler:\n• 1 veya 1, 3, 4\n• ayran çıkar\n• döner ve cola çıkar\n\nİptal: iptal · Tümünü sil: hepsi',
+  basketRemoveNotFound: (text) => `"${text}" eşleşmedi. Satır numarası veya ürün adı dene.`,
+  basketRemoveAmbiguous: (linesText, count) => {
+    const hint = count === 2
+      ? 'Yanıt: 1, 2, ikisi veya hepsi'
+      : 'Yanıt: satır numarası veya hepsi';
+    return `Birden fazla eşleşme — hangi satırı kaldırayım?\n\n${linesText}\n\n${hint}`;
+  },
+  basketRemoveDisambigNotFound: () => 'Anlamadım. Listedeki bir satır numarasını yaz.',
   confirmBtn: () => 'Onayla',
 
   orderTotal: (total) => `Toplam: €${total}`,

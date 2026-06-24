@@ -1,4 +1,25 @@
 const { enrichPendingWithModifier, isSpicyLabel } = require('./intentModifiers');
+const { norm } = require('./menuMatch');
+
+function rawIntentLineNote(item) {
+  const raw = (item?.rawIntentName ?? '').trim();
+  if (!raw) return null;
+  const name = (item?.name ?? '').trim();
+  if (!name) return raw;
+  if (norm(raw) === norm(name)) return null;
+  return raw;
+}
+
+function combineLineNotes(item, globalNote) {
+  const parts = [];
+  const lineNote = rawIntentLineNote(item);
+  const global = (globalNote ?? '').trim();
+  if (lineNote) parts.push(lineNote);
+  if (global && !parts.some(p => p.toLowerCase().includes(global.toLowerCase()))) {
+    parts.push(global);
+  }
+  return parts.length ? parts.join('; ') : undefined;
+}
 
 const SPICY_NOTE_BY_LANG = {
   de: 'extra scharf',
@@ -35,9 +56,12 @@ function collectSpicySpecialNote(rawText, matchedItems, lang = 'de') {
 }
 
 function tagLinesWithNote(items, note) {
-  const n = (note ?? '').trim();
-  if (!n) return items;
-  return items.map(i => ({ ...i, note: n }));
+  return (items ?? []).map(i => {
+    const line = { name: i.name, qty: i.qty, price: i.price };
+    const lineNote = combineLineNotes(i, note);
+    if (lineNote) line.note = lineNote;
+    return line;
+  });
 }
 
 function toBasketLine({ name, qty, price }, note) {
@@ -63,4 +87,6 @@ module.exports = {
   appendSpecialRequest,
   tagLinesWithNote,
   toBasketLine,
+  rawIntentLineNote,
+  combineLineNotes,
 };

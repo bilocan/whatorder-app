@@ -5,7 +5,7 @@ const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHe
 const { getMenu } = require('./menuService');
 const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext } = require('./intentParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
-const { matchIntentToMenu, mergeIntoBasket, mergePendingItems } = require('./intentMatcher');
+const { matchIntentToMenu, mergeIntoBasket, mergePendingItems, hydratePendingItems } = require('./intentMatcher');
 const { sendDisambiguationList } = require('./intentDisambiguate');
 const { splitPendingItems, startIntentCustomization, buildOptionLabel } = require('./intentCustomize');
 const { norm } = require('./menuMatch');
@@ -146,7 +146,9 @@ async function handleIntentButtons({ from, session, lang, businessId, basket, id
       await sendCatalog(from, lang, businessId);
       return true;
     }
-    const { simple, customize } = splitPendingItems(pending);
+    const menu = await getMenu(businessId);
+    const hydrated = hydratePendingItems(pending, menu);
+    const { simple, customize } = splitPendingItems(hydrated);
     if (customize.length) {
       await startIntentCustomization({
         from, session: live, lang, businessId, basket: liveBasket, simpleItems: simple, customizeItems: customize,

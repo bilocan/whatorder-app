@@ -36,6 +36,17 @@ module.exports = {
   basketHeader: () => '🛒 Your order:',
   basketEmpty: () => 'Your basket is empty. Select an item from the menu.',
   clearBasketBtn: () => 'Clear basket',
+  removeItemBtn: () => 'Remove',
+  basketRemoveHint: () =>
+    'What should I remove?\n\nExamples:\n• 1 or 1, 3, 4\n• without ayran\n• remove döner and cola\n\nCancel: cancel · Clear all: all',
+  basketRemoveNotFound: (text) => `Could not match "${text}". Try a line number or item name.`,
+  basketRemoveAmbiguous: (linesText, count) => {
+    const hint = count === 2
+      ? 'Reply: 1, 2, both, or all'
+      : 'Reply with a line number or all';
+    return `Multiple matches — which line should I remove?\n\n${linesText}\n\n${hint}`;
+  },
+  basketRemoveDisambigNotFound: () => 'I did not understand that. Reply with a line number from the list.',
   confirmBtn: () => 'Confirm',
 
   orderTotal: (total) => `Total: €${total}`,

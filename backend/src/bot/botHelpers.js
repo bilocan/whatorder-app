@@ -1,5 +1,5 @@
 const { getMenu, getBusinessInfo } = require('./menuService');
-const { sendText, sendListMessage } = require('../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage } = require('../lib/whatsapp');
 const { isOpenNow } = require('../lib/schedule');
 const { t, tCategory } = require('./templates');
 const { publishTextMenu } = require('./textMenu');
@@ -139,17 +139,18 @@ function formatBasketItemLabel(item) {
   return detail ? `${baseName} (${detail})` : baseName;
 }
 
-function formatBasketItemBlock(item) {
+function formatBasketItemBlock(item, lineNumber) {
   const { baseName, detail } = parseBasketItemName(item);
   const lineTotal = (item.price * item.qty).toFixed(2);
   const qtyLabel = `${item.qty}×`;
-  const mainLine = `*${qtyLabel} ${baseName}* · €${lineTotal}`;
+  const numPrefix = lineNumber != null ? `${lineNumber}. ` : '';
+  const mainLine = `*${numPrefix}${qtyLabel} ${baseName}* · €${lineTotal}`;
   if (!detail) return mainLine;
   return `${mainLine}\n   ${detail}`;
 }
 
-function formatBasketItemsText(basket) {
-  const blocks = basket.map(formatBasketItemBlock);
+function formatBasketItemsText(basket, { numbered = true } = {}) {
+  const blocks = basket.map((item, i) => formatBasketItemBlock(item, numbered ? i + 1 : null));
   const lines = [];
   for (let i = 0; i < blocks.length; i++) {
     if (i > 0) {
@@ -212,6 +213,36 @@ function postAddBasketButtons(lang) {
     { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },
     { id: 'btn_confirm', title: t('confirmBtn', lang) },
   ];
+}
+
+function basketViewButtons(lang, { includeConfirm = true } = {}) {
+  const buttons = [
+    { id: 'btn_add_more', title: t('addMoreBtn', lang) },
+    { id: 'btn_remove_item', title: t('removeItemBtn', lang) },
+  ];
+  if (includeConfirm) buttons.push({ id: 'btn_confirm', title: t('confirmBtn', lang) });
+  return buttons;
+}
+
+function removeBasketAtIndex(basket, index) {
+  return removeBasketAtIndices(basket, [index + 1]) ?? basket;
+}
+
+function removeBasketAtIndices(basket, oneBasedIndices) {
+  const toRemove = new Set(
+    oneBasedIndices.map(n => n - 1).filter(i => i >= 0 && i < basket.length),
+  );
+  if (!toRemove.size) return null;
+  return basket.filter((_, i) => !toRemove.has(i));
+}
+
+async function sendBasketView(to, lang, basket, specialRequests, { includeConfirm = true, footer } = {}) {
+  let body = buildBasketText(basket, lang, specialRequests);
+  if (footer) body += `\n\n${footer}`;
+  return sendButtonMessage(to, {
+    body,
+    buttons: basketViewButtons(lang, { includeConfirm }),
+  });
 }
 
 function buildBasketText(basket, lang, specialRequests) {
@@ -320,12 +351,17 @@ module.exports = {
   shouldUseCategoryPicker,
   buildBasketText,
   formatBasketItemLabel,
+  parseBasketItemName,
   formatBasketItemBlock,
   formatBasketItemsText,
   basketTotals,
   findAddedLines,
   buildPostAddBody,
   postAddBasketButtons,
+  basketViewButtons,
+  removeBasketAtIndex,
+  removeBasketAtIndices,
+  sendBasketView,
   sendMenu,
   sendMenuPage,
   sendCategoryPicker,
