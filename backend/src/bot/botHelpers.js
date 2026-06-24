@@ -117,15 +117,61 @@ async function sendMenuPage(to, lang, businessId, info, menu, { category, page =
   });
 }
 
-function formatBasketItemLabel(item) {
+// Matches buildOptionLabel() in intentCustomize.js — base name vs modifier detail.
+const BASKET_MODIFIER_SEP = ' — ';
+const BASKET_TOTAL_RULE = '────────────────────────';
+
+function parseBasketItemName(item) {
+  const name = item.name ?? '';
   const note = (item.note ?? '').trim();
-  return note ? `${item.name} (${note})` : item.name;
+  const sepIdx = name.indexOf(BASKET_MODIFIER_SEP);
+  if (sepIdx >= 0) {
+    const baseName = name.slice(0, sepIdx);
+    const modifiers = name.slice(sepIdx + BASKET_MODIFIER_SEP.length).trim();
+    const detail = [modifiers, note].filter(Boolean).join(', ');
+    return { baseName, detail: detail || null };
+  }
+  return { baseName: name, detail: note || null };
+}
+
+function formatBasketItemLabel(item) {
+  const { baseName, detail } = parseBasketItemName(item);
+  return detail ? `${baseName} (${detail})` : baseName;
+}
+
+function formatBasketItemBlock(item) {
+  const { baseName, detail } = parseBasketItemName(item);
+  const lineTotal = (item.price * item.qty).toFixed(2);
+  const qtyLabel = `${item.qty}×`;
+  const mainLine = `*${qtyLabel} ${baseName}* · €${lineTotal}`;
+  if (!detail) return mainLine;
+  return `${mainLine}\n   ${detail}`;
+}
+
+function formatBasketItemsText(basket) {
+  const blocks = basket.map(formatBasketItemBlock);
+  const lines = [];
+  for (let i = 0; i < blocks.length; i++) {
+    if (i > 0) {
+      const prevHasDetail = blocks[i - 1].includes('\n');
+      const curHasDetail = blocks[i].includes('\n');
+      if (prevHasDetail || curHasDetail) lines.push('');
+    }
+    lines.push(blocks[i]);
+  }
+  return lines.join('\n');
 }
 
 function buildBasketText(basket, lang, specialRequests) {
-  const lines = basket.map(i => `• ${i.qty}x ${formatBasketItemLabel(i)} — €${(i.price * i.qty).toFixed(2)}`);
   const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
-  let body = `${t('basketHeader', lang)}\n\n${lines.join('\n')}\n\n${t('orderTotal', lang, total.toFixed(2))}`;
+  let body = [
+    t('basketHeader', lang),
+    '',
+    formatBasketItemsText(basket),
+    '',
+    BASKET_TOTAL_RULE,
+    `*${t('orderTotal', lang, total.toFixed(2))}*`,
+  ].join('\n');
   const orderNote = (specialRequests ?? '').trim();
   if (orderNote) body += `\n\n${t('intentSpecialNote', lang, orderNote)}`;
   return body;
@@ -222,6 +268,8 @@ module.exports = {
   shouldUseCategoryPicker,
   buildBasketText,
   formatBasketItemLabel,
+  formatBasketItemBlock,
+  formatBasketItemsText,
   sendMenu,
   sendMenuPage,
   sendCategoryPicker,

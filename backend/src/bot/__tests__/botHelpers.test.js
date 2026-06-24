@@ -8,6 +8,10 @@ const {
   buildCategorySections,
   buildItemPageSections,
   shouldUseCategoryPicker,
+  buildBasketText,
+  formatBasketItemLabel,
+  formatBasketItemBlock,
+  formatBasketItemsText,
 } = require('../botHelpers');
 
 const menu = [
@@ -92,5 +96,62 @@ describe('buildItemPageSections', () => {
     const sections = buildItemPageSections(big, 'en', { category: 'mains', page: 1, multiCategory: false });
     const rows = sections[0].rows;
     expect(rows.some(r => r.id === `navp_${encodeCategory('mains')}_0`)).toBe(true);
+  });
+});
+
+describe('basket formatting', () => {
+  test('formatBasketItemBlock bolds name and puts price on the main line', () => {
+    expect(formatBasketItemBlock({ name: 'Mis Ayran 0.25L', qty: 1, price: 2.5 }))
+      .toBe('*1× Mis Ayran 0.25L* · €2.50');
+  });
+
+  test('formatBasketItemBlock splits modifiers onto a second line', () => {
+    expect(formatBasketItemBlock({
+      name: 'Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel, Sauce',
+      qty: 1,
+      price: 7.5,
+    })).toBe('*1× Kebap Sandwich Huhn* · €7.50\n   Tomaten, Salad, Zwiebel, Sauce');
+  });
+
+  test('formatBasketItemLabel keeps plain text for owner-facing fallbacks', () => {
+    expect(formatBasketItemLabel({
+      name: 'Kebap Sandwich Huhn — Tomaten, Salad',
+      qty: 1,
+      price: 7.5,
+      note: 'extra scharf',
+    })).toBe('Kebap Sandwich Huhn (Tomaten, Salad, extra scharf)');
+  });
+
+  test('formatBasketItemsText adds spacing around detailed items only', () => {
+    const text = formatBasketItemsText([
+      { name: 'Mis Ayran 0.25L', qty: 1, price: 2.5 },
+      { name: 'Coca Cola 0.33L', qty: 1, price: 2.9 },
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad', qty: 1, price: 7.5 },
+      { name: 'Kebap Sandwich Huhn — Zwiebel, Sauce', qty: 1, price: 7.5 },
+    ]);
+    expect(text).toContain('*1× Mis Ayran 0.25L* · €2.50\n*1× Coca Cola 0.33L* · €2.90');
+    expect(text).toContain('*1× Kebap Sandwich Huhn* · €7.50\n   Tomaten, Salad');
+    expect(text).toContain('\n\n*1× Kebap Sandwich Huhn* · €7.50\n   Zwiebel, Sauce');
+  });
+
+  test('buildBasketText includes header, rule, and bold total', () => {
+    const body = buildBasketText(
+      [{ name: 'Döner', qty: 2, price: 8.5 }],
+      'de',
+    );
+    expect(body).toContain('🛒 Ihre Bestellung:');
+    expect(body).toContain('*2× Döner* · €17.00');
+    expect(body).toContain('────────────────────────');
+    expect(body).toContain('*Gesamt: €17.00*');
+  });
+
+  test('buildBasketText appends special request note', () => {
+    const body = buildBasketText(
+      [{ name: 'Döner', qty: 1, price: 8.5 }],
+      'en',
+      'no onions',
+    );
+    expect(body).toContain('*Total: €8.50*');
+    expect(body).toContain('no onions');
   });
 });
