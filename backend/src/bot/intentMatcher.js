@@ -1,5 +1,5 @@
 const { matchMenuItem, classifyMenuMatch } = require('./menuMatch');
-const { extractModifierKey, normalizeIntentItemName } = require('./intentModifiers');
+const { extractModifierKey, normalizeIntentItemName, isModifierOnlyToken } = require('./intentModifiers');
 
 function pendingMergeKey(item) {
   return `${item.menuItemId}|${item.modifierKey ?? ''}`;
@@ -44,7 +44,7 @@ function matchIntentToMenu(intent, menuItems) {
     const result = classifyMenuMatch(matchName, menuItems);
 
     if (result.type === 'none') {
-      unmatched.push(name);
+      if (!isModifierOnlyToken(name)) unmatched.push(name);
       continue;
     }
 
