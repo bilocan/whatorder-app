@@ -142,6 +142,38 @@ function canCallLlm(phone) {
   return isAiIntentEnabled() && isWithinDailyCap() && isWithinRateLimit(phone);
 }
 
+const RETRYABLE_STATUSES = new Set([429, 500, 503, 504]);
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRetryableLlmError(err) {
+  const status = err.response?.status;
+  return RETRYABLE_STATUSES.has(status);
+}
+
+/** Retry transient Gemini/OpenAI overload errors (503 high demand, etc.). */
+async function withLlmRetry(fn) {
+  const maxAttempts = parseInt(process.env.LLM_RETRY_ATTEMPTS || '3', 10);
+  const baseDelayMs = parseInt(process.env.LLM_RETRY_DELAY_MS || '1000', 10);
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= maxAttempts || !isRetryableLlmError(err)) throw err;
+      const delay = baseDelayMs * attempt;
+      if (process.env.LOG_LEVEL === 'debug') {
+        console.log(`[llm] retry ${attempt}/${maxAttempts - 1} after ${err.response?.status} in ${delay}ms`);
+      }
+      await sleep(delay);
+    }
+  }
+  throw lastErr;
+}
+
 function parseJsonContent(raw) {
   if (!raw || typeof raw !== 'string') return null;
   const trimmed = raw.trim();
@@ -267,11 +299,11 @@ async function callGeminiEdit(userText) {
   };
 
   try {
-    const res = await axios.post(url, withSchema, {
+    const res = await withLlmRetry(() => axios.post(url, withSchema, {
       params: { key },
       headers: { 'Content-Type': 'application/json' },
       timeout,
-    });
+    }));
     const content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
     const parsed = validateEditPayload(parseJsonContent(content));
     if (parsed) return parsed;
@@ -279,7 +311,7 @@ async function callGeminiEdit(userText) {
     const status = err.response?.status;
     if (status === 400) {
       try {
-        const res = await axios.post(url, {
+        const res = await withLlmRetry(() => axios.post(url, {
           ...baseBody,
           generationConfig: {
             ...baseBody.generationConfig,
@@ -289,16 +321,14 @@ async function callGeminiEdit(userText) {
           params: { key },
           headers: { 'Content-Type': 'application/json' },
           timeout,
-        });
+        }));
         const content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
         const parsed = validateEditPayload(parseJsonContent(content));
         if (parsed) return parsed;
       } catch (retryErr) {
-        logLlmFailure(retryErr);
         throw retryErr;
       }
     }
-    logLlmFailure(err, err.response?.data?.error?.message);
     throw err;
   }
 
@@ -391,21 +421,20 @@ async function callGemini(userText) {
   };
 
   try {
-    const res = await axios.post(url, withSchema, {
+    const res = await withLlmRetry(() => axios.post(url, withSchema, {
       params: { key },
       headers: { 'Content-Type': 'application/json' },
       timeout,
-    });
+    }));
     const content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
     const parsed = validateIntentPayload(parseJsonContent(content));
     if (parsed) return parsed;
   } catch (err) {
     const status = err.response?.status;
-    const apiMsg = err.response?.data?.error?.message;
     if (status === 400) {
       // Schema rejected — retry JSON mode without strict schema.
       try {
-        const res = await axios.post(url, {
+        const res = await withLlmRetry(() => axios.post(url, {
           ...baseBody,
           generationConfig: {
             ...baseBody.generationConfig,
@@ -415,16 +444,14 @@ async function callGemini(userText) {
           params: { key },
           headers: { 'Content-Type': 'application/json' },
           timeout,
-        });
+        }));
         const content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
         const parsed = validateIntentPayload(parseJsonContent(content));
         if (parsed) return parsed;
       } catch (retryErr) {
-        logLlmFailure(retryErr);
         throw retryErr;
       }
     }
-    logLlmFailure(err, apiMsg);
     throw err;
   }
 
@@ -437,6 +464,8 @@ function logLlmFailure(err, apiMsg) {
   const msg = apiMsg || err.response?.data?.error?.message || err.message;
   if (status === 429) {
     console.warn('[llm] Gemini quota exhausted — add billing at https://ai.google.dev/ or switch LLM_PROVIDER=openai');
+  } else if (status === 503) {
+    console.warn(`[llm] Gemini overloaded (503) after retries: ${msg}`);
   } else {
     console.warn(`[llm] intent parse failed (${status ?? 'network'}): ${msg}`);
   }

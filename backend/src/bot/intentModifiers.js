@@ -25,17 +25,40 @@ function getDefaultMultiSelection(group) {
   return allOptionIds(group);
 }
 
-/** TTS / speech-to-text often writes "Eier" for "Ayran". Only remap standalone drink intents. */
+/** TTS / speech-to-text drink mishearings. Only remap standalone drink intents. */
 const DRINK_TTS_TYPOS = new Map([
   ['eier', 'ayran'],
   ['eiern', 'ayran'],
+  ['einem', 'ayran'], // "ein Ayran" → "ein einem"
 ]);
+
+const DRINK_TYPO_FILLERS = new Set([
+  'bitte', 'noch', 'dazu', 'gerne', 'danke', 'please', 'extra', 'ich',
+]);
+
+/** Words that mean a food/drink SKU follows — typo token is an article, not Ayran. */
+const FOOD_WORD_RE = /\b(kebap|kebab|kabap|doner|döner|durum|dürüm|pide|pizza|lahmacun|sandwich|burger|box|teller|huhn|hahnchen|hähnchen|chicken|tavuk|falafel|cola|kola|wasser|water|fanta|sprite|bier|beer|ayran|ayram)\b/i;
+
+function drinkTypoTokenWords(rawName) {
+  const n = norm((rawName ?? '').trim().replace(/\s+bitte\s*$/i, ''));
+  return n.split(/\s+/).filter(Boolean);
+}
+
+/** True when the whole line is a misheard drink (e.g. "einem", "eiern noch dazu"), not "einem kebap". */
+function isStandaloneDrinkTypoIntent(rawName) {
+  const words = drinkTypoTokenWords(rawName);
+  if (!words.length || !DRINK_TTS_TYPOS.has(words[0])) return false;
+  if (words.length === 1) return true;
+  const rest = words.slice(1);
+  if (rest.some(w => FOOD_WORD_RE.test(w))) return false;
+  return rest.every(w => DRINK_TYPO_FILLERS.has(w));
+}
 
 function normalizeIntentItemName(rawName) {
   const cleaned = (rawName ?? '').trim().replace(/\s+bitte\s*$/i, '').trim();
-  const n = cleaned.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const typo = DRINK_TTS_TYPOS.get(n);
-  if (typo) return typo;
+  if (isStandaloneDrinkTypoIntent(rawName)) {
+    return DRINK_TTS_TYPOS.get(drinkTypoTokenWords(rawName)[0]);
+  }
   return cleaned;
 }
 
@@ -50,6 +73,7 @@ function stripIntentModifiers(rawIntentName) {
   s = s.replace(/\b(familienpizza|familien pizza|grosse pizza|große pizza)\b/gi, ' familienpizza ');
   s = s.replace(/\b(einer|eine|eins)\b/gi, ' ');
   s = s.replace(/\bnoch\b/gi, ' ');
+  s = s.replace(/\bdazu\b/gi, ' ');
   s = s.replace(/\bbitte\b/gi, ' ');
   s = s.replace(/\s+/g, ' ').trim();
   return s;

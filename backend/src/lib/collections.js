@@ -32,10 +32,15 @@ const sessionRef = (phone) =>
 const processedMessageRef = (wamid) =>
   db.collection('processedMessages').doc(wamid);
 
+// businesses/{businessId}/intentLearnings/{keyHash} — Tier B → Tier A validated parses
+const intentLearningRef = (businessId, keyHash) =>
+  businessRef(businessId).collection('intentLearnings').doc(keyHash);
+
 module.exports = {
   businessRef, menuRef, ordersRef, customersRef,
   phoneRoutingRef,
   ownerRef, adminRef,
   sessionRef,
   processedMessageRef,
+  intentLearningRef,
 };

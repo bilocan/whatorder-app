@@ -8,6 +8,21 @@ describe('normalizeIntentItemName', () => {
     expect(normalizeIntentItemName('eier bitte')).toBe('ayran');
   });
 
+  test('maps Eiern with short continuation filler (TTS + noch dazu)', () => {
+    expect(normalizeIntentItemName('Eiern noch dazu bitte')).toBe('ayran');
+  });
+
+  test('maps einem to ayran (TTS mishears ein Ayran)', () => {
+    expect(normalizeIntentItemName('einem')).toBe('ayran');
+    expect(normalizeIntentItemName('einem bitte')).toBe('ayran');
+  });
+
+  test('does not map typo token when followed by food words', () => {
+    expect(normalizeIntentItemName('einem kebap bitte')).toBe('einem kebap');
+    expect(normalizeIntentItemName('einem kebap bitte ich')).toBe('einem kebap bitte ich');
+    expect(normalizeIntentItemName('meinen kebap bitte')).toBe('meinen kebap');
+  });
+
   test('does not rewrite multi-word food names', () => {
     expect(normalizeIntentItemName('Pide mit Eiern')).toBe('Pide mit Eiern');
   });
@@ -33,5 +48,30 @@ describe('Eier TTS typo does not match Pide', () => {
     ]);
     expect(matched.find(m => m.name.includes('Pide'))).toBeUndefined();
     expect(matched.find(m => m.name.includes('Dürüm'))).toBeUndefined();
+  });
+
+  test('ein kebap und ein einem matches ayran (TTS)', () => {
+    const intent = parseIntent('ein kebap und ein einem bitte');
+    const { matched, unmatched } = matchIntentToMenu(intent, menu);
+    expect(unmatched).toEqual([]);
+    expect(matched.map(m => m.name)).toEqual([
+      'Kebap Sandwich Huhn',
+      'Mis Ayran 0.25L',
+    ]);
+  });
+
+  test('einem kebap stays food not ayran drink', () => {
+    const intent = parseIntent('einem kebap bitte ich');
+    const { matched, unmatched } = matchIntentToMenu(intent, menu);
+    expect(unmatched).toEqual([]);
+    expect(matched.map(m => m.name)).toEqual(['Kebap Sandwich Huhn']);
+    expect(matched.find(m => m.name.includes('Ayran'))).toBeUndefined();
+  });
+
+  test('pide mit eiern stays egg pide not ayran', () => {
+    const intent = parseIntent('pide mit eiern');
+    const { matched, unmatched } = matchIntentToMenu(intent, menu);
+    expect(unmatched).toEqual([]);
+    expect(matched.map(m => m.name)).toEqual(['Pide mit Gouda und Eiern']);
   });
 });
