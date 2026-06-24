@@ -74,4 +74,16 @@ describe('Eier TTS typo does not match Pide', () => {
     expect(unmatched).toEqual([]);
     expect(matched.map(m => m.name)).toEqual(['Pide mit Gouda und Eiern']);
   });
+
+  test('pide mit eier und gouda is one item not duplicated', () => {
+    const intent = parseIntent('Eine pide mit Eier und gouda');
+    const { matched, unmatched } = matchIntentToMenu(intent, menu);
+    expect(unmatched).toEqual([]);
+    expect(matched).toHaveLength(1);
+    expect(matched[0]).toMatchObject({
+      name: 'Pide mit Gouda und Eiern',
+      qty: 1,
+      rawIntentName: 'pide mit Eier und gouda',
+    });
+  });
 });
