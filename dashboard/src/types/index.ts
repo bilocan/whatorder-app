@@ -34,6 +34,9 @@ export interface Order {
   orderType?: 'pickup' | 'delivery';
   deliveryAddress?: string;
   deliveryFee?: number;
+  paymentStatus?: 'pending' | 'paid' | 'cash' | 'failed' | 'refunded';
+  paymentMethod?: 'stripe' | 'cash';
+  settlementStatus?: 'none' | 'pending' | 'included_in_payout' | 'paid_out' | 'refunded';
 }
 
 export interface MenuOption {
@@ -91,6 +94,7 @@ export interface Business {
   minimumOrderValue?: number;
   schedule?: BusinessSchedule;
   botLanguage?: 'de' | 'tr' | 'en';
+  paymentEnabled?: boolean;
 }
 
 export interface PhoneRouting {

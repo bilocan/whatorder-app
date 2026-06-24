@@ -47,8 +47,15 @@
       "customer": "Kunde",
       "items": "Artikel",
       "total": "Gesamt",
+      "payment": "Zahlung",
       "status": "Status",
       "time": "Zeit"
+    },
+    "payment": {
+      "cash": "Bar",
+      "paid": "Bezahlt",
+      "pending": "Offen",
+      "failed": "Fehlgeschlagen"
     },
     "delivery": "Lieferung",
     "deliveryFee": "+ €{{fee}} Liefergebühr",

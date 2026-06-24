@@ -72,6 +72,14 @@ module.exports = {
     return `✅ Order #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nTotal: €${total}\n${detail}\n\nThanks, ${customerName}! 🙏`;
   },
   checkoutCancelled: () => 'Order cancelled.',
+  askPaymentMethod: (total) => `How would you like to pay?\n\nTotal: €${total}`,
+  payCardBtn: () => 'Card 💳',
+  payCashBtn: () => 'Cash 💰',
+  cancelOrderBtn: () => 'Cancel',
+  choosePaymentMethod: () => 'Please tap Card or Cash to continue.',
+  paymentLink: (shortId, itemLines, total, url) => `Order #${shortId} placed.\n\n${itemLines}\n\nTotal: €${total}\n\nTap to pay securely:\n${url}`,
+  paymentLinkFailed: (shortId) => `Order #${shortId} was created but the payment link failed. Please contact the restaurant or try again.`,
+  paymentConfirmed: (shortId) => `✅ Payment received for order #${shortId}. We'll notify you when it's ready. Thank you! 🙏`,
 
   menuEmpty: () => 'No items available right now.',
 
