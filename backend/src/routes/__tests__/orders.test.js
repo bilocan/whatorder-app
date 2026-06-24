@@ -27,7 +27,20 @@ describe('Order transition endpoints', () => {
     const res = await request(app).post(`/businesses/biz1/orders/ord1/${path}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: 'ok' });
-    expect(fn).toHaveBeenCalledWith('biz1', 'ord1');
+    if (path === 'approve') {
+      expect(fn).toHaveBeenCalledWith('biz1', 'ord1', undefined);
+    } else {
+      expect(fn).toHaveBeenCalledWith('biz1', 'ord1');
+    }
+  });
+
+  test('POST .../approve passes owner-supplied etaMinutes from body', async () => {
+    approveOrder.mockResolvedValue();
+    const res = await request(app)
+      .post('/businesses/biz1/orders/ord1/approve')
+      .send({ etaMinutes: 45 });
+    expect(res.status).toBe(200);
+    expect(approveOrder).toHaveBeenCalledWith('biz1', 'ord1', 45);
   });
 
   test('404 when order not found', async () => {

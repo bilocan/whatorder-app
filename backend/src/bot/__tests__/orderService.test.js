@@ -313,9 +313,18 @@ describe('Order state machine', () => {
 
     await approveOrder(BIZ, 'order_abc123');
 
-    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved', approvedAt: expect.any(String) }));
-    expect(t).toHaveBeenCalledWith('orderApproved', 'tr', 'ABC123');
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved', approvedAt: expect.any(String), prepMins: 30, pickupTime: expect.any(String) }));
+    expect(t).toHaveBeenCalledWith('orderApproved', 'tr', 'ABC123', expect.any(String));
     expect(sendText).toHaveBeenCalledWith('+43699000001', 'Onaylandı!');
+  });
+
+  test('approveOrder: honors owner-supplied etaMinutes override', async () => {
+    const { mockUpdate } = makeRef(ORDER('pending'));
+    t.mockReturnValue('Onaylandı!');
+
+    await approveOrder(BIZ, 'order_abc123', 45);
+
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ prepMins: 45 }));
   });
 
   test('approveOrder: throws on invalid source state', async () => {
@@ -427,7 +436,7 @@ describe('Order state machine', () => {
   test('uses last 6 chars of orderId (uppercased) as shortId', async () => {
     makeRef(ORDER('pending'));
     await approveOrder(BIZ, 'order_ABCDEF123456');
-    expect(t).toHaveBeenCalledWith('orderApproved', 'tr', '123456');
+    expect(t).toHaveBeenCalledWith('orderApproved', 'tr', '123456', expect.any(String));
   });
 });
 

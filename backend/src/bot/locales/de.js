@@ -89,7 +89,7 @@ module.exports = {
 
   askName: () => 'Wie lautet Ihr Name für die Bestellung?',
 
-  orderApproved:  (shortId) => `✅ Bestellung #${shortId} angenommen! Wir beginnen bald mit der Zubereitung.`,
+  orderApproved:  (shortId, etaTime) => `✅ Bestellung #${shortId} angenommen! Voraussichtlich fertig um ${etaTime}.`,
   orderPreparing: (shortId) => `👨‍🍳 Bestellung #${shortId} wird jetzt zubereitet!`,
   orderReady:     (shortId) => `✅ Ihre Bestellung #${shortId} ist abholbereit! Bis gleich 🙏`,
   orderOnTheWay:  (shortId) => `🚚 Bestellung #${shortId} ist unterwegs!`,
