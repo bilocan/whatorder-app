@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import LanguageSwitcher from './LanguageSwitcher';
 import RestaurantSwitcher from './RestaurantSwitcher';
+import BrandLogo from './BrandLogo';
 import { usePresence, toggleOrdersOpen, toggleDeliveryOpen } from '../hooks/usePresence';
 
 export default function Layout() {
@@ -34,7 +35,7 @@ export default function Layout() {
         <button className="hamburger-btn" onClick={() => setMenuOpen(true)} aria-label="Open menu">
           ☰
         </button>
-        <span style={{ fontWeight: 700, fontSize: '1rem' }}>WhatOrder</span>
+        <BrandLogo size="sm" />
         {presence && (
           <span style={{ width: 10, height: 10, borderRadius: '50%', background: presenceDotColor, flexShrink: 0 }} />
         )}
@@ -51,7 +52,9 @@ export default function Layout() {
       <nav className={`layout-nav${menuOpen ? ' open' : ''}`}>
         <button className="nav-close-btn" onClick={closeMenu} aria-label="Close menu">✕</button>
 
-        <div style={{ fontWeight: 'bold', marginBottom: '1rem' }}>WhatOrder</div>
+        <div style={{ marginBottom: '1rem' }}>
+          <BrandLogo size="md" />
+        </div>
         {showTenantNav && <RestaurantSwitcher />}
 
         <div style={{ flex: 1 }}>

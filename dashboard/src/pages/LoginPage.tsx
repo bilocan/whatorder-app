@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { auth } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import BrandLogo from '../components/BrandLogo';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -93,7 +94,9 @@ export default function LoginPage() {
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#fafafa' }}>
       <div style={{ width: 320, padding: '2rem', background: '#fff', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-        <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.25rem' }}>WhatOrder</h1>
+        <div style={{ marginBottom: '0.5rem' }}>
+          <BrandLogo size="lg" />
+        </div>
         <p style={{ color: '#999', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{t('login.tagline')}</p>
 
         {step === 'phone' && (
