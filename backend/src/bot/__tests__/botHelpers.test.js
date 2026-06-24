@@ -140,6 +140,50 @@ describe('basket formatting', () => {
     expect(text).toContain('\n\n*4. 1× Kebap Sandwich Huhn* · €7.50\n   Zwiebel, Sauce');
   });
 
+  test('formatBasketItemsText shows full modifiers when a sibling is a subset variant', () => {
+    const text = formatBasketItemsText([
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel, Sauce', qty: 1, price: 7.5 },
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad', qty: 1, price: 7.5 },
+    ]);
+    expect(text).toContain('*1. 1× Kebap Sandwich Huhn* · €7.50\n   Tomaten, Salad, Zwiebel, Sauce');
+    expect(text).toContain('*2. 1× Kebap Sandwich Huhn* · €7.50\n   Tomaten, Salad');
+  });
+
+  test('formatBasketItemsText shows diff-only when siblings differ without subset', () => {
+    const text = formatBasketItemsText([
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel, Sauce', qty: 1, price: 7.5 },
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad, extra scharf', qty: 1, price: 7.5 },
+    ]);
+    expect(text).toContain('*1. 1× Kebap Sandwich Huhn* · €7.50\n   Zwiebel, Sauce');
+    expect(text).toContain('*2. 1× Kebap Sandwich Huhn* · €7.50\n   extra scharf');
+  });
+
+  test('formatBasketItemsText merges identical lines when unnumbered', () => {
+    const text = formatBasketItemsText([
+      { name: 'Coca Cola 0.33L', qty: 1, price: 2.9 },
+      { name: 'Coca Cola 0.33L', qty: 1, price: 2.9 },
+    ], { numbered: false, mergeIdentical: true });
+    expect(text).toBe('*2× Coca Cola 0.33L* · €5.80');
+  });
+
+  test('formatBasketItemsText keeps separate numbered lines for identical items', () => {
+    const text = formatBasketItemsText([
+      { name: 'Coca Cola 0.33L', qty: 1, price: 2.9 },
+      { name: 'Coca Cola 0.33L', qty: 1, price: 2.9 },
+    ]);
+    expect(text).toContain('*1. 1× Coca Cola 0.33L* · €2.90');
+    expect(text).toContain('*2. 1× Coca Cola 0.33L* · €2.90');
+  });
+
+  test('formatBasketItemsText does not merge lines with different notes', () => {
+    const text = formatBasketItemsText([
+      { name: 'Döner', qty: 1, price: 8.5 },
+      { name: 'Döner', qty: 1, price: 8.5, note: 'extra scharf' },
+    ], { numbered: false, mergeIdentical: true });
+    expect(text).toContain('*1× Döner* · €8.50');
+    expect(text).toContain('*1× Döner* · €8.50\n   extra scharf');
+  });
+
   test('buildBasketText includes header, rule, and bold total', () => {
     const body = buildBasketText(
       [{ name: 'Döner', qty: 2, price: 8.5 }],

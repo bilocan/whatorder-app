@@ -139,18 +139,90 @@ function formatBasketItemLabel(item) {
   return detail ? `${baseName} (${detail})` : baseName;
 }
 
-function formatBasketItemBlock(item, lineNumber) {
+function parseDetailTokens(detail) {
+  if (!detail) return [];
+  return detail.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function joinDetailTokens(tokens) {
+  return tokens.length ? tokens.join(', ') : null;
+}
+
+function basketDisplayKey(item) {
+  return `${item.name}\0${item.note ?? ''}\0${item.price}`;
+}
+
+function mergeBasketForDisplay(basket) {
+  const merged = [];
+  for (const item of basket) {
+    const key = basketDisplayKey(item);
+    const existing = merged.find(m => basketDisplayKey(m) === key);
+    if (existing) {
+      existing.qty += item.qty;
+    } else {
+      merged.push({ ...item });
+    }
+  }
+  return merged;
+}
+
+function computeDiffDetails(basket) {
+  const parsed = basket.map(item => parseBasketItemName(item));
+  const byBase = new Map();
+  parsed.forEach((p, i) => {
+    if (!byBase.has(p.baseName)) byBase.set(p.baseName, []);
+    byBase.get(p.baseName).push({ index: i, tokens: parseDetailTokens(p.detail) });
+  });
+
+  const overrides = basket.map(() => null);
+  for (const group of byBase.values()) {
+    if (group.length < 2) continue;
+    const withDetail = group.filter(g => g.tokens.length > 0);
+    if (withDetail.length < 2) continue;
+
+    let commonTokens = withDetail[0].tokens;
+    for (let i = 1; i < withDetail.length; i++) {
+      const set = new Set(withDetail[i].tokens);
+      commonTokens = commonTokens.filter(t => set.has(t));
+    }
+    const commonSet = new Set(commonTokens);
+    const entries = group.map(({ index, tokens }) => {
+      const diff = tokens.filter(t => !commonSet.has(t));
+      return { index, tokens, diff };
+    });
+    const hasSubsetVariant = entries.some(e => e.tokens.length > 0 && e.diff.length === 0);
+
+    for (const { index, tokens, diff } of entries) {
+      if (hasSubsetVariant) {
+        overrides[index] = joinDetailTokens(tokens) ?? '';
+      } else {
+        overrides[index] = joinDetailTokens(diff) ?? '';
+      }
+    }
+  }
+  return overrides;
+}
+
+function formatBasketItemBlock(item, lineNumber, { detailOverride = null } = {}) {
   const { baseName, detail } = parseBasketItemName(item);
+  const displayDetail = detailOverride !== null ? (detailOverride || null) : detail;
   const lineTotal = (item.price * item.qty).toFixed(2);
   const qtyLabel = `${item.qty}×`;
   const numPrefix = lineNumber != null ? `${lineNumber}. ` : '';
   const mainLine = `*${numPrefix}${qtyLabel} ${baseName}* · €${lineTotal}`;
-  if (!detail) return mainLine;
-  return `${mainLine}\n   ${detail}`;
+  if (!displayDetail) return mainLine;
+  return `${mainLine}\n   ${displayDetail}`;
 }
 
-function formatBasketItemsText(basket, { numbered = true } = {}) {
-  const blocks = basket.map((item, i) => formatBasketItemBlock(item, numbered ? i + 1 : null));
+function formatBasketItemsText(basket, { numbered = true, mergeIdentical } = {}) {
+  const shouldMerge = mergeIdentical ?? !numbered;
+  const displayBasket = shouldMerge ? mergeBasketForDisplay(basket) : basket;
+  const detailOverrides = computeDiffDetails(displayBasket);
+  const blocks = displayBasket.map((item, i) => formatBasketItemBlock(
+    item,
+    numbered ? i + 1 : null,
+    { detailOverride: detailOverrides[i] },
+  ));
   const lines = [];
   for (let i = 0; i < blocks.length; i++) {
     if (i > 0) {
@@ -354,6 +426,8 @@ module.exports = {
   parseBasketItemName,
   formatBasketItemBlock,
   formatBasketItemsText,
+  mergeBasketForDisplay,
+  computeDiffDetails,
   basketTotals,
   findAddedLines,
   buildPostAddBody,

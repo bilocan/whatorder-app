@@ -1,6 +1,6 @@
 const { norm } = require('./menuMatch');
 const { parseIntent } = require('./intentParser');
-const { formatBasketItemLabel, parseBasketItemName, formatBasketItemBlock } = require('./botHelpers');
+const { formatBasketItemLabel, parseBasketItemName, formatBasketItemBlock, computeDiffDetails } = require('./botHelpers');
 
 const CANCEL_PHRASES = new Set([
   'cancel', 'never mind', 'nevermind', 'forget it',
@@ -184,8 +184,13 @@ function parseBasketRemoveDisambig(text, normText, disambig) {
 }
 
 function buildBasketRemoveAmbiguousText(basket, oneBasedIndices) {
+  const detailOverrides = computeDiffDetails(basket);
   return oneBasedIndices
-    .map(lineNum => formatBasketItemBlock(basket[lineNum - 1], lineNum))
+    .map(lineNum => formatBasketItemBlock(
+      basket[lineNum - 1],
+      lineNum,
+      { detailOverride: detailOverrides[lineNum - 1] },
+    ))
     .join('\n\n');
 }
 
