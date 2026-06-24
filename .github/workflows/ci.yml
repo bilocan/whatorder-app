@@ -123,18 +123,23 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
-      - name: Install firebase-tools
-        run: npm install firebase-tools@15.22.1 --no-save
-
-      - name: Authenticate to Firebase
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-
       - name: Deploy to Firebase Hosting
-        uses: nick-fields/retry@v3
+        id: deploy_hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        continue-on-error: true
         with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: npx firebase-tools deploy --only hosting --project whatorder-fire --non-interactive
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: whatorder-fire
+          channelId: live
+          firebaseToolsVersion: '15.22.1'
+
+      - name: Retry Firebase Hosting deploy
+        if: steps.deploy_hosting.outcome == 'failure'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: whatorder-fire
+          channelId: live
+          firebaseToolsVersion: '15.22.1'
