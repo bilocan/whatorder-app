@@ -1,5 +1,98 @@
 const { matchMenuItem, classifyMenuMatch } = require('./menuMatch');
-const { extractModifierKey, normalizeIntentItemName, isModifierOnlyToken } = require('./intentModifiers');
+const {
+  extractModifierKey, normalizeIntentItemName, isModifierOnlyToken, extractDishNameForMatch,
+} = require('./intentModifiers');
+
+function normIng(str) {
+  return String(str ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function ingredientStem(token) {
+  const n = normIng(token);
+  if (n.endsWith('n') && n.length > 3) {
+    const stripped = n.slice(0, -1);
+    if (stripped.length >= 3) return stripped;
+  }
+  return n;
+}
+
+function tokensMatchIngredient(a, b) {
+  const x = ingredientStem(a);
+  const y = ingredientStem(b);
+  return x === y || x.startsWith(y) || y.startsWith(x);
+}
+
+/** Tokens after "mit" in a phrase, or a lone ingredient word (e.g. "gouda"). */
+function parseMitIngredientTokens(text) {
+  const n = normIng(text);
+  const mitTail = n.match(/\bmit\s+(.+)$/);
+  if (mitTail) {
+    return mitTail[1].split(/\s+und\s+/).map(s => s.trim()).filter(Boolean);
+  }
+  const words = n.split(/\s+/).filter(w => w.length >= 2);
+  return words.length === 1 ? words : [];
+}
+
+function extractProductMitIngredients(menuItemName) {
+  return parseMitIngredientTokens(menuItemName);
+}
+
+function collectIntentIngredientTokens(rawIntentNames) {
+  const tokens = [];
+  for (const name of rawIntentNames) {
+    if (/\b(?:ohne|without|no)\b/i.test(name ?? '')) return null;
+    tokens.push(...parseMitIngredientTokens(name));
+  }
+  return [...new Set(tokens.filter(Boolean))];
+}
+
+/** True when split lines are ingredient fragments that match a multi-ingredient product name. */
+function isProductIngredientSplit(lines) {
+  if (!lines?.length || lines.length < 2) return false;
+
+  const productIngs = extractProductMitIngredients(lines[0].name);
+  if (productIngs.length < 2) return false;
+
+  const intentIngs = collectIntentIngredientTokens(lines.map(l => l.rawIntentName));
+  if (!intentIngs?.length || intentIngs.length < 2) return false;
+
+  return intentIngs.every(ing => productIngs.some(p => tokensMatchIngredient(ing, p)));
+}
+
+function mergeProductIngredientSplitLines(matched) {
+  if (!matched?.length || matched.length < 2) return matched;
+
+  const out = [];
+  let i = 0;
+  while (i < matched.length) {
+    const line = matched[i];
+    const group = [line];
+    let j = i + 1;
+    while (j < matched.length && matched[j].menuItemId === line.menuItemId) {
+      group.push(matched[j]);
+      j += 1;
+    }
+
+    if (group.length >= 2 && isProductIngredientSplit(group)) {
+      const rawIntentName = group.map(g => g.rawIntentName).filter(Boolean).join(' und ');
+      const qtyLine = group.find(g => /\bmit\s+/i.test(g.rawIntentName ?? '')) ?? group[0];
+      out.push({
+        ...group[0],
+        qty: qtyLine.qty,
+        rawIntentName,
+        modifierKey: rawIntentName ? extractModifierKey(rawIntentName) : group[0].modifierKey,
+      });
+    } else {
+      out.push(...group);
+    }
+    i = j;
+  }
+  return out;
+}
 
 function pendingMergeKey(item) {
   return `${item.menuItemId}|${item.modifierKey ?? ''}`;
@@ -63,6 +156,8 @@ function matchIntentToMenu(intent, menuItems) {
     };
     break;
   }
+
+  matched = mergeProductIngredientSplitLines(matched);
 
   return { matched, unmatched, disambiguation };
 }
