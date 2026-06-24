@@ -47,8 +47,15 @@
       "customer": "Müşteri",
       "items": "Ürünler",
       "total": "Toplam",
+      "payment": "Ödeme",
       "status": "Durum",
       "time": "Saat"
+    },
+    "payment": {
+      "cash": "Nakit",
+      "paid": "Ödendi",
+      "pending": "Ödenmedi",
+      "failed": "Başarısız"
     },
     "delivery": "Teslimat",
     "deliveryFee": "+ €{{fee}} teslimat ücreti",

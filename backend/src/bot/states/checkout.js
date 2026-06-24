@@ -4,11 +4,66 @@ const { t } = require('../templates');
 const { buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView } = require('../botHelpers');
 const { getBusinessInfo } = require('../menuService');
 const { createOrder } = require('../orderService');
-const { customersRef } = require('../../lib/collections');
+const { customersRef, ordersRef } = require('../../lib/collections');
 const { reverseGeocode } = require('../../lib/geocode');
+const { isStripeConfigured } = require('../../lib/stripe');
+const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
 
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', '1', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal', '2']);
+
+function isPaymentEnabled(info) {
+  return info.paymentEnabled === true && isStripeConfigured();
+}
+
+function orderTotals(basket, session, info) {
+  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  const isDelivery = session.orderType === 'delivery';
+  const deliveryFee = isDelivery ? (info.deliveryFee || 0) : 0;
+  const total = isDelivery ? subtotal + deliveryFee : subtotal;
+  return { subtotal, deliveryFee, total, isDelivery };
+}
+
+async function placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod }) {
+  const info = await getBusinessInfo(businessId);
+  const { subtotal, deliveryFee, total, isDelivery } = orderTotals(basket, session, info);
+  const orderId = await createOrder(businessId, {
+    customerPhone: from,
+    customerName: session.customerName || contactName || null,
+    items: basket,
+    total: subtotal,
+    language: lang,
+    pickupTime: isDelivery ? null : (session.pickupTime || null),
+    notes: session.specialRequests || null,
+    orderType: session.orderType || 'pickup',
+    deliveryAddress: session.deliveryAddress || null,
+    deliveryFee,
+    paymentMethod,
+    paymentStatus: paymentMethod === 'stripe' ? 'pending' : 'cash',
+  });
+  const shortId = orderId.slice(-6).toUpperCase();
+  const itemLines = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });
+
+  await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: isMulti ? null : businessId, pendingDeleteIds: [] });
+
+  if (paymentMethod === 'stripe') {
+    try {
+      const { url, sessionId } = await createCheckoutSessionForOrder(businessId, orderId, {
+        totalEuros: total,
+        restaurantName: info.name,
+        shortId,
+      });
+      await ordersRef(businessId).doc(orderId).update({ paymentStripeSessionId: sessionId });
+      await sendText(from, t('paymentLink', lang, shortId, itemLines, total.toFixed(2), url));
+    } catch (err) {
+      console.error('[payment] checkout session failed:', err.message);
+      await sendText(from, t('paymentLinkFailed', lang, shortId));
+    }
+    return;
+  }
+
+  await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, info.alertPhone || null, info.address || null));
+}
 
 async function getKnownName(phone, businessId) {
   try {
@@ -124,6 +179,20 @@ async function transitionToConfirming(from, session, lang, businessId, basket, n
     ],
   });
   await setSession(from, { ...session, state: 'confirming', customerName: name, pendingDeleteIds: confirmId ? [confirmId] : [] });
+}
+
+async function transitionToPaymentMethod(from, session, lang, businessId, basket) {
+  const info = await getBusinessInfo(businessId);
+  const { total } = orderTotals(basket, session, info);
+  const msgId = await sendButtonMessage(from, {
+    body: t('askPaymentMethod', lang, total.toFixed(2)),
+    buttons: [
+      { id: 'btn_pay_card', title: t('payCardBtn', lang) },
+      { id: 'btn_pay_cash', title: t('payCashBtn', lang) },
+      { id: 'btn_cancel_order', title: t('cancelOrderBtn', lang) },
+    ],
+  });
+  await setSession(from, { ...session, state: 'awaiting_payment_method', pendingDeleteIds: msgId ? [msgId] : [] });
 }
 
 // Returns rows array when known addresses exist (lat/lng or saved profile address), null to skip picker.
@@ -314,27 +383,12 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
   }
 
   if (isConfirm) {
-    const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
     const info = await getBusinessInfo(businessId);
-    const isDelivery = session.orderType === 'delivery';
-    const deliveryFee = isDelivery ? (info.deliveryFee || 0) : 0;
-    const orderId = await createOrder(businessId, {
-      customerPhone: from,
-      customerName: session.customerName || contactName || null,
-      items: basket,
-      total: subtotal,
-      language: lang,
-      pickupTime: isDelivery ? null : (session.pickupTime || null),
-      notes: session.specialRequests || null,
-      orderType: session.orderType || 'pickup',
-      deliveryAddress: session.deliveryAddress || null,
-      deliveryFee,
-    });
-    const shortId = orderId.slice(-6).toUpperCase();
-    const orderTotal = isDelivery ? subtotal + deliveryFee : subtotal;
-    const itemLines = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });
-    await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: isMulti ? null : businessId, pendingDeleteIds: [] });
-    await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, orderTotal.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, info.alertPhone || null, info.address || null));
+    if (isPaymentEnabled(info)) {
+      await transitionToPaymentMethod(from, session, lang, businessId, basket);
+      return;
+    }
+    await placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'cash' });
     return;
   }
 
@@ -352,6 +406,28 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
   await sendText(from, t('yesNoOnly', lang));
 }
 
+async function handleAwaitingPaymentMethod({ from, contactName, session, lang, businessId, basket, isMulti, type, id }) {
+  if (type === 'button_reply' && id === 'btn_pay_card') {
+    await placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'stripe' });
+    return;
+  }
+  if (type === 'button_reply' && id === 'btn_pay_cash') {
+    await placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'cash' });
+    return;
+  }
+  if (type === 'button_reply' && id === 'btn_cancel_order') {
+    if (isMulti) {
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [] });
+      await sendText(from, t('checkoutCancelled', lang));
+    } else {
+      const { menuId } = await sendCatalog(from, lang, businessId, t('checkoutCancelled', lang));
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: menuId ? [menuId] : [] });
+    }
+    return;
+  }
+  await sendText(from, t('choosePaymentMethod', lang));
+}
+
 module.exports = {
   handleAwaitingConfirmNote,
   handleAwaitingOrderType,
@@ -359,6 +435,7 @@ module.exports = {
   handleAwaitingDeliveryAddress,
   handleAwaitingName,
   handleConfirming,
+  handleAwaitingPaymentMethod,
   resumeDeliveryCheckout,
   showDeliveryBasketGate,
   proceedFromConfirmedBasket,

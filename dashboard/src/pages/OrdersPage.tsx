@@ -9,6 +9,15 @@ import { toDate } from '../types';
 
 const TERMINAL_STATUSES = new Set<OrderStatus>(['delivered', 'picked_up', 'rejected', 'cancelled', 'completed']);
 
+function paymentBadge(order: Order, t: (key: string) => string): { label: string; color: string } {
+  const status = order.paymentStatus;
+  if (!status || status === 'cash') return { label: t('orders.payment.cash'), color: '#6b7280' };
+  if (status === 'paid') return { label: t('orders.payment.paid'), color: '#22c55e' };
+  if (status === 'pending') return { label: t('orders.payment.pending'), color: '#f59e0b' };
+  if (status === 'failed') return { label: t('orders.payment.failed'), color: '#ef4444' };
+  return { label: status, color: '#6b7280' };
+}
+
 const statusColor: Record<string, string> = {
   pending:    '#f59e0b',
   approved:   '#a855f7',
@@ -132,6 +141,7 @@ export default function OrdersPage() {
             <th style={{ padding: '0.5rem' }}>{t('orders.col.customer')}</th>
             <th style={{ padding: '0.5rem' }}>{t('orders.col.items')}</th>
             <th style={{ padding: '0.5rem' }}>{t('orders.col.total')}</th>
+            <th style={{ padding: '0.5rem' }}>{t('orders.col.payment')}</th>
             <th style={{ padding: '0.5rem' }}>{t('orders.col.status')}</th>
             <th style={{ padding: '0.5rem' }}>{t('orders.col.time')}</th>
           </tr>
@@ -167,6 +177,23 @@ export default function OrdersPage() {
                     {t('orders.deliveryFee', { fee: order.deliveryFee.toFixed(2) })}
                   </div>
                 ) : null}
+              </td>
+              <td style={{ padding: '0.75rem 0.5rem' }}>
+                {(() => {
+                  const badge = paymentBadge(order, t);
+                  return (
+                    <span style={{
+                      background: badge.color + '22',
+                      color: badge.color,
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: 999,
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                    }}>
+                      {badge.label}
+                    </span>
+                  );
+                })()}
               </td>
               <td style={{ padding: '0.75rem 0.5rem' }}>
                 <span style={{

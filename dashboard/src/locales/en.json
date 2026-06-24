@@ -47,8 +47,15 @@
       "customer": "Customer",
       "items": "Items",
       "total": "Total",
+      "payment": "Payment",
       "status": "Status",
       "time": "Time"
+    },
+    "payment": {
+      "cash": "Cash",
+      "paid": "Paid",
+      "pending": "Unpaid",
+      "failed": "Failed"
     },
     "delivery": "Delivery",
     "deliveryFee": "+ €{{fee}} delivery fee",
