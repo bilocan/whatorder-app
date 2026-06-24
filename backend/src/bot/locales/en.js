@@ -26,7 +26,9 @@ module.exports = {
 
   qtyBody: (name, price) => `${name} — €${price}\n\nHow many?`,
 
-  itemAdded: (qty, name, count, total) => `✅ ${qty}x ${name} added.\n🛒 Basket: ${count} item${count !== 1 ? 's' : ''} — €${total}`,
+  itemAdded: (qty, name, count, total) => `✅ ${qty}× ${name} added.\n🛒 ${count} item${count !== 1 ? 's' : ''} · €${total}`,
+  itemsAdded: (addedQty, count, total) => `✅ ${addedQty} item${addedQty !== 1 ? 's' : ''} added.\n🛒 ${count} item${count !== 1 ? 's' : ''} · €${total}`,
+  reorderLoaded: (count, total) => `✅ Same order loaded.\n🛒 ${count} item${count !== 1 ? 's' : ''} · €${total}`,
   addMoreBtn: () => 'Add more',
   viewBasketBtn: () => 'View basket',
   doneBtn: () => 'Done',

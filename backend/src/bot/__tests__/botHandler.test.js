@@ -895,7 +895,7 @@ describe('Selecting state: quantity selection flow', () => {
       buttons: expect.arrayContaining([
         expect.objectContaining({ id: 'btn_add_more' }),
         expect.objectContaining({ id: 'btn_view_basket' }),
-        expect.objectContaining({ id: 'btn_done' }),
+        expect.objectContaining({ id: 'btn_confirm' }),
       ]),
     }));
   });
@@ -2591,8 +2591,11 @@ describe('Layer 1: disambiguation for ambiguous item names', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_intent_confirm' }));
 
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      body: expect.stringContaining('Döner'),
-      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+      body: expect.stringMatching(/eklendi/),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_view_basket' }),
+        expect.objectContaining({ id: 'btn_confirm' }),
+      ]),
     }));
     const confirmWrite = setSession.mock.calls.find(
       ([, data]) => data.basket?.some(i => i.name === 'Döner' && i.qty === 2),

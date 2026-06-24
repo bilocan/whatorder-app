@@ -12,6 +12,9 @@ const {
   formatBasketItemLabel,
   formatBasketItemBlock,
   formatBasketItemsText,
+  buildPostAddBody,
+  findAddedLines,
+  postAddBasketButtons,
 } = require('../botHelpers');
 
 const menu = [
@@ -153,5 +156,36 @@ describe('basket formatting', () => {
     );
     expect(body).toContain('*Total: €8.50*');
     expect(body).toContain('no onions');
+  });
+
+  test('buildPostAddBody uses compact single-item copy', () => {
+    const body = buildPostAddBody('de', [{ name: 'Döner', qty: 2, price: 8.5 }], { qty: 2, name: 'Döner' });
+    expect(body).toContain('✅ 2× Döner hinzugefügt');
+    expect(body).toContain('🛒 2 Artikel · €17.00');
+    expect(body).not.toContain('Ihre Bestellung');
+  });
+
+  test('buildPostAddBody batches multiple added lines', () => {
+    const basket = [
+      { name: 'Döner', qty: 2, price: 8.5 },
+      { name: 'Ayran', qty: 1, price: 2 },
+    ];
+    const body = buildPostAddBody('en', basket, {
+      addedLines: [{ name: 'Döner', qty: 2, price: 8.5 }, { name: 'Ayran', qty: 1, price: 2 }],
+    });
+    expect(body).toContain('3 items added');
+    expect(body).toContain('3 items · €19.00');
+  });
+
+  test('findAddedLines detects qty delta on merged lines', () => {
+    const before = [{ name: 'Döner', qty: 1, price: 8.5 }];
+    const after = [{ name: 'Döner', qty: 3, price: 8.5 }];
+    expect(findAddedLines(before, after)).toEqual([{ name: 'Döner', qty: 2, price: 8.5 }]);
+  });
+
+  test('postAddBasketButtons returns add, view, confirm', () => {
+    expect(postAddBasketButtons('en').map(b => b.id)).toEqual([
+      'btn_add_more', 'btn_view_basket', 'btn_confirm',
+    ]);
   });
 });

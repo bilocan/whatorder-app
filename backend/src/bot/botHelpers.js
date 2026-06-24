@@ -162,6 +162,58 @@ function formatBasketItemsText(basket) {
   return lines.join('\n');
 }
 
+function basketTotals(basket) {
+  const count = basket.reduce((s, i) => s + i.qty, 0);
+  const total = basket.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2);
+  return { count, total };
+}
+
+function basketLineKey(item) {
+  return `${item.name}|${item.note ?? ''}`;
+}
+
+function findAddedLines(before, after) {
+  const beforeQty = new Map();
+  for (const item of before) {
+    const key = basketLineKey(item);
+    beforeQty.set(key, (beforeQty.get(key) ?? 0) + item.qty);
+  }
+  const added = [];
+  for (const item of after) {
+    const key = basketLineKey(item);
+    const prev = beforeQty.get(key) ?? 0;
+    const delta = item.qty - prev;
+    if (delta > 0) added.push({ ...item, qty: delta });
+    beforeQty.set(key, Math.max(0, prev - item.qty));
+  }
+  return added;
+}
+
+function buildPostAddBody(lang, basket, { qty, name, addedLines, reorder } = {}) {
+  const { count, total } = basketTotals(basket);
+  if (reorder) return t('reorderLoaded', lang, count, total);
+  if (addedLines?.length === 1) {
+    const line = addedLines[0];
+    return t('itemAdded', lang, line.qty, formatBasketItemLabel(line), count, total);
+  }
+  if (addedLines?.length > 1) {
+    const addedQty = addedLines.reduce((s, i) => s + i.qty, 0);
+    return t('itemsAdded', lang, addedQty, count, total);
+  }
+  if (qty != null && name != null) {
+    return t('itemAdded', lang, qty, name, count, total);
+  }
+  return t('itemsAdded', lang, qty ?? count, count, total);
+}
+
+function postAddBasketButtons(lang) {
+  return [
+    { id: 'btn_add_more', title: t('addMoreBtn', lang) },
+    { id: 'btn_view_basket', title: t('viewBasketBtn', lang) },
+    { id: 'btn_confirm', title: t('confirmBtn', lang) },
+  ];
+}
+
 function buildBasketText(basket, lang, specialRequests) {
   const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
   let body = [
@@ -270,6 +322,10 @@ module.exports = {
   formatBasketItemLabel,
   formatBasketItemBlock,
   formatBasketItemsText,
+  basketTotals,
+  findAddedLines,
+  buildPostAddBody,
+  postAddBasketButtons,
   sendMenu,
   sendMenuPage,
   sendCategoryPicker,
