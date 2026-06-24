@@ -8,10 +8,14 @@ const ordersRouter = require('./routes/orders');
 const adminRouter = require('./routes/admin');
 const flowRouter = require('./routes/flow');
 
+const stripeWebhookRouter = require('./routes/stripeWebhook');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
+app.use('/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookRouter);
+app.use(stripeWebhookRouter);
 app.use(express.json());
 app.use((req, _res, next) => { console.log(`[express] ${req.method} ${req.url}`); next(); });
 
