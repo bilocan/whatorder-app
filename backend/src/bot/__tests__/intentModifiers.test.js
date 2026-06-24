@@ -54,6 +54,11 @@ describe('resolveModifierSelections', () => {
     const sel = resolveModifierSelections('kebap mit scharf', [BEILAGEN_WITH_CHILI]);
     expect(sel.beilagen).toContain('chili');
   });
+
+  test('sharf typo resolves spicy inclusion', () => {
+    const sel = resolveModifierSelections('kebap mit allen und sharf', [BEILAGEN_WITH_CHILI]);
+    expect(sel.beilagen).toEqual(['tomato', 'salad', 'onion', 'sauce', 'chili']);
+  });
 });
 
 describe('mergePendingItems with modifiers', () => {
