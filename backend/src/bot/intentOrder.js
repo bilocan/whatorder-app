@@ -5,6 +5,7 @@ const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHe
 const { getMenu } = require('./menuService');
 const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext } = require('./intentParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
+const { rememberValidatedLlmIntent } = require('./intentLearning');
 const { matchIntentToMenu, mergeIntoBasket, mergePendingItems, hydratePendingItems } = require('./intentMatcher');
 const { sendDisambiguationList } = require('./intentDisambiguate');
 const { splitPendingItems, startIntentCustomization, buildOptionLabel } = require('./intentCustomize');
@@ -96,7 +97,7 @@ async function sendIntentProposal({ from, session, lang, businessId, basket, mat
 async function tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm }) {
   if (!looksLikeOrderText(text, norm)) return false;
 
-  let intent = await parseIntentAsync(text, { phone: from });
+  let intent = await parseIntentAsync(text, { phone: from, businessId });
   intent = applyJeweilsBasketContext(intent, basket);
   if (!intent.items.length) return false;
   if (intent.confidence != null && intent.confidence < 0.6) return false;
@@ -104,8 +105,9 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   let menu = await getMenu(businessId);
   let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu);
 
-  // Zero menu hits — always retry with LLM when rules parse missed (even if quality looked "high")
-  if (!matched.length && intent.parsedBy !== 'llm' && canCallLlm(from)) {
+  // Zero menu hits — retry with LLM when rules parse missed (skip if LLM already failed this turn)
+  if (!matched.length && intent.parsedBy !== 'llm' && intent.parsedBy !== 'learned'
+    && !intent.llmFailed && canCallLlm(from)) {
     const llm = await parseOrderIntentWithLlm(text, { phone: from });
     if (llm && llm.confidence >= 0.6 && llm.items.length) {
       intent = {
@@ -134,6 +136,9 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   await sendIntentProposal({
     from, session, lang, businessId, basket, matched, unmatched, rawText: intent.rawText,
   });
+  if (intent.parsedBy === 'llm') {
+    rememberValidatedLlmIntent(businessId, text, intent);
+  }
   return true;
 }
 

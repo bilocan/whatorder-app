@@ -93,6 +93,38 @@ describe('parseOrderIntentWithLlm', () => {
     expect(r).toBeNull();
   });
 
+  test('retries on 503 then succeeds', async () => {
+    process.env.AI_INTENT_ENABLED = 'true';
+    process.env.LLM_PROVIDER = 'google';
+    process.env.GEMINI_API_KEY = 'test-key';
+    process.env.LLM_RETRY_ATTEMPTS = '3';
+    process.env.LLM_RETRY_DELAY_MS = '1';
+
+    const okResponse = {
+      data: {
+        candidates: [{
+          content: {
+            parts: [{
+              text: JSON.stringify({
+                items: [{ name: 'pizza', qty: 1 }],
+                partySize: null,
+                confidence: 0.9,
+              }),
+            }],
+          },
+        }],
+      },
+    };
+    const err503 = Object.assign(new Error('503'), {
+      response: { status: 503, data: { error: { message: 'high demand' } } },
+    });
+    axios.post.mockRejectedValueOnce(err503).mockResolvedValueOnce(okResponse);
+
+    const r = await parseOrderIntentWithLlm('pizza', { phone: '+435' });
+    expect(r.confidence).toBe(0.9);
+    expect(axios.post).toHaveBeenCalledTimes(2);
+  });
+
   test('rate limits repeat calls from same phone', async () => {
     process.env.AI_INTENT_ENABLED = 'true';
     process.env.GEMINI_API_KEY = 'test-key';
