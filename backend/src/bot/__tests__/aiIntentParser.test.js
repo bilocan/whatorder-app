@@ -1,5 +1,13 @@
 jest.mock('../../lib/llm');
 
+const mockLookupLearnedIntent = jest.fn().mockResolvedValue(null);
+
+jest.mock('../intentLearning', () => ({
+  lookupLearnedIntent: (...args) => mockLookupLearnedIntent(...args),
+  rememberValidatedLlmIntent: jest.fn(),
+  _resetIntentLearningMemory: jest.fn(),
+}));
+
 const { parseOrderIntentWithLlm, canCallLlm } = require('../../lib/llm');
 const { parseIntentAsync, rulesParseQuality, shouldTryLlm } = require('../intentParser');
 
@@ -7,6 +15,7 @@ const ORIGINAL_ENV = process.env;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockLookupLearnedIntent.mockResolvedValue(null);
   process.env = { ...ORIGINAL_ENV, AI_INTENT_ENABLED: 'true', GEMINI_API_KEY: 'key' };
   canCallLlm.mockReturnValue(true);
   parseOrderIntentWithLlm.mockResolvedValue(null);
@@ -85,6 +94,22 @@ describe('parseIntentAsync', () => {
     expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
     expect(r.parsedBy).toBe('rules');
     expect(r.items).toHaveLength(2);
+  });
+
+  test('uses learned intent before LLM when business has cache hit', async () => {
+    mockLookupLearnedIntent.mockResolvedValueOnce({
+      items: [{ name: 'Eiern', qty: 2 }],
+      partySize: null,
+    });
+
+    const r = await parseIntentAsync('Zwei Eiern noch dazu bitte', {
+      phone: '+438',
+      businessId: 'biz_learn',
+    });
+
+    expect(r.parsedBy).toBe('learned');
+    expect(r.items).toEqual([{ name: 'Eiern', qty: 2 }]);
+    expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
   });
 });
 

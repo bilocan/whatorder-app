@@ -142,8 +142,8 @@ function removeProposalItem(pending, rawName) {
   return next;
 }
 
-async function matchFragmentToMenu(fragment, menu, phone) {
-  const intent = await parseIntentAsync(fragment, { phone });
+async function matchFragmentToMenu(fragment, menu, phone, businessId) {
+  const intent = await parseIntentAsync(fragment, { phone, businessId });
   if (!intent.items.length) return null;
   return matchIntentToMenu(intent, menu);
 }
@@ -229,7 +229,7 @@ async function tryProposalEdit({ from, session, lang, businessId, basket, text, 
     return false;
   }
 
-  const result = await matchFragmentToMenu(fragment, menu, from);
+  const result = await matchFragmentToMenu(fragment, menu, from, businessId);
   if (!result) return false;
 
   if (result.disambiguation) {

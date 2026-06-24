@@ -11,7 +11,7 @@ jest.mock('../firebase', () => {
 const { db } = require('../firebase');
 const {
   businessRef, menuRef, ordersRef, customersRef, phoneRoutingRef,
-  ownerRef, adminRef, processedMessageRef,
+  ownerRef, adminRef, processedMessageRef, intentLearningRef,
 } = require('../collections');
 
 beforeEach(() => {
@@ -87,5 +87,15 @@ describe('processedMessageRef', () => {
     processedMessageRef('wamid_xyz');
     expect(db.collection).toHaveBeenCalledWith('processedMessages');
     expect(db.doc).toHaveBeenCalledWith('wamid_xyz');
+  });
+});
+
+describe('intentLearningRef', () => {
+  test('builds path: businesses/{id}/intentLearnings/{keyHash}', () => {
+    intentLearningRef('biz_test', 'abc123');
+    expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
+    expect(db.doc).toHaveBeenCalledWith('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(2, 'intentLearnings');
+    expect(db.doc).toHaveBeenCalledWith('abc123');
   });
 });

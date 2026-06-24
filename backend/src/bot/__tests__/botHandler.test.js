@@ -1,4 +1,13 @@
 jest.mock('../../lib/firebase', () => ({ db: {}, admin: {} }));
+jest.mock('../intentLearning', () => ({
+  lookupLearnedIntent: jest.fn().mockResolvedValue(null),
+  rememberValidatedLlmIntent: jest.fn(),
+}));
+jest.mock('../../lib/llm', () => ({
+  canCallLlm: jest.fn().mockReturnValue(false),
+  parseOrderIntentWithLlm: jest.fn().mockResolvedValue(null),
+  parseProposalEditWithLlm: jest.fn().mockResolvedValue(null),
+}));
 jest.mock('../sessionStore', () => {
   const actual = jest.requireActual('../sessionStore');
   const getSession = jest.fn();

@@ -1,6 +1,14 @@
 jest.mock('../sessionStore');
 jest.mock('../menuService');
 jest.mock('../../lib/whatsapp');
+jest.mock('../intentLearning', () => ({
+  lookupLearnedIntent: jest.fn().mockResolvedValue(null),
+  rememberValidatedLlmIntent: jest.fn(),
+}));
+jest.mock('../../lib/llm', () => ({
+  canCallLlm: jest.fn().mockReturnValue(false),
+  parseOrderIntentWithLlm: jest.fn().mockResolvedValue(null),
+}));
 
 const { setSession } = require('../sessionStore');
 const { getMenu } = require('../menuService');
