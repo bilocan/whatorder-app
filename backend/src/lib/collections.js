@@ -32,6 +32,14 @@ const sessionRef = (phone) =>
 const processedMessageRef = (wamid) =>
   db.collection('processedMessages').doc(wamid);
 
+// stripeEvents/{eventId} → { type, processedAt }  (idempotency guard for Stripe webhooks)
+const stripeEventRef = (eventId) =>
+  db.collection('stripeEvents').doc(eventId);
+
+// config/whatorder → { feeType, feeValue }
+const configRef = () =>
+  db.collection('config').doc('whatorder');
+
 // businesses/{businessId}/intentLearnings/{keyHash} — Tier B → Tier A validated parses
 const intentLearningRef = (businessId, keyHash) =>
   businessRef(businessId).collection('intentLearnings').doc(keyHash);
@@ -42,5 +50,7 @@ module.exports = {
   ownerRef, adminRef,
   sessionRef,
   processedMessageRef,
+  stripeEventRef,
+  configRef,
   intentLearningRef,
 };
