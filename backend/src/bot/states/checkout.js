@@ -332,7 +332,7 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
     });
     const shortId = orderId.slice(-6).toUpperCase();
     const orderTotal = isDelivery ? subtotal + deliveryFee : subtotal;
-    const itemLines = formatBasketItemsText(basket);
+    const itemLines = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });
     await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: isMulti ? null : businessId, pendingDeleteIds: [] });
     await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, orderTotal.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, info.alertPhone || null, info.address || null));
     return;
