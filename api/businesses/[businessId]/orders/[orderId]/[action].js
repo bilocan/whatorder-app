@@ -22,7 +22,11 @@ module.exports = async (req, res) => {
   if (!fn) return res.status(404).json({ error: `Unknown action: ${action}` });
 
   try {
-    await fn(businessId, orderId);
+    if (action === 'approve') {
+      await fn(businessId, orderId, req.body?.etaMinutes);
+    } else {
+      await fn(businessId, orderId);
+    }
     res.json({ status: 'ok' });
   } catch (err) {
     const status = err.message === 'Order not found' ? 404
