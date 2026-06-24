@@ -1,7 +1,7 @@
 const { ordersRef, businessRef, customersRef } = require('../lib/collections');
 const { admin } = require('../lib/firebase');
 const { sendText } = require('../lib/whatsapp');
-const { formatBasketItemLabel } = require('./botHelpers');
+const { formatBasketItemsText } = require('./botHelpers');
 const { t } = require('./templates');
 const { normalizeCustomerPhone, customerPhoneVariants } = require('../lib/phone');
 
@@ -126,7 +126,7 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
     const biz = bizSnap.exists ? bizSnap.data() : null;
     if (biz?.alertPhone) {
       const shortId = ref.id.slice(-6).toUpperCase();
-      const itemLines = items.map(i => `• ${i.qty}x ${formatBasketItemLabel(i)} — €${(i.price * i.qty).toFixed(2)}`).join('\n');
+      const itemLines = formatBasketItemsText(items);
       const typeLabel = doc.orderType === 'delivery' ? '🚚 Delivery' : '🛍️ Pickup';
       const addressLine = doc.deliveryAddress ? `\nAddress: ${doc.deliveryAddress}` : '';
       const ownerMsg = `🔔 New Order #${shortId} (${typeLabel})\n\n${itemLines}\n\nTotal: €${doc.total.toFixed(2)}${addressLine}\nCustomer: ${resolvedName} (${phone})`;
