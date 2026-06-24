@@ -15,6 +15,9 @@ const {
   buildPostAddBody,
   findAddedLines,
   postAddBasketButtons,
+  basketViewButtons,
+  removeBasketAtIndex,
+  removeBasketAtIndices,
 } = require('../botHelpers');
 
 const menu = [
@@ -132,9 +135,9 @@ describe('basket formatting', () => {
       { name: 'Kebap Sandwich Huhn — Tomaten, Salad', qty: 1, price: 7.5 },
       { name: 'Kebap Sandwich Huhn — Zwiebel, Sauce', qty: 1, price: 7.5 },
     ]);
-    expect(text).toContain('*1× Mis Ayran 0.25L* · €2.50\n*1× Coca Cola 0.33L* · €2.90');
-    expect(text).toContain('*1× Kebap Sandwich Huhn* · €7.50\n   Tomaten, Salad');
-    expect(text).toContain('\n\n*1× Kebap Sandwich Huhn* · €7.50\n   Zwiebel, Sauce');
+    expect(text).toContain('*1. 1× Mis Ayran 0.25L* · €2.50\n*2. 1× Coca Cola 0.33L* · €2.90');
+    expect(text).toContain('*3. 1× Kebap Sandwich Huhn* · €7.50\n   Tomaten, Salad');
+    expect(text).toContain('\n\n*4. 1× Kebap Sandwich Huhn* · €7.50\n   Zwiebel, Sauce');
   });
 
   test('buildBasketText includes header, rule, and bold total', () => {
@@ -143,7 +146,7 @@ describe('basket formatting', () => {
       'de',
     );
     expect(body).toContain('🛒 Ihre Bestellung:');
-    expect(body).toContain('*2× Döner* · €17.00');
+    expect(body).toContain('*1. 2× Döner* · €17.00');
     expect(body).toContain('────────────────────────');
     expect(body).toContain('*Gesamt: €17.00*');
   });
@@ -187,5 +190,19 @@ describe('basket formatting', () => {
     expect(postAddBasketButtons('en').map(b => b.id)).toEqual([
       'btn_add_more', 'btn_view_basket', 'btn_confirm',
     ]);
+  });
+
+  test('basketViewButtons uses remove instead of clear', () => {
+    expect(basketViewButtons('de').map(b => b.id)).toEqual([
+      'btn_add_more', 'btn_remove_item', 'btn_confirm',
+    ]);
+  });
+
+  test('removeBasketAtIndices drops selected lines', () => {
+    const basket = [
+      { name: 'Döner', qty: 1, price: 8.5 },
+      { name: 'Ayran', qty: 1, price: 2 },
+    ];
+    expect(removeBasketAtIndices(basket, [1])).toEqual([{ name: 'Ayran', qty: 1, price: 2 }]);
   });
 });

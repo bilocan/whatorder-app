@@ -1,7 +1,7 @@
 const { setSession } = require('../sessionStore');
 const { sendText, sendButtonMessage, sendListMessage, sendLocationRequest } = require('../../lib/whatsapp');
 const { t } = require('../templates');
-const { buildBasketText, sendCatalog, formatBasketItemsText } = require('../botHelpers');
+const { buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView } = require('../botHelpers');
 const { getBusinessInfo } = require('../menuService');
 const { createOrder } = require('../orderService');
 const { customersRef } = require('../../lib/collections');
@@ -25,11 +25,7 @@ async function getKnownName(phone, businessId) {
 async function sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue }) {
   const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
   const meets = !minimumOrderValue || subtotal >= minimumOrderValue;
-  const buttons = [
-    { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
-    { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },
-  ];
-  if (meets) buttons.push({ id: 'btn_confirm', title: t('confirmBtn', lang) });
+  const buttons = basketViewButtons(lang, { includeConfirm: meets });
   const body = meets
     ? buildBasketText(basket, lang)
     : `${t('belowMinimumOrderValue', lang, minimumOrderValue.toFixed(2))}\n\n${buildBasketText(basket, lang)}`;
@@ -312,14 +308,7 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
   }
 
   if (type === 'button_reply' && id === 'btn_back_to_cart') {
-    const msgId = await sendButtonMessage(from, {
-      body: buildBasketText(basket, lang),
-      buttons: [
-        { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
-        { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },
-        { id: 'btn_confirm',      title: t('confirmBtn', lang) },
-      ],
-    });
+    const msgId = await sendBasketView(from, lang, basket, session.specialRequests);
     await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
     return;
   }

@@ -6,6 +6,7 @@ const MENU_BROWSE_FIELDS = ['textMenuIndex', 'textMenuCategory', 'menuSearchActi
 const INTENT_FIELDS = ['pendingIntentItems', 'unmatchedIntentItems', 'intentCustomize', 'pendingItem', 'pendingIntentNote', 'pendingIntentRawText'];
 const REORDER_FIELDS = ['pendingReorderItems', 'pendingReorderUnmatched'];
 const DISAMBIGUATION_FIELDS = ['disambiguation'];
+const BASKET_EDIT_FIELDS = ['basketRemovePending', 'basketRemoveDisambig'];
 
 /** Firestore rejects undefined at any depth — strip before write. */
 function stripUndefinedDeep(value) {
@@ -32,7 +33,7 @@ function buildSessionWrite(session, overrides) {
     lng: session.lng ?? null,
     pendingDeleteIds: session.pendingDeleteIds ?? [],
   };
-  for (const key of [...CHECKOUT_FIELDS, ...MENU_BROWSE_FIELDS, ...INTENT_FIELDS, ...REORDER_FIELDS, ...DISAMBIGUATION_FIELDS]) {
+  for (const key of [...CHECKOUT_FIELDS, ...MENU_BROWSE_FIELDS, ...INTENT_FIELDS, ...REORDER_FIELDS, ...DISAMBIGUATION_FIELDS, ...BASKET_EDIT_FIELDS]) {
     if (session[key] != null) data[key] = session[key];
   }
   const merged = { ...data, ...overrides };

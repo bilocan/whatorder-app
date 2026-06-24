@@ -1,7 +1,8 @@
 const { setSession, patchSession } = require('../sessionStore');
 const { sendText, sendButtonMessage, sendImage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
-const { buildBasketText, sendMenu, sendMenuPage, sendCatalog, groupMenuByCategory, decodeCategory, buildPostAddBody, postAddBasketButtons } = require('../botHelpers');
+const { sendMenu, sendMenuPage, sendCatalog, groupMenuByCategory, decodeCategory, buildPostAddBody, postAddBasketButtons, sendBasketView } = require('../botHelpers');
+const { parseBasketRemove, parseBasketRemoveDisambig, applyBasketRemove, buildBasketRemoveAmbiguousText } = require('../basketEdit');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 const { tryTextIntentOrder, handleIntentButtons, isIntentConfirmText } = require('../intentOrder');
@@ -27,6 +28,16 @@ const INTENT_PROPOSAL_CLEAR = {
   disambiguation: undefined,
 };
 
+const BASKET_CLEAR_PATCH = {
+  basket: [],
+  flow: undefined,
+  orderType: undefined,
+  deliveryAddress: undefined,
+  specialRequests: undefined,
+  basketRemovePending: undefined,
+  basketRemoveDisambig: undefined,
+};
+
 function isFullOrderReplace(text, norm) {
   const edit = parseProposalEdit(text, norm);
   return edit?.type === 'replace';
@@ -36,6 +47,96 @@ function isShortProposalEdit(text, norm) {
   const edit = parseProposalEdit(text, norm);
   if (!edit) return false;
   return edit.type !== 'replace';
+}
+
+async function handleBasketRemoveText({ from, session, lang, businessId, basket, text, norm }) {
+  const clearDisambig = { basketRemoveDisambig: undefined };
+
+  if (session.basketRemoveDisambig) {
+    const edit = parseBasketRemoveDisambig(text, norm, session.basketRemoveDisambig);
+    const result = applyBasketRemove(basket, edit);
+    if (result?.type === 'cancel') {
+      await patchSession(from, { basketRemovePending: undefined, ...clearDisambig }, session);
+      await showBasketForSession({ from, session, lang, businessId, basket });
+      return true;
+    }
+    if (result?.type === 'updated') {
+      const nextSession = {
+        ...session,
+        basket: result.basket,
+        basketRemovePending: undefined,
+        basketRemoveDisambig: undefined,
+      };
+      await patchSession(from, {
+        basket: result.basket,
+        basketRemovePending: undefined,
+        ...clearDisambig,
+      }, session);
+      if (!result.basket.length) {
+        await clearBasketAndOpenCatalog(from, nextSession, lang, businessId, t('basketEmpty', lang));
+        return true;
+      }
+      await showBasketForSession({ from, session: nextSession, lang, businessId, basket: result.basket });
+      return true;
+    }
+    const linesText = buildBasketRemoveAmbiguousText(basket, session.basketRemoveDisambig.indices);
+    await sendText(from, t('basketRemoveDisambigNotFound', lang));
+    await sendText(from, t('basketRemoveAmbiguous', lang, linesText, session.basketRemoveDisambig.indices.length));
+    return true;
+  }
+
+  const edit = parseBasketRemove(text, norm, { allowBareName: true });
+  const result = applyBasketRemove(basket, edit);
+  if (result?.type === 'cancel') {
+    await patchSession(from, { basketRemovePending: undefined, ...clearDisambig }, session);
+    await showBasketForSession({ from, session, lang, businessId, basket });
+    return true;
+  }
+  if (result?.type === 'clear') {
+    await clearBasketAndOpenCatalog(from, session, lang, businessId);
+    return true;
+  }
+  if (result?.type === 'ambiguous') {
+    const disambig = { fragment: result.fragment, indices: result.indices };
+    await patchSession(from, { basketRemoveDisambig: disambig }, session);
+    const linesText = buildBasketRemoveAmbiguousText(basket, result.indices);
+    await sendText(from, t('basketRemoveAmbiguous', lang, linesText, result.indices.length));
+    return true;
+  }
+  if (result?.type === 'updated') {
+    const nextSession = { ...session, basket: result.basket, basketRemovePending: undefined, basketRemoveDisambig: undefined };
+    await patchSession(from, {
+      basket: result.basket,
+      basketRemovePending: undefined,
+      ...clearDisambig,
+    }, session);
+    if (!result.basket.length) {
+      await clearBasketAndOpenCatalog(from, nextSession, lang, businessId, t('basketEmpty', lang));
+      return true;
+    }
+    await showBasketForSession({ from, session: nextSession, lang, businessId, basket: result.basket });
+    return true;
+  }
+  await sendText(from, t('basketRemoveNotFound', lang, text.trim()));
+  await showBasketForSession({ from, session, lang, businessId, basket, removeHint: true });
+  return true;
+}
+
+async function showBasketForSession({ from, session, lang, businessId, basket, removeHint = false }) {
+  if (!basket.length) {
+    await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
+    return;
+  }
+  if (isGatedOnDeliveryMinimum(session)) {
+    await showDeliveryBasketGate({ from, session, lang, basket, businessId });
+    return;
+  }
+  const footer = removeHint ? t('basketRemoveHint', lang) : undefined;
+  await sendBasketView(from, lang, basket, session.specialRequests, { footer });
+}
+
+async function clearBasketAndOpenCatalog(from, session, lang, businessId, bodyOverride) {
+  await openCatalog(from, session, lang, businessId, bodyOverride, BASKET_CLEAR_PATCH);
 }
 
 async function openCatalog(from, session, lang, businessId, bodyOverride, sessionOverrides = {}) {
@@ -244,6 +345,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     }
 
     if (id === 'btn_add_more') {
+      await patchSession(from, { basketRemovePending: undefined }, session);
       if (session.flow === 'list') {
         const { menuId, textMenuIndex, textMenuCategory } = await sendMenu(from, lang, businessId);
         await patchSession(from, { menuId, textMenuIndex, textMenuCategory }, session);
@@ -258,18 +360,18 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
         await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
         return;
       }
-      if (isGatedOnDeliveryMinimum(session)) {
-        await showDeliveryBasketGate({ from, session, lang, basket, businessId });
+      await patchSession(from, { basketRemovePending: undefined, basketRemoveDisambig: undefined }, session);
+      await showBasketForSession({ from, session, lang, businessId, basket });
+      return;
+    }
+
+    if (id === 'btn_remove_item') {
+      if (!basket.length) {
+        await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
         return;
       }
-      await sendButtonMessage(from, {
-        body: buildBasketText(basket, lang, session.specialRequests),
-        buttons: [
-          { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
-          { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },
-          { id: 'btn_confirm',      title: t('confirmBtn', lang) },
-        ],
-      });
+      await showBasketForSession({ from, session, lang, businessId, basket, removeHint: true });
+      await patchSession(from, { basketRemovePending: true, basketRemoveDisambig: undefined }, session);
       return;
     }
 
@@ -277,16 +379,11 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       // Full reset, not just the basket: orderType/deliveryAddress/specialRequests must not
       // survive, otherwise the customer stays "delivery-gated" after re-adding items even
       // though they haven't been asked pickup-or-delivery again yet.
-      await openCatalog(from, session, lang, businessId, undefined, {
-        basket: [],
-        flow: undefined,
-        orderType: undefined,
-        deliveryAddress: undefined,
-        specialRequests: undefined,
-      });
+      await clearBasketAndOpenCatalog(from, session, lang, businessId);
       return;
     }
     if (id === 'btn_done' || id === 'btn_confirm') {
+      await patchSession(from, { basketRemovePending: undefined, basketRemoveDisambig: undefined }, session);
       if (!basket.length) {
         await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
         return;
@@ -325,6 +422,11 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     }
   }
 
+  // Text: basket remove mode (line numbers or item names)
+  if (type === 'text' && text?.trim() && session.basketRemovePending && basket.length) {
+    if (await handleBasketRemoveText({ from, session, lang, businessId, basket, text, norm })) return;
+  }
+
   // Text: full menu keyword (Layer 5 escape hatch)
   if (type === 'text' && isMenuRequest(norm)) {
     await openCatalog(from, session, lang, businessId);
@@ -337,18 +439,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       await sendOrderEntryPrompt({ from, session, lang, businessId, bodyOverride: t('basketEmpty', lang) });
       return;
     }
-    if (isGatedOnDeliveryMinimum(session)) {
-      await showDeliveryBasketGate({ from, session, lang, basket, businessId });
-      return;
-    }
-    await sendButtonMessage(from, {
-      body: buildBasketText(basket, lang, session.specialRequests),
-      buttons: [
-        { id: 'btn_add_more',     title: t('addMoreBtn', lang) },
-        { id: 'btn_clear_basket', title: t('clearBasketBtn', lang) },
-        { id: 'btn_confirm',      title: t('confirmBtn', lang) },
-      ],
-    });
+    await showBasketForSession({ from, session, lang, businessId, basket });
     return;
   }
 
@@ -363,11 +454,13 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     if (await handleSearchModeText({ from, session, lang, businessId, basket, text, norm })) return;
   }
 
-  // Text: numbered selection — skip default catalog resend for digit-only replies
+  // Text: digits / index only — skip menu index when removing from basket
   if (type === 'text' && text?.trim() && /^[\d\s,;xX×*.+-]+$/.test(text.trim()) && /\d/.test(text)) {
-    if (await tryNumberSelectionOrder({ from, session, lang, businessId, basket, text })) return;
-    await sendText(from, t('textMenuPickCategory', lang));
-    return;
+    if (!session.basketRemovePending) {
+      if (await tryNumberSelectionOrder({ from, session, lang, businessId, basket, text })) return;
+      await sendText(from, t('textMenuPickCategory', lang));
+      return;
+    }
   }
 
   // Text: short edits / confirm while a proposal is pending (ohne ayran, cola, Hinzufügen)
