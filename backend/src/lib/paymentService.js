@@ -9,7 +9,12 @@ const { t } = require('../bot/templates');
 const SETTLEMENT_HOLD_DAYS = 7;
 
 function paymentBaseUrl() {
-  return (process.env.BACKEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+  const url = process.env.BACKEND_URL?.replace(/\/$/, '');
+  if (url) return url;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('BACKEND_URL must be set on Cloud Run for Stripe payment redirects');
+  }
+  return 'http://localhost:3000';
 }
 
 async function createCheckoutSessionForOrder(businessId, orderId, { totalEuros, restaurantName, shortId }) {

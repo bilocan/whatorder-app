@@ -19,6 +19,7 @@ const {
   createCheckoutSessionForOrder,
   handleCheckoutSessionCompleted,
   processStripeWebhookEvent,
+  paymentBaseUrl,
 } = require('../paymentService');
 
 const mockOrderUpdate = jest.fn();
@@ -66,6 +67,33 @@ describe('createCheckoutSessionForOrder', () => {
     getStripe.mockReturnValue(null);
     await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
       .rejects.toThrow('Stripe is not configured');
+  });
+});
+
+describe('paymentBaseUrl', () => {
+  const prevBackendUrl = process.env.BACKEND_URL;
+  const prevNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.BACKEND_URL = prevBackendUrl;
+    process.env.NODE_ENV = prevNodeEnv;
+  });
+
+  test('uses BACKEND_URL when set', () => {
+    process.env.BACKEND_URL = 'https://api.example.com/';
+    expect(paymentBaseUrl()).toBe('https://api.example.com');
+  });
+
+  test('defaults to localhost in development', () => {
+    delete process.env.BACKEND_URL;
+    process.env.NODE_ENV = 'development';
+    expect(paymentBaseUrl()).toBe('http://localhost:3000');
+  });
+
+  test('throws in production when BACKEND_URL is missing', () => {
+    delete process.env.BACKEND_URL;
+    process.env.NODE_ENV = 'production';
+    expect(() => paymentBaseUrl()).toThrow('BACKEND_URL must be set');
   });
 });
 
