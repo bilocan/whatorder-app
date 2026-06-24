@@ -125,3 +125,41 @@ describe('classifyMenuMatch — Austrian pizza', () => {
     ]);
   });
 });
+
+const ENES_PIZZA_MENU = [
+  { id: 'm1', name: 'Pizza Marinara (33cm)', price: 9.9, available: true },
+  { id: 'm2', name: 'Pizza Margherita (33cm)', price: 12.9, available: true },
+  { id: 'm3', name: 'Pizza Spinachi (33cm)', price: 13.9, available: true },
+];
+
+describe('classifyMenuMatch — Enes spinaci / spinachi typos', () => {
+  test('spinaci matches Pizza Spinachi (33cm)', () => {
+    const result = classifyMenuMatch('spinaci', ENES_PIZZA_MENU);
+    expect(result.type).toBe('unique');
+    expect(result.item.name).toBe('Pizza Spinachi (33cm)');
+  });
+
+  test('eine spinaci noch bitte matches Spinachi not Marinara', () => {
+    const { parseIntent } = require('../intentParser');
+    const { matchIntentToMenu } = require('../intentMatcher');
+    const { normalizeIntentItemName } = require('../intentModifiers');
+    const intent = parseIntent('eine spinaci noch bitte');
+    const name = normalizeIntentItemName(intent.items[0].name);
+    const result = classifyMenuMatch(name, ENES_PIZZA_MENU);
+    expect(result.type).toBe('unique');
+    expect(result.item.id).toBe('m3');
+    const { matched, unmatched } = matchIntentToMenu(intent, ENES_PIZZA_MENU);
+    expect(unmatched).toEqual([]);
+    expect(matched[0].name).toBe('Pizza Spinachi (33cm)');
+  });
+
+  test('eine spinaci pizza bitte matches Spinachi not cheapest Marinara', () => {
+    const { parseIntent } = require('../intentParser');
+    const { matchIntentToMenu } = require('../intentMatcher');
+    const intent = parseIntent('eine spinaci pizza bitte');
+    const { matched, unmatched } = matchIntentToMenu(intent, ENES_PIZZA_MENU);
+    expect(unmatched).toEqual([]);
+    expect(matched).toHaveLength(1);
+    expect(matched[0].name).toBe('Pizza Spinachi (33cm)');
+  });
+});

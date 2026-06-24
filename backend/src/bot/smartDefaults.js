@@ -1,4 +1,4 @@
-const { containsWord, splitCompoundDish } = require('./menuSynonyms');
+const { containsWord, splitCompoundDish, wordMatchesInText } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
 
 function norm(str) {
@@ -116,6 +116,20 @@ function shouldApplyKebabDefault(rawName, candidates) {
   return (candidates ?? []).some(c => /sandwich/i.test(norm(c.name)));
 }
 
+const PIZZA_GENERIC_WORDS = new Set([
+  'pizza', 'familienpizza', 'familien', 'grosse', 'grose', 'große', 'family',
+]);
+
+/** Do not default to cheapest pizza when the customer named a variant that matched nothing. */
+function hasUnmatchedVariantWord(rawName, candidates) {
+  const dish = norm(extractDishNameForMatch(rawName) || rawName);
+  const words = dish.split(/\s+/).filter(w => w.length > 2 && !PIZZA_GENERIC_WORDS.has(w));
+  if (!words.length) return false;
+  return words.some(v =>
+    !(candidates ?? []).some(c => wordMatchesInText(v, norm(c.name))),
+  );
+}
+
 function pickPizzaVariantDefault(candidates) {
   const list = (candidates ?? []).filter(c => norm(c.name).includes('pizza'));
   if (!list.length) return null;
@@ -167,6 +181,7 @@ function trySmartDefault(rawName, candidates) {
   }
 
   if (list.every(c => norm(c.name).includes('pizza'))) {
+    if (hasUnmatchedVariantWord(rawName, list)) return null;
     return pickPizzaVariantDefault(list);
   }
 

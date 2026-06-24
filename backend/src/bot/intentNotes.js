@@ -29,7 +29,7 @@ const SPICY_NOTE_BY_LANG = {
 
 function hasExplicitSpicyInText(text) {
   const raw = text ?? '';
-  return /\b(?:und\s+|mit\s+|extra\s+)?(scharf|scharfe|scharfer|spicy|hot|chili|chilli|acili|aci)\b/i.test(raw)
+  return /\b(?:und\s+|mit\s+|extra\s+)?(scharf|scharfe|scharfer|spicy|hot|chili|chilli|acili|aci|sharf)\b/i.test(raw)
     || /\bund\s+schaf\b/i.test(raw);
 }
 

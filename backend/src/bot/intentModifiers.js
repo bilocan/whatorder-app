@@ -43,12 +43,14 @@ function stripIntentModifiers(rawIntentName) {
   let s = (rawIntentName ?? '').trim();
   s = s.replace(/\b(zum mitnehmen|zum essen|takeaway|to go|abholen)\b/gi, ' ');
   s = s.replace(/\bmit (?:allem|allen)\b/gi, ' ');
-  s = s.replace(/\bund\s+(?:scharf|scharfe|spicy|hot|chili|acili|aci|schaf)\b/gi, ' ');
-  s = s.replace(/\bmit\s+(?:scharf|scharfe|spicy|hot|chili|acili|aci)\b/gi, ' ');
+  s = s.replace(/\bund\s+(?:scharf|scharfe|spicy|hot|chili|acili|aci|schaf|sharf)\b/gi, ' ');
+  s = s.replace(/\bmit\s+(?:scharf|scharfe|spicy|hot|chili|acili|aci|sharf)\b/gi, ' ');
   s = s.replace(/\b(?:ohne|without|no)\s+.+$/i, ' ');
   s = s.replace(/\b\d+\s*cm\b/gi, ' ');
   s = s.replace(/\b(familienpizza|familien pizza|grosse pizza|große pizza)\b/gi, ' familienpizza ');
   s = s.replace(/\b(einer|eine|eins)\b/gi, ' ');
+  s = s.replace(/\bnoch\b/gi, ' ');
+  s = s.replace(/\bbitte\b/gi, ' ');
   s = s.replace(/\s+/g, ' ').trim();
   return s;
 }
@@ -77,12 +79,14 @@ function extractModifierKey(rawIntentName) {
   return n;
 }
 
-/** TTS / STT typos for exclusion words (language-specific mishears). */
-const EXCLUSION_TTS_TYPOS = new Map([
+/** TTS / STT / typing typos for spicy (inclusion and exclusion). */
+const SPICY_TYPOS = new Map([
   // DE: voice writes Schaf for scharf
   ['schaf', 'scharf'],
   ['schaff', 'scharf'],
   ['schaaf', 'scharf'],
+  // DE: common typo sharf for scharf
+  ['sharf', 'scharf'],
 ]);
 
 /** Spicy exclusion stems — DE / EN / TR (normalized, no diacritics). */
@@ -97,9 +101,13 @@ const SPICY_LABEL_STEMS = [
   'scharfe sauce', 'chili sauce', 'hot sauce', 'aci sos', 'acili',
 ];
 
-function normalizeExclusionToken(token) {
+function normalizeSpicyToken(token) {
   const n = norm(token);
-  return EXCLUSION_TTS_TYPOS.get(n) ?? n;
+  return SPICY_TYPOS.get(n) ?? n;
+}
+
+function normalizeExclusionToken(token) {
+  return normalizeSpicyToken(token);
 }
 
 function isSpicyExclusion(ex) {
@@ -163,7 +171,7 @@ function wantsAllIncluded(rawIntentName) {
 
 /** Standalone token after "und" — not a menu item (e.g. "… mit allem und scharf"). */
 function isModifierOnlyToken(token) {
-  const n = norm(stripPoliteSuffix(token));
+  const n = normalizeSpicyToken(stripPoliteSuffix(token));
   if (!n) return false;
   if (MODIFIER_ONLY_TOKENS.has(n)) return true;
   return SPICY_EXCLUSION_STEMS.some(stem => n === stem);
@@ -173,17 +181,17 @@ function stripPoliteSuffix(name) {
   return (name ?? '').replace(/\s+bitte\s*$/i, '').trim();
 }
 
-/** Explicit spicy inclusion: "mit scharf", "und scharf", TTS "und schaf". */
+/** Explicit spicy inclusion: "mit scharf", "und scharf", TTS "und schaf", typo "sharf". */
 function wantsSpicyIncluded(rawIntentName) {
   const raw = rawIntentName ?? '';
   if (wantsAllIncluded(raw)) return false;
-  return /\b(?:und\s+|mit\s+|extra\s+)?(scharf|scharfe|scharfer|spicy|hot|chili|chilli|acili|aci)\b/i.test(raw)
+  return /\b(?:und\s+|mit\s+|extra\s+)?(scharf|scharfe|scharfer|spicy|hot|chili|chilli|acili|aci|sharf)\b/i.test(raw)
     || /\bund\s+schaf\b/i.test(raw);
 }
 
 const MODIFIER_ONLY_TOKENS = new Set([
   'scharf', 'scharfe', 'scharfer', 'spicy', 'hot', 'chili', 'chilli',
-  'aci', 'acili', 'schaf', 'schaff', 'schaaf',
+  'aci', 'acili', 'schaf', 'schaff', 'schaaf', 'sharf',
 ]);
 
 function resolveModifierSelections(rawIntentName, optionGroups) {

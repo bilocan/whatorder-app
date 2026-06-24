@@ -7,7 +7,7 @@ const SYNONYM_GROUPS = [
   ['ayran'],
   ['pizza'],
   ['margherita', 'margarita', 'margarete', 'margareta'],
-  ['spinaci', 'spinati'],
+  ['spinaci', 'spinati', 'spinachi'],
   ['familienpizza', 'familien pizza', 'grosse pizza', 'große pizza', 'family pizza'],
   ['ayran', 'ayram', 'jogurt', 'joghurt'],
   ['lahmacun', 'turkish pizza', 'turkische pizza', 'turk pizzasi', 'turk pizzası'],
@@ -52,6 +52,49 @@ function splitCompoundDish(normText) {
   return [m[1], m[2]];
 }
 
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      const next = Math.min(row[j] + 1, prev + 1, row[j - 1] + cost);
+      row[j - 1] = prev;
+      prev = next;
+    }
+    row[b.length] = prev;
+  }
+  return row[b.length];
+}
+
+function maxTypoDistance(a, b) {
+  const len = Math.max(a.length, b.length);
+  if (len < 5) return 0;
+  if (len <= 8) return 1;
+  return 2;
+}
+
+/** One-edit (or two for long tokens) tolerance — e.g. spinaci ↔ spinachi, Margarita ↔ Margherita. */
+function typoTolerantWordMatch(a, b) {
+  const x = norm(a);
+  const y = norm(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  if (containsWord(x, y) || containsWord(y, x)) return true;
+  const maxDist = maxTypoDistance(x, y);
+  if (!maxDist) return false;
+  return levenshtein(x, y) <= maxDist;
+}
+
+function nameTokens(text) {
+  return norm(text)
+    .split(/[^a-z0-9äöüß]+/i)
+    .filter(w => w.length >= 5 && !/^\d+$/.test(w));
+}
+
 /** True when word (or a synonym) appears as a word in textNorm. */
 function wordMatchesInText(word, textNorm) {
   const w = norm(word);
@@ -62,6 +105,7 @@ function wordMatchesInText(word, textNorm) {
     if (!terms.some(t => containsWord(w, t) || w === t)) continue;
     if (terms.some(t => containsWord(textNorm, t))) return true;
   }
+  if (nameTokens(textNorm).some(t => typoTolerantWordMatch(w, t))) return true;
   return false;
 }
 
@@ -80,4 +124,13 @@ function expandNeedle(rawName) {
   return [...expanded];
 }
 
-module.exports = { SYNONYM_GROUPS, expandNeedle, wordMatchesInText, containsWord, splitCompoundDish };
+module.exports = {
+  SYNONYM_GROUPS,
+  expandNeedle,
+  wordMatchesInText,
+  containsWord,
+  splitCompoundDish,
+  typoTolerantWordMatch,
+  nameTokens,
+  levenshtein,
+};

@@ -161,6 +161,14 @@ describe('parseIntent', () => {
     expect(r.items).toEqual([{ name: 'kebap mit allem und scharf', qty: 1 }]);
   });
 
+  test('sharf typo stays on kebap line not a separate item', () => {
+    const r = parseIntent('bitte ein kebap mit allen und sharf und ayran dazu');
+    expect(r.items).toEqual([
+      { name: 'bitte ein kebap mit allen und sharf', qty: 1 },
+      { name: 'ayran dazu', qty: 1 },
+    ]);
+  });
+
   test('was empfehlt ihr still parses but matching happens downstream', () => {
     const r = parseIntent('was empfehlt ihr');
     expect(r.items.length).toBeGreaterThan(0);
