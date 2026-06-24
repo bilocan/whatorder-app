@@ -25,6 +25,7 @@ function intentLearnKey(text) {
     '',
   );
   s = s.replace(/^\s*hätte\s+gerne\s+/i, '');
+  s = s.replace(/^\s*(?:was\s+)?für\s+mich\s+/i, '');
   s = s.replace(/^\s*noch\s+(?:ein|eine|einen|einer|dazu)\s+/i, '');
   s = s.replace(/^\s*(?:auch|nochmal)\s+(?:ein|eine|einen|einer)\s+/i, '');
   return norm(s.replace(/\s+/g, ' ').trim());
