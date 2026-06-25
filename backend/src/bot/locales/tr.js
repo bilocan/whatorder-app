@@ -118,6 +118,12 @@ module.exports = {
   restaurantPickerBody: () => 'Hangi restorandan sipariş vermek istersiniz?',
   restaurantPickerButton: () => 'Restoranlar',
   restaurantPickerFooter: () => 'Menüyü açmak için bir isme dokunun',
+  restaurantPickerFooterNumbered: () => 'Numaralar alttaki harita ile eşleşir',
+  mapLinkBody: () => '🗺️ Yakındaki restoranlar (numaralı). Numaralar yukarıdaki liste ile eşleşir.',
+  mapLinkBtn: () => 'Haritada gör',
+  interactiveMapBody: () => 'Her işarette restoran adıyla etkileşimli haritayı açın.',
+  interactiveMapBtn: () => 'Haritayı aç',
+  noNearbyRestaurants: (maxKm) => `${maxKm} km içinde restoran yok. Bu numaradaki tüm restoranlar için *hepsi* yazın.`,
   switchConfirmed: () => '🔄 Restoran değiştiriliyor. Sepetiniz temizlendi.',
 
   orderConfirmedWithChoice: (shortId, name, alertPhone, address) => {

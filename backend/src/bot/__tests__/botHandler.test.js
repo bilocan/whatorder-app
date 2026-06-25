@@ -42,7 +42,7 @@ const { handleMessage } = require('../botHandler');
 const { getSession, setSession, patchSession } = require('../sessionStore');
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { createOrder, getLastOrderForCustomer } = require('../orderService');
-const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage } = require('../../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage, sendCtaUrlMessage } = require('../../lib/whatsapp');
 const { reverseGeocode } = require('../../lib/geocode');
 const { customersRef } = require('../../lib/collections');
 
@@ -129,7 +129,7 @@ beforeEach(() => {
   sendButtonMessage.mockResolvedValue();
   sendFlowMessage.mockResolvedValue(null);
   sendLocationRequest.mockResolvedValue();
-  sendImage.mockResolvedValue();
+  sendImage.mockResolvedValue('map_msg_id');
   resolvePhotoUrl.mockReturnValue(null);
   reverseGeocode.mockResolvedValue(null);
   mockCustomerProfile(null); // no saved address by default
@@ -520,9 +520,16 @@ describe('Multi-restaurant: awaiting_location state', () => {
   const BIZ_B_WITH_COORDS = { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 };
 
   beforeEach(() => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-maps-key';
+    process.env.NGROK_DOMAIN = 'tunnel.ngrok-free.dev';
     getBusinessInfo.mockImplementation(id =>
       Promise.resolve(id === 'biz_a' ? BIZ_A_WITH_COORDS : BIZ_B_WITH_COORDS)
     );
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_MAPS_API_KEY;
+    delete process.env.NGROK_DOMAIN;
   });
 
   test('location message sorts restaurants by distance and shows picker', async () => {
@@ -532,6 +539,14 @@ describe('Multi-restaurant: awaiting_location state', () => {
     await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'selecting_restaurant', lat: 48.1980, lng: 16.3730 }));
+    expect(sendImage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: expect.stringContaining('tunnel.ngrok-free.dev/api/maps/restaurants-preview'),
+      caption: expect.stringContaining('list above'),
+    }));
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: expect.stringContaining('/map?clat='),
+      buttonLabel: 'Open map',
+    }));
     expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       sections: [expect.objectContaining({
         rows: expect.arrayContaining([
@@ -539,9 +554,28 @@ describe('Multi-restaurant: awaiting_location state', () => {
         ]),
       })],
     }));
-    // First row should be biz_b (closer)
     const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
     expect(rows[0].id).toBe('restaurant_biz_b');
+    expect(rows[0].title).toMatch(/^1\./);
+    expect(rows).toHaveLength(2);
+  });
+
+  test('excludes restaurants beyond 20 km from picker and map', async () => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a'
+        ? { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 }
+        : { ...BIZ_B_INFO, lat: 41.0082, lng: 28.9784 }),
+    );
+    getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
+
+    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe('restaurant_biz_a');
+    const imageUrl = sendImage.mock.calls[0][1].url;
+    expect(imageUrl).toContain('48.2093');
+    expect(imageUrl).not.toContain('41.0082');
   });
 
   test('location row description shows distance', async () => {
@@ -560,6 +594,8 @@ describe('Multi-restaurant: awaiting_location state', () => {
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'skip' }));
 
+    expect(sendCtaUrlMessage).not.toHaveBeenCalled();
+    expect(sendImage).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'selecting_restaurant', lat: null, lng: null }));
     expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       sections: [expect.objectContaining({
@@ -592,9 +628,16 @@ describe('Multi-restaurant: late location share in selecting_restaurant', () => 
   const BIZ_B_WITH_COORDS = { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 };
 
   beforeEach(() => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-maps-key';
+    process.env.NGROK_DOMAIN = 'tunnel.ngrok-free.dev';
     getBusinessInfo.mockImplementation(id =>
       Promise.resolve(id === 'biz_a' ? BIZ_A_WITH_COORDS : BIZ_B_WITH_COORDS)
     );
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_MAPS_API_KEY;
+    delete process.env.NGROK_DOMAIN;
   });
 
   test('location message re-shows picker sorted by distance and saves coords to session', async () => {
@@ -602,6 +645,7 @@ describe('Multi-restaurant: late location share in selecting_restaurant', () => 
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
 
+    expect(sendImage).toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ lat: 48.1980, lng: 16.3730 }));
     expect(sendListMessage).toHaveBeenCalled();
     const rows = sendListMessage.mock.calls[0][1].sections[0].rows;

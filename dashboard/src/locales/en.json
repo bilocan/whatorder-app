@@ -17,6 +17,7 @@
     "menu": "Menu",
     "settings": "Settings",
     "admin": "Admin",
+    "adminMap": "Map",
     "earnings": "Earnings",
     "signOut": "Sign out"
   },
@@ -31,6 +32,7 @@
     "phoneLabel": "Phone number",
     "sendCode": "Send code",
     "sendError": "Failed to send code. Check the phone number and try again.",
+    "backendUnreachable": "Cannot reach the backend. Is npm run dev running? On LAN, open the dashboard via Vite (port 5173), not a wrong API port.",
     "sending": "Sending...",
     "codeSentTo": "Code sent to {{phone}}",
     "verificationCode": "Verification code",
@@ -320,6 +322,7 @@
     },
     "restaurants": {
       "title": "Restaurants",
+      "mapLink": "View on map",
       "newButton": "+ New Restaurant",
       "botConfigHint": "Set VITE_WHATSAPP_PHONE_NUMBER_ID in your env to enable restaurant creation.",
       "botNotConfigured": "WhatsApp bot not configured.",
@@ -429,6 +432,24 @@
         "adding": "Adding...",
         "addOwner": "+ Add owner"
       }
+    },
+    "map": {
+      "title": "Restaurant map",
+      "subtitle": "Live view of registered restaurants with coordinates. New restaurants appear when address lookup is saved.",
+      "backToList": "← Restaurant list",
+      "stats": {
+        "onMap": "{{count}} on map",
+        "missing": "{{count}} missing coordinates"
+      },
+      "unmappedTitle": "Not on map yet",
+      "addCoordsHint": "add address + coordinates in Details"
     }
+  },
+  "publicMap": {
+    "title": "Nearby restaurants",
+    "subtitle": "Tap a pin for the restaurant name. Numbers match the WhatsApp list.",
+    "loading": "Loading map…",
+    "error": "Could not load restaurants.",
+    "empty": "No restaurants with coordinates yet."
   }
 }

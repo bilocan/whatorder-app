@@ -118,6 +118,12 @@ module.exports = {
   restaurantPickerBody: () => 'Bei welchem Restaurant möchten Sie bestellen?',
   restaurantPickerButton: () => 'Restaurants',
   restaurantPickerFooter: () => 'Tippen Sie auf einen Namen um die Karte zu öffnen',
+  restaurantPickerFooterNumbered: () => 'Nummern passen zur Karte unten',
+  mapLinkBody: () => '🗺️ Restaurants in der Nähe (nummeriert). Nummern passen zur Liste oben.',
+  mapLinkBtn: () => 'Auf Karte',
+  interactiveMapBody: () => 'Interaktive Karte mit Restaurantnamen auf jeder Markierung öffnen.',
+  interactiveMapBtn: () => 'Karte öffnen',
+  noNearbyRestaurants: (maxKm) => `Keine Restaurants im Umkreis von ${maxKm} km. Antworten Sie mit *alle*, um alle Restaurants zu sehen.`,
   switchConfirmed: () => '🔄 Restaurant wird gewechselt. Ihr Warenkorb wurde geleert.',
 
   orderConfirmedWithChoice: (shortId, name, alertPhone, address) => {
