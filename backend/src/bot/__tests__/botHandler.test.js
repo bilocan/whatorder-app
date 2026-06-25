@@ -476,6 +476,17 @@ describe('Deep link: returning customer (single restaurant)', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('sonuç yok'));
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('No results'));
   });
+
+  test('QR deep link entry shows restaurant-branded order entry prompt', async () => {
+    getSession.mockResolvedValue({});
+    getLastOrderForCustomer.mockResolvedValue(null);
+
+    await handleMessage(ROUTING, msg({ text: `ORDER ${BIZ}` }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining(BIZ_INFO.name),
+    }));
+  });
 });
 
 // ─── Use case: post-order routing (language set, no businessId) ───────────────
@@ -920,6 +931,9 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
       businessId: 'biz_b',
     }));
     expectOrderEntryPrompt();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining(BIZ_B_INFO.name),
+    }));
   });
 
   test('valid restaurant list_reply → reorder prompt when order history exists', async () => {
@@ -933,6 +947,7 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
 
     expect(getLastOrderForCustomer).toHaveBeenCalledWith('biz_b', FROM);
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining(BIZ_B_INFO.name),
       buttons: expect.arrayContaining([
         expect.objectContaining({ id: 'btn_reorder_confirm' }),
       ]),
@@ -1518,6 +1533,9 @@ describe('Intent ordering (Tier A)', () => {
     await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
     expectOrderEntryPrompt();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining(BIZ_INFO.name),
+    }));
   });
 
   test('btn_search opens search prompt', async () => {

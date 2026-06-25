@@ -1,4 +1,4 @@
-const { buildReorderBasket } = require('../reorder');
+const { buildReorderBasket, buildReorderPromptBody } = require('../reorder');
 
 const MENU = [
   { id: 'item_1', name: 'Döner', price: 8.5, available: true },
@@ -40,5 +40,14 @@ describe('buildReorderBasket', () => {
   test('clamps qty to 1–99', () => {
     const { matched } = buildReorderBasket([{ name: 'Döner', qty: 0, price: 8.5 }], MENU);
     expect(matched[0].qty).toBe(1);
+  });
+});
+
+describe('buildReorderPromptBody', () => {
+  test('embeds restaurant name in the header', () => {
+    const body = buildReorderPromptBody(
+      [{ name: 'Döner', qty: 2, price: 8.5 }], [], 'en', 'Döner Palace',
+    );
+    expect(body).toContain('Döner Palace');
   });
 });
