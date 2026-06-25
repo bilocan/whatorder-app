@@ -21,9 +21,14 @@ function chatPrefillFromQuery(query = {}) {
   return null;
 }
 
+function isOrderDeepLink(text) {
+  return ORDER_PREFIX_RE.test((text ?? '').trim());
+}
+
 module.exports = {
   parseOrderDeepLink,
   buildOrderDeepLinkPrefill,
   chatPrefillFromQuery,
+  isOrderDeepLink,
   ORDER_PREFIX_RE,
 };

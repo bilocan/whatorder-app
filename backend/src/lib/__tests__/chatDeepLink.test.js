@@ -29,4 +29,11 @@ describe('chatDeepLink', () => {
     expect(chatPrefillFromQuery({ text: 'Bestellen' })).toBe('Bestellen');
     expect(chatPrefillFromQuery({})).toBeNull();
   });
+
+  test('isOrderDeepLink detects ORDER token messages', () => {
+    const { isOrderDeepLink } = require('../chatDeepLink');
+    expect(isOrderDeepLink('ORDER biz_hamat_abc')).toBe(true);
+    expect(isOrderDeepLink('ORDER+biz_hamat_abc')).toBe(true);
+    expect(isOrderDeepLink('Bestellen')).toBe(false);
+  });
 });

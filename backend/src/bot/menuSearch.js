@@ -6,6 +6,7 @@ const { isGreetingOnly } = require('./intentParser');
 const { isMenuRequest } = require('./orderEntry');
 const { getMenu } = require('./menuService');
 const { sendOrderEntryPrompt } = require('./orderEntry');
+const { isOrderDeepLink } = require('../lib/chatDeepLink');
 
 const MAX_SEARCH_RESULTS = 5;
 
@@ -25,6 +26,7 @@ function isShortLookupText(text, norm) {
   const trimmed = (text ?? '').trim();
   if (!trimmed || isGreetingOnly(norm)) return false;
   if (isMenuRequest(norm) || isSearchKeyword(norm)) return false;
+  if (isOrderDeepLink(trimmed)) return false;
 
   const words = trimmed.split(/\s+/).filter(Boolean);
   if (words.length === 0 || words.length > 2) return false;
