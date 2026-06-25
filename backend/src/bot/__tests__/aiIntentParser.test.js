@@ -111,6 +111,20 @@ describe('parseIntentAsync', () => {
     expect(r.items).toEqual([{ name: 'Eiern', qty: 2 }]);
     expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
   });
+
+  test('uses rules only for single-word menu keywords without calling LLM', async () => {
+    for (const word of ['schnitzel', 'döner']) {
+      jest.clearAllMocks();
+      canCallLlm.mockReturnValue(true);
+      parseOrderIntentWithLlm.mockResolvedValue(null);
+
+      const r = await parseIntentAsync(word, { phone: '+439' });
+
+      expect(r.parsedBy).toBe('rules');
+      expect(r.items).toEqual([{ name: word, qty: 1 }]);
+      expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
+    }
+  });
 });
 
 describe('shouldTryLlm', () => {
@@ -124,5 +138,20 @@ describe('shouldTryLlm', () => {
     const text = 'ich hätte gerne zwei Hühner Kebab eine mit allem und andere ohne Schaf und Soße bitte';
     const rules = parseIntent(text);
     expect(shouldTryLlm(text, rules, '+436')).toBe(false);
+  });
+
+  test('false for single-word menu keywords', () => {
+    const { parseIntent } = require('../intentParser');
+    for (const word of ['schnitzel', 'döner', 'cola']) {
+      const rules = parseIntent(word);
+      expect(shouldTryLlm(word, rules, '+437')).toBe(false);
+    }
+  });
+
+  test('true for multi-word conversational blob', () => {
+    const { parseIntent } = require('../intentParser');
+    const text = 'something light for the kids';
+    const rules = parseIntent(text);
+    expect(shouldTryLlm(text, rules, '+438')).toBe(true);
   });
 });

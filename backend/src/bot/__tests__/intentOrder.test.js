@@ -13,6 +13,7 @@ jest.mock('../../lib/llm', () => ({
 const { setSession } = require('../sessionStore');
 const { getMenu } = require('../menuService');
 const { sendButtonMessage } = require('../../lib/whatsapp');
+const { canCallLlm, parseOrderIntentWithLlm } = require('../../lib/llm');
 const { tryTextIntentOrder } = require('../intentOrder');
 
 const MENU = [
@@ -59,5 +60,31 @@ describe('tryTextIntentOrder', () => {
     const body = sendButtonMessage.mock.calls[0][1].body;
     expect(body).toMatch(/2x Döner/);
     expect(body).toMatch(/1x Ayran/);
+  });
+
+  test('retries with LLM when rules parse misses menu and LLM resolves match', async () => {
+    canCallLlm.mockReturnValue(true);
+    parseOrderIntentWithLlm.mockResolvedValue({
+      items: [{ name: 'Döner', qty: 1 }],
+      partySize: null,
+      confidence: 0.9,
+    });
+
+    const handled = await tryTextIntentOrder({
+      from: '+43699000002',
+      session: { state: 'browsing', language: 'en', basket: [] },
+      lang: 'en',
+      businessId: 'biz_test',
+      basket: [],
+      text: 'schnitzel',
+      norm: 'schnitzel',
+    });
+
+    expect(handled).toBe(true);
+    expect(parseOrderIntentWithLlm).toHaveBeenCalledTimes(1);
+    expect(parseOrderIntentWithLlm).toHaveBeenCalledWith('schnitzel', { phone: '+43699000002' });
+    expect(sendButtonMessage).toHaveBeenCalled();
+    const body = sendButtonMessage.mock.calls[0][1].body;
+    expect(body).toMatch(/1x Döner/);
   });
 });
