@@ -7,6 +7,13 @@ function getApiKey() {
   return process.env.GOOGLE_MAPS_API_KEY || null;
 }
 
+/** Client-side Maps JavaScript API key (whatorder.at/map). Falls back to server key in pilot. */
+function getMapsJsApiKey() {
+  const jsKey = process.env.GOOGLE_MAPS_JS_API_KEY?.trim();
+  if (jsKey) return jsKey;
+  return getApiKey();
+}
+
 function isConfigured() {
   return Boolean(getApiKey());
 }
@@ -76,6 +83,7 @@ async function geocodeReverse(lat, lng) {
 
 module.exports = {
   getApiKey,
+  getMapsJsApiKey,
   isConfigured,
   fetchDrivingDistances,
   geocodeForward,
