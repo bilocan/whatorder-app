@@ -16,6 +16,7 @@ const chatRouter = require('./routes/chat');
 const geocodeRouter = require('./routes/geocode');
 const mapsPreviewRouter = require('./routes/mapsPreview');
 const mapsRestaurantsRouter = require('./routes/mapsRestaurants');
+const mapsConfigRouter = require('./routes/mapsConfig');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -39,6 +40,7 @@ app.use('/api', ordersRouter);
 app.use('/api', geocodeRouter);
 app.use('/api', mapsPreviewRouter);
 app.use('/api', mapsRestaurantsRouter);
+app.use('/api', mapsConfigRouter);
 
 if (require.main === module) {
   const host = process.env.NODE_ENV === 'production' ? undefined : '0.0.0.0';
