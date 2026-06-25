@@ -548,7 +548,7 @@ function mergeLlmIntent(llm, rawText, rulesIntent) {
   return toIntentResult(items, partySize, rawText, 'llm', llm.confidence);
 }
 
-async function parseIntentAsync(text, { phone, businessId } = {}) {
+async function parseIntentAsync(text, { phone, businessId, rulesOnly = false } = {}) {
   const rawText = (text ?? '').trim();
 
   if (businessId) {
@@ -566,7 +566,7 @@ async function parseIntentAsync(text, { phone, businessId } = {}) {
 
   const rulesIntent = parseIntent(text);
 
-  if (!shouldTryLlm(text, rulesIntent, phone)) return rulesIntent;
+  if (rulesOnly || !shouldTryLlm(text, rulesIntent, phone)) return rulesIntent;
 
   const llm = await parseOrderIntentWithLlm(text, { phone });
   if (!llm || llm.confidence < 0.6 || !llm.items.length) {

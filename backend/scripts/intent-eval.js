@@ -14,7 +14,9 @@ const HELP = `
 Intent corpus eval — golden phrases → parse/match assertions (rules-only by default).
 
 Options:
-  --file <name>     Corpus file under fixtures/intent-corpus/ (default: all)
+  --file <name>     Corpus file under fixtures/intent-corpus/ (default: all shipped cases)
+  --candidate       Run candidate.json only (harvest queue; failures expected)
+  --ci              Run builtin.json only (same as CI Jest gate)
   --tag <name>      Run only cases with this tag
   --llm             Enable LLM paths (needs API keys; not for CI)
   --verbose, -v     Print each case or extra failure detail
@@ -29,6 +31,8 @@ function parseArgs(argv) {
     llm: false,
     verbose: false,
     json: false,
+    candidate: false,
+    ci: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -37,6 +41,10 @@ function parseArgs(argv) {
       opts.file = argv[++i];
     } else if (arg === '--tag') {
       opts.tag = argv[++i];
+    } else if (arg === '--candidate') {
+      opts.candidate = true;
+    } else if (arg === '--ci') {
+      opts.ci = true;
     } else if (arg === '--llm') {
       opts.llm = true;
     } else if (arg === '--verbose' || arg === '-v') {
@@ -57,10 +65,15 @@ function parseArgs(argv) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  let mode = 'shipped';
+  if (opts.ci) mode = 'ci';
+  else if (opts.candidate) mode = 'candidate';
+
   const report = await runCorpusEval({
     file: opts.file,
     tag: opts.tag,
     llm: opts.llm,
+    mode,
   });
 
   if (opts.json) {
