@@ -13,7 +13,7 @@ async function handleAwaitingLocation({ from, session, lang, routing, type, lati
   if (type === 'location' && latitude != null && longitude != null) {
     lat = latitude;
     lng = longitude;
-    businesses = sortByDistance(businesses, lat, lng);
+    businesses = await sortByDistance(businesses, lat, lng);
   }
   const pickerId = await sendRestaurantPicker(from, businesses, lang);
   await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null, lat, lng, pendingDeleteIds: pickerId ? [pickerId] : [] });
@@ -21,7 +21,7 @@ async function handleAwaitingLocation({ from, session, lang, routing, type, lati
 
 async function handleSelectingRestaurant({ from, session, lang, routing, type, id, text, norm, latitude, longitude }) {
   if (type === 'location' && latitude != null && longitude != null) {
-    const businesses = sortByDistance(await getBusinessesInfo(routing.businessIds), latitude, longitude);
+    const businesses = await sortByDistance(await getBusinessesInfo(routing.businessIds), latitude, longitude);
     const pickerId = await sendRestaurantPicker(from, businesses, lang);
     await setSession(from, { ...session, lat: latitude, lng: longitude, pendingDeleteIds: pickerId ? [pickerId] : [] });
     return;
@@ -32,7 +32,7 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
     if (!routing.businessIds.includes(selectedBid)) {
       let businesses = await getBusinessesInfo(routing.businessIds);
       if (session.lat != null && session.lng != null) {
-        businesses = sortByDistance(businesses, session.lat, session.lng);
+        businesses = await sortByDistance(businesses, session.lat, session.lng);
       }
       await sendRestaurantPicker(from, businesses, lang);
       return;
@@ -71,7 +71,7 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
   // Any other input while picking: re-show the picker (sorted if location known)
   let businesses = await getBusinessesInfo(routing.businessIds);
   if (session.lat != null && session.lng != null) {
-    businesses = sortByDistance(businesses, session.lat, session.lng);
+    businesses = await sortByDistance(businesses, session.lat, session.lng);
   }
   await sendRestaurantPicker(from, businesses, lang);
 }

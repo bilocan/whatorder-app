@@ -1,4 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+
+vi.mock('../lib/firebase', () => ({
+  auth: {
+    currentUser: {
+      getIdToken: vi.fn().mockResolvedValue('test-token'),
+    },
+  },
+}));
+
 import { geocodeAddress } from '../lib/geocode';
 
 function mockFetch(status: number, body: unknown) {
@@ -14,53 +23,40 @@ afterEach(() => {
 });
 
 describe('geocodeAddress', () => {
-  it('returns lat/lng for a valid address', async () => {
-    mockFetch(200, [{ lat: '48.2093', lon: '16.3621' }]);
+  it('returns lat/lng from backend API', async () => {
+    mockFetch(200, { lat: 48.2093, lng: 16.3621 });
 
     const result = await geocodeAddress('Margaretenstrasse 42, Wien');
 
     expect(result).toEqual({ lat: 48.2093, lng: 16.3621 });
   });
 
-  it('returns null when Nominatim finds no results', async () => {
-    mockFetch(200, []);
+  it('returns null when backend returns 404', async () => {
+    mockFetch(404, { error: 'Address not found' });
 
     const result = await geocodeAddress('xkcd nowhere 99999');
 
     expect(result).toBeNull();
   });
 
-  it('throws when Nominatim returns a non-ok status', async () => {
-    mockFetch(429, {});
+  it('throws when backend returns a non-ok status', async () => {
+    mockFetch(500, { error: 'Geocode failed' });
 
-    await expect(geocodeAddress('any address')).rejects.toThrow('Nominatim error: 429');
+    await expect(geocodeAddress('any address')).rejects.toThrow('Geocode error: 500');
   });
 
-  it('calls Nominatim with the address URL-encoded', async () => {
-    mockFetch(200, [{ lat: '48.0', lon: '16.0' }]);
+  it('calls backend with auth token and address', async () => {
+    mockFetch(200, { lat: 48.0, lng: 16.0 });
 
     await geocodeAddress('Döner Palace, Wien');
 
-    const calledUrl = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-    expect(calledUrl).toContain('nominatim.openstreetmap.org/search');
-    expect(calledUrl).toContain(encodeURIComponent('Döner Palace, Wien'));
-  });
-
-  it('sends a User-Agent header', async () => {
-    mockFetch(200, [{ lat: '48.0', lon: '16.0' }]);
-
-    await geocodeAddress('Some Street 1');
-
-    const calledInit = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][1];
-    expect(calledInit?.headers?.['User-Agent']).toMatch(/WhatOrder/);
-  });
-
-  it('parses lat/lng as numbers, not strings', async () => {
-    mockFetch(200, [{ lat: '48.2093000', lon: '16.3621000' }]);
-
-    const result = await geocodeAddress('any');
-
-    expect(typeof result?.lat).toBe('number');
-    expect(typeof result?.lng).toBe('number');
+    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/api/geocode');
+    expect(init?.method).toBe('POST');
+    expect(init?.headers).toMatchObject({
+      Authorization: 'Bearer test-token',
+      'Content-Type': 'application/json',
+    });
+    expect(JSON.parse(init?.body as string)).toEqual({ address: 'Döner Palace, Wien' });
   });
 });

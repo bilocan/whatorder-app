@@ -398,9 +398,13 @@ async function sendRestaurantPicker(to, businesses, lang) {
       title: 'Restaurants',
       rows: businesses.map(b => {
         const distLabel = b.distanceKm != null
-          ? (b.distanceKm < 1
-              ? `📍 ${Math.round(b.distanceKm * 1000)} m`
-              : `📍 ${b.distanceKm.toFixed(1)} km`)
+          ? (() => {
+              const distPart = b.distanceKm < 1
+                ? `${Math.round(b.distanceKm * 1000)} m`
+                : `${b.distanceKm.toFixed(1)} km`;
+              const durPart = b.durationMin != null ? ` · ${b.durationMin} min` : '';
+              return `📍 ${distPart}${durPart}`;
+            })()
           : null;
         const statusSuffix = b.isOpen === false ? ` · ${t('closedLabel', lang)}` : '';
         const tagPart = distLabel ? `${distLabel} · ${b.tagline}` : b.tagline;
