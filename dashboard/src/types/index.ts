@@ -96,6 +96,7 @@ export interface Business {
   schedule?: BusinessSchedule;
   botLanguage?: 'de' | 'tr' | 'en';
   paymentEnabled?: boolean;
+  imageUrl?: string;
 }
 
 export interface PhoneRouting {
