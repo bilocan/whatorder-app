@@ -242,6 +242,15 @@
       "saved": "Saved",
       "invalidValue": "Invalid value"
     },
+    "payment": {
+      "title": "Card Payment",
+      "description": "Allow customers to pay by card during checkout via the bot. If disabled, customers can only pay cash on pickup/delivery.",
+      "acceptPayment": "Accept card payments",
+      "save": "Save payment settings",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "error": "Could not save"
+    },
     "botLanguage": {
       "title": "Bot Language",
       "description": "Default language for new customers. They can override it at any time by typing \"Deutsch\", \"English\" or \"Türkçe\".",
