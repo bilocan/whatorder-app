@@ -466,6 +466,18 @@ describe('Multi-restaurant: first-time customer', () => {
   });
 });
 
+describe('Deep link: returning customer (single restaurant)', () => {
+  test('ORDER deep link does not run menu search on token text', async () => {
+    getSession.mockResolvedValue({ language: 'tr', state: 'browsing', businessId: BIZ, basket: [] });
+    getLastOrderForCustomer.mockResolvedValue(null);
+
+    await handleMessage(ROUTING, msg({ text: `ORDER ${BIZ}` }));
+
+    expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('sonuç yok'));
+    expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('No results'));
+  });
+});
+
 // ─── Use case: post-order routing (language set, no businessId) ───────────────
 
 describe('Multi-restaurant: post-order routing', () => {
