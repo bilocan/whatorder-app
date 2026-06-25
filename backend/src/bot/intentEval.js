@@ -3,12 +3,28 @@ const path = require('path');
 const { BUILTIN_MENU, evaluateIntent } = require('./intentSandbox');
 
 const DEFAULT_CORPUS_DIR = path.join(__dirname, '../../fixtures/intent-corpus');
+const CI_CORPUS_FILE = 'builtin.json';
+const CANDIDATE_CORPUS_FILE = 'candidate.json';
 
 function listCorpusFiles(corpusDir = DEFAULT_CORPUS_DIR) {
   if (!fs.existsSync(corpusDir)) return [];
   return fs.readdirSync(corpusDir)
     .filter(f => f.endsWith('.json'))
     .map(f => path.join(corpusDir, f));
+}
+
+function isCandidateCase(caseDef) {
+  return caseDef.status === 'candidate';
+}
+
+function filterCasesByMode(cases, mode) {
+  if (mode === 'candidate') {
+    return cases.filter(isCandidateCase);
+  }
+  if (mode === 'ci' || mode === 'shipped') {
+    return cases.filter(c => !isCandidateCase(c));
+  }
+  return cases;
 }
 
 function loadCorpusFile(filePath) {
@@ -18,16 +34,32 @@ function loadCorpusFile(filePath) {
     _source: path.basename(filePath),
     _suite: raw.name ?? path.basename(filePath, '.json'),
   }));
-  return { meta: raw, cases };
+  return { meta: raw, cases, filePath };
 }
 
 function loadAllCases(options = {}) {
   const corpusDir = options.corpusDir ?? DEFAULT_CORPUS_DIR;
-  const fileFilter = options.file ? [path.join(corpusDir, options.file)] : listCorpusFiles(corpusDir);
+  const mode = options.mode ?? (options.candidate ? 'candidate' : 'shipped');
+  let fileFilter;
+
+  if (options.file) {
+    fileFilter = [path.join(corpusDir, options.file)];
+  } else if (mode === 'ci') {
+    fileFilter = [path.join(corpusDir, CI_CORPUS_FILE)];
+  } else if (mode === 'candidate') {
+    fileFilter = [path.join(corpusDir, CANDIDATE_CORPUS_FILE)];
+  } else {
+    fileFilter = listCorpusFiles(corpusDir);
+  }
+
   const tagFilter = options.tag ? String(options.tag).toLowerCase() : null;
 
-  const suites = fileFilter.map(loadCorpusFile);
+  const suites = fileFilter
+    .filter(f => fs.existsSync(f))
+    .map(loadCorpusFile);
   let cases = suites.flatMap(s => s.cases);
+  cases = filterCasesByMode(cases, mode === 'all' ? 'all' : mode);
+
   if (tagFilter) {
     cases = cases.filter(c => (c.tags ?? []).some(t => String(t).toLowerCase() === tagFilter));
   }
@@ -183,7 +215,8 @@ async function runCase(caseDef, options = {}) {
 }
 
 async function runCorpusEval(options = {}) {
-  const { cases } = loadAllCases(options);
+  const mode = options.mode ?? (options.candidate ? 'candidate' : 'shipped');
+  const { cases } = loadAllCases({ ...options, mode });
   const runs = await Promise.all(cases.map(c => runCase(c, options)));
   const passed = runs.filter(r => r.pass);
   const failed = runs.filter(r => !r.pass);
@@ -219,12 +252,396 @@ function formatEvalReport(report, { verbose = false } = {}) {
   return lines.join('\n');
 }
 
+function slugifyCaseId(text, existingIds = new Set()) {
+  let base = String(text)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 48);
+  if (!base) base = 'case';
+  let id = base;
+  let n = 2;
+  while (existingIds.has(id)) {
+    id = `${base}-${n}`;
+    n += 1;
+  }
+  return id;
+}
+
+/** Snapshot evaluateIntent output into an expect block (current behavior, not desired). */
+function recordExpectFromResult(result) {
+  const expect = {
+    orderLike: result.orderLike,
+    outcome: result.outcome,
+  };
+
+  if (result.intent?.parsedBy) {
+    expect.parsedBy = result.intent.parsedBy;
+  }
+  if (result.intent?.items?.length) {
+    expect.intentItems = result.intent.items.map(i => ({
+      name: i.name,
+      qty: i.qty ?? 1,
+    }));
+  }
+  if (result.matched?.length) {
+    expect.matchedNames = matchedNames(result);
+    expect.matchedCount = result.matched.length;
+    const qtySum = result.matched.reduce((n, m) => n + (m.qty ?? 1), 0);
+    if (qtySum !== result.matched.length) {
+      expect.matchedQtySum = qtySum;
+    }
+  }
+  if (result.unmatched?.length) {
+    expect.unmatched = [...result.unmatched];
+  }
+
+  return expect;
+}
+
+function buildRecordedCase(result, options = {}) {
+  const {
+    text,
+    id = null,
+    tags = [],
+    status = 'candidate',
+    menu = 'builtin',
+    lang = 'de',
+    basket = [],
+    notes = null,
+    source = 'record',
+    existingIds = new Set(),
+  } = options;
+
+  const caseId = id ?? slugifyCaseId(text, existingIds);
+  const caseDef = {
+    id: caseId,
+    text,
+    tags: status === 'candidate' ? ['candidate', ...tags.filter(t => t !== 'candidate')] : tags,
+    menu,
+    expect: recordExpectFromResult(result),
+  };
+
+  if (status === 'candidate') {
+    caseDef.status = 'candidate';
+  }
+  if (lang !== 'de') caseDef.lang = lang;
+  if (basket?.length) caseDef.basket = basket;
+  if (notes) caseDef.notes = notes;
+  if (source) caseDef.recordedFrom = source;
+
+  return caseDef;
+}
+
+function readCorpusDocument(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return {
+      version: 1,
+      name: path.basename(filePath, '.json'),
+      description: '',
+      cases: [],
+    };
+  }
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function writeCorpusDocument(filePath, doc) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
+}
+
+function corpusFilePath(target, corpusDir = DEFAULT_CORPUS_DIR) {
+  const file = target === 'builtin' ? CI_CORPUS_FILE : CANDIDATE_CORPUS_FILE;
+  return path.join(corpusDir, file);
+}
+
+function appendCaseToCorpus(caseDef, options = {}) {
+  const corpusDir = options.corpusDir ?? DEFAULT_CORPUS_DIR;
+  const target = options.target ?? 'candidate';
+  const filePath = corpusFilePath(target, corpusDir);
+  const doc = readCorpusDocument(filePath);
+
+  const dupId = doc.cases.find(c => c.id === caseDef.id);
+  if (dupId) {
+    throw new Error(`Case id "${caseDef.id}" already exists in ${path.basename(filePath)}`);
+  }
+  const dupText = doc.cases.find(c => c.text === caseDef.text);
+  if (dupText) {
+    throw new Error(`Phrase already recorded as "${dupText.id}" in ${path.basename(filePath)}`);
+  }
+
+  doc.cases.push(caseDef);
+  writeCorpusDocument(filePath, doc);
+  return { filePath, caseDef, total: doc.cases.length };
+}
+
+async function recordIntentCase(text, evalOptions = {}, recordOptions = {}) {
+  const result = await evaluateIntent(text, evalOptions);
+  const corpusDir = recordOptions.corpusDir ?? DEFAULT_CORPUS_DIR;
+  const target = recordOptions.target ?? 'candidate';
+  const filePath = corpusFilePath(target, corpusDir);
+  const doc = readCorpusDocument(filePath);
+  const existingIds = new Set(doc.cases.map(c => c.id));
+
+  const caseDef = buildRecordedCase(result, {
+    text,
+    ...recordOptions,
+    existingIds,
+  });
+
+  return { result, caseDef };
+}
+
+const CANDIDATE_ONLY_FIELDS = ['status', 'recordedFrom'];
+
+function sanitizeCaseForShipped(caseDef) {
+  const shipped = { ...caseDef };
+  for (const key of CANDIDATE_ONLY_FIELDS) {
+    delete shipped[key];
+  }
+  if (shipped.tags) {
+    shipped.tags = shipped.tags.filter(t => t !== 'candidate');
+    if (!shipped.tags.length) delete shipped.tags;
+  }
+  return shipped;
+}
+
+function findCaseInDocument(doc, caseId) {
+  const index = doc.cases.findIndex(c => c.id === caseId);
+  if (index < 0) return null;
+  return { caseDef: doc.cases[index], index };
+}
+
+function findCaseByText(doc, text) {
+  const trimmed = String(text ?? '').trim();
+  const index = doc.cases.findIndex(c => c.text === trimmed);
+  if (index < 0) return null;
+  return { caseDef: doc.cases[index], index };
+}
+
+function findShippedCase({ text, id, corpusDir = DEFAULT_CORPUS_DIR }) {
+  const builtinDoc = readCorpusDocument(corpusFilePath('builtin', corpusDir));
+  if (id) {
+    const found = findCaseInDocument(builtinDoc, id);
+    if (found) return found.caseDef;
+  }
+  if (text) {
+    const found = findCaseByText(builtinDoc, text);
+    if (found) return found.caseDef;
+  }
+  return null;
+}
+
+/**
+ * End-to-end: ensure candidate exists → eval → promote → CI verify.
+ * Idempotent: re-run same phrase after fixing expect/parser; skips if already in builtin.
+ */
+async function shipIntentCase(input, options = {}) {
+  const corpusDir = options.corpusDir ?? DEFAULT_CORPUS_DIR;
+  const text = input.text?.trim() || null;
+  const caseId = input.id || null;
+
+  if (!text && !caseId) {
+    throw new Error('shipIntentCase requires text or id');
+  }
+
+  const shipped = findShippedCase({ text, id: caseId, corpusDir });
+  if (shipped) {
+    const verifyRun = await runCase(shipped, { corpusDir, llm: options.llm ?? false });
+    const ciReport = await runCorpusEval({ mode: 'ci', corpusDir, llm: false });
+    return {
+      status: verifyRun.pass && ciReport.failed === 0 ? 'already_shipped' : 'shipped_regression',
+      caseId: shipped.id,
+      caseDef: shipped,
+      verifyRun,
+      ciReport,
+    };
+  }
+
+  const candidatePath = corpusFilePath('candidate', corpusDir);
+  const candidateDoc = readCorpusDocument(candidatePath);
+  let caseDef = null;
+  let recorded = false;
+
+  if (caseId) {
+    const found = findCaseInDocument(candidateDoc, caseId);
+    if (found) caseDef = found.caseDef;
+  }
+  if (!caseDef && text) {
+    const found = findCaseByText(candidateDoc, text);
+    if (found) caseDef = found.caseDef;
+  }
+
+  if (!caseDef) {
+    if (!text) {
+      throw new Error(`Case "${caseId}" not found in ${CANDIDATE_CORPUS_FILE}`);
+    }
+    const { caseDef: newCase } = await recordIntentCase(text, options.evalOptions ?? {}, {
+      id: caseId ?? undefined,
+      tags: options.tags ?? [],
+      notes: options.notes ?? null,
+      menu: options.menuRef ?? 'builtin',
+      lang: options.lang ?? 'de',
+      source: options.source ?? 'ship',
+      corpusDir,
+    });
+    caseDef = newCase;
+    if (!options.dryRun) {
+      appendCaseToCorpus(caseDef, { corpusDir, target: 'candidate' });
+    }
+    recorded = true;
+  }
+
+  const verifyRun = await runCase(caseDef, { corpusDir, llm: options.llm ?? false });
+  if (!verifyRun.pass) {
+    return {
+      status: 'eval_failed',
+      caseId: caseDef.id,
+      caseDef,
+      verifyRun,
+      recorded,
+    };
+  }
+
+  if (options.dryRun) {
+    const dryPromote = await promoteCase(caseDef.id, { corpusDir, dryRun: true });
+    return {
+      status: 'dry_run',
+      caseId: caseDef.id,
+      caseDef,
+      verifyRun,
+      recorded,
+      dryPromote,
+    };
+  }
+
+  const promoteResult = await promoteCase(caseDef.id, { corpusDir });
+  const ciReport = await runCorpusEval({ mode: 'ci', corpusDir, llm: false });
+  if (ciReport.failed > 0) {
+    return {
+      status: 'ci_failed',
+      caseId: caseDef.id,
+      promoteResult,
+      ciReport,
+    };
+  }
+
+  return {
+    status: 'shipped',
+    caseId: caseDef.id,
+    recorded,
+    promoteResult,
+    ciReport,
+  };
+}
+
+/**
+ * Move a passing candidate case into builtin.json (CI corpus).
+ * Throws if case missing, duplicate in builtin, or eval fails (unless skipVerify).
+ */
+async function promoteCase(caseId, options = {}) {
+  const corpusDir = options.corpusDir ?? DEFAULT_CORPUS_DIR;
+  const candidatePath = corpusFilePath('candidate', corpusDir);
+  const builtinPath = corpusFilePath('builtin', corpusDir);
+  const candidateDoc = readCorpusDocument(candidatePath);
+  const builtinDoc = readCorpusDocument(builtinPath);
+
+  const found = findCaseInDocument(candidateDoc, caseId);
+  if (!found) {
+    throw new Error(`Case "${caseId}" not found in ${CANDIDATE_CORPUS_FILE}`);
+  }
+
+  const { caseDef } = found;
+  let verifyRun = null;
+  if (!options.skipVerify) {
+    verifyRun = await runCase(caseDef, { corpusDir, llm: false });
+    if (!verifyRun.pass) {
+      const err = new Error(`Case "${caseId}" does not pass eval — fix expect or parser before promote`);
+      err.failures = verifyRun.failures;
+      throw err;
+    }
+  }
+
+  const shipped = sanitizeCaseForShipped(caseDef);
+  if (builtinDoc.cases.some(c => c.id === shipped.id)) {
+    throw new Error(`Case id "${shipped.id}" already exists in ${CI_CORPUS_FILE}`);
+  }
+  if (builtinDoc.cases.some(c => c.text === shipped.text)) {
+    throw new Error(`Phrase already in ${CI_CORPUS_FILE}`);
+  }
+
+  if (options.dryRun) {
+    return {
+      dryRun: true,
+      caseId,
+      shipped,
+      candidatePath,
+      builtinPath,
+      verifyRun,
+    };
+  }
+
+  builtinDoc.cases.push(shipped);
+  candidateDoc.cases.splice(found.index, 1);
+  writeCorpusDocument(builtinPath, builtinDoc);
+  writeCorpusDocument(candidatePath, candidateDoc);
+
+  return {
+    caseId,
+    shipped,
+    candidatePath,
+    builtinPath,
+    candidateRemaining: candidateDoc.cases.length,
+    builtinTotal: builtinDoc.cases.length,
+    verifyRun,
+  };
+}
+
+/** Promote every candidate case that passes eval. Returns per-case results. */
+async function promoteAllCases(options = {}) {
+  const corpusDir = options.corpusDir ?? DEFAULT_CORPUS_DIR;
+  const candidatePath = corpusFilePath('candidate', corpusDir);
+  const candidateDoc = readCorpusDocument(candidatePath);
+  const ids = candidateDoc.cases.map(c => c.id);
+
+  const results = [];
+  for (const id of ids) {
+    try {
+      const result = await promoteCase(id, { ...options, corpusDir });
+      results.push({ id, ok: true, result });
+    } catch (err) {
+      results.push({ id, ok: false, error: err.message, failures: err.failures });
+      if (!options.continueOnError) break;
+    }
+  }
+  return results;
+}
+
 module.exports = {
+  CI_CORPUS_FILE,
+  CANDIDATE_CORPUS_FILE,
   DEFAULT_CORPUS_DIR,
+  appendCaseToCorpus,
   assertExpectations,
+  buildRecordedCase,
+  corpusFilePath,
+  findCaseByText,
+  findShippedCase,
   formatEvalReport,
+  isCandidateCase,
   loadAllCases,
   loadCorpusFile,
+  promoteAllCases,
+  promoteCase,
+  readCorpusDocument,
+  recordExpectFromResult,
+  recordIntentCase,
   runCase,
   runCorpusEval,
+  sanitizeCaseForShipped,
+  shipIntentCase,
+  slugifyCaseId,
+  writeCorpusDocument,
 };

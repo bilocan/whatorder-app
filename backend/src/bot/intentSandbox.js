@@ -59,6 +59,7 @@ async function evaluateIntent(text, options = {}) {
   let intent = await parseIntentAsync(trimmed, {
     phone,
     businessId: businessId || undefined,
+    rulesOnly: !llm,
   });
   intent = applyJeweilsBasketContext(intent, basket);
 
