@@ -8,6 +8,7 @@
     "dev": "nodemon src/index.js",
     "test": "jest",
     "seed": "node scripts/seed.js",
+    "intent:sandbox": "node scripts/intent-sandbox.js",
     "generate:flow": "node src/scripts/generateFlow.js"
   },
   "dependencies": {
