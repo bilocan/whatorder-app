@@ -3,15 +3,32 @@ const { matchIntentToMenu, mergePendingItems } = require('./intentMatcher');
 const { enrichPendingWithModifier } = require('./intentModifiers');
 const { collectSpicySpecialNote } = require('./intentNotes');
 const { buildIntentConfirmBody } = require('./intentOrder');
+const { buildOptionLabel } = require('./intentCustomize');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
 const { norm } = require('./menuMatch');
 const { t } = require('./templates');
 
+/** Beilagen group so offline sandbox resolves mit allem / ohne scharf like pilot menus. */
+const SANDBOX_BEILAGEN = {
+  id: 'beilagen',
+  label: 'Beilagen',
+  type: 'multi',
+  required: false,
+  multiDefault: 'all',
+  options: [
+    { id: 'tomato', label: 'Tomaten' },
+    { id: 'salad', label: 'Salat' },
+    { id: 'onion', label: 'Zwiebel' },
+    { id: 'sauce', label: 'Sauce' },
+    { id: 'chili', label: 'Scharfe Sauce' },
+  ],
+};
+
 /** Offline menu for quick tuning without Firestore. */
 const BUILTIN_MENU = [
-  { id: 'k1', name: 'Kebap Sandwich Huhn', price: 7.5, available: true },
-  { id: 'k2', name: 'Kebap Sandwich Kalb', price: 7.5, available: true },
-  { id: 'd1', name: 'Döner', price: 8.5, available: true },
+  { id: 'k1', name: 'Kebap Sandwich Huhn', price: 7.5, available: true, optionGroups: [SANDBOX_BEILAGEN] },
+  { id: 'k2', name: 'Kebap Sandwich Kalb', price: 7.5, available: true, optionGroups: [SANDBOX_BEILAGEN] },
+  { id: 'd1', name: 'Döner', price: 8.5, available: true, optionGroups: [SANDBOX_BEILAGEN] },
   { id: 'a1', name: 'Ayran', price: 2, available: true },
   { id: 'c1', name: 'Cola', price: 2.5, available: true },
   { id: 'p1', name: 'Pide mit Gouda und Eiern', price: 9.9, available: true },
@@ -146,8 +163,14 @@ function formatSandboxResult(result) {
   if (result.matched?.length) {
     lines.push('matched:');
     for (const m of result.matched) {
-      const hint = m.rawIntentName && m.rawIntentName !== m.name ? ` (${m.rawIntentName})` : '';
-      lines.push(`  • ${m.qty}x ${m.name}${hint}`);
+      const enriched = enrichPendingWithModifier(m);
+      let label = m.name;
+      if (enriched.prefilledSelections) {
+        label = buildOptionLabel(enriched, enriched.prefilledSelections);
+      } else if (m.rawIntentName && m.rawIntentName !== m.name) {
+        label = `${m.name} (${m.rawIntentName})`;
+      }
+      lines.push(`  • ${m.qty}x ${label}`);
     }
   }
   if (result.unmatched?.length) {

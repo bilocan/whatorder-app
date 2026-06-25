@@ -40,6 +40,29 @@ describe('evaluateIntent', () => {
     });
     expect(['disambiguation', 'proposal']).toContain(result.outcome);
   });
+
+  test('döner mit allem ohne scharf stays on rules and omits extra scharf note', async () => {
+    const result = await evaluateIntent('döner mit allem ohne scharf', {
+      menu: BUILTIN_MENU,
+      lang: 'de',
+      llm: false,
+    });
+    expect(result.outcome).toBe('proposal');
+    expect(result.intent.parsedBy).toBe('rules');
+    expect(result.botReply).not.toMatch(/extra scharf/i);
+  });
+
+  test('döner mit allem ohne scharf bitte resolves beilagen in bot reply', async () => {
+    const result = await evaluateIntent('döner mit allem ohne scharf bitte', {
+      menu: BUILTIN_MENU,
+      lang: 'de',
+      llm: false,
+    });
+    expect(result.outcome).toBe('proposal');
+    expect(result.botReply).toMatch(/Tomaten.*Salat.*Zwiebel.*Sauce/i);
+    expect(result.botReply).not.toMatch(/Scharfe Sauce/i);
+    expect(result.botReply).not.toMatch(/extra scharf/i);
+  });
 });
 
 describe('formatSandboxResult', () => {

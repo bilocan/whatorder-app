@@ -1,4 +1,4 @@
-const { enrichPendingWithModifier, isSpicyLabel } = require('./intentModifiers');
+const { enrichPendingWithModifier, isSpicyLabel, textHasSpicyExclusion } = require('./intentModifiers');
 const { norm } = require('./menuMatch');
 
 function rawIntentLineNote(item) {
@@ -29,6 +29,7 @@ const SPICY_NOTE_BY_LANG = {
 
 function hasExplicitSpicyInText(text) {
   const raw = text ?? '';
+  if (textHasSpicyExclusion(raw)) return false;
   return /\b(?:und\s+|mit\s+|extra\s+)?(scharf|scharfe|scharfer|spicy|hot|chili|chilli|acili|aci|sharf)\b/i.test(raw)
     || /\bund\s+schaf\b/i.test(raw);
 }
