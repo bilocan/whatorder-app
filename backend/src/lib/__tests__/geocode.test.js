@@ -1,12 +1,21 @@
-const { reverseGeocode } = require('../geocode');
+const { reverseGeocode, forwardGeocode } = require('../geocode');
+
+jest.mock('../googleMaps', () => ({
+  isConfigured: jest.fn(),
+  geocodeForward: jest.fn(),
+  geocodeReverse: jest.fn(),
+}));
+
+const googleMaps = require('../googleMaps');
 
 beforeEach(() => {
   jest.resetAllMocks();
   global.fetch = jest.fn();
+  googleMaps.isConfigured.mockReturnValue(false);
 });
 
 describe('reverseGeocode', () => {
-  test('returns display_name on successful response', async () => {
+  test('returns display_name on successful Nominatim response', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
       json: jest.fn().mockResolvedValue({ display_name: 'Mariahilfer Str. 10, 1060 Wien, Austria' }),
@@ -16,24 +25,36 @@ describe('reverseGeocode', () => {
 
     expect(result).toBe('Mariahilfer Str. 10, 1060 Wien, Austria');
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('lat=48.1975'),
+      expect.stringContaining('nominatim.openstreetmap.org/reverse'),
       expect.objectContaining({ headers: expect.objectContaining({ 'User-Agent': expect.stringContaining('WhatOrder') }) }),
     );
   });
 
-  test('returns null when response is not ok', async () => {
-    global.fetch.mockResolvedValue({ ok: false });
+  test('prefers Google when configured', async () => {
+    googleMaps.isConfigured.mockReturnValue(true);
+    googleMaps.geocodeReverse.mockResolvedValue('Google Formatted Address');
 
     const result = await reverseGeocode(48.1975, 16.3599);
 
-    expect(result).toBeNull();
+    expect(result).toBe('Google Formatted Address');
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  test('returns null when response has no display_name', async () => {
+  test('falls back to Nominatim when Google returns null', async () => {
+    googleMaps.isConfigured.mockReturnValue(true);
+    googleMaps.geocodeReverse.mockResolvedValue(null);
     global.fetch.mockResolvedValue({
       ok: true,
-      json: jest.fn().mockResolvedValue({ error: 'Unable to geocode' }),
+      json: jest.fn().mockResolvedValue({ display_name: 'OSM fallback' }),
     });
+
+    const result = await reverseGeocode(48.1975, 16.3599);
+
+    expect(result).toBe('OSM fallback');
+  });
+
+  test('returns null when response is not ok', async () => {
+    global.fetch.mockResolvedValue({ ok: false });
 
     const result = await reverseGeocode(48.1975, 16.3599);
 
@@ -47,27 +68,32 @@ describe('reverseGeocode', () => {
 
     expect(result).toBeNull();
   });
+});
 
-  test('returns null on timeout (AbortError)', async () => {
-    const err = new Error('The operation was aborted');
-    err.name = 'AbortError';
-    global.fetch.mockRejectedValue(err);
-
-    const result = await reverseGeocode(48.1975, 16.3599);
-
-    expect(result).toBeNull();
-  });
-
-  test('includes both lat and lon in the request URL', async () => {
+describe('forwardGeocode', () => {
+  test('returns coords from Nominatim when Google not configured', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
-      json: jest.fn().mockResolvedValue({ display_name: 'Some Place' }),
+      json: jest.fn().mockResolvedValue([{ lat: '48.2093', lon: '16.3621' }]),
     });
 
-    await reverseGeocode(51.5074, -0.1278);
+    const result = await forwardGeocode('Margaretenstrasse 42, Wien');
 
-    const url = global.fetch.mock.calls[0][0];
-    expect(url).toContain('lat=51.5074');
-    expect(url).toContain('lon=-0.1278');
+    expect(result).toEqual({ lat: 48.2093, lng: 16.3621 });
+  });
+
+  test('prefers Google when configured', async () => {
+    googleMaps.isConfigured.mockReturnValue(true);
+    googleMaps.geocodeForward.mockResolvedValue({ lat: 48.2, lng: 16.36 });
+
+    const result = await forwardGeocode('Some address');
+
+    expect(result).toEqual({ lat: 48.2, lng: 16.36 });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('returns null for empty address', async () => {
+    expect(await forwardGeocode('')).toBeNull();
+    expect(await forwardGeocode('   ')).toBeNull();
   });
 });

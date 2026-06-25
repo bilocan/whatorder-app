@@ -1,40 +1,69 @@
 const { setSession } = require('../sessionStore');
-const { sendText, sendLocationRequest } = require('../../lib/whatsapp');
-const { sortByDistance } = require('../../lib/distance');
+const { sendText } = require('../../lib/whatsapp');
 const { t } = require('../templates');
-const { getBusinessesInfo, sendRestaurantPicker } = require('../botHelpers');
+const {
+  getBusinessesInfo,
+  sendRestaurantPicker,
+  presentRestaurantPickerForLocation,
+  isShowAllRestaurants,
+} = require('../botHelpers');
 const { startRestaurantBrowsing } = require('../reorder');
 const { getBusinessInfo } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 
 async function handleAwaitingLocation({ from, session, lang, routing, type, latitude, longitude }) {
-  let businesses = await getBusinessesInfo(routing.businessIds);
-  let lat = null, lng = null;
+  let lat = null;
+  let lng = null;
+  let pendingDeleteIds = [];
+
   if (type === 'location' && latitude != null && longitude != null) {
     lat = latitude;
     lng = longitude;
-    businesses = sortByDistance(businesses, lat, lng);
+    ({ pendingDeleteIds } = await presentRestaurantPickerForLocation(from, routing.businessIds, lat, lng, lang));
+  } else {
+    const businesses = await getBusinessesInfo(routing.businessIds);
+    const pickerId = await sendRestaurantPicker(from, businesses, lang);
+    pendingDeleteIds = pickerId ? [pickerId] : [];
   }
-  const pickerId = await sendRestaurantPicker(from, businesses, lang);
-  await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null, lat, lng, pendingDeleteIds: pickerId ? [pickerId] : [] });
+
+  await setSession(from, {
+    state: 'selecting_restaurant',
+    language: lang,
+    basket: [],
+    businessId: null,
+    lat,
+    lng,
+    pendingDeleteIds,
+    restaurantPickerUnfiltered: false,
+  });
 }
 
 async function handleSelectingRestaurant({ from, session, lang, routing, type, id, text, norm, latitude, longitude }) {
   if (type === 'location' && latitude != null && longitude != null) {
-    const businesses = sortByDistance(await getBusinessesInfo(routing.businessIds), latitude, longitude);
-    const pickerId = await sendRestaurantPicker(from, businesses, lang);
-    await setSession(from, { ...session, lat: latitude, lng: longitude, pendingDeleteIds: pickerId ? [pickerId] : [] });
+    const { pendingDeleteIds } = await presentRestaurantPickerForLocation(
+      from, routing.businessIds, latitude, longitude, lang,
+    );
+    await setSession(from, {
+      ...session,
+      lat: latitude,
+      lng: longitude,
+      pendingDeleteIds,
+      restaurantPickerUnfiltered: false,
+    });
     return;
   }
 
   if (type === 'list_reply' && id?.startsWith('restaurant_')) {
     const selectedBid = id.replace('restaurant_', '');
     if (!routing.businessIds.includes(selectedBid)) {
-      let businesses = await getBusinessesInfo(routing.businessIds);
       if (session.lat != null && session.lng != null) {
-        businesses = sortByDistance(businesses, session.lat, session.lng);
+        await presentRestaurantPickerForLocation(
+          from, routing.businessIds, session.lat, session.lng, lang,
+          { unfiltered: session.restaurantPickerUnfiltered === true },
+        );
+      } else {
+        await sendRestaurantPicker(from, await getBusinessesInfo(routing.businessIds), lang);
       }
-      await sendRestaurantPicker(from, businesses, lang);
       return;
     }
     const selectedInfo = await getBusinessInfo(selectedBid);
@@ -68,12 +97,18 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
     return;
   }
 
-  // Any other input while picking: re-show the picker (sorted if location known)
-  let businesses = await getBusinessesInfo(routing.businessIds);
   if (session.lat != null && session.lng != null) {
-    businesses = sortByDistance(businesses, session.lat, session.lng);
+    const unfiltered = isShowAllRestaurants(norm) || session.restaurantPickerUnfiltered === true;
+    const { pendingDeleteIds } = await presentRestaurantPickerForLocation(
+      from, routing.businessIds, session.lat, session.lng, lang, { unfiltered },
+    );
+    if (isShowAllRestaurants(norm)) {
+      await setSession(from, { ...session, restaurantPickerUnfiltered: true, pendingDeleteIds });
+    }
+    return;
   }
-  await sendRestaurantPicker(from, businesses, lang);
+
+  await sendRestaurantPicker(from, await getBusinessesInfo(routing.businessIds), lang);
 }
 
 module.exports = { handleAwaitingLocation, handleSelectingRestaurant };

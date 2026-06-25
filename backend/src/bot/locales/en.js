@@ -118,6 +118,12 @@ module.exports = {
   restaurantPickerBody: () => 'Which restaurant would you like to order from?',
   restaurantPickerButton: () => 'See restaurants',
   restaurantPickerFooter: () => 'Tap a name to open its menu',
+  restaurantPickerFooterNumbered: () => 'Numbers match the map below',
+  mapLinkBody: () => '🗺️ Nearby restaurants (numbered). Numbers match the list above.',
+  mapLinkBtn: () => 'View on map',
+  interactiveMapBody: () => 'Open the interactive map with restaurant names on each pin.',
+  interactiveMapBtn: () => 'Open map',
+  noNearbyRestaurants: (maxKm) => `No restaurants within ${maxKm} km. Reply *all* to see every restaurant on this number.`,
   switchConfirmed: () => '🔄 Switching restaurants. Your basket has been cleared.',
 
   orderConfirmedWithChoice: (shortId, name, alertPhone, address) => {
