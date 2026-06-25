@@ -242,6 +242,15 @@
       "saved": "Gespeichert",
       "invalidValue": "Ungültiger Wert"
     },
+    "payment": {
+      "title": "Kartenzahlung",
+      "description": "Kunden können beim Checkout über den Bot mit Karte bezahlen. Wenn deaktiviert, können Kunden nur bei Abholung/Lieferung bar bezahlen.",
+      "acceptPayment": "Kartenzahlungen akzeptieren",
+      "save": "Zahlungseinstellungen speichern",
+      "saving": "Speichern…",
+      "saved": "Gespeichert",
+      "error": "Speichern fehlgeschlagen"
+    },
     "botLanguage": {
       "title": "Bot-Sprache",
       "description": "Standardsprache für neue Kunden. Sie können sie jederzeit durch Eingabe von Deutsch, English oder Türkçe ändern.",

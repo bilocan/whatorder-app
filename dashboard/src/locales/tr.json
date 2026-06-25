@@ -242,6 +242,15 @@
       "saved": "Kaydedildi",
       "invalidValue": "Geçersiz değer"
     },
+    "payment": {
+      "title": "Kart ile Ödeme",
+      "description": "Müşteriler bot üzerinden ödeme sırasında kartla ödeyebilsin. Kapalıysa müşteriler yalnızca teslimat/gel-al sırasında nakit ödeyebilir.",
+      "acceptPayment": "Kart ödemelerini kabul et",
+      "save": "Ödeme ayarlarını kaydet",
+      "saving": "Kaydediliyor…",
+      "saved": "Kaydedildi",
+      "error": "Kaydedilemedi"
+    },
     "botLanguage": {
       "title": "Bot Dili",
       "description": "Yeni müşteriler için varsayılan dil. \"Deutsch\", \"English\" veya \"Türkçe\" yazarak istedikleri zaman değiştirebilirler.",
