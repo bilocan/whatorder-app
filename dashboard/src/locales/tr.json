@@ -361,7 +361,8 @@
         "off": "Kapalı",
         "saving": "Kaydediliyor…",
         "turnOn": "Aç",
-        "turnOff": "Kapat"
+        "turnOff": "Kapat",
+        "imageRequired": "Müşteriler bu restoranı görebilmeden önce kapak görseli gerekli."
       },
       "details": {
         "name": "Ad",
@@ -370,6 +371,8 @@
         "businessId": "İşletme ID",
         "address": "Adres",
         "coordinates": "Koordinatlar",
+        "image": "Kapak görseli",
+        "imageHint": "Herkese açık HTTPS veya gs:// URL. Müşteriler bu restoranı görebilmeden önce gerekli.",
         "edit": "Düzenle",
         "statusActive": "Aktif",
         "statusPaused": "Duraklatıldı",

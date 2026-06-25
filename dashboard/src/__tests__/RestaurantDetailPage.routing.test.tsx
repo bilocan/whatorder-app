@@ -37,7 +37,7 @@ function setupMocks({ botActive = false }: { botActive?: boolean } = {}) {
   // onSnapshot call order: 1=business, 2=menu, 3=phoneRouting (bot), 4=owners
   mockOnSnapshot
     .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
-      cb({ exists: () => true, id: BUSINESS_ID, data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', alertPhone: '+43660123456', status: 'active' }) });
+      cb({ exists: () => true, id: BUSINESS_ID, data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', alertPhone: '+43660123456', status: 'active', imageUrl: 'https://example.com/cover.jpg' }) });
       return vi.fn();
     })
     .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
@@ -160,10 +160,40 @@ describe('RestaurantDetailPage — bot toggle', () => {
     expect(unionArg).not.toBeUndefined();
   });
 
+  it('disables "Turn on" and does not call setDoc when the restaurant has no imageUrl', async () => {
+    mockOnSnapshot
+      .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
+        cb({ exists: () => true, id: BUSINESS_ID, data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', alertPhone: '+43660123456', status: 'active' }) });
+        return vi.fn();
+      })
+      .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
+        cb({ docs: [] });
+        return vi.fn();
+      })
+      .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
+        cb({ exists: () => true, data: () => ({ businessIds: ['other_biz'] }) });
+        return vi.fn();
+      })
+      .mockImplementation((_ref: unknown, cb: (s: unknown) => void) => {
+        cb({ docs: [] });
+        return vi.fn();
+      });
+    renderPage();
+    await waitForLoad();
+    await screen.findByText('Off');
+
+    const turnOnButton = screen.getByRole('button', { name: 'Turn on' });
+    expect(turnOnButton).toBeDisabled();
+
+    fireEvent.click(turnOnButton);
+
+    expect(mockSetDoc).not.toHaveBeenCalled();
+  });
+
   it('hides the bot toggle entirely when VITE_WHATSAPP_PHONE_NUMBER_ID is not set', async () => {
     mockOnSnapshot
       .mockImplementationOnce((_: unknown, cb: (s: unknown) => void) => {
-        cb({ exists: () => true, id: BUSINESS_ID, data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', alertPhone: '+43660123456', status: 'active' }) });
+        cb({ exists: () => true, id: BUSINESS_ID, data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', alertPhone: '+43660123456', status: 'active', imageUrl: 'https://example.com/cover.jpg' }) });
         return vi.fn();
       })
       .mockImplementation((_: unknown, cb: (s: unknown) => void) => {

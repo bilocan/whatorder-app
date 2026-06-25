@@ -361,7 +361,8 @@
         "off": "Off",
         "saving": "Saving...",
         "turnOn": "Turn on",
-        "turnOff": "Turn off"
+        "turnOff": "Turn off",
+        "imageRequired": "Cover image required before customers can see this restaurant."
       },
       "details": {
         "name": "Name",
@@ -370,6 +371,8 @@
         "businessId": "Business ID",
         "address": "Address",
         "coordinates": "Coordinates",
+        "image": "Cover image",
+        "imageHint": "Public HTTPS or gs:// URL. Required before customers can see this restaurant.",
         "edit": "Edit",
         "statusActive": "Active",
         "statusPaused": "Paused",

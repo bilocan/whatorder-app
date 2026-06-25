@@ -104,6 +104,7 @@ export default function RestaurantDetailPage() {
   const [editAddress, setEditAddress] = useState('');
   const [editLat, setEditLat] = useState('');
   const [editLng, setEditLng] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState(false);
@@ -154,6 +155,7 @@ const EMPTY_MENU: MenuFormState = {
       setEditAddress(data.address ?? '');
       setEditLat(data.lat != null ? String(data.lat) : '');
       setEditLng(data.lng != null ? String(data.lng) : '');
+      setEditImageUrl(data.imageUrl ?? '');
     });
 
     const menuUnsub = onSnapshot(collection(db, 'businesses', id, 'menu'), (snap) => {
@@ -215,8 +217,9 @@ const EMPTY_MENU: MenuFormState = {
       address: editAddress || null,
       lat: parsedLat,
       lng: parsedLng,
+      imageUrl: editImageUrl || null,
     });
-    setBusiness((b) => b ? { ...b, name: editName, alertPhone: editPhone, status: editStatus, address: editAddress || undefined, lat: parsedLat, lng: parsedLng } : b);
+    setBusiness((b) => b ? { ...b, name: editName, alertPhone: editPhone, status: editStatus, address: editAddress || undefined, lat: parsedLat, lng: parsedLng, imageUrl: editImageUrl || undefined } : b);
     setSavingDetails(false);
     setEditing(false);
   }
@@ -390,22 +393,28 @@ const EMPTY_MENU: MenuFormState = {
                 <button
                   type="button"
                   onClick={toggleBot}
-                  disabled={togglingBot}
+                  disabled={togglingBot || (!botEnabled && !business.imageUrl)}
+                  title={!botEnabled && !business.imageUrl ? t('admin.restaurantDetail.bot.imageRequired') : undefined}
                   style={{
                     padding: '0.4rem 0.9rem',
                     background: botEnabled ? 'none' : '#000',
                     color: botEnabled ? '#666' : '#fff',
                     border: botEnabled ? '1px solid #ddd' : 'none',
                     borderRadius: 7,
-                    cursor: togglingBot ? 'default' : 'pointer',
+                    cursor: togglingBot || (!botEnabled && !business.imageUrl) ? 'not-allowed' : 'pointer',
                     fontWeight: 600,
                     fontSize: '0.85rem',
-                    opacity: togglingBot ? 0.5 : 1,
+                    opacity: togglingBot || (!botEnabled && !business.imageUrl) ? 0.5 : 1,
                   }}
                 >
                   {togglingBot ? t('admin.restaurantDetail.bot.saving') : botEnabled ? t('admin.restaurantDetail.bot.turnOff') : t('admin.restaurantDetail.bot.turnOn')}
                 </button>
               )}
+            </div>
+          )}
+          {!botLoading && !botEnabled && !business.imageUrl && (
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.6rem 0.85rem', marginBottom: '1.25rem', fontSize: '0.85rem', color: '#92400e' }}>
+              {t('admin.restaurantDetail.bot.imageRequired')}
             </div>
           )}
 
@@ -417,6 +426,10 @@ const EMPTY_MENU: MenuFormState = {
               <Field label={t('admin.restaurantDetail.details.businessId')} value={business.id} mono />
               <Field label={t('admin.restaurantDetail.details.address')} value={business.address ?? '—'} />
               <Field label={t('admin.restaurantDetail.details.coordinates')} value={business.lat != null && business.lng != null ? `${business.lat}, ${business.lng}` : '—'} mono />
+              <Field label={t('admin.restaurantDetail.details.image')} value={business.imageUrl ?? '—'} mono />
+              {business.imageUrl && (
+                <img src={business.imageUrl} alt="" style={{ maxWidth: 240, borderRadius: 8, marginBottom: '0.75rem', display: 'block' }} />
+              )}
               <button onClick={() => setEditing(true)} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                 <PencilIcon />{t('admin.restaurantDetail.details.edit')}
               </button>
@@ -465,6 +478,19 @@ const EMPTY_MENU: MenuFormState = {
                   <label style={labelStyle}>{t('admin.restaurantDetail.details.lng')}</label>
                   <input type="number" value={editLng} onChange={(e) => setEditLng(e.target.value)} placeholder="e.g. 16.3621" step="any" style={inputStyle} />
                 </div>
+              </div>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <label style={labelStyle}>{t('admin.restaurantDetail.details.image')}</label>
+                <input
+                  value={editImageUrl}
+                  onChange={(e) => setEditImageUrl(e.target.value)}
+                  placeholder="https://firebasestorage.googleapis.com/..."
+                  style={inputStyle}
+                />
+                <div style={{ fontSize: '0.78rem', color: '#999', marginTop: '0.25rem' }}>{t('admin.restaurantDetail.details.imageHint')}</div>
+                {editImageUrl && (
+                  <img src={editImageUrl} alt="" style={{ maxWidth: 240, borderRadius: 8, marginTop: '0.5rem', display: 'block' }} />
+                )}
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button type="submit" disabled={savingDetails} style={{ ...btnPrimary, opacity: savingDetails ? 0.6 : 1 }}>
