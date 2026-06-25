@@ -9,6 +9,7 @@ const adminRouter = require('./routes/admin');
 const flowRouter = require('./routes/flow');
 
 const stripeWebhookRouter = require('./routes/stripeWebhook');
+const chatRouter = require('./routes/chat');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,6 +24,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
 
+app.use(chatRouter);
 app.use('/webhooks/whatsapp', webhookRouter);
 app.use('/admin', adminRouter);
 app.use('/', flowRouter);
