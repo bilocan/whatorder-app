@@ -500,6 +500,7 @@ function shouldTryLlm(text, rulesIntent, phone) {
   const hasConjunction = /\b(and|und|ve|mit|with|plus)\b|[,+]/i.test(stripped);
   const hasPartySize = rulesIntent.partySize != null;
   const singleBlob = rulesIntent.items.length === 1
+    && /\s/.test(stripped)
     && rulesIntent.items[0].name.length > stripped.length * 0.8;
 
   return hasConjunction || hasPartySize || singleBlob;
