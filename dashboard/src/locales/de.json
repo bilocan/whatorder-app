@@ -361,7 +361,8 @@
         "off": "Aus",
         "saving": "Speichern…",
         "turnOn": "Einschalten",
-        "turnOff": "Ausschalten"
+        "turnOff": "Ausschalten",
+        "imageRequired": "Titelbild erforderlich, bevor Kunden dieses Restaurant sehen können."
       },
       "details": {
         "name": "Name",
@@ -370,6 +371,8 @@
         "businessId": "Geschäfts-ID",
         "address": "Adresse",
         "coordinates": "Koordinaten",
+        "image": "Titelbild",
+        "imageHint": "Öffentliche HTTPS- oder gs://-URL. Erforderlich, bevor Kunden dieses Restaurant sehen können.",
         "edit": "Bearbeiten",
         "statusActive": "Aktiv",
         "statusPaused": "Pausiert",

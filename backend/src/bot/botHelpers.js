@@ -1,4 +1,4 @@
-const { getMenu, getBusinessInfo } = require('./menuService');
+const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('./menuService');
 const { sortByDistance, filterWithinDistanceKm, getMaxRestaurantDistanceKm } = require('../lib/distance');
 const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendImage } = require('../lib/whatsapp');
 const { buildRestaurantsMapProxyUrl, buildRestaurantsBrowseMapUrl, buildOpenMapCtaUrl, getPublicBackendUrl } = require('../lib/mapsUrl');
@@ -386,7 +386,7 @@ async function getBusinessesInfo(businessIds) {
   return Promise.all(businessIds.map(async bid => {
     const info = await getBusinessInfo(bid);
     const tz = info.timezone || 'Europe/Vienna';
-    return { id: bid, name: info.name, tagline: info.tagline || info.cuisine || '', lat: info.lat ?? null, lng: info.lng ?? null, isOpen: isOpenNow(info.schedule, tz) };
+    return { id: bid, name: info.name, tagline: info.tagline || info.cuisine || '', lat: info.lat ?? null, lng: info.lng ?? null, imageUrl: resolvePhotoUrl(info.imageUrl) ?? null, isOpen: isOpenNow(info.schedule, tz) };
   }));
 }
 
@@ -397,7 +397,13 @@ function isShowAllRestaurants(norm) {
 }
 
 async function resolveRestaurantsForPicker(businessIds, customerLat, customerLng, { unfiltered = false } = {}) {
-  const sorted = await sortByDistance(await getBusinessesInfo(businessIds), customerLat, customerLng);
+  const businesses = await getBusinessesInfo(businessIds);
+  const withImage = businesses.filter(b => {
+    if (b.imageUrl) return true;
+    console.error(`[restaurant-picker] excluding ${b.id} (${b.name}) — missing imageUrl`);
+    return false;
+  });
+  const sorted = await sortByDistance(withImage, customerLat, customerLng);
   const maxKm = getMaxRestaurantDistanceKm();
   if (unfiltered) {
     return { pickList: sorted, maxKm, filtered: false };

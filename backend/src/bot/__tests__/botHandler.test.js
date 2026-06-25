@@ -130,7 +130,7 @@ beforeEach(() => {
   sendFlowMessage.mockResolvedValue(null);
   sendLocationRequest.mockResolvedValue();
   sendImage.mockResolvedValue('map_msg_id');
-  resolvePhotoUrl.mockReturnValue(null);
+  resolvePhotoUrl.mockImplementation((url) => url ?? null);
   reverseGeocode.mockResolvedValue(null);
   mockCustomerProfile(null); // no saved address by default
 });
@@ -409,8 +409,8 @@ describe('Edge cases', () => {
 // ─── Multi-restaurant helpers ──────────────────────────────────────────────────
 
 const ROUTING_MULTI = { businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null };
-const BIZ_A_INFO = { name: 'Döner Palace', tagline: 'Best döner in town', avgPrepTime: 20, catalogId: 'cat_a' };
-const BIZ_B_INFO = { name: 'Pizza Roma',   tagline: 'Authentic Italian',  avgPrepTime: 25, catalogId: 'cat_b' };
+const BIZ_A_INFO = { name: 'Döner Palace', tagline: 'Best döner in town', avgPrepTime: 20, catalogId: 'cat_a', imageUrl: 'https://example.com/biz_a.jpg' };
+const BIZ_B_INFO = { name: 'Pizza Roma',   tagline: 'Authentic Italian',  avgPrepTime: 25, catalogId: 'cat_b', imageUrl: 'https://example.com/biz_b.jpg' };
 
 function makeUpdatedAt(msAgo) {
   const d = new Date(Date.now() - msAgo);
