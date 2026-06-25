@@ -46,6 +46,41 @@ const STATUS_COLOR: Record<string, string> = {
   completed:  '#22c55e',
 };
 
+function SettlementInfo({ order, t }: { order: Order; t: (key: string, opts?: Record<string, unknown>) => string }) {
+  if (order.paymentMethod !== 'stripe') return null;
+
+  if (order.settlementStatus === 'paid_out' && order.paidAt) {
+    return (
+      <p style={{ color: '#16a34a', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+        {t('orderDetail.settlement.paidOutOn', { date: new Date(order.paidAt).toLocaleDateString('de-AT') })}
+      </p>
+    );
+  }
+
+  if (order.settlementStatus === 'refunded') {
+    return <p style={{ color: '#6b7280', fontSize: '0.85rem', marginTop: '0.5rem' }}>{t('orderDetail.settlement.refunded')}</p>;
+  }
+
+  if (order.settlementStatus === 'pending' || order.settlementStatus === 'included_in_payout') {
+    return (
+      <div style={{ marginTop: '0.5rem' }}>
+        <p style={{ color: '#d97706', fontSize: '0.85rem', margin: 0 }}>{t('orderDetail.settlement.pendingPayout')}</p>
+        {typeof order.grossAmountCents === 'number' && (
+          <p style={{ color: '#999', fontSize: '0.8rem', margin: '0.2rem 0 0' }}>
+            {t('orderDetail.settlement.gross', { amount: (order.grossAmountCents / 100).toFixed(2) })}
+            {' | '}
+            {t('orderDetail.settlement.fee', { amount: ((order.whatorderFeeCents ?? 0) / 100).toFixed(2) })}
+            {' | '}
+            {t('orderDetail.settlement.net', { amount: ((order.restaurantNetCents ?? 0) / 100).toFixed(2) })}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export default function OrderDetailPage() {
   const { t } = useTranslation();
   const { orderId } = useParams<{ orderId: string }>();
@@ -161,6 +196,8 @@ export default function OrderDetailPage() {
       <p style={{ fontWeight: 600, color }}>
         {t(`orderDetail.status.${order.status}`, { defaultValue: order.status })}
       </p>
+
+      <SettlementInfo order={order} t={t} />
 
       {order.status === 'pending' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem' }}>
