@@ -1,10 +1,17 @@
 jest.mock('../../lib/firebase', () => ({ db: { collection: jest.fn() } }));
 jest.mock('../../lib/collections', () => ({ businessRef: jest.fn() }));
+jest.mock('../../lib/distance', () => ({
+  sortByDistance: jest.fn(async (businesses) => businesses.map((b, i) => ({
+    ...b,
+    distanceKm: i === 0 ? 0.5 : 2.1,
+    durationMin: i === 0 ? 3 : 8,
+  }))),
+}));
 
 const request = require('supertest');
 const app = require('../../index');
-const { db } = require('../../lib/firebase');
 const { businessRef } = require('../../lib/collections');
+const { sortByDistance } = require('../../lib/distance');
 
 describe('GET /api/maps/restaurants', () => {
   beforeEach(() => {
@@ -34,9 +41,37 @@ describe('GET /api/maps/restaurants', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.restaurants).toEqual([
-      { id: 'biz_a', name: 'Near', lat: 48.2, lng: 16.37, address: 'Wien' },
-      { id: 'biz_b', name: 'Far', lat: 41, lng: 28.97, address: 'Wien' },
+      { id: 'biz_a', name: 'Near', lat: 48.2, lng: 16.37, address: 'Wien', distanceKm: null, durationMin: null },
+      { id: 'biz_b', name: 'Far', lat: 41, lng: 28.97, address: 'Wien', distanceKm: null, durationMin: null },
     ]);
+    expect(sortByDistance).not.toHaveBeenCalled();
+  });
+
+  test('returns distance when clat/clng provided', async () => {
+    businessRef.mockImplementation((id) => ({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        id,
+        data: () => ({
+          name: 'Near',
+          lat: 48.2,
+          lng: 16.37,
+          address: 'Wien',
+        }),
+      }),
+    }));
+
+    const res = await request(app)
+      .get('/api/maps/restaurants')
+      .query({ ids: 'biz_a', clat: '48.198', clng: '16.373' });
+
+    expect(res.status).toBe(200);
+    expect(sortByDistance).toHaveBeenCalled();
+    expect(res.body.restaurants[0]).toMatchObject({
+      id: 'biz_a',
+      distanceKm: 0.5,
+      durationMin: 3,
+    });
   });
 
   test('skips restaurants without coordinates', async () => {
