@@ -10,7 +10,7 @@ function toPin(b: Business): RestaurantMapPin | null {
   const lat = b.lat != null ? Number(b.lat) : NaN;
   const lng = b.lng != null ? Number(b.lng) : NaN;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { id: b.id, name: b.name, lat, lng, address: b.address ?? null };
+  return { id: b.id, name: b.name, lat, lng, address: b.address ?? null, imageUrl: b.imageUrl ?? null };
 }
 
 export default function AdminRestaurantMapPage() {
