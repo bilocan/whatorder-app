@@ -209,8 +209,13 @@ function stripPoliteSuffix(name) {
 function wantsSpicyIncluded(rawIntentName) {
   const raw = rawIntentName ?? '';
   if (wantsAllIncluded(raw)) return false;
+  if (textHasSpicyExclusion(raw)) return false;
   return /\b(?:und\s+|mit\s+|extra\s+)?(scharf|scharfe|scharfer|spicy|hot|chili|chilli|acili|aci|sharf)\b/i.test(raw)
     || /\bund\s+schaf\b/i.test(raw);
+}
+
+function textHasSpicyExclusion(rawIntentName) {
+  return parseExclusions(rawIntentName).some(isSpicyExclusion);
 }
 
 const MODIFIER_ONLY_TOKENS = new Set([
@@ -234,6 +239,12 @@ function resolveModifierSelections(rawIntentName, optionGroups) {
     let ids;
     if (allIncluded) {
       ids = allOptionIds(group);
+      if (exclusions.length) {
+        ids = ids.filter(id => {
+          const opt = group.options?.find(o => o.id === id);
+          return opt && !optionExcludedByHint(opt.label, exclusions);
+        });
+      }
     } else if (exclusions.length) {
       ids = allOptionIds(group).filter(id => {
         const opt = group.options?.find(o => o.id === id);
@@ -286,6 +297,7 @@ module.exports = {
   enrichPendingWithModifier,
   wantsAllIncluded,
   wantsSpicyIncluded,
+  textHasSpicyExclusion,
   isModifierOnlyToken,
   isSpicyLabel,
   parseExclusions,

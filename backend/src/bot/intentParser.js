@@ -450,6 +450,31 @@ function parseIntent(text) {
   return toIntentResult(items, partySize, rawText, 'rules');
 }
 
+/** Single line with mit allem / ohne X / mit scharf — rules already captured modifiers. */
+function rulesItemHasKnownModifiers(rawName) {
+  const raw = rawName ?? '';
+  if (!raw.trim()) return false;
+  if (wantsAllIncluded(raw)) return true;
+  if (parseExclusions(raw).length > 0) return true;
+  if (/\b(?:und\s+)?(?:scharf|scharfe|spicy|hot|chili|acili|aci|sharf)\b/i.test(raw)) return true;
+  if (/\bund\s+schaf\b/i.test(raw)) return true;
+  if (/\bmit\s+[\wäöüÄÖÜß-]+/i.test(raw)) return true;
+  return false;
+}
+
+/** Remove modifier phrases before multi-item conjunction detection ("mit" ≠ "pizza und cola"). */
+function stripModifierConjunctions(text) {
+  let s = text ?? '';
+  s = s.replace(/\bmit\s+(?:allem|allen|alles)\b/gi, ' ');
+  s = s.replace(/\bmit\s+(?:scharf|scharfe|spicy|hot|chili|acili|aci|sharf)\b/gi, ' ');
+  s = s.replace(/\bund\s+(?:scharf|scharfe|schaf|sharf)\b/gi, ' ');
+  s = s.replace(
+    /\b(?:ohne|without|no)\s+[\wäöüÄÖÜß-]+(?:\s+und\s+[\wäöüÄÖÜß-]+)*(?:\s+bitte)?\s*$/i,
+    ' ',
+  );
+  return s.replace(/\s+/g, ' ').trim();
+}
+
 /** High = rules split multiple items cleanly; skip LLM. */
 function rulesParseQuality(text) {
   const rawText = (text ?? '').trim();
@@ -493,11 +518,14 @@ function shouldTryLlm(text, rulesIntent, phone) {
   if (!canCallLlm(phone)) return false;
   if (rulesIntentHasModifierSplit(rulesIntent)) return false;
   if (rulesParseQuality(text) === 'high') return false;
+  if (rulesIntent.items?.length === 1 && rulesItemHasKnownModifiers(rulesIntent.items[0].name)) {
+    return false;
+  }
   if (rulesItemsLookSuspicious(rulesIntent.items)) return true;
   if (!rulesIntent.items.length) return true;
 
   const stripped = stripOrderTypePrefix(stripPartySizePhrases((text ?? '').trim()));
-  const hasConjunction = /\b(and|und|ve|mit|with|plus)\b|[,+]/i.test(stripped);
+  const hasConjunction = /\b(and|und|ve|mit|with|plus)\b|[,+]/i.test(stripModifierConjunctions(stripped));
   const hasPartySize = rulesIntent.partySize != null;
   const singleBlob = rulesIntent.items.length === 1
     && /\s/.test(stripped)

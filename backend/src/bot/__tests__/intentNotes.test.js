@@ -38,12 +38,24 @@ describe('hasExplicitSpicyInText', () => {
   test('detects TTS schaf', () => {
     expect(hasExplicitSpicyInText('kebap und schaf')).toBe(true);
   });
+
+  test('rejects ohne scharf exclusion', () => {
+    expect(hasExplicitSpicyInText('döner mit allem ohne scharf')).toBe(false);
+  });
 });
 
 describe('collectSpicySpecialNote', () => {
   test('returns note when menu has no spicy insert', () => {
     const item = enrichPendingWithModifier(KEBAB_ITEM);
     expect(collectSpicySpecialNote('noch ein kebap mit allem und scharf', [item], 'de')).toBe('extra scharf');
+  });
+
+  test('returns null for ohne scharf', () => {
+    const item = enrichPendingWithModifier({
+      ...KEBAB_ITEM,
+      rawIntentName: 'döner mit allem ohne scharf',
+    });
+    expect(collectSpicySpecialNote('döner mit allem ohne scharf', [item], 'de')).toBeNull();
   });
 
   test('returns null when spicy insert already selected', () => {
