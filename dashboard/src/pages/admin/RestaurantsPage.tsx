@@ -15,7 +15,7 @@ const TrashIcon = () => (
   </svg>
 );
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { API_URL } from '../../lib/apiUrl';
 
 function generateId(name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 20);
@@ -114,7 +114,11 @@ export default function RestaurantsPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: !PHONE_NUMBER_ID ? '0.75rem' : '1.5rem' }}>
         <h2 style={{ margin: 0 }}>{t('admin.restaurants.title')}</h2>
-        <button
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <Link to="/admin/map" style={{ padding: '0.5rem 1rem', border: '1px solid #ddd', borderRadius: 8, textDecoration: 'none', color: '#000', fontWeight: 600, fontSize: '0.9rem' }}>
+            {t('admin.restaurants.mapLink')}
+          </Link>
+          <button
           onClick={() => setShowForm(!showForm)}
           disabled={!PHONE_NUMBER_ID}
           title={!PHONE_NUMBER_ID ? t('admin.restaurants.botConfigHint') : undefined}
@@ -122,6 +126,7 @@ export default function RestaurantsPage() {
         >
           {t('admin.restaurants.newButton')}
         </button>
+        </div>
       </div>
 
       {!PHONE_NUMBER_ID && (

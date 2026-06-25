@@ -1,5 +1,7 @@
 const { getMenu, getBusinessInfo } = require('./menuService');
-const { sendText, sendListMessage, sendButtonMessage } = require('../lib/whatsapp');
+const { sortByDistance, filterWithinDistanceKm, getMaxRestaurantDistanceKm } = require('../lib/distance');
+const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendImage } = require('../lib/whatsapp');
+const { buildRestaurantsMapProxyUrl, buildRestaurantsBrowseMapUrl, buildPublicRestaurantMapUrl, getPublicBackendUrl, getPublicMapBaseUrl } = require('../lib/mapsUrl');
 const { isOpenNow } = require('../lib/schedule');
 const { t, tCategory } = require('./templates');
 const { publishTextMenu } = require('./textMenu');
@@ -388,15 +390,100 @@ async function getBusinessesInfo(businessIds) {
   }));
 }
 
-async function sendRestaurantPicker(to, businesses, lang) {
+const SHOW_ALL_RESTAURANTS_KEYWORDS = new Set(['all', 'alle', 'hepsi', 'tümü', 'tumu']);
+
+function isShowAllRestaurants(norm) {
+  return SHOW_ALL_RESTAURANTS_KEYWORDS.has((norm ?? '').trim().toLowerCase());
+}
+
+async function resolveRestaurantsForPicker(businessIds, customerLat, customerLng, { unfiltered = false } = {}) {
+  const sorted = await sortByDistance(await getBusinessesInfo(businessIds), customerLat, customerLng);
+  const maxKm = getMaxRestaurantDistanceKm();
+  if (unfiltered) {
+    return { pickList: sorted, maxKm, filtered: false };
+  }
+  const nearby = filterWithinDistanceKm(sorted, maxKm);
+  return { pickList: nearby, maxKm, filtered: true, hasNearby: nearby.length > 0 };
+}
+
+async function presentRestaurantPickerForLocation(from, businessIds, customerLat, customerLng, lang, { unfiltered = false } = {}) {
+  const { pickList, maxKm, filtered, hasNearby } = await resolveRestaurantsForPicker(
+    businessIds, customerLat, customerLng, { unfiltered },
+  );
+  if (filtered && !hasNearby) {
+    await sendText(from, t('noNearbyRestaurants', lang, maxKm));
+    return { pickerId: null, mapId: null, pendingDeleteIds: [], noNearby: true };
+  }
+  return sendRestaurantPickerWithMap(from, pickList, lang, customerLat, customerLng);
+}
+
+async function sendRestaurantsMapPreview(to, businesses, customerLat, customerLng, lang) {
+  const caption = t('mapLinkBody', lang);
+  const publicBase = getPublicBackendUrl();
+  const imageUrl = publicBase
+    ? buildRestaurantsMapProxyUrl(customerLat, customerLng, businesses, publicBase)
+    : null;
+
+  if (imageUrl) {
+    try {
+      return await sendImage(to, { url: imageUrl, caption });
+    } catch (err) {
+      console.error('[maps-preview] WhatsApp image send failed:', err.response?.data ?? err.message);
+    }
+  }
+
+  const browseUrl = buildRestaurantsBrowseMapUrl(customerLat, customerLng, businesses);
+  if (!browseUrl) {
+    console.warn('[maps-preview] skipped — no restaurant coordinates or customer location');
+    return null;
+  }
+  return sendCtaUrlMessage(to, {
+    body: caption,
+    buttonLabel: t('mapLinkBtn', lang),
+    url: browseUrl,
+  });
+}
+
+async function sendRestaurantPickerWithMap(to, businesses, lang, customerLat, customerLng) {
+  const pickerId = await sendRestaurantPicker(to, businesses, lang, { numbered: true });
+  const mapId = customerLat != null && customerLng != null
+    ? await sendRestaurantsMapPreview(to, businesses, customerLat, customerLng, lang)
+    : null;
+  let interactiveId = null;
+  const interactiveUrl = buildPublicRestaurantMapUrl(
+    customerLat,
+    customerLng,
+    businesses.map((b) => b.id),
+    getPublicMapBaseUrl(),
+  );
+  if (interactiveUrl) {
+    try {
+      interactiveId = await sendCtaUrlMessage(to, {
+        body: t('interactiveMapBody', lang),
+        buttonLabel: t('interactiveMapBtn', lang),
+        url: interactiveUrl,
+      });
+    } catch (err) {
+      console.error('[maps-preview] interactive map CTA failed:', err.response?.data ?? err.message);
+    }
+  }
+  return {
+    pickerId,
+    mapId,
+    interactiveId,
+    pendingDeleteIds: [pickerId, mapId, interactiveId].filter(Boolean),
+  };
+}
+
+async function sendRestaurantPicker(to, businesses, lang, { numbered = false } = {}) {
   return sendListMessage(to, {
     header: 'WhatOrder',
     body: t('restaurantPickerBody', lang),
-    footer: t('restaurantPickerFooter', lang),
+    footer: numbered ? t('restaurantPickerFooterNumbered', lang) : t('restaurantPickerFooter', lang),
     buttonLabel: t('restaurantPickerButton', lang),
     sections: [{
       title: 'Restaurants',
-      rows: businesses.map(b => {
+      rows: businesses.map((b, i) => {
         const distLabel = b.distanceKm != null
           ? (() => {
               const distPart = b.distanceKm < 1
@@ -409,7 +496,10 @@ async function sendRestaurantPicker(to, businesses, lang) {
         const statusSuffix = b.isOpen === false ? ` · ${t('closedLabel', lang)}` : '';
         const tagPart = distLabel ? `${distLabel} · ${b.tagline}` : b.tagline;
         const description = `${tagPart}${statusSuffix}`.slice(0, 72);
-        return { id: `restaurant_${b.id}`, title: b.name.slice(0, 24), description };
+        const title = numbered
+          ? `${i + 1}. ${b.name}`.slice(0, 24)
+          : b.name.slice(0, 24);
+        return { id: `restaurant_${b.id}`, title, description };
       }),
     }],
   });
@@ -446,4 +536,9 @@ module.exports = {
   sendCatalog,
   getBusinessesInfo,
   sendRestaurantPicker,
+  sendRestaurantsMapPreview,
+  sendRestaurantPickerWithMap,
+  presentRestaurantPickerForLocation,
+  resolveRestaurantsForPicker,
+  isShowAllRestaurants,
 };

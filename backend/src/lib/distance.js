@@ -1,6 +1,19 @@
 const { isConfigured, fetchDrivingDistances } = require('./googleMaps');
 const distanceCache = require('./distanceCache');
 
+const DEFAULT_MAX_RESTAURANT_DISTANCE_KM = 20;
+
+function getMaxRestaurantDistanceKm() {
+  const raw = process.env.RESTAURANT_PICKER_MAX_KM;
+  if (raw == null || raw === '') return DEFAULT_MAX_RESTAURANT_DISTANCE_KM;
+  const n = parseFloat(raw);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_RESTAURANT_DISTANCE_KM;
+}
+
+function filterWithinDistanceKm(businesses, maxKm = getMaxRestaurantDistanceKm()) {
+  return businesses.filter(b => b.distanceKm != null && b.distanceKm <= maxKm);
+}
+
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -99,4 +112,11 @@ async function sortByDistance(businesses, customerLat, customerLng) {
   return sortByHaversine(businesses, customerLat, customerLng);
 }
 
-module.exports = { haversineKm, sortByDistance, sortByHaversine };
+module.exports = {
+  haversineKm,
+  sortByDistance,
+  sortByHaversine,
+  getMaxRestaurantDistanceKm,
+  filterWithinDistanceKm,
+  DEFAULT_MAX_RESTAURANT_DISTANCE_KM,
+};

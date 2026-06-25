@@ -1,6 +1,6 @@
 import { auth } from './firebase';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { API_URL } from './apiUrl';
 
 export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
   const token = await auth.currentUser?.getIdToken();

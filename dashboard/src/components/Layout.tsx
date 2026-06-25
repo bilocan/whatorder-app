@@ -79,6 +79,7 @@ export default function Layout() {
               <div style={{ borderTop: '1px solid #eee', margin: '0.75rem 0' }} />
               {[
                 { to: '/admin',          label: t('nav.admin') },
+                { to: '/admin/map',      label: t('nav.adminMap') },
                 { to: '/admin/earnings', label: t('nav.earnings') },
               ].map(({ to, label }) => (
                 <NavLink

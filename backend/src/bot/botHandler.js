@@ -1,11 +1,10 @@
 const { getSession, setSession } = require('./sessionStore');
 const { getBusinessInfo } = require('./menuService');
 const { sendText, sendLocationRequest, sendFlowMessage, deleteMessage } = require('../lib/whatsapp');
-const { sortByDistance } = require('../lib/distance');
 const { detectLanguage, scoreLanguage, getOverride } = require('./languageDetector');
 const { t } = require('./templates');
 const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
-const { getBusinessesInfo, sendRestaurantPicker } = require('./botHelpers');
+const { getBusinessesInfo, sendRestaurantPicker, presentRestaurantPickerForLocation } = require('./botHelpers');
 const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/restaurant');
 const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming, handleAwaitingPaymentMethod } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
@@ -233,9 +232,19 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {
     await sendText(from, t('switchConfirmed', lang));
     if (session.lat != null && session.lng != null) {
-      const businesses = await sortByDistance(await getBusinessesInfo(routing.businessIds), session.lat, session.lng);
-      const pickerId = await sendRestaurantPicker(from, businesses, lang);
-      await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null, lat: session.lat, lng: session.lng, pendingDeleteIds: pickerId ? [pickerId] : [] });
+      const { pendingDeleteIds } = await presentRestaurantPickerForLocation(
+        from, routing.businessIds, session.lat, session.lng, lang,
+      );
+      await setSession(from, {
+        state: 'selecting_restaurant',
+        language: lang,
+        basket: [],
+        businessId: null,
+        lat: session.lat,
+        lng: session.lng,
+        pendingDeleteIds,
+        restaurantPickerUnfiltered: false,
+      });
     } else {
       const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
       await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: locId ? [locId] : [] });

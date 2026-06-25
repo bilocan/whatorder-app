@@ -1,5 +1,8 @@
 if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
+  const path = require('path');
+  require('dotenv').config({ path: path.join(__dirname, '../.env.local') });
+  // Workspace .env (e.g. NGROK_DOMAIN from `npm run dev`) — does not override .env.local
+  require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 }
 const express = require('express');
 const cors = require('cors');
@@ -11,6 +14,8 @@ const flowRouter = require('./routes/flow');
 const stripeWebhookRouter = require('./routes/stripeWebhook');
 const chatRouter = require('./routes/chat');
 const geocodeRouter = require('./routes/geocode');
+const mapsPreviewRouter = require('./routes/mapsPreview');
+const mapsRestaurantsRouter = require('./routes/mapsRestaurants');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,10 +37,13 @@ app.use('/', flowRouter);
 app.use('/', ordersRouter);
 app.use('/api', ordersRouter);
 app.use('/api', geocodeRouter);
+app.use('/api', mapsPreviewRouter);
+app.use('/api', mapsRestaurantsRouter);
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`✅ Backend running on http://localhost:${PORT}`);
+  const host = process.env.NODE_ENV === 'production' ? undefined : '0.0.0.0';
+  app.listen(PORT, host, () => {
+    console.log(`✅ Backend running on http://localhost:${PORT}${host ? ' (LAN: port ' + PORT + ')' : ''}`);
   });
 }
 
