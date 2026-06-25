@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './contexts/AuthContext';
 import AuthGuard from './components/AuthGuard';
@@ -16,8 +17,16 @@ import RestaurantsPage from './pages/admin/RestaurantsPage';
 import RestaurantDetailPage from './pages/admin/RestaurantDetailPage';
 import AdminRestaurantMapPage from './pages/admin/AdminRestaurantMapPage';
 import EarningsPage from './pages/admin/EarningsPage';
-import PublicRestaurantsMapPage from './pages/PublicRestaurantsMapPage';
 import SelectRestaurantPage from './pages/SelectRestaurantPage';
+
+const PUBLIC_MAP_ORIGIN = 'https://whatorder.at';
+
+function RedirectPublicMap() {
+  useEffect(() => {
+    window.location.replace(`${PUBLIC_MAP_ORIGIN}/map${window.location.search}`);
+  }, []);
+  return null;
+}
 
 function DefaultRedirect() {
   const { isAdmin, businessId, businessIds } = useAuth();
@@ -34,7 +43,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/map" element={<PublicRestaurantsMapPage />} />
+            <Route path="/map" element={<RedirectPublicMap />} />
             <Route path="/select-restaurant" element={<SelectRestaurantPage />} />
             <Route path="/" element={<AuthGuard><Layout /></AuthGuard>}>
               <Route index element={<DefaultRedirect />} />
