@@ -6,8 +6,11 @@ function digitsOnly(phone) {
   return digits.length >= 8 ? digits : null;
 }
 
-function waMeUrl(digits) {
-  return digits ? `https://wa.me/${digits}` : null;
+function waMeUrl(digits, text) {
+  if (!digits) return null;
+  const base = `https://wa.me/${digits}`;
+  if (!text) return base;
+  return `${base}?text=${encodeURIComponent(text)}`;
 }
 
 async function resolveWhatsAppReturnPhoneDigits() {
