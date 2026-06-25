@@ -11,6 +11,11 @@ describe('GET /api/maps/restaurants', () => {
     jest.clearAllMocks();
   });
 
+  test('returns 400 without ids', async () => {
+    const res = await request(app).get('/api/maps/restaurants');
+    expect(res.status).toBe(400);
+  });
+
   test('returns restaurants with coordinates', async () => {
     businessRef.mockImplementation((id) => ({
       get: jest.fn().mockResolvedValue({

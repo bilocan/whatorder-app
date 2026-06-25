@@ -1,5 +1,9 @@
 const STATIC_MAP_BASE = 'https://maps.googleapis.com/maps/api/staticmap';
 const DEFAULT_MAX_PINS = 8;
+/** Production customer map — whatorder.at (not owner dashboard). */
+const DEFAULT_MAP_PUBLIC_URL = 'https://whatorder.at';
+/** Local whatorderat `npm run dev` (port 3000; stop backend or use another port if both needed). */
+const DEFAULT_DEV_MAP_PUBLIC_URL = 'http://localhost:3000';
 
 function parseCoord(value) {
   if (value == null || value === '') return null;
@@ -101,8 +105,30 @@ function buildRestaurantsMapProxyUrl(customerLat, customerLng, businesses, baseU
 function getPublicMapBaseUrl() {
   const fromEnv = process.env.MAP_PUBLIC_URL?.trim() || process.env.DASHBOARD_URL?.trim();
   if (fromEnv) return fromEnv.replace(/\/$/, '');
-  if (process.env.NODE_ENV !== 'production') return 'http://localhost:5173';
-  return null;
+  if (process.env.NODE_ENV === 'production') return DEFAULT_MAP_PUBLIC_URL;
+  return DEFAULT_DEV_MAP_PUBLIC_URL;
+}
+
+/** @deprecated Alias for getPublicMapBaseUrl */
+function getExplicitMapBaseUrl() {
+  return getPublicMapBaseUrl();
+}
+
+/**
+ * WhatsApp "Open map" CTA after the static preview image.
+ * WhatOrder /map (numbered + named pins). Google Maps browse is fallback only — no multi-pin support.
+ */
+function buildOpenMapCtaUrl(customerLat, customerLng, businesses, businessIds) {
+  const clat = parseCoord(customerLat);
+  const clng = parseCoord(customerLng);
+  if (clat == null || clng == null) return null;
+
+  const dashboardBase = getPublicMapBaseUrl();
+  if (dashboardBase && businessIds?.length) {
+    const mapUrl = buildPublicRestaurantMapUrl(clat, clng, businessIds, dashboardBase);
+    if (mapUrl) return mapUrl;
+  }
+  return buildRestaurantsBrowseMapUrl(clat, clng, businesses);
 }
 
 /**
@@ -162,8 +188,10 @@ module.exports = {
   buildRestaurantsMapProxyUrl,
   buildRestaurantsBrowseMapUrl,
   buildPublicRestaurantMapUrl,
+  buildOpenMapCtaUrl,
   parsePinsParam,
   getPublicBackendUrl,
+  getExplicitMapBaseUrl,
   getPublicMapBaseUrl,
   DEFAULT_MAX_PINS,
 };
