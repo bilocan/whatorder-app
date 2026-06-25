@@ -105,7 +105,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          # 24.17 breaks firebase-tools JWT token exchange (Premature close).
+          # https://github.com/firebase/firebase-tools/issues/10692
+          node-version: '24.16.0'
 
       - name: Install dependencies
         working-directory: dashboard
@@ -124,18 +126,6 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
       - name: Deploy to Firebase Hosting
-        id: deploy_hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        continue-on-error: true
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: whatorder-fire
-          channelId: live
-          firebaseToolsVersion: '15.22.1'
-
-      - name: Retry Firebase Hosting deploy
-        if: steps.deploy_hosting.outcome == 'failure'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
