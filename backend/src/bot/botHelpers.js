@@ -455,6 +455,7 @@ async function sendRestaurantPickerWithMap(to, businesses, lang, customerLat, cu
     customerLng,
     businesses,
     businesses.map((b) => b.id),
+    lang,
   );
   if (interactiveUrl) {
     try {

@@ -4,6 +4,12 @@ const DEFAULT_MAX_PINS = 8;
 const DEFAULT_MAP_PUBLIC_URL = 'https://whatorder.at';
 /** Local whatorderat `npm run dev` (port 3000; stop backend or use another port if both needed). */
 const DEFAULT_DEV_MAP_PUBLIC_URL = 'http://localhost:3000';
+const MAP_PAGE_LANGS = new Set(['de', 'en', 'tr']);
+
+function normalizeMapLang(lang) {
+  const code = String(lang ?? '').trim().toLowerCase().slice(0, 2);
+  return MAP_PAGE_LANGS.has(code) ? code : null;
+}
 
 function parseCoord(value) {
   if (value == null || value === '') return null;
@@ -118,23 +124,23 @@ function getExplicitMapBaseUrl() {
  * WhatsApp "Open map" CTA after the static preview image.
  * WhatOrder /map (numbered + named pins). Google Maps browse is fallback only — no multi-pin support.
  */
-function buildOpenMapCtaUrl(customerLat, customerLng, businesses, businessIds) {
+function buildOpenMapCtaUrl(customerLat, customerLng, businesses, businessIds, lang) {
   const clat = parseCoord(customerLat);
   const clng = parseCoord(customerLng);
   if (clat == null || clng == null) return null;
 
   const dashboardBase = getPublicMapBaseUrl();
   if (dashboardBase && businessIds?.length) {
-    const mapUrl = buildPublicRestaurantMapUrl(clat, clng, businessIds, dashboardBase);
+    const mapUrl = buildPublicRestaurantMapUrl(clat, clng, businessIds, dashboardBase, lang);
     if (mapUrl) return mapUrl;
   }
   return buildRestaurantsBrowseMapUrl(clat, clng, businesses);
 }
 
 /**
- * Public dashboard /map page — interactive map with named pins (WhatsApp CTA).
+ * Public customer map on whatorder.at — interactive map with named pins (WhatsApp CTA).
  */
-function buildPublicRestaurantMapUrl(customerLat, customerLng, businessIds, baseUrl) {
+function buildPublicRestaurantMapUrl(customerLat, customerLng, businessIds, baseUrl, lang) {
   const clat = parseCoord(customerLat);
   const clng = parseCoord(customerLng);
   if (clat == null || clng == null || !baseUrl || !businessIds?.length) return null;
@@ -144,6 +150,8 @@ function buildPublicRestaurantMapUrl(customerLat, customerLng, businessIds, base
     clng: String(clng),
     ids: businessIds.join(','),
   });
+  const mapLang = normalizeMapLang(lang);
+  if (mapLang) params.set('lang', mapLang);
 
   return `${baseUrl.replace(/\/$/, '')}/map?${params.toString()}`;
 }
