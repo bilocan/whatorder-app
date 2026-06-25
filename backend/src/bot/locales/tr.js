@@ -170,7 +170,7 @@ module.exports = {
   intentMultiDefaultHint: () => 'Varsayılanı kullan\'a bas veya all / none / skip yaz (yukarıdaki varsayılan).',
   intentMultiDefaultBtn: () => 'Varsayılan',
 
-  reorderPromptHeader: () => '👋 Tekrar hoş geldin! Son siparişin:',
+  reorderPromptHeader: (name) => `👋 ${name}'a tekrar hoş geldin! Son siparişin:`,
   reorderConfirmPrompt: () => 'Aynısını tekrar sipariş et?',
   reorderConfirmBtn: () => 'Aynısı ✅',
   reorderBrowseBtn: () => 'Başka bir şey',

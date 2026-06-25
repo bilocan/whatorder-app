@@ -13,6 +13,7 @@ const FUNCTION_KEYS = [
   'confirmBtn',
   'orderTotal', 'confirmSummary', 'finalConfirmBody',
   'confirmOrderBtn', 'addNoteBtn', 'backToCartBtn', 'addNotePrompt', 'confirmPrompt', 'yesNoOnly',
+  'reorderPromptHeader',
   'orderConfirmed', 'orderCancelled', 'checkoutCancelled', 'orderReceipt',
   'menuEmpty',
   'orderReady',
@@ -51,6 +52,12 @@ describe('t() — interpolation', () => {
     expect(t('greeting', 'en', 'Döner Palace')).toContain('Döner Palace');
     expect(t('greeting', 'de', 'Döner Palace')).toContain('Döner Palace');
     expect(t('greeting', 'tr', 'Döner Palace')).toContain('Döner Palace');
+  });
+
+  test('reorderPromptHeader embeds restaurant name', () => {
+    expect(t('reorderPromptHeader', 'en', 'Döner Palace')).toContain('Döner Palace');
+    expect(t('reorderPromptHeader', 'de', 'Döner Palace')).toContain('Döner Palace');
+    expect(t('reorderPromptHeader', 'tr', 'Döner Palace')).toContain('Döner Palace');
   });
 
   test('orderReady embeds shortId', () => {

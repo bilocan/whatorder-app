@@ -170,7 +170,7 @@ module.exports = {
   intentMultiDefaultHint: () => 'Tippe Standard verwenden, oder antworte all / none / skip (nutzt Standard oben).',
   intentMultiDefaultBtn: () => 'Standard',
 
-  reorderPromptHeader: () => '👋 Willkommen zurück! Deine letzte Bestellung:',
+  reorderPromptHeader: (name) => `👋 Willkommen zurück bei ${name}! Deine letzte Bestellung:`,
   reorderConfirmPrompt: () => 'Gleich nochmal bestellen?',
   reorderConfirmBtn: () => 'Gleich wieder ✅',
   reorderBrowseBtn: () => 'Etwas anderes',
