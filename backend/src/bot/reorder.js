@@ -32,10 +32,10 @@ function buildReorderBasket(orderItems, menu) {
   return { matched, unmatched };
 }
 
-function buildReorderPromptBody(matched, unmatched, lang) {
+function buildReorderPromptBody(matched, unmatched, lang, restaurantName) {
   const lines = matched.map(i => `• ${i.qty}x ${i.name} — €${(i.price * i.qty).toFixed(2)}`);
   const total = matched.reduce((s, i) => s + i.price * i.qty, 0);
-  let body = t('reorderPromptHeader', lang) + '\n\n' + lines.join('\n') + '\n\n' + t('orderTotal', lang, total.toFixed(2));
+  let body = t('reorderPromptHeader', lang, restaurantName) + '\n\n' + lines.join('\n') + '\n\n' + t('orderTotal', lang, total.toFixed(2));
   if (unmatched.length) {
     body += '\n\n' + t('reorderUnmatched', lang, unmatched.join(', '));
   }
@@ -43,7 +43,7 @@ function buildReorderPromptBody(matched, unmatched, lang) {
   return body;
 }
 
-async function tryOfferReorder({ from, session, lang, businessId, basket }) {
+async function tryOfferReorder({ from, session, lang, businessId, basket, businessName }) {
   const lastOrder = await getLastOrderForCustomer(businessId, from);
   if (!lastOrder) return false;
 
@@ -61,7 +61,7 @@ async function tryOfferReorder({ from, session, lang, businessId, basket }) {
   }, session);
 
   const msgId = await sendButtonMessage(from, {
-    body: buildReorderPromptBody(matched, unmatched, lang),
+    body: buildReorderPromptBody(matched, unmatched, lang, businessName),
     buttons: [
       { id: 'btn_reorder_confirm', title: t('reorderConfirmBtn', lang) },
       { id: 'btn_reorder_browse', title: t('reorderBrowseBtn', lang) },
@@ -116,7 +116,7 @@ async function handleReorderButtons({ from, session, lang, businessId, basket, i
 }
 
 // Layer 0–1 entry: menu keyword → catalog; intent → disambiguate/confirm; reorder → offer; else order entry prompt.
-async function startRestaurantBrowsing({ from, session, lang, businessId, type, text, norm }) {
+async function startRestaurantBrowsing({ from, session, lang, businessId, type, text, norm, businessName }) {
   const freshSession = {
     ...session,
     state: 'browsing',
@@ -125,6 +125,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
     businessId,
     pendingDeleteIds: [],
   };
+  const greetingPrefix = businessName ? t('greeting', lang, businessName) + '\n\n' : '';
 
   if (type === 'text' && isMenuRequest(norm)) {
     const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
@@ -153,7 +154,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
     if (handled === 'llm_failed') {
       await sendOrderEntryPrompt({
         from, session: freshSession, lang, businessId, basket: [],
-        bodyOverride: t('intentParseFailed', lang),
+        bodyOverride: greetingPrefix + t('intentParseFailed', lang),
       });
       return;
     }
@@ -164,9 +165,12 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
     }
   }
 
-  if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [] })) return;
+  if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName })) return;
 
-  await sendOrderEntryPrompt({ from, session: freshSession, lang, businessId, basket: [] });
+  await sendOrderEntryPrompt({
+    from, session: freshSession, lang, businessId, basket: [],
+    ...(businessName ? { bodyOverride: greetingPrefix + t('orderEntryBody', lang) } : {}),
+  });
 }
 
 module.exports = {
