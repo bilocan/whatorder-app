@@ -10,7 +10,8 @@
     "dev": "dotenv -e .env -- concurrently -n backend,dashboard,ngrok -c blue,green,yellow \"npm run dev --prefix backend\" \"npm run dev --prefix dashboard\" \"node scripts/start-ngrok.js\"",
     "dev:backend": "npm run dev --prefix backend",
     "dev:dashboard": "npm run dev --prefix dashboard",
-    "intent:sandbox": "npm run intent:sandbox --prefix backend --"
+    "intent:sandbox": "npm run intent:sandbox --prefix backend --",
+    "intent:eval": "npm run intent:eval --prefix backend --"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
