@@ -1,4 +1,4 @@
-const { haversineKm, sortByDistance } = require('../distance');
+const { haversineKm, sortByDistance, filterWithinDistanceKm, getMaxRestaurantDistanceKm } = require('../distance');
 
 describe('haversineKm', () => {
   test('same point returns 0', () => {
@@ -79,5 +79,23 @@ describe('sortByDistance', () => {
     const orig = [...BUSINESSES];
     await sortByDistance(BUSINESSES, CUSTOMER_LAT, CUSTOMER_LNG);
     expect(BUSINESSES).toEqual(orig);
+  });
+});
+
+describe('filterWithinDistanceKm', () => {
+  test('keeps only businesses within max km', () => {
+    const businesses = [
+      { id: 'near', distanceKm: 3.2 },
+      { id: 'edge', distanceKm: 20 },
+      { id: 'far', distanceKm: 1200 },
+      { id: 'unknown', distanceKm: null },
+    ];
+    expect(filterWithinDistanceKm(businesses, 20).map(b => b.id)).toEqual(['near', 'edge']);
+  });
+
+  test('defaults to 20 km from env helper', () => {
+    const businesses = [{ id: 'ok', distanceKm: 19.9 }, { id: 'no', distanceKm: 20.1 }];
+    expect(filterWithinDistanceKm(businesses).map(b => b.id)).toEqual(['ok']);
+    expect(getMaxRestaurantDistanceKm()).toBe(20);
   });
 });

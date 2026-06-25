@@ -14,7 +14,9 @@ import SettingsPage from './pages/SettingsPage';
 import CustomersPage from './pages/CustomersPage';
 import RestaurantsPage from './pages/admin/RestaurantsPage';
 import RestaurantDetailPage from './pages/admin/RestaurantDetailPage';
+import AdminRestaurantMapPage from './pages/admin/AdminRestaurantMapPage';
 import EarningsPage from './pages/admin/EarningsPage';
+import PublicRestaurantsMapPage from './pages/PublicRestaurantsMapPage';
 import SelectRestaurantPage from './pages/SelectRestaurantPage';
 
 function DefaultRedirect() {
@@ -32,6 +34,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/map" element={<PublicRestaurantsMapPage />} />
             <Route path="/select-restaurant" element={<SelectRestaurantPage />} />
             <Route path="/" element={<AuthGuard><Layout /></AuthGuard>}>
               <Route index element={<DefaultRedirect />} />
@@ -42,6 +45,7 @@ export default function App() {
               <Route path="menu" element={<MenuPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="admin" element={<AdminGuard><RestaurantsPage /></AdminGuard>} />
+              <Route path="admin/map" element={<AdminGuard><AdminRestaurantMapPage /></AdminGuard>} />
               <Route path="admin/restaurants/:id" element={<AdminGuard><RestaurantDetailPage /></AdminGuard>} />
               <Route path="admin/earnings" element={<AdminGuard><EarningsPage /></AdminGuard>} />
             </Route>

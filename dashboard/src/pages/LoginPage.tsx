@@ -6,7 +6,7 @@ import { auth } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import BrandLogo from '../components/BrandLogo';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { API_URL } from '../lib/apiUrl';
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -45,7 +45,8 @@ export default function LoginPage() {
       confirmRef.current = await signInWithPhoneNumber(auth, phone, recaptchaRef.current);
       setStep('otp');
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('login.sendError'));
+      const msg = err instanceof Error ? err.message : t('login.sendError');
+      setError(msg === 'Failed to fetch' ? t('login.backendUnreachable') : msg);
       recaptchaRef.current?.clear();
       recaptchaRef.current = null;
     } finally {

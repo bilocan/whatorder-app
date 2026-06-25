@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Order, OrderStatus } from '../types';
 import { toDate } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { API_URL } from '../lib/apiUrl';
 
 type ActionButton = { labelKey: string; action: string; style?: React.CSSProperties };
 

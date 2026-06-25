@@ -17,6 +17,7 @@
     "menu": "Menü",
     "settings": "Ayarlar",
     "admin": "Admin",
+    "adminMap": "Harita",
     "earnings": "Kazançlar",
     "signOut": "Çıkış yap"
   },
@@ -31,6 +32,7 @@
     "phoneLabel": "Telefon numarası",
     "sendCode": "Kod gönder",
     "sendError": "Kod gönderilemedi. Telefon numarasını kontrol edip tekrar deneyin.",
+    "backendUnreachable": "Backend'e ulaşılamıyor. npm run dev çalışıyor mu? LAN'da dashboard'u Vite (5173) üzerinden açın.",
     "sending": "Gönderiliyor...",
     "codeSentTo": "Kod gönderildi: {{phone}}",
     "verificationCode": "Doğrulama kodu",
@@ -320,6 +322,7 @@
     },
     "restaurants": {
       "title": "Restoranlar",
+      "mapLink": "Haritada gör",
       "newButton": "+ Yeni Restoran",
       "botConfigHint": "Restoran oluşturmak için ortam değişkenine VITE_WHATSAPP_PHONE_NUMBER_ID ekleyin.",
       "botNotConfigured": "WhatsApp botu yapılandırılmamış.",
@@ -429,6 +432,24 @@
         "adding": "Ekleniyor...",
         "addOwner": "+ Sahip ekle"
       }
+    },
+    "map": {
+      "title": "Restoran haritası",
+      "subtitle": "Koordinatı kayıtlı restoranların canlı görünümü. Yeni restoranlar adres kaydından sonra görünür.",
+      "backToList": "← Restoran listesi",
+      "stats": {
+        "onMap": "Haritada {{count}}",
+        "missing": "{{count}} koordinatsız"
+      },
+      "unmappedTitle": "Henüz haritada değil",
+      "addCoordsHint": "Detaylar'da adres + koordinat ekleyin"
     }
+  },
+  "publicMap": {
+    "title": "Yakındaki restoranlar",
+    "subtitle": "Restoran adı için işarete dokunun. Numaralar WhatsApp listesi ile eşleşir.",
+    "loading": "Harita yükleniyor…",
+    "error": "Restoranlar yüklenemedi.",
+    "empty": "Henüz koordinatlı restoran yok."
   }
 }
