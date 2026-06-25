@@ -51,7 +51,7 @@ async function deleteStale(phone, session) {
   if (ids.length) await Promise.allSettled(ids.map(id => deleteMessage(id)));
 }
 
-async function enterRestaurantDirect(from, bid, lang, { type, text, norm }) {
+async function enterRestaurantDirect(from, bid, lang) {
   const bidInfo = await getBusinessInfo(bid);
   if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
     const window = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
@@ -66,7 +66,7 @@ async function enterRestaurantDirect(from, bid, lang, { type, text, norm }) {
   }
   const freshSession = { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] };
   await startRestaurantBrowsing({
-    from, session: freshSession, lang, businessId: bid, type, text, norm,
+    from, session: freshSession, lang, businessId: bid, type: 'text', text: '', norm: '',
   });
 }
 
@@ -89,12 +89,12 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
 
   await deleteStale(from, session);
 
-  // QR deep link — works even when session is already in location/picker flow (multi-tenant).
-  if (type === 'text' && isMulti) {
+  // QR deep link — any session; skip menu search on the ORDER token text.
+  if (type === 'text') {
     const deepBid = parseOrderDeepLink(text, routing.businessIds);
     if (deepBid) {
       const lang = session.language || detectLanguage(text) || 'de';
-      await enterRestaurantDirect(from, deepBid, lang, { type, text, norm });
+      await enterRestaurantDirect(from, deepBid, lang);
       return;
     }
   }
@@ -149,7 +149,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     if (type === 'text') {
       const deepBid = parseOrderDeepLink(text, routing.businessIds);
       if (deepBid) {
-        await enterRestaurantDirect(from, deepBid, lang || 'de', { type, text, norm });
+        await enterRestaurantDirect(from, deepBid, lang || 'de');
         return;
       }
     }
