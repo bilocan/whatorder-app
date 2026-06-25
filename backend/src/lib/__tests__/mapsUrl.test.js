@@ -83,9 +83,14 @@ describe('parsePinsParam', () => {
 });
 
 describe('buildPublicRestaurantMapUrl', () => {
-  test('builds dashboard map URL with customer location and ids', () => {
-    const url = buildPublicRestaurantMapUrl(48.198, 16.373, ['biz_a', 'biz_b'], 'https://whatorder.at');
-    expect(url).toBe('https://whatorder.at/map?clat=48.198&clng=16.373&ids=biz_a%2Cbiz_b');
+  test('builds map URL with customer location, ids, and lang', () => {
+    const url = buildPublicRestaurantMapUrl(48.198, 16.373, ['biz_a', 'biz_b'], 'https://whatorder.at', 'tr');
+    expect(url).toBe('https://whatorder.at/map?clat=48.198&clng=16.373&ids=biz_a%2Cbiz_b&lang=tr');
+  });
+
+  test('omits unknown lang codes', () => {
+    const url = buildPublicRestaurantMapUrl(48.198, 16.373, ['biz_a'], 'https://whatorder.at', 'fr');
+    expect(url).not.toContain('lang=');
   });
 });
 
@@ -121,11 +126,11 @@ describe('buildOpenMapCtaUrl', () => {
     expect(url).toBe('http://localhost:3000/map?clat=48.198&clng=16.373&ids=biz_a%2Cbiz_b');
   });
 
-  test('uses whatorder.at /map in production when MAP_PUBLIC_URL is unset', () => {
+  test('passes session lang in map URL', () => {
     delete process.env.MAP_PUBLIC_URL;
     process.env.NODE_ENV = 'production';
-    const url = buildOpenMapCtaUrl(customer.lat, customer.lng, restaurants, ['biz_a', 'biz_b']);
-    expect(url).toBe('https://whatorder.at/map?clat=48.198&clng=16.373&ids=biz_a%2Cbiz_b');
+    const url = buildOpenMapCtaUrl(customer.lat, customer.lng, restaurants, ['biz_a', 'biz_b'], 'de');
+    expect(url).toBe('https://whatorder.at/map?clat=48.198&clng=16.373&ids=biz_a%2Cbiz_b&lang=de');
   });
 
   test('prefers MAP_PUBLIC_URL when set', () => {
