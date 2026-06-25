@@ -10,6 +10,7 @@ const flowRouter = require('./routes/flow');
 
 const stripeWebhookRouter = require('./routes/stripeWebhook');
 const chatRouter = require('./routes/chat');
+const geocodeRouter = require('./routes/geocode');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,6 +31,7 @@ app.use('/admin', adminRouter);
 app.use('/', flowRouter);
 app.use('/', ordersRouter);
 app.use('/api', ordersRouter);
+app.use('/api', geocodeRouter);
 
 if (require.main === module) {
   app.listen(PORT, () => {

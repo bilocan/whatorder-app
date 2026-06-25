@@ -233,7 +233,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {
     await sendText(from, t('switchConfirmed', lang));
     if (session.lat != null && session.lng != null) {
-      const businesses = sortByDistance(await getBusinessesInfo(routing.businessIds), session.lat, session.lng);
+      const businesses = await sortByDistance(await getBusinessesInfo(routing.businessIds), session.lat, session.lng);
       const pickerId = await sendRestaurantPicker(from, businesses, lang);
       await setSession(from, { state: 'selecting_restaurant', language: lang, basket: [], businessId: null, lat: session.lat, lng: session.lng, pendingDeleteIds: pickerId ? [pickerId] : [] });
     } else {
