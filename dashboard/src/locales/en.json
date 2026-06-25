@@ -56,6 +56,8 @@
     "payment": {
       "cash": "Cash",
       "paid": "Paid",
+      "paidPending": "Paid · pending payout",
+      "paidOut": "Paid · paid out",
       "pending": "Unpaid",
       "failed": "Failed"
     },
@@ -107,6 +109,14 @@
       "markReady": "Mark Ready",
       "pickedUp": "Mark Picked Up",
       "delivered": "Mark Delivered"
+    },
+    "settlement": {
+      "pendingPayout": "Settlement pending",
+      "paidOutOn": "Paid out on {{date}}",
+      "refunded": "Refunded",
+      "gross": "Gross €{{amount}}",
+      "fee": "WhatOrder fee €{{amount}}",
+      "net": "Your net €{{amount}}"
     }
   },
   "customers": {
@@ -327,6 +337,13 @@
         "orderTotal": "Order Total",
         "fee": "WhatOrder Fee",
         "status": "Status"
+      },
+      "settlement": {
+        "title": "Settlement",
+        "pending": "Pending Payout",
+        "paidOut": "Paid Out",
+        "refunded": "Refunded",
+        "byRestaurant": "Pending payout by restaurant"
       }
     },
     "restaurants": {
