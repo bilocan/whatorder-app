@@ -1,5 +1,4 @@
 const express = require('express');
-const { db } = require('../lib/firebase');
 const { businessRef } = require('../lib/collections');
 
 const router = express.Router();
@@ -11,7 +10,7 @@ function parseCoord(value) {
 }
 
 // GET /api/maps/restaurants?ids=biz_a,biz_b
-// Public pin data for the interactive map (name + coordinates only).
+// Public pin data for customer map on whatorder.at (name + coordinates only).
 router.get('/maps/restaurants', async (req, res) => {
   try {
     const ids = String(req.query.ids ?? '')
@@ -19,13 +18,11 @@ router.get('/maps/restaurants', async (req, res) => {
       .map((id) => id.trim())
       .filter(Boolean);
 
-    let docs;
-    if (ids.length) {
-      docs = await Promise.all(ids.map((id) => businessRef(id).get()));
-    } else {
-      const snap = await db.collection('businesses').get();
-      docs = snap.docs;
+    if (!ids.length) {
+      return res.status(400).json({ error: 'ids query parameter is required' });
     }
+
+    const docs = await Promise.all(ids.map((id) => businessRef(id).get()));
 
     const restaurants = docs
       .map((d) => (d.exists ? { id: d.id, ...d.data() } : null))
