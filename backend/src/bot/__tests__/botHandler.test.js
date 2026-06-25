@@ -442,6 +442,28 @@ describe('Multi-restaurant: first-time customer', () => {
     expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.any(String));
     expect(sendListMessage).not.toHaveBeenCalled();
   });
+
+  test('ORDER+ deep link skips picker and opens restaurant menu', async () => {
+    getSession.mockResolvedValue({ state: 'awaiting_location', language: 'de' });
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'ORDER+biz_b' }));
+
+    expect(sendLocationRequest).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      businessId: 'biz_b',
+    }));
+  });
+
+  test('ORDER deep link with space skips picker (wa.me prefill)', async () => {
+    getSession.mockResolvedValue({ state: 'awaiting_location', language: 'de' });
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'ORDER biz_b' }));
+
+    expect(sendLocationRequest).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      businessId: 'biz_b',
+    }));
+  });
 });
 
 // ─── Use case: post-order routing (language set, no businessId) ───────────────

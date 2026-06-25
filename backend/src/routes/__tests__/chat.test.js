@@ -45,6 +45,26 @@ describe('GET /chat', () => {
     expect(resolveWhatsAppReturnPhoneDigits).not.toHaveBeenCalled();
   });
 
+  test('?text= overrides default prefill', async () => {
+    resolveWhatsAppReturnPhoneDigits.mockResolvedValue('436601234567');
+    const res = await request(app).get('/chat?text=Bestellen');
+    expect(res.headers.location).toBe('https://wa.me/436601234567?text=Bestellen');
+  });
+
+  test('?wa= and ?text= combine for restaurant marketing QR', async () => {
+    const res = await request(app).get('/chat?wa=436609999999&text=Bestellen');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('https://wa.me/436609999999?text=Bestellen');
+    expect(resolveWhatsAppReturnPhoneDigits).not.toHaveBeenCalled();
+  });
+
+  test('?bid= embeds ORDER deep link for shared multitenant number', async () => {
+    resolveWhatsAppReturnPhoneDigits.mockResolvedValue('436601234567');
+    const res = await request(app).get('/chat?bid=biz_hamat_abc');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('https://wa.me/436601234567?text=ORDER%20biz_hamat_abc');
+  });
+
   test('returns 503 HTML when no phone is configured', async () => {
     const res = await request(app).get('/chat');
     expect(res.status).toBe(503);

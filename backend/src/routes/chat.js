@@ -5,17 +5,19 @@ const {
   resolveWhatsAppReturnPhoneDigits,
   buildPaymentReturnHtml,
 } = require('../lib/whatsappReturn');
+const { chatPrefillFromQuery } = require('../lib/chatDeepLink');
 
 const router = express.Router();
 
-function chatPrefillText() {
+function chatPrefillText(query = {}) {
+  const fromQuery = chatPrefillFromQuery(query);
+  if (fromQuery) return fromQuery;
   return process.env.WHATSAPP_CHAT_PREFILL || 'Hallo';
 }
-
 async function resolveChatWaUrl(query) {
   const fromQuery = digitsOnly(query.wa);
   const digits = fromQuery || await resolveWhatsAppReturnPhoneDigits();
-  return waMeUrl(digits, chatPrefillText());
+  return waMeUrl(digits, chatPrefillText(query));
 }
 
 router.get('/chat', async (req, res) => {
