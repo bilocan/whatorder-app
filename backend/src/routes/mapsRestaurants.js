@@ -1,5 +1,6 @@
 const express = require('express');
 const { businessRef } = require('../lib/collections');
+const { sortByDistance } = require('../lib/distance');
 
 const router = express.Router();
 
@@ -9,8 +10,20 @@ function parseCoord(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-// GET /api/maps/restaurants?ids=biz_a,biz_b
-// Public pin data for customer map on whatorder.at (name + coordinates only).
+function toPin(b) {
+  return {
+    id: b.id,
+    name: b.name,
+    lat: parseCoord(b.lat),
+    lng: parseCoord(b.lng),
+    address: b.address ?? null,
+    distanceKm: b.distanceKm ?? null,
+    durationMin: b.durationMin ?? null,
+  };
+}
+
+// GET /api/maps/restaurants?ids=biz_a,biz_b&clat=&clng=
+// Public pin data for customer map on whatorder.at. Optional clat/clng → driving distance + sort (same as WhatsApp picker).
 router.get('/maps/restaurants', async (req, res) => {
   try {
     const ids = String(req.query.ids ?? '')
@@ -24,7 +37,7 @@ router.get('/maps/restaurants', async (req, res) => {
 
     const docs = await Promise.all(ids.map((id) => businessRef(id).get()));
 
-    const restaurants = docs
+    let restaurants = docs
       .map((d) => (d.exists ? { id: d.id, ...d.data() } : null))
       .filter(Boolean)
       .map((b) => ({
@@ -36,7 +49,13 @@ router.get('/maps/restaurants', async (req, res) => {
       }))
       .filter((b) => b.lat != null && b.lng != null);
 
-    res.json({ restaurants });
+    const clat = parseCoord(req.query.clat);
+    const clng = parseCoord(req.query.clng);
+    if (clat != null && clng != null) {
+      restaurants = await sortByDistance(restaurants, clat, clng);
+    }
+
+    res.json({ restaurants: restaurants.map(toPin) });
   } catch (err) {
     console.error('[maps-restaurants] list failed:', err.message);
     res.status(500).json({ error: 'Failed to load restaurants' });
