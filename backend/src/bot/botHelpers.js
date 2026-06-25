@@ -1,7 +1,7 @@
 const { getMenu, getBusinessInfo } = require('./menuService');
 const { sortByDistance, filterWithinDistanceKm, getMaxRestaurantDistanceKm } = require('../lib/distance');
 const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendImage } = require('../lib/whatsapp');
-const { buildRestaurantsMapProxyUrl, buildRestaurantsBrowseMapUrl, buildPublicRestaurantMapUrl, getPublicBackendUrl, getPublicMapBaseUrl } = require('../lib/mapsUrl');
+const { buildRestaurantsMapProxyUrl, buildRestaurantsBrowseMapUrl, buildOpenMapCtaUrl, getPublicBackendUrl } = require('../lib/mapsUrl');
 const { isOpenNow } = require('../lib/schedule');
 const { t, tCategory } = require('./templates');
 const { publishTextMenu } = require('./textMenu');
@@ -450,11 +450,11 @@ async function sendRestaurantPickerWithMap(to, businesses, lang, customerLat, cu
     ? await sendRestaurantsMapPreview(to, businesses, customerLat, customerLng, lang)
     : null;
   let interactiveId = null;
-  const interactiveUrl = buildPublicRestaurantMapUrl(
+  const interactiveUrl = buildOpenMapCtaUrl(
     customerLat,
     customerLng,
+    businesses,
     businesses.map((b) => b.id),
-    getPublicMapBaseUrl(),
   );
   if (interactiveUrl) {
     try {
