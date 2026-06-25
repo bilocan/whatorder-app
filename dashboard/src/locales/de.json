@@ -56,6 +56,8 @@
     "payment": {
       "cash": "Bar",
       "paid": "Bezahlt",
+      "paidPending": "Bezahlt · Auszahlung ausstehend",
+      "paidOut": "Bezahlt · ausgezahlt",
       "pending": "Offen",
       "failed": "Fehlgeschlagen"
     },
@@ -107,6 +109,14 @@
       "markReady": "Abholbereit markieren",
       "pickedUp": "Als abgeholt markieren",
       "delivered": "Als geliefert markieren"
+    },
+    "settlement": {
+      "pendingPayout": "Auszahlung ausstehend",
+      "paidOutOn": "Ausgezahlt am {{date}}",
+      "refunded": "Erstattet",
+      "gross": "Brutto €{{amount}}",
+      "fee": "WhatOrder-Gebühr €{{amount}}",
+      "net": "Dein Netto €{{amount}}"
     }
   },
   "customers": {
@@ -327,6 +337,13 @@
         "orderTotal": "Bestellsumme",
         "fee": "WhatOrder-Gebühr",
         "status": "Status"
+      },
+      "settlement": {
+        "title": "Auszahlung",
+        "pending": "Ausstehende Auszahlung",
+        "paidOut": "Ausgezahlt",
+        "refunded": "Erstattet",
+        "byRestaurant": "Ausstehend nach Restaurant"
       }
     },
     "restaurants": {

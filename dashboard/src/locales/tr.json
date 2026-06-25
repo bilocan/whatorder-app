@@ -56,6 +56,8 @@
     "payment": {
       "cash": "Nakit",
       "paid": "Ödendi",
+      "paidPending": "Ödendi · ödeme bekliyor",
+      "paidOut": "Ödendi · ödeme yapıldı",
       "pending": "Ödenmedi",
       "failed": "Başarısız"
     },
@@ -107,6 +109,14 @@
       "markReady": "Hazır olarak işaretle",
       "pickedUp": "Teslim alındı olarak işaretle",
       "delivered": "Teslim edildi olarak işaretle"
+    },
+    "settlement": {
+      "pendingPayout": "Ödeme bekliyor",
+      "paidOutOn": "{{date}} tarihinde ödendi",
+      "refunded": "İade edildi",
+      "gross": "Brüt €{{amount}}",
+      "fee": "WhatOrder ücreti €{{amount}}",
+      "net": "Net tutarınız €{{amount}}"
     }
   },
   "customers": {
@@ -327,6 +337,13 @@
         "orderTotal": "Sipariş Toplamı",
         "fee": "WhatOrder Ücreti",
         "status": "Durum"
+      },
+      "settlement": {
+        "title": "Ödeme Durumu",
+        "pending": "Ödemesi Bekleyen",
+        "paidOut": "Ödendi",
+        "refunded": "İade Edildi",
+        "byRestaurant": "Restorana göre bekleyen ödeme"
       }
     },
     "restaurants": {
