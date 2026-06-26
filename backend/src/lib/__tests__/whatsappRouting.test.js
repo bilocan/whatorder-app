@@ -3,7 +3,42 @@ jest.mock('../collections', () => ({
 }));
 
 const { phoneRoutingByBusinessQuery } = require('../collections');
-const { resolvePhoneNumberIdForBusiness, resolvePhoneNumberIdForOrder } = require('../whatsappRouting');
+const {
+  resolveSendPhoneNumberId,
+  resolvePhoneNumberIdForBusiness,
+  resolvePhoneNumberIdForOrder,
+} = require('../whatsappRouting');
+
+describe('resolveSendPhoneNumberId', () => {
+  const prevEnvId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  let warnSpy;
+
+  beforeEach(() => {
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    process.env.WHATSAPP_PHONE_NUMBER_ID = prevEnvId;
+    warnSpy.mockRestore();
+  });
+
+  test('returns env when stored differs (cross-deployment order)', () => {
+    process.env.WHATSAPP_PHONE_NUMBER_ID = 'test_phone';
+    expect(resolveSendPhoneNumberId('prod_phone')).toBe('test_phone');
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  test('returns stored when it matches env', () => {
+    process.env.WHATSAPP_PHONE_NUMBER_ID = 'prod_phone';
+    expect(resolveSendPhoneNumberId('prod_phone')).toBe('prod_phone');
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  test('returns stored when env is unset', () => {
+    delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+    expect(resolveSendPhoneNumberId('prod_phone')).toBe('prod_phone');
+  });
+});
 
 describe('resolvePhoneNumberIdForBusiness', () => {
   const prevEnvId = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -13,39 +48,39 @@ describe('resolvePhoneNumberIdForBusiness', () => {
     jest.clearAllMocks();
   });
 
-  test('returns env fallback when businessId is missing', async () => {
+  test('prefers env over phoneRouting when env is set', async () => {
     process.env.WHATSAPP_PHONE_NUMBER_ID = 'env_phone';
-    expect(await resolvePhoneNumberIdForBusiness(null)).toBe('env_phone');
+    expect(await resolvePhoneNumberIdForBusiness('biz_a')).toBe('env_phone');
+    expect(phoneRoutingByBusinessQuery).not.toHaveBeenCalled();
   });
 
-  test('returns single phoneRouting doc id', async () => {
+  test('falls back to phoneRouting when env is unset', async () => {
+    delete process.env.WHATSAPP_PHONE_NUMBER_ID;
     phoneRoutingByBusinessQuery.mockReturnValue({
       get: jest.fn().mockResolvedValue({
         empty: false,
-        size: 1,
         docs: [{ id: 'prod_phone' }],
       }),
     });
 
     expect(await resolvePhoneNumberIdForBusiness('biz_a')).toBe('prod_phone');
   });
-
-  test('prefers env id when multiple routing docs match', async () => {
-    process.env.WHATSAPP_PHONE_NUMBER_ID = 'test_phone';
-    phoneRoutingByBusinessQuery.mockReturnValue({
-      get: jest.fn().mockResolvedValue({
-        empty: false,
-        size: 2,
-        docs: [{ id: 'prod_phone' }, { id: 'test_phone' }],
-      }),
-    });
-
-    expect(await resolvePhoneNumberIdForBusiness('biz_a')).toBe('test_phone');
-  });
 });
 
 describe('resolvePhoneNumberIdForOrder', () => {
-  test('uses whatsappPhoneNumberId stored on the order', async () => {
-    expect(await resolvePhoneNumberIdForOrder({ whatsappPhoneNumberId: 'stored_phone' }, 'biz_a')).toBe('stored_phone');
+  const prevEnvId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  afterEach(() => {
+    process.env.WHATSAPP_PHONE_NUMBER_ID = prevEnvId;
+  });
+
+  test('uses stored id when it matches env', async () => {
+    process.env.WHATSAPP_PHONE_NUMBER_ID = 'prod_phone';
+    expect(await resolvePhoneNumberIdForOrder({ whatsappPhoneNumberId: 'prod_phone' }, 'biz_a')).toBe('prod_phone');
+  });
+
+  test('uses env when stored is from another deployment', async () => {
+    process.env.WHATSAPP_PHONE_NUMBER_ID = 'test_phone';
+    expect(await resolvePhoneNumberIdForOrder({ whatsappPhoneNumberId: 'prod_phone' }, 'biz_a')).toBe('test_phone');
   });
 });
