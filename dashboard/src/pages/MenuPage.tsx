@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import OptionGroupsEditor from '../components/OptionGroupsEditor';
 import { draftGroupsFromMenu, customizationSummary, buildMenuPayload } from '../lib/optionGroups';
 import type { DraftOptionGroup } from '../lib/optionGroups';
+import { uploadMenuPhoto, deleteMenuPhotoBestEffort, MenuPhotoError } from '../lib/menuPhoto';
 import { useConfirm } from '../components/ConfirmDialog';
 import type { MenuItem } from '../types';
 
@@ -116,9 +117,14 @@ type FormValues = {
   description: string;
   available: boolean;
   optionGroups: DraftOptionGroup[];
+  photoFile: File | null;
+  photoUrl: string | null;
 };
 
-const EMPTY: FormValues = { name: '', price: '', category: 'mains', description: '', available: true, optionGroups: [] };
+const EMPTY: FormValues = {
+  name: '', price: '', category: 'mains', description: '', available: true, optionGroups: [],
+  photoFile: null, photoUrl: null,
+};
 
 interface MenuFormProps {
   values: FormValues;
@@ -127,11 +133,25 @@ interface MenuFormProps {
   onCancel: () => void;
   submitting: boolean;
   submitLabel: string;
+  photoError: string | null;
 }
 
-function MenuForm({ values, onChange, onSubmit, onCancel, submitting, submitLabel }: MenuFormProps) {
+function MenuForm({ values, onChange, onSubmit, onCancel, submitting, submitLabel, photoError }: MenuFormProps) {
   const { t } = useTranslation();
   const categoryOptions = STANDARD_CATEGORIES.map((c) => ({ value: c, label: t(`menu.category.${c}`) }));
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!values.photoFile) {
+      setFilePreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(values.photoFile);
+    setFilePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [values.photoFile]);
+
+  const photoPreview = filePreviewUrl ?? values.photoUrl;
 
   return (
     <form
@@ -182,6 +202,29 @@ function MenuForm({ values, onChange, onSubmit, onCancel, submitting, submitLabe
           onChange={(e) => onChange({ ...values, description: e.target.value })}
         />
       </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <label style={{ fontSize: '0.75rem', color: '#666' }}>{t('menu.form.photo')}</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {photoPreview && (
+            <img src={photoPreview} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => onChange({ ...values, photoFile: e.target.files?.[0] ?? null })}
+          />
+          {(values.photoUrl || values.photoFile) && (
+            <button
+              type="button"
+              style={btnSecondary}
+              onClick={() => onChange({ ...values, photoFile: null, photoUrl: null })}
+            >
+              {t('menu.form.photoRemove')}
+            </button>
+          )}
+        </div>
+        {photoError && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{photoError}</span>}
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 2 }}>
         <input
           type="checkbox"
@@ -215,6 +258,7 @@ export default function MenuPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editItem, setEditItem] = useState<FormValues>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!businessId) return;
@@ -225,18 +269,36 @@ export default function MenuPage() {
 
   const grouped = groupMenuItems(items);
 
+  function photoErrorMessage(err: MenuPhotoError): string {
+    return t(err.code === 'too-large' ? 'menu.form.photoTooLarge' : 'menu.form.photoInvalidType');
+  }
+
+  async function resolvePhotoForSave(businessId: string, values: FormValues): Promise<string | null> {
+    if (values.photoFile) return uploadMenuPhoto(businessId, values.photoFile);
+    return values.photoUrl;
+  }
+
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!businessId) return;
+    setPhotoError(null);
     setSaving(true);
-    await addDoc(collection(db, 'businesses', businessId, 'menu'), buildMenuPayload(newItem));
-    setNewItem(EMPTY);
-    setShowAddForm(false);
-    setSaving(false);
+    try {
+      const photoUrl = await resolvePhotoForSave(businessId, newItem);
+      await addDoc(collection(db, 'businesses', businessId, 'menu'), buildMenuPayload({ ...newItem, photoUrl }));
+      setNewItem(EMPTY);
+      setShowAddForm(false);
+    } catch (err) {
+      if (err instanceof MenuPhotoError) setPhotoError(photoErrorMessage(err));
+      else throw err;
+    } finally {
+      setSaving(false);
+    }
   }
 
   function startEdit(item: MenuItem) {
     setEditingId(item.id);
+    setPhotoError(null);
     setEditItem({
       name: item.name,
       price: String(item.price),
@@ -244,6 +306,8 @@ export default function MenuPage() {
       description: item.description ?? '',
       available: item.available,
       optionGroups: draftGroupsFromMenu(item.optionGroups),
+      photoFile: null,
+      photoUrl: item.photoUrl ?? null,
     });
     setShowAddForm(false);
   }
@@ -251,10 +315,22 @@ export default function MenuPage() {
   async function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!businessId || !editingId) return;
+    setPhotoError(null);
     setSaving(true);
-    await updateDoc(doc(db, 'businesses', businessId, 'menu', editingId), buildMenuPayload(editItem, true));
-    setSaving(false);
-    setEditingId(null);
+    try {
+      const original = items.find((i) => i.id === editingId);
+      const photoUrl = await resolvePhotoForSave(businessId, editItem);
+      await updateDoc(doc(db, 'businesses', businessId, 'menu', editingId), buildMenuPayload({ ...editItem, photoUrl }, true));
+      if (original?.photoUrl && original.photoUrl !== photoUrl) {
+        await deleteMenuPhotoBestEffort(original.photoUrl);
+      }
+      setEditingId(null);
+    } catch (err) {
+      if (err instanceof MenuPhotoError) setPhotoError(photoErrorMessage(err));
+      else throw err;
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDelete(itemId: string) {
@@ -287,9 +363,10 @@ export default function MenuPage() {
           values={newItem}
           onChange={setNewItem}
           onSubmit={handleAdd}
-          onCancel={() => { setShowAddForm(false); setNewItem(EMPTY); }}
+          onCancel={() => { setShowAddForm(false); setNewItem(EMPTY); setPhotoError(null); }}
           submitting={saving}
           submitLabel={t('menu.add')}
+          photoError={photoError}
         />
       )}
 
@@ -309,9 +386,10 @@ export default function MenuPage() {
                 values={editItem}
                 onChange={setEditItem}
                 onSubmit={handleSaveEdit}
-                onCancel={() => setEditingId(null)}
+                onCancel={() => { setEditingId(null); setPhotoError(null); }}
                 submitting={saving}
                 submitLabel={t('menu.save')}
+                photoError={photoError}
               />
             ) : (
               <div

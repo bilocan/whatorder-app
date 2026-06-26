@@ -33,6 +33,19 @@ describe('matchIntentToMenu', () => {
     ]);
   });
 
+  test('carries photoUrl from the matched menu item', () => {
+    const PHOTO_MENU = [{ id: 'k1', name: 'Kebap Sandwich Huhn', price: 7.5, photoUrl: 'gs://bucket/kebap.jpg' }];
+    const intent = { items: [{ name: 'Kebap Sandwich Huhn', qty: 1 }] };
+    const { matched } = matchIntentToMenu(intent, PHOTO_MENU);
+    expect(matched[0].photoUrl).toBe('gs://bucket/kebap.jpg');
+  });
+
+  test('leaves photoUrl undefined when menu item has none', () => {
+    const intent = { items: [{ name: 'Ayran', qty: 1 }] };
+    const { matched } = matchIntentToMenu(intent, MENU);
+    expect(matched[0].photoUrl).toBeUndefined();
+  });
+
   test('merges ingredient split when tokens match multi-ingredient product name', () => {
     const PIDE_MENU = [{ id: 'p1', name: 'Pide mit Gouda und Eiern', price: 9.9 }];
     const intent = {
