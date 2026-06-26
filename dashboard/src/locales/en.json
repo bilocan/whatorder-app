@@ -202,11 +202,20 @@
     }
   },
   "income": {
-    "title": "Income — Today",
+    "titleToday": "Income — Today",
+    "titleWeek": "Income — This Week",
+    "periodToday": "Today",
+    "periodWeek": "This Week",
     "earned": "Earned",
     "pending": "Pending",
     "orders": "Orders",
     "whatorderFee": "WhatOrder Fee",
+    "analyticsTitle": "Payment Analytics",
+    "totalRevenue": "Total Revenue",
+    "paidCard": "Paid (Card)",
+    "cashPending": "Cash Pending",
+    "recentRefunds": "Recent Refunds",
+    "failureRate": "Payment Failure Rate",
     "breakdown": "Breakdown",
     "noOrders": "No orders today.",
     "feeLabel": "Fee: €{{fee}}"
