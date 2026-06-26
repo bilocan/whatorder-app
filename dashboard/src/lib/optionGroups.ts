@@ -132,6 +132,7 @@ type MenuCoreFields = {
   description: string;
   available: boolean;
   optionGroups: DraftOptionGroup[];
+  photoUrl?: string | null;
 };
 
 export function buildMenuPayload(values: MenuCoreFields, forUpdate = false) {
@@ -142,7 +143,10 @@ export function buildMenuPayload(values: MenuCoreFields, forUpdate = false) {
     description: String(values.description).trim(),
     available: values.available,
   };
+  const withPhoto = values.photoUrl
+    ? { ...base, photoUrl: values.photoUrl }
+    : (forUpdate ? { ...base, photoUrl: deleteField() } : base);
   const optionGroups = normalizeOptionGroups(values.optionGroups);
-  if (optionGroups.length) return { ...base, optionGroups };
-  return forUpdate ? { ...base, optionGroups: deleteField() } : base;
+  if (optionGroups.length) return { ...withPhoto, optionGroups };
+  return forUpdate ? { ...withPhoto, optionGroups: deleteField() } : withPhoto;
 }
