@@ -10,6 +10,8 @@
     "seed": "node scripts/seed.js",
     "firestore:audit": "node scripts/firestore-audit.js",
     "firestore:cleanup": "node scripts/firestore-cleanup.js",
+    "firestore:smoke": "node scripts/firestore-smoke.js",
+    "firestore:reset-production": "node scripts/firestore-reset-production.js",
     "intent:sandbox": "node scripts/intent-sandbox.js",
     "intent:eval": "node scripts/intent-eval.js",
     "intent:record": "node scripts/intent-record.js",

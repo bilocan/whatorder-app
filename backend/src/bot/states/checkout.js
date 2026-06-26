@@ -16,6 +16,14 @@ function isPaymentEnabled(info) {
   return info.paymentEnabled === true && isStripeConfigured();
 }
 
+function logPaymentSkipped(businessId, info) {
+  if (info.paymentEnabled !== true) {
+    console.warn(`[checkout] payment skipped for ${businessId}: paymentEnabled=${info.paymentEnabled ?? false}`);
+  } else if (!isStripeConfigured()) {
+    console.warn(`[checkout] payment skipped for ${businessId}: STRIPE_SECRET_KEY not set`);
+  }
+}
+
 function orderTotals(basket, session, info) {
   const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
   const isDelivery = session.orderType === 'delivery';
@@ -392,6 +400,7 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
       await transitionToPaymentMethod(from, session, lang, businessId, basket);
       return;
     }
+    logPaymentSkipped(businessId, info);
     await placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'cash' });
     return;
   }
