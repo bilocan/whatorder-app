@@ -67,6 +67,21 @@ export default function EarningsPage() {
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
   const totalFees = orders.reduce((s, o) => s + calcFee(o.total, feeConfig), 0);
 
+  const pendingSettlementCents = orders
+    .filter((o) => o.settlementStatus === 'pending' || o.settlementStatus === 'included_in_payout')
+    .reduce((s, o) => s + (o.restaurantNetCents ?? 0), 0);
+  const paidOutCents = orders
+    .filter((o) => o.settlementStatus === 'paid_out')
+    .reduce((s, o) => s + (o.restaurantNetCents ?? 0), 0);
+  const refundedCount = orders.filter((o) => o.settlementStatus === 'refunded').length;
+
+  const pendingByRestaurant = new Map<string, number>();
+  orders
+    .filter((o) => o.settlementStatus === 'pending' || o.settlementStatus === 'included_in_payout')
+    .forEach((o) => {
+      pendingByRestaurant.set(o.businessName, (pendingByRestaurant.get(o.businessName) ?? 0) + (o.restaurantNetCents ?? 0));
+    });
+
   const cardStyle: React.CSSProperties = {
     padding: '1rem 1.5rem',
     border: '1px solid #eee',
@@ -131,6 +146,34 @@ export default function EarningsPage() {
           <div style={{ ...valueStyle, color: '#6366f1' }}>€{totalFees.toFixed(2)}</div>
         </div>
       </div>
+
+      {/* Settlement / payout status */}
+      <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem' }}>{t('admin.earnings.settlement.title')}</h3>
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <div style={cardStyle}>
+          <div style={labelStyle}>{t('admin.earnings.settlement.pending')}</div>
+          <div style={valueStyle}>€{(pendingSettlementCents / 100).toFixed(2)}</div>
+        </div>
+        <div style={cardStyle}>
+          <div style={labelStyle}>{t('admin.earnings.settlement.paidOut')}</div>
+          <div style={valueStyle}>€{(paidOutCents / 100).toFixed(2)}</div>
+        </div>
+        <div style={cardStyle}>
+          <div style={labelStyle}>{t('admin.earnings.settlement.refunded')}</div>
+          <div style={valueStyle}>{refundedCount}</div>
+        </div>
+      </div>
+      {pendingByRestaurant.size > 0 && (
+        <div style={{ marginBottom: '2rem' }}>
+          <div style={{ ...labelStyle, marginBottom: '0.5rem' }}>{t('admin.earnings.settlement.byRestaurant')}</div>
+          {[...pendingByRestaurant.entries()].map(([name, cents]) => (
+            <div key={name} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.3rem 0', fontSize: '0.9rem', borderBottom: '1px solid #f9f9f9' }}>
+              <span>{name}</span>
+              <span style={{ fontWeight: 600 }}>€{(cents / 100).toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Orders table */}
       <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem' }}>{t('admin.earnings.allOrders')}</h3>

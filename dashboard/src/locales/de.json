@@ -56,6 +56,8 @@
     "payment": {
       "cash": "Bar",
       "paid": "Bezahlt",
+      "paidPending": "Bezahlt · Auszahlung ausstehend",
+      "paidOut": "Bezahlt · ausgezahlt",
       "pending": "Offen",
       "failed": "Fehlgeschlagen"
     },
@@ -107,6 +109,16 @@
       "markReady": "Abholbereit markieren",
       "pickedUp": "Als abgeholt markieren",
       "delivered": "Als geliefert markieren"
+    },
+    "settlement": {
+      "pendingPayout": "Auszahlung ausstehend",
+      "paidOutOn": "Ausgezahlt am {{date}}",
+      "eligibleOn": "Auszahlungsfähig ab {{date}}",
+      "refunded": "Erstattet",
+      "gross": "Brutto €{{amount}}",
+      "fee": "WhatOrder-Gebühr €{{amount}}",
+      "net": "Dein Netto €{{amount}}",
+      "paidAt": "Bezahlt am {{time}}"
     }
   },
   "customers": {
@@ -159,7 +171,12 @@
       "price": "Preis (€)",
       "category": "Kategorie",
       "description": "Beschreibung (optional)",
-      "available": "Verfügbar"
+      "available": "Verfügbar",
+      "photo": "Foto",
+      "photoRemove": "Foto entfernen",
+      "photoUploading": "Wird hochgeladen…",
+      "photoTooLarge": "Bild darf maximal 5MB groß sein.",
+      "photoInvalidType": "Die ausgewählte Datei ist kein Bild."
     },
     "category": {
       "mains": "Hauptgerichte",
@@ -192,11 +209,20 @@
     }
   },
   "income": {
-    "title": "Einnahmen — Heute",
+    "titleToday": "Einnahmen — Heute",
+    "titleWeek": "Einnahmen — Diese Woche",
+    "periodToday": "Heute",
+    "periodWeek": "Diese Woche",
     "earned": "Eingenommen",
     "pending": "Ausstehend",
     "orders": "Bestellungen",
     "whatorderFee": "WhatOrder-Gebühr",
+    "analyticsTitle": "Zahlungsanalyse",
+    "totalRevenue": "Gesamtumsatz",
+    "paidCard": "Bezahlt (Karte)",
+    "cashPending": "Bar ausstehend",
+    "recentRefunds": "Erstattungen",
+    "failureRate": "Fehlerquote",
     "breakdown": "Aufschlüsselung",
     "noOrders": "Heute keine Bestellungen.",
     "feeLabel": "Gebühr: €{{fee}}"
@@ -241,6 +267,15 @@
       "saving": "Speichern…",
       "saved": "Gespeichert",
       "invalidValue": "Ungültiger Wert"
+    },
+    "payment": {
+      "title": "Kartenzahlung",
+      "description": "Kunden können beim Checkout über den Bot mit Karte bezahlen. Wenn deaktiviert, können Kunden nur bei Abholung/Lieferung bar bezahlen.",
+      "acceptPayment": "Kartenzahlungen akzeptieren",
+      "save": "Zahlungseinstellungen speichern",
+      "saving": "Speichern…",
+      "saved": "Gespeichert",
+      "error": "Speichern fehlgeschlagen"
     },
     "botLanguage": {
       "title": "Bot-Sprache",
@@ -318,6 +353,13 @@
         "orderTotal": "Bestellsumme",
         "fee": "WhatOrder-Gebühr",
         "status": "Status"
+      },
+      "settlement": {
+        "title": "Auszahlung",
+        "pending": "Ausstehende Auszahlung",
+        "paidOut": "Ausgezahlt",
+        "refunded": "Erstattet",
+        "byRestaurant": "Ausstehend nach Restaurant"
       }
     },
     "restaurants": {
@@ -361,7 +403,8 @@
         "off": "Aus",
         "saving": "Speichern…",
         "turnOn": "Einschalten",
-        "turnOff": "Ausschalten"
+        "turnOff": "Ausschalten",
+        "imageRequired": "Titelbild erforderlich, bevor Kunden dieses Restaurant sehen können."
       },
       "details": {
         "name": "Name",
@@ -370,6 +413,8 @@
         "businessId": "Geschäfts-ID",
         "address": "Adresse",
         "coordinates": "Koordinaten",
+        "image": "Titelbild",
+        "imageHint": "Öffentliche HTTPS- oder gs://-URL. Erforderlich, bevor Kunden dieses Restaurant sehen können.",
         "edit": "Bearbeiten",
         "statusActive": "Aktiv",
         "statusPaused": "Pausiert",

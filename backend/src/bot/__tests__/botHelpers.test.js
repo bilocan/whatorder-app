@@ -1,3 +1,8 @@
+jest.mock('../menuService', () => ({
+  getBusinessInfo: jest.fn(),
+  resolvePhotoUrl: jest.fn((url) => (url ? `resolved:${url}` : null)),
+}));
+
 const {
   MAX_LIST_ROWS,
   ITEMS_PER_PAGE,
@@ -18,7 +23,10 @@ const {
   basketViewButtons,
   removeBasketAtIndex,
   removeBasketAtIndices,
+  getBusinessesInfo,
+  resolveRestaurantsForPicker,
 } = require('../botHelpers');
+const { getBusinessInfo } = require('../menuService');
 
 const menu = [
   { id: '1', name: 'Item 1', price: 5, category: 'mains' },
@@ -248,5 +256,37 @@ describe('basket formatting', () => {
       { name: 'Ayran', qty: 1, price: 2 },
     ];
     expect(removeBasketAtIndices(basket, [1])).toEqual([{ name: 'Ayran', qty: 1, price: 2 }]);
+  });
+});
+
+describe('restaurant picker imageUrl enforcement', () => {
+  beforeEach(() => {
+    getBusinessInfo.mockReset();
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    console.error.mockRestore();
+  });
+
+  test('getBusinessesInfo resolves imageUrl from business info', async () => {
+    getBusinessInfo.mockResolvedValue({ name: 'Döner Palace', lat: 48.2, lng: 16.37, imageUrl: 'gs://bucket/cover.jpg' });
+    const [info] = await getBusinessesInfo(['biz_a']);
+    expect(info.imageUrl).toBe('resolved:gs://bucket/cover.jpg');
+  });
+
+  test('resolveRestaurantsForPicker excludes businesses without imageUrl', async () => {
+    getBusinessInfo.mockImplementation(async (bid) => (
+      bid === 'biz_with_image'
+        ? { name: 'Has Image', lat: 48.2, lng: 16.37, imageUrl: 'https://example.com/a.jpg' }
+        : { name: 'No Image', lat: 48.21, lng: 16.38 }
+    ));
+
+    const { pickList } = await resolveRestaurantsForPicker(
+      ['biz_with_image', 'biz_no_image'], 48.2, 16.37, { unfiltered: true },
+    );
+
+    expect(pickList.map(b => b.id)).toEqual(['biz_with_image']);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('biz_no_image'));
   });
 });

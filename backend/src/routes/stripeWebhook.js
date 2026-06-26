@@ -1,7 +1,7 @@
 const express = require('express');
 const { getStripe } = require('../lib/stripe');
 const { resolveStripeWebhookSecret } = require('../lib/stripeWebhookSecret');
-const { processStripeWebhookEvent } = require('../lib/paymentService');
+const { processStripeWebhookEvent, handleCheckoutSessionCompleted } = require('../lib/paymentService');
 const {
   digitsOnly,
   waMeUrl,
@@ -19,6 +19,7 @@ async function resolveWaUrlFromQuery(query) {
 }
 
 router.get('/payments/success', async (req, res) => {
+  await confirmPaymentFromSessionId(req.query.session_id);
   const waUrl = await resolveWaUrlFromQuery(req.query);
   res.type('html').send(buildPaymentReturnHtml({
     title: 'Payment received',
@@ -26,6 +27,21 @@ router.get('/payments/success', async (req, res) => {
     waUrl,
   }));
 });
+
+async function confirmPaymentFromSessionId(sessionId) {
+  if (!sessionId) return;
+  const stripe = getStripe();
+  if (!stripe) return;
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status === 'paid') {
+      await handleCheckoutSessionCompleted(session);
+    }
+  } catch (err) {
+    console.error('[stripe] success-page fallback failed:', err.message);
+  }
+}
 
 router.get('/payments/cancel', async (req, res) => {
   const waUrl = await resolveWaUrlFromQuery(req.query);

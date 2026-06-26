@@ -7,6 +7,7 @@ export type RestaurantMapPin = {
   lat: number;
   lng: number;
   address?: string | null;
+  imageUrl?: string | null;
 };
 
 type Props = {
@@ -79,7 +80,7 @@ export default function RestaurantMap({ pins, customer, height = '420px', onPinC
             label: String(i + 1),
           });
           const info = new google.maps.InfoWindow({
-            content: `<div style="font-family:sans-serif;max-width:220px"><strong>${escapeHtml(pin.name)}</strong>${pin.address ? `<br><span style="color:#666;font-size:12px">${escapeHtml(pin.address)}</span>` : ''}</div>`,
+            content: `<div style="font-family:sans-serif;max-width:240px">${pin.imageUrl ? `<img src="${escapeHtml(pin.imageUrl)}" style="width:100%;max-width:240px;border-radius:8px;margin-bottom:8px"/>` : ''}<strong>${escapeHtml(pin.name)}</strong>${pin.address ? `<br><span style="color:#666;font-size:12px">${escapeHtml(pin.address)}</span>` : ''}</div>`,
           });
           marker.addListener('click', () => {
             info.open({ map: mapRef.current!, anchor: marker });

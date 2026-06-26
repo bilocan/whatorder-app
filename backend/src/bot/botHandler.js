@@ -65,7 +65,7 @@ async function enterRestaurantDirect(from, bid, lang) {
   }
   const freshSession = { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] };
   await startRestaurantBrowsing({
-    from, session: freshSession, lang, businessId: bid, type: 'text', text: '', norm: '',
+    from, session: freshSession, lang, businessId: bid, type: 'text', text: '', norm: '', businessName: bidInfo.name,
   });
 }
 
@@ -183,7 +183,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     }
     const freshSession = { state: 'browsing', language: langResolved, basket: [], businessId: bid, pendingDeleteIds: [] };
     await startRestaurantBrowsing({
-      from, session: freshSession, lang: langResolved, businessId: bid, type, text, norm,
+      from, session: freshSession, lang: langResolved, businessId: bid, type, text, norm, businessName: bidInfo.name,
     });
     return;
   }
@@ -227,6 +227,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       type,
       text,
       norm,
+      businessName: bidInfo.name,
     });
     return;
   }

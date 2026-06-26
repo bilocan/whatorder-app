@@ -93,6 +93,7 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
       type,
       text: text ?? '',
       norm: norm ?? '',
+      businessName: selectedInfo.name,
     });
     return;
   }

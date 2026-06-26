@@ -245,7 +245,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
 
     const prepMins = info.avgPrepTime || 30;
     const pickupTime = new Date(Date.now() + prepMins * 60000)
-      .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+      .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', timeZone: info.timezone || 'Europe/Vienna' });
     const newSession = { ...session, state: 'browsing', language: lang, basket: newBasket, pickupTime, prepMins, businessId, lat: session.lat ?? null, lng: session.lng ?? null, pendingDeleteIds: [] };
     await proceedFromConfirmedBasket({ from, session: newSession, lang, businessId, basket: newBasket });
     return;
@@ -266,7 +266,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     }
     const prepMins = info.avgPrepTime || 30;
     const pickupTime = new Date(Date.now() + prepMins * 60000)
-      .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+      .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', timeZone: info.timezone || 'Europe/Vienna' });
     const newSession = { ...session, state: 'browsing', basket: flowBasket, pickupTime, prepMins, businessId, pendingDeleteIds: [] };
     await proceedFromConfirmedBasket({ from, session: newSession, lang, businessId, basket: flowBasket });
     return;
@@ -400,7 +400,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       }
       const prepMins = info.avgPrepTime || 30;
       const pickupTime = new Date(Date.now() + prepMins * 60000)
-        .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+        .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', timeZone: info.timezone || 'Europe/Vienna' });
       const newSession = { ...session, pickupTime, prepMins, pendingDeleteIds: [] };
       await proceedFromConfirmedBasket({ from, session: newSession, lang, businessId, basket });
       return;
