@@ -113,10 +113,12 @@
     "settlement": {
       "pendingPayout": "Auszahlung ausstehend",
       "paidOutOn": "Ausgezahlt am {{date}}",
+      "eligibleOn": "Auszahlungsfähig ab {{date}}",
       "refunded": "Erstattet",
       "gross": "Brutto €{{amount}}",
       "fee": "WhatOrder-Gebühr €{{amount}}",
-      "net": "Dein Netto €{{amount}}"
+      "net": "Dein Netto €{{amount}}",
+      "paidAt": "Bezahlt am {{time}}"
     }
   },
   "customers": {
