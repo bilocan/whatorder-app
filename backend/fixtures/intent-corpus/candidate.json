@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "name": "intent-corpus-candidates",
+  "description": "Harvested phrases from sandbox or logs. status=candidate — not enforced in CI. Edit expect to desired behavior, fix parser, then promote to builtin.json.",
+  "cases": []
+}
