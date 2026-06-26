@@ -121,6 +121,7 @@ function toPendingItem(item, qty, { rawIntentName } = {}) {
     qty: Math.min(99, Math.max(1, qty ?? 1)),
     price: Number(item.price),
     optionGroups: item.optionGroups ?? [],
+    photoUrl: item.photoUrl ?? undefined,
     rawIntentName: intentName,
     modifierKey: intentName ? extractModifierKey(intentName) : undefined,
   };

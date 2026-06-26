@@ -171,7 +171,12 @@
       "price": "Fiyat (€)",
       "category": "Kategori",
       "description": "Açıklama (isteğe bağlı)",
-      "available": "Mevcut"
+      "available": "Mevcut",
+      "photo": "Fotoğraf",
+      "photoRemove": "Fotoğrafı kaldır",
+      "photoUploading": "Yükleniyor…",
+      "photoTooLarge": "Görsel en fazla 5MB olmalı.",
+      "photoInvalidType": "Seçilen dosya bir görsel değil."
     },
     "category": {
       "mains": "Ana Yemekler",

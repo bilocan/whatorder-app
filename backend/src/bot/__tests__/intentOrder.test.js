@@ -11,8 +11,8 @@ jest.mock('../../lib/llm', () => ({
 }));
 
 const { setSession } = require('../sessionStore');
-const { getMenu } = require('../menuService');
-const { sendButtonMessage } = require('../../lib/whatsapp');
+const { getMenu, resolvePhotoUrl } = require('../menuService');
+const { sendButtonMessage, sendImage } = require('../../lib/whatsapp');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../../lib/llm');
 const { tryTextIntentOrder } = require('../intentOrder');
 
@@ -25,7 +25,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   getMenu.mockResolvedValue(MENU);
   sendButtonMessage.mockResolvedValue('msg_1');
+  sendImage.mockResolvedValue('msg_img');
   setSession.mockResolvedValue();
+  resolvePhotoUrl.mockImplementation(url => url ?? null);
 });
 
 describe('tryTextIntentOrder', () => {
@@ -86,5 +88,44 @@ describe('tryTextIntentOrder', () => {
     expect(sendButtonMessage).toHaveBeenCalled();
     const body = sendButtonMessage.mock.calls[0][1].body;
     expect(body).toMatch(/1x Döner/);
+  });
+
+  test('sends a photo for matched items that have one', async () => {
+    getMenu.mockResolvedValue([
+      { id: 'item_1', name: 'Döner', price: 8.50, photoUrl: 'https://cdn.example.com/doner.jpg' },
+      { id: 'item_2', name: 'Ayran', price: 2.00 },
+    ]);
+
+    const handled = await tryTextIntentOrder({
+      from: '+43699000001',
+      session: { state: 'browsing', language: 'en', basket: [] },
+      lang: 'en',
+      businessId: 'biz_test',
+      basket: [],
+      text: '2x Döner + Ayran',
+      norm: '2x döner + ayran',
+    });
+
+    expect(handled).toBe(true);
+    expect(sendImage).toHaveBeenCalledTimes(1);
+    expect(sendImage).toHaveBeenCalledWith('+43699000001', {
+      url: 'https://cdn.example.com/doner.jpg',
+      caption: 'Döner',
+    });
+  });
+
+  test('sends no photo when no matched item has one', async () => {
+    const handled = await tryTextIntentOrder({
+      from: '+43699000001',
+      session: { state: 'browsing', language: 'en', basket: [] },
+      lang: 'en',
+      businessId: 'biz_test',
+      basket: [],
+      text: '2x Döner + Ayran',
+      norm: '2x döner + ayran',
+    });
+
+    expect(handled).toBe(true);
+    expect(sendImage).not.toHaveBeenCalled();
   });
 });
