@@ -113,10 +113,12 @@
     "settlement": {
       "pendingPayout": "Ödeme bekliyor",
       "paidOutOn": "{{date}} tarihinde ödendi",
+      "eligibleOn": "{{date}} tarihinde ödemeye uygun",
       "refunded": "İade edildi",
       "gross": "Brüt €{{amount}}",
       "fee": "WhatOrder ücreti €{{amount}}",
-      "net": "Net tutarınız €{{amount}}"
+      "net": "Net tutarınız €{{amount}}",
+      "paidAt": "{{time}} tarihinde ödendi"
     }
   },
   "customers": {

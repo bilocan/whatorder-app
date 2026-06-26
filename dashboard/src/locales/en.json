@@ -113,10 +113,12 @@
     "settlement": {
       "pendingPayout": "Settlement pending",
       "paidOutOn": "Paid out on {{date}}",
+      "eligibleOn": "Eligible for payout on {{date}}",
       "refunded": "Refunded",
       "gross": "Gross €{{amount}}",
       "fee": "WhatOrder fee €{{amount}}",
-      "net": "Your net €{{amount}}"
+      "net": "Your net €{{amount}}",
+      "paidAt": "Paid at {{time}}"
     }
   },
   "customers": {
