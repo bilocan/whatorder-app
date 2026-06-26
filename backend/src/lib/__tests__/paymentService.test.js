@@ -128,12 +128,34 @@ describe('handleCheckoutSessionCompleted', () => {
       settlementStatus: 'pending',
     }));
     expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123', 'PHONE_ROUTING_ID');
+    expect(mockOrderUpdate).toHaveBeenCalledTimes(2);
+    expect(mockOrderUpdate.mock.calls[1][0]).toEqual({ paymentNotifiedAt: 'TS' });
   });
 
-  test('skips when order already paid', async () => {
+  test('still notifies when order already paid but paymentNotifiedAt missing', async () => {
     mockOrderGet.mockResolvedValue({
       exists: true,
-      data: () => ({ paymentStatus: 'paid' }),
+      data: () => ({
+        paymentStatus: 'paid',
+        customerPhone: '+431234',
+        language: 'en',
+      }),
+    });
+
+    await handleCheckoutSessionCompleted({
+      id: 'cs_1',
+      metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+    });
+
+    expect(mockOrderUpdate).toHaveBeenCalledTimes(1);
+    expect(mockOrderUpdate.mock.calls[0][0]).toEqual({ paymentNotifiedAt: 'TS' });
+    expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123', 'PHONE_ROUTING_ID');
+  });
+
+  test('skips when payment already notified', async () => {
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ paymentStatus: 'paid', paymentNotifiedAt: 'TS' }),
     });
 
     await handleCheckoutSessionCompleted({
@@ -142,6 +164,7 @@ describe('handleCheckoutSessionCompleted', () => {
     });
 
     expect(mockOrderUpdate).not.toHaveBeenCalled();
+    expect(sendText).not.toHaveBeenCalled();
   });
 });
 
