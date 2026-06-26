@@ -1,5 +1,6 @@
 const express = require('express');
 const { getStripe } = require('../lib/stripe');
+const { resolveStripeWebhookSecret } = require('../lib/stripeWebhookSecret');
 const { processStripeWebhookEvent, handleCheckoutSessionCompleted } = require('../lib/paymentService');
 const {
   digitsOnly,
@@ -53,7 +54,7 @@ router.get('/payments/cancel', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const stripe = getStripe();
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const secret = resolveStripeWebhookSecret();
 
   if (!stripe || !secret) {
     return res.status(503).json({ error: 'Stripe webhook not configured' });

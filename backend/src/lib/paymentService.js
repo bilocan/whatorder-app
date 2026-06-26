@@ -3,6 +3,7 @@ const { admin } = require('./firebase');
 const { getStripe } = require('./stripe');
 const { getFeeConfig, calcFeeCents } = require('./feeConfig');
 const { resolveWhatsAppReturnPhoneDigits, waMeUrl } = require('./whatsappReturn');
+const { resolvePhoneNumberIdForOrder } = require('./whatsappRouting');
 const { sendText } = require('./whatsapp');
 const { t } = require('../bot/templates');
 
@@ -101,9 +102,10 @@ async function handleCheckoutSessionCompleted(session) {
   });
 
   try {
+    const phoneNumberId = await resolvePhoneNumberIdForOrder(order, businessId);
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
-    await sendText(order.customerPhone, t('paymentConfirmed', lang, shortId));
+    await sendText(order.customerPhone, t('paymentConfirmed', lang, shortId), phoneNumberId);
   } catch (err) {
     console.error('[stripe] customer payment confirmation failed:', err.message);
   }

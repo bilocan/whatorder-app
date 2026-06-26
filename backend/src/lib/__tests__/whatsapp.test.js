@@ -196,6 +196,18 @@ describe('production paths (NODE_ENV overridden)', () => {
     );
   });
 
+  test('sendText uses explicit phoneNumberId override', async () => {
+    axios.post.mockResolvedValue({ data: {} });
+
+    await sendText('+43123456789', 'Hello', 'PROD_PHONE_ID');
+
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('PROD_PHONE_ID/messages'),
+      expect.objectContaining({ type: 'text', to: '43123456789' }),
+      expect.any(Object),
+    );
+  });
+
   test('sendListMessage POSTs an interactive list payload', async () => {
     axios.post.mockResolvedValue({ data: {} });
 

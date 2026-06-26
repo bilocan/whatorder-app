@@ -1,6 +1,7 @@
 const { ordersRef, businessRef, customersRef } = require('../lib/collections');
 const { admin } = require('../lib/firebase');
 const { sendText } = require('../lib/whatsapp');
+const { resolvePhoneNumberIdForOrder } = require('../lib/whatsappRouting');
 const { formatBasketItemsText } = require('./botHelpers');
 const { t } = require('./templates');
 const { normalizeCustomerPhone, customerPhoneVariants } = require('../lib/phone');
@@ -71,7 +72,7 @@ const STATUS_NOTIFY_KEY = {
   cancelled:  'orderCancelled',
 };
 
-async function createOrder(businessId, { customerPhone, customerName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus }) {
+async function createOrder(businessId, { customerPhone, customerName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus, whatsappPhoneNumberId }) {
   const ref = ordersRef(businessId).doc();
   const resolvedName = customerName || 'WhatsApp Customer';
   const phone = normalizeCustomerPhone(customerPhone) || customerPhone;
@@ -92,6 +93,7 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
     paymentStatus: paymentStatus || (paymentMethod === 'stripe' ? 'pending' : 'cash'),
     settlementStatus: 'none',
   };
+  if (whatsappPhoneNumberId) doc.whatsappPhoneNumberId = whatsappPhoneNumberId;
   if (notes) doc.notes = notes;
   if (orderType === 'delivery' && deliveryAddress) {
     doc.deliveryAddress = deliveryAddress;
@@ -125,6 +127,7 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
 
   // Notify owner
   try {
+    const phoneNumberId = await resolvePhoneNumberIdForOrder(doc, businessId);
     const bizSnap = await businessRef(businessId).get();
     const biz = bizSnap.exists ? bizSnap.data() : null;
     if (biz?.alertPhone) {
@@ -133,7 +136,7 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
       const typeLabel = doc.orderType === 'delivery' ? '🚚 Delivery' : '🛍️ Pickup';
       const addressLine = doc.deliveryAddress ? `\nAddress: ${doc.deliveryAddress}` : '';
       const ownerMsg = `🔔 New Order #${shortId} (${typeLabel})\n\n${itemLines}\n\nTotal: €${doc.total.toFixed(2)}${addressLine}\nCustomer: ${resolvedName} (${phone})`;
-      await sendText(biz.alertPhone, ownerMsg);
+      await sendText(biz.alertPhone, ownerMsg, phoneNumberId);
     }
   } catch (err) {
     console.error('Owner notification failed:', err.message);
@@ -171,10 +174,11 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
   await ref.update(update);
 
   try {
+    const phoneNumberId = await resolvePhoneNumberIdForOrder(order, businessId);
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
     const notifyArgs = toStatus === 'approved' ? [shortId, etaTime] : [shortId];
-    await sendText(order.customerPhone, t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs));
+    await sendText(order.customerPhone, t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs), phoneNumberId);
   } catch (err) {
     console.error('Customer notification failed:', err.message);
   }
