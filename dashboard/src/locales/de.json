@@ -202,11 +202,20 @@
     }
   },
   "income": {
-    "title": "Einnahmen — Heute",
+    "titleToday": "Einnahmen — Heute",
+    "titleWeek": "Einnahmen — Diese Woche",
+    "periodToday": "Heute",
+    "periodWeek": "Diese Woche",
     "earned": "Eingenommen",
     "pending": "Ausstehend",
     "orders": "Bestellungen",
     "whatorderFee": "WhatOrder-Gebühr",
+    "analyticsTitle": "Zahlungsanalyse",
+    "totalRevenue": "Gesamtumsatz",
+    "paidCard": "Bezahlt (Karte)",
+    "cashPending": "Bar ausstehend",
+    "recentRefunds": "Erstattungen",
+    "failureRate": "Fehlerquote",
     "breakdown": "Aufschlüsselung",
     "noOrders": "Heute keine Bestellungen.",
     "feeLabel": "Gebühr: €{{fee}}"
