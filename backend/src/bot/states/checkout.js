@@ -48,6 +48,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     deliveryFee,
     paymentMethod,
     paymentStatus: paymentMethod === 'stripe' ? 'pending' : 'cash',
+    whatsappPhoneNumberId: session.whatsappPhoneNumberId || null,
   });
   const shortId = orderId.slice(-6).toUpperCase();
   const itemLines = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });

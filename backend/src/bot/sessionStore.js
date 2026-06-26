@@ -32,6 +32,7 @@ function buildSessionWrite(session, overrides) {
     lat: session.lat ?? null,
     lng: session.lng ?? null,
     pendingDeleteIds: session.pendingDeleteIds ?? [],
+    whatsappPhoneNumberId: session.whatsappPhoneNumberId ?? null,
   };
   for (const key of [...CHECKOUT_FIELDS, ...MENU_BROWSE_FIELDS, ...INTENT_FIELDS, ...REORDER_FIELDS, ...DISAMBIGUATION_FIELDS, ...BASKET_EDIT_FIELDS]) {
     if (session[key] != null) data[key] = session[key];

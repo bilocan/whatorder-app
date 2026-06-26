@@ -2,8 +2,9 @@ const axios = require('axios');
 
 const BASE_URL = 'https://graph.facebook.com/v21.0';
 
-function apiUrl() {
-  return `${BASE_URL}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+function apiUrl(phoneNumberId) {
+  const id = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  return `${BASE_URL}/${id}/messages`;
 }
 
 function headers() {
@@ -29,9 +30,9 @@ function clampWaButtonTitle(title, fallback = '…') {
   return fallback;
 }
 
-async function send(payload) {
+async function send(payload, phoneNumberId) {
   try {
-    const response = await axios.post(apiUrl(), payload, { headers: headers() });
+    const response = await axios.post(apiUrl(phoneNumberId), payload, { headers: headers() });
     return response.data?.messages?.[0]?.id ?? null;
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
@@ -40,13 +41,13 @@ async function send(payload) {
   }
 }
 
-async function sendText(to, body) {
+async function sendText(to, body, phoneNumberId) {
   const normalized = normalizePhone(to);
   if (process.env.NODE_ENV === 'test') {
-    console.log(`\n[WA TEXT → ${normalized}]\n${body}\n`);
+    console.log(`\n[WA TEXT → ${normalized}] phoneNumberId=${phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || 'default'}\n${body}\n`);
     return testId();
   }
-  return send({ messaging_product: 'whatsapp', to: normalized, type: 'text', text: { body } });
+  return send({ messaging_product: 'whatsapp', to: normalized, type: 'text', text: { body } }, phoneNumberId);
 }
 
 // sections: [{ title, rows: [{ id, title, description? }] }]

@@ -9,6 +9,9 @@ jest.mock('../whatsappReturn', () => ({
   resolveWhatsAppReturnPhoneDigits: jest.fn().mockResolvedValue('436601234567'),
   waMeUrl: jest.fn((d) => (d ? `https://wa.me/${d}` : null)),
 }));
+jest.mock('../whatsappRouting', () => ({
+  resolvePhoneNumberIdForOrder: jest.fn().mockResolvedValue('PHONE_ROUTING_ID'),
+}));
 jest.mock('../../bot/templates', () => ({ t: jest.fn((_k, _lang, shortId) => `paid:${shortId}`) }));
 
 const { ordersRef, stripeEventRef } = require('../collections');
@@ -124,7 +127,7 @@ describe('handleCheckoutSessionCompleted', () => {
       restaurantNetCents: 2850,
       settlementStatus: 'pending',
     }));
-    expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123');
+    expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123', 'PHONE_ROUTING_ID');
   });
 
   test('skips when order already paid', async () => {

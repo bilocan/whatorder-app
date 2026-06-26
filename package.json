@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "predev": "node scripts/kill-ngrok.js",
-    "dev": "dotenv -e .env -- concurrently -n backend,dashboard,ngrok -c blue,green,yellow \"npm run dev --prefix backend\" \"npm run dev --prefix dashboard\" \"node scripts/start-ngrok.js\"",
+    "dev": "dotenv -e .env -- concurrently -n backend,dashboard,ngrok,stripe -c blue,green,yellow,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix dashboard\" \"node scripts/start-ngrok.js\" \"node scripts/start-stripe-listen.js\"",
     "dev:backend": "npm run dev --prefix backend",
     "dev:dashboard": "npm run dev --prefix dashboard",
     "intent:sandbox": "npm run intent:sandbox --prefix backend --",

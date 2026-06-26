@@ -79,7 +79,7 @@ describe('receiveWebhook', () => {
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(handleMessage).toHaveBeenCalledWith(
-      { businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null },
+      { businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null, phoneNumberId: 'PH_ID' },
       expect.any(Object),
     );
   });
@@ -95,7 +95,7 @@ describe('receiveWebhook', () => {
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(handleMessage).toHaveBeenCalledWith(
-      { businessIds: ['biz_a', 'biz_b', 'biz_c'], defaultBusinessId: 'biz_a' },
+      { businessIds: ['biz_a', 'biz_b', 'biz_c'], defaultBusinessId: 'biz_a', phoneNumberId: 'PH_ID' },
       expect.any(Object),
     );
   });
@@ -111,7 +111,7 @@ describe('receiveWebhook', () => {
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(handleMessage).toHaveBeenCalledWith(
-      { businessIds: ['biz_a'], defaultBusinessId: 'biz_a' },
+      { businessIds: ['biz_a'], defaultBusinessId: 'biz_a', phoneNumberId: 'PH_ID' },
       expect.any(Object),
     );
     const routing = handleMessage.mock.calls[0][0];
@@ -127,7 +127,7 @@ describe('receiveWebhook', () => {
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(handleMessage).toHaveBeenCalledWith(
-      { businessIds: [], defaultBusinessId: null },
+      { businessIds: [], defaultBusinessId: null, phoneNumberId: 'PH_ID' },
       expect.any(Object),
     );
   });
