@@ -1,0 +1,511 @@
+{
+  "version": 1,
+  "name": "builtin-pilot-phrases",
+  "description": "Rules-only regression corpus on BUILTIN_MENU. Phrases from pilot/parser tests and live TTS patterns.",
+  "cases": [
+    {
+      "id": "qty-space-2-doner-1-ayran",
+      "text": "2 Döner 1 ayran",
+      "tags": [
+        "qty",
+        "multi_item"
+      ],
+      "expect": {
+        "orderLike": true,
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "intentItems": [
+          {
+            "name": "Döner",
+            "qty": 2
+          },
+          {
+            "name": "ayran",
+            "qty": 1
+          }
+        ],
+        "matchedCount": 2,
+        "matchedContains": [
+          "Kebap",
+          "Ayran"
+        ]
+      }
+    },
+    {
+      "id": "qty-2x-doner-cola",
+      "text": "2x döner und cola",
+      "tags": [
+        "qty",
+        "multi_item"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedCount": 2,
+        "matchedContains": [
+          "Kebap",
+          "Cola"
+        ]
+      }
+    },
+    {
+      "id": "mod-split-zwei-doner",
+      "text": "zwei döner einer mit allem einer ohne zwiebel",
+      "tags": [
+        "modifier",
+        "parse_split"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "intentItemNames": [
+          "döner mit allem",
+          "döner ohne zwiebel"
+        ],
+        "matchedCount": 2,
+        "matchedContains": [
+          "Kebap"
+        ]
+      }
+    },
+    {
+      "id": "mod-split-takeaway-prefix",
+      "text": "zum mitnehmen zwei döner mit allem einer ohne zwiebel",
+      "tags": [
+        "modifier",
+        "parse_split"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedCount": 2
+      }
+    },
+    {
+      "id": "mod-split-zwiebeln-plural",
+      "text": "zum mitnehmen zwei döner einer mit allem einer ohne zwiebeln",
+      "tags": [
+        "modifier",
+        "parse_split"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "intentItemNames": [
+          "döner mit allem",
+          "döner ohne zwiebeln"
+        ],
+        "matchedCount": 2
+      }
+    },
+    {
+      "id": "mod-split-huhner-sandwich",
+      "text": "Zum Mitnehmen zwei Hühner kebap Sandwich mit allem einer ohne zwiebel",
+      "tags": [
+        "modifier",
+        "parse_split"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedCount": 2,
+        "matchedContains": [
+          "Kebap"
+        ]
+      }
+    },
+    {
+      "id": "mod-split-eine-andere",
+      "text": "ich hätte gerne zwei Hühner Kebab eine mit allem und andere ohne Schaf und Soße bitte",
+      "tags": [
+        "modifier",
+        "parse_split",
+        "llm_should_skip"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "intentItemNames": [
+          "Hühner Kebab mit allem",
+          "Hühner Kebab ohne Schaf und Soße"
+        ],
+        "matchedCount": 2
+      }
+    },
+    {
+      "id": "mod-split-huhnerkebab",
+      "text": "Ich hätte gerne zwei hühnerkebab eine mit allen eine ohne Sauce und Zwiebel",
+      "tags": [
+        "modifier",
+        "parse_split"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedCount": 2
+      }
+    },
+    {
+      "id": "mod-ohne-scharf-beilagen",
+      "text": "döner mit allem ohne scharf bitte",
+      "tags": [
+        "modifier",
+        "llm_should_skip"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedCount": 1,
+        "botReplyContains": [
+          "Tomaten",
+          "Salat",
+          "Zwiebel",
+          "Sauce"
+        ],
+        "botReplyNotContains": [
+          "Scharfe Sauce",
+          "extra scharf"
+        ]
+      }
+    },
+    {
+      "id": "mod-scharf-on-line",
+      "text": "noch ein kebap mit allem und scharf bitte",
+      "tags": [
+        "modifier"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedCount": 1
+      }
+    },
+    {
+      "id": "mod-sharf-typo",
+      "text": "bitte ein kebap mit allen und sharf und ayran dazu",
+      "tags": [
+        "modifier",
+        "tts_typo"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedCount": 2,
+        "matchedContains": [
+          "Kebap",
+          "Ayran"
+        ]
+      }
+    },
+    {
+      "id": "jeweils-scales-to-food-qty",
+      "text": "zwei Hühner Kebab und jeweils einer ayran bitte",
+      "tags": [
+        "jeweils"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedQtySum": 4,
+        "matchedContains": [
+          "Kebap",
+          "Ayran"
+        ]
+      }
+    },
+    {
+      "id": "jeweils-standalone-drink",
+      "text": "jeweils ayran noch bitte",
+      "tags": [
+        "jeweils"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedNames": [
+          "Ayran"
+        ],
+        "intentItems": [
+          {
+            "name": "ayran",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "jeweils-basket-scales",
+      "text": "jeweils ayran noch bitte",
+      "tags": [
+        "jeweils",
+        "basket"
+      ],
+      "basket": [
+        {
+          "name": "Kebap Sandwich Huhn",
+          "qty": 3,
+          "price": 7.5
+        }
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedQtySum": 3,
+        "matchedNames": [
+          "Ayran"
+        ]
+      }
+    },
+    {
+      "id": "tts-eier-drink-slot",
+      "text": "Zwei Hühner Kebab ein Cola und ein Eier bitte",
+      "tags": [
+        "tts_typo",
+        "multi_item"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedCount": 3,
+        "matchedContains": [
+          "Kebap",
+          "Cola",
+          "Ayran"
+        ]
+      }
+    },
+    {
+      "id": "multi-kebab-doner",
+      "text": "Zwei Hühner Kebab einen Döner und an einem bitte",
+      "tags": [
+        "multi_item"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedQtySum": 3
+      }
+    },
+    {
+      "id": "multi-kebab-cola-ayran",
+      "text": "Zwei Hühner Kebab ein Cola und ein ayran bitte",
+      "tags": [
+        "multi_item"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedCount": 3
+      }
+    },
+    {
+      "id": "pide-mit-ingredient",
+      "text": "Eine pide mit Eier und gouda",
+      "tags": [
+        "parse_split"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedNames": [
+          "Pide mit Gouda und Eiern"
+        ]
+      }
+    },
+    {
+      "id": "qty-2x-cola",
+      "text": "2x Cola",
+      "tags": [
+        "qty",
+        "drink"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedNames": [
+          "Cola"
+        ],
+        "intentItems": [
+          {
+            "name": "Cola",
+            "qty": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "single-cola",
+      "text": "cola",
+      "tags": [
+        "drink",
+        "llm_should_skip"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedNames": [
+          "Cola"
+        ]
+      }
+    },
+    {
+      "id": "single-doner",
+      "text": "döner",
+      "tags": [
+        "llm_should_skip"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedCount": 1,
+        "matchedContains": [
+          "Kebap"
+        ]
+      }
+    },
+    {
+      "id": "tr-bir-pizza-iki-kola",
+      "text": "bir pizza iki kola",
+      "tags": [
+        "qty",
+        "tr"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedContains": [
+          "Cola"
+        ]
+      }
+    },
+    {
+      "id": "en-pizza-cola-partial-match",
+      "text": "pizza and cola",
+      "lang": "en",
+      "tags": [
+        "en"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedContains": [
+          "Cola"
+        ],
+        "unmatched": [
+          "pizza"
+        ]
+      }
+    },
+    {
+      "id": "greeting-hallo",
+      "text": "hallo",
+      "tags": [
+        "not_order"
+      ],
+      "expect": {
+        "orderLike": false,
+        "outcome": "not_order"
+      }
+    },
+    {
+      "id": "greeting-merhaba",
+      "text": "Merhaba",
+      "tags": [
+        "not_order"
+      ],
+      "expect": {
+        "orderLike": false,
+        "outcome": "not_order"
+      }
+    },
+    {
+      "id": "no-match-schnitzel",
+      "text": "schnitzel",
+      "tags": [
+        "no_match",
+        "llm_should_skip"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "no_match"
+      }
+    },
+    {
+      "id": "no-match-pizza-only",
+      "text": "pizza für 2 personen",
+      "tags": [
+        "no_match"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "no_match"
+      }
+    },
+    {
+      "id": "no-match-recommendation",
+      "text": "was empfehlt ihr",
+      "tags": [
+        "no_match",
+        "conversational"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "no_match"
+      }
+    },
+    {
+      "id": "jeweils-pizza-typos-ayran-only",
+      "text": "Eine Margarete und eine spinati und jeweils einer bitte ayram bitte",
+      "tags": [
+        "jeweils",
+        "tts_typo"
+      ],
+      "expect": {
+        "parsedBy": "rules",
+        "outcome": "proposal",
+        "matchedQtySum": 2,
+        "matchedContains": [
+          "Ayran"
+        ]
+      }
+    },
+    {
+      "id": "zwei-eiern-noch-dazu-bitte",
+      "text": "Zwei Eiern noch dazu bitte",
+      "tags": [
+        "tts_typo"
+      ],
+      "menu": "builtin",
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "matchedNames": [
+          "Ayran"
+        ],
+        "matchedQtySum": 2
+      },
+      "notes": "Enes pilot Cloud Logging 2026-06-26"
+    },
+    {
+      "id": "ei-kebab",
+      "text": "ei kebab",
+      "menu": "builtin",
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "ei kebab",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Kebap Sandwich Huhn"
+        ],
+        "matchedCount": 1
+      }
+    }
+  ]
+}

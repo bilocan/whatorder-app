@@ -8,6 +8,11 @@
     "dev": "nodemon src/index.js",
     "test": "jest",
     "seed": "node scripts/seed.js",
+    "intent:sandbox": "node scripts/intent-sandbox.js",
+    "intent:eval": "node scripts/intent-eval.js",
+    "intent:record": "node scripts/intent-record.js",
+    "intent:promote": "node scripts/intent-promote.js",
+    "intent:ship": "node scripts/intent-ship.js",
     "generate:flow": "node src/scripts/generateFlow.js"
   },
   "dependencies": {
