@@ -9,7 +9,12 @@
     "predev": "node scripts/kill-ngrok.js",
     "dev": "dotenv -e .env -- concurrently -n backend,dashboard,ngrok -c blue,green,yellow \"npm run dev --prefix backend\" \"npm run dev --prefix dashboard\" \"node scripts/start-ngrok.js\"",
     "dev:backend": "npm run dev --prefix backend",
-    "dev:dashboard": "npm run dev --prefix dashboard"
+    "dev:dashboard": "npm run dev --prefix dashboard",
+    "intent:sandbox": "npm run intent:sandbox --prefix backend --",
+    "intent:eval": "npm run intent:eval --prefix backend --",
+    "intent:record": "npm run intent:record --prefix backend --",
+    "intent:promote": "npm run intent:promote --prefix backend --",
+    "intent:ship": "npm run intent:ship --prefix backend --"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

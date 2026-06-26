@@ -125,6 +125,13 @@ describe('parseIntentAsync', () => {
       expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
     }
   });
+
+  test('uses rules for single item with mit allem ohne scharf without calling LLM', async () => {
+    const r = await parseIntentAsync('döner mit allem ohne scharf', { phone: '+440' });
+    expect(r.parsedBy).toBe('rules');
+    expect(r.items).toEqual([{ name: 'döner mit allem ohne scharf', qty: 1 }]);
+    expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
+  });
 });
 
 describe('shouldTryLlm', () => {
@@ -153,5 +160,12 @@ describe('shouldTryLlm', () => {
     const text = 'something light for the kids';
     const rules = parseIntent(text);
     expect(shouldTryLlm(text, rules, '+438')).toBe(true);
+  });
+
+  test('false for single item with mit allem ohne scharf', () => {
+    const { parseIntent } = require('../intentParser');
+    const text = 'döner mit allem ohne scharf';
+    const rules = parseIntent(text);
+    expect(shouldTryLlm(text, rules, '+439')).toBe(false);
   });
 });

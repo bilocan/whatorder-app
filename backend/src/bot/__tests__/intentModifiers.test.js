@@ -50,6 +50,11 @@ describe('resolveModifierSelections', () => {
     expect(sel.beilagen).toEqual(['tomato', 'salad', 'onion', 'sauce', 'chili']);
   });
 
+  test('mit allem ohne scharf excludes spicy from all inserts', () => {
+    const sel = resolveModifierSelections('döner mit allem ohne scharf bitte', [BEILAGEN_WITH_CHILI]);
+    expect(sel.beilagen).toEqual(['tomato', 'salad', 'onion', 'sauce']);
+  });
+
   test('kebap mit scharf adds spicy to defaults', () => {
     const sel = resolveModifierSelections('kebap mit scharf', [BEILAGEN_WITH_CHILI]);
     expect(sel.beilagen).toContain('chili');
