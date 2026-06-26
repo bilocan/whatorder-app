@@ -30,11 +30,32 @@ function clampWaButtonTitle(title, fallback = '…') {
   return fallback;
 }
 
+function isPhoneNumberPermissionError(err) {
+  const e = err.response?.data?.error;
+  return err.response?.status === 400 && e?.code === 100 && e?.error_subcode === 33;
+}
+
+async function postMessage(payload, phoneNumberId) {
+  const response = await axios.post(apiUrl(phoneNumberId), payload, { headers: headers() });
+  return response.data?.messages?.[0]?.id ?? null;
+}
+
 async function send(payload, phoneNumberId) {
+  const envId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const primaryId = phoneNumberId || envId;
   try {
-    const response = await axios.post(apiUrl(phoneNumberId), payload, { headers: headers() });
-    return response.data?.messages?.[0]?.id ?? null;
+    return await postMessage(payload, primaryId);
   } catch (err) {
+    if (phoneNumberId && envId && phoneNumberId !== envId && isPhoneNumberPermissionError(err)) {
+      console.warn(`[WA] phoneNumberId=${phoneNumberId} not permitted on this server; retrying with env ${envId}`);
+      try {
+        return await postMessage(payload, envId);
+      } catch (retryErr) {
+        const detail = retryErr.response?.data ? JSON.stringify(retryErr.response.data) : retryErr.message;
+        console.error(`[WA] ${retryErr.response?.status ?? 'ERR'} to=${payload.to} type=${payload.type} — ${detail}`);
+        throw retryErr;
+      }
+    }
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
     console.error(`[WA] ${err.response?.status ?? 'ERR'} to=${payload.to} type=${payload.type} — ${detail}`);
     throw err;

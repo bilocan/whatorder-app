@@ -11,32 +11,24 @@ const {
 
 describe('resolveSendPhoneNumberId', () => {
   const prevEnvId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  let warnSpy;
-
-  beforeEach(() => {
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-  });
 
   afterEach(() => {
     process.env.WHATSAPP_PHONE_NUMBER_ID = prevEnvId;
-    warnSpy.mockRestore();
   });
 
-  test('returns env when stored differs (cross-deployment order)', () => {
+  test('prefers stored id even when env differs (send layer retries on permission error)', () => {
     process.env.WHATSAPP_PHONE_NUMBER_ID = 'test_phone';
-    expect(resolveSendPhoneNumberId('prod_phone')).toBe('test_phone');
-    expect(warnSpy).toHaveBeenCalled();
+    expect(resolveSendPhoneNumberId('prod_phone')).toBe('prod_phone');
   });
 
   test('returns stored when it matches env', () => {
     process.env.WHATSAPP_PHONE_NUMBER_ID = 'prod_phone';
     expect(resolveSendPhoneNumberId('prod_phone')).toBe('prod_phone');
-    expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  test('returns stored when env is unset', () => {
-    delete process.env.WHATSAPP_PHONE_NUMBER_ID;
-    expect(resolveSendPhoneNumberId('prod_phone')).toBe('prod_phone');
+  test('falls back to env when stored is absent', () => {
+    process.env.WHATSAPP_PHONE_NUMBER_ID = 'test_phone';
+    expect(resolveSendPhoneNumberId(null)).toBe('test_phone');
   });
 });
 
@@ -74,13 +66,8 @@ describe('resolvePhoneNumberIdForOrder', () => {
     process.env.WHATSAPP_PHONE_NUMBER_ID = prevEnvId;
   });
 
-  test('uses stored id when it matches env', async () => {
-    process.env.WHATSAPP_PHONE_NUMBER_ID = 'prod_phone';
-    expect(await resolvePhoneNumberIdForOrder({ whatsappPhoneNumberId: 'prod_phone' }, 'biz_a')).toBe('prod_phone');
-  });
-
-  test('uses env when stored is from another deployment', async () => {
+  test('uses stored id from order', async () => {
     process.env.WHATSAPP_PHONE_NUMBER_ID = 'test_phone';
-    expect(await resolvePhoneNumberIdForOrder({ whatsappPhoneNumberId: 'prod_phone' }, 'biz_a')).toBe('test_phone');
+    expect(await resolvePhoneNumberIdForOrder({ whatsappPhoneNumberId: 'prod_phone' }, 'biz_a')).toBe('prod_phone');
   });
 });
