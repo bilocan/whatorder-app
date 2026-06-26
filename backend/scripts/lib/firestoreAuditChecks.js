@@ -169,6 +169,134 @@ function countOrdersByCustomer(orderDocs, normalizePhone) {
 }
 
 /**
+ * Normalize owner phone the same way as POST /admin/owners (E.164).
+ * @param {unknown} raw
+ * @returns {string | null}
+ */
+function normalizeOwnerPhone(raw) {
+  if (raw == null || raw === '') return null;
+  const stripped = String(raw).replace(/[\s\-().]/g, '');
+  return stripped.startsWith('+') ? stripped : `+${stripped}`;
+}
+
+/**
+ * Resolve restaurants an owner doc grants access to (businessIds wins; legacy businessId fallback).
+ * @param {Record<string, unknown>} data
+ * @returns {string[]}
+ */
+function getOwnerBusinessIds(data) {
+  const fromArray = Array.isArray(data.businessIds)
+    ? data.businessIds.map(String).filter(Boolean)
+    : [];
+  if (fromArray.length > 0) return fromArray;
+  return data.businessId ? [String(data.businessId)] : [];
+}
+
+/**
+ * @typedef {{ exists: boolean, phone: string | null }} OwnerAuthInfo
+ */
+
+/**
+ * @param {AuditDoc} owner
+ * @param {{ auth: OwnerAuthInfo, businessIdSet: Set<string> }} ctx
+ * @returns {string[]}
+ */
+function checkOwnerDoc(owner, { auth, businessIdSet }) {
+  const issues = [];
+  const { id: uid, data } = owner;
+
+  if (!auth.exists) {
+    issues.push(`owners/${uid}: no Firebase Auth user (orphan owner doc)`);
+    return issues;
+  }
+
+  const docPhone = normalizeOwnerPhone(data.phone);
+  const authPhone = auth.phone ? normalizeOwnerPhone(auth.phone) : null;
+
+  if (docPhone && authPhone && docPhone !== authPhone) {
+    issues.push(
+      `owners/${uid}: stored phone ${docPhone} ≠ Auth phone ${authPhone} (dashboard login uses Auth)`,
+    );
+  }
+
+  const ids = getOwnerBusinessIds(data);
+  if (ids.length === 0) {
+    issues.push(`owners/${uid}: no businessId or businessIds`);
+  }
+
+  const legacyId = data.businessId ? String(data.businessId) : null;
+  const idsArray = Array.isArray(data.businessIds)
+    ? data.businessIds.map(String).filter(Boolean)
+    : null;
+
+  if (legacyId && idsArray && idsArray.length > 0 && !idsArray.includes(legacyId)) {
+    issues.push(`owners/${uid}: businessId ${legacyId} not in businessIds array`);
+  }
+
+  if (legacyId && !idsArray) {
+    issues.push(`owners/${uid}: legacy businessId only (missing businessIds array)`);
+  }
+
+  for (const bid of ids) {
+    if (!businessIdSet.has(bid)) {
+      issues.push(`owners/${uid}: references missing business "${bid}"`);
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Flag businesses with no owner doc linking them (dashboard login unavailable).
+ * @param {string[]} allBusinessIds
+ * @param {AuditDoc[]} ownerDocs
+ * @returns {string[]}
+ */
+function checkBusinessesWithoutOwner(allBusinessIds, ownerDocs) {
+  const covered = new Set();
+  for (const doc of ownerDocs) {
+    for (const id of getOwnerBusinessIds(doc.data)) covered.add(id);
+  }
+
+  const issues = [];
+  for (const id of allBusinessIds) {
+    if (!covered.has(id)) {
+      issues.push(`businesses/${id}: no owner linked (dashboard login unavailable)`);
+    }
+  }
+  return issues;
+}
+
+/**
+ * Same phone stored on multiple owner docs — only the Auth-matching UID can log in.
+ * @param {AuditDoc[]} ownerDocs
+ * @returns {string[]}
+ */
+function checkDuplicateOwnerPhones(ownerDocs) {
+  /** @type {Map<string, string[]>} */
+  const byDocPhone = new Map();
+  const issues = [];
+
+  for (const doc of ownerDocs) {
+    const phone = normalizeOwnerPhone(doc.data.phone);
+    if (!phone) continue;
+    const list = byDocPhone.get(phone) ?? [];
+    list.push(doc.id);
+    byDocPhone.set(phone, list);
+  }
+
+  for (const [phone, uids] of byDocPhone) {
+    if (uids.length > 1) {
+      issues.push(
+        `owners: phone ${phone} on ${uids.length} docs (${uids.join(', ')}) — login resolves to one Auth UID`,
+      );
+    }
+  }
+
+  return issues;
+}
+
+/**
  * @param {AuditDoc} customer
  * @param {number} actualOrderCount
  * @returns {string[]}
@@ -203,4 +331,9 @@ module.exports = {
   checkCustomerAggregates,
   countOrdersByCustomer,
   normalizeMenuName,
+  normalizeOwnerPhone,
+  getOwnerBusinessIds,
+  checkOwnerDoc,
+  checkBusinessesWithoutOwner,
+  checkDuplicateOwnerPhones,
 };
