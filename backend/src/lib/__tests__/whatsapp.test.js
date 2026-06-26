@@ -297,6 +297,28 @@ describe('production paths (NODE_ENV overridden)', () => {
     expect(payload.interactive.body.text).not.toContain('checkout.stripe.com');
   });
 
+  test('sendText retries with env phoneNumberId on Meta permission error', async () => {
+    const permissionErr = Object.assign(new Error('Bad request'), {
+      response: {
+        status: 400,
+        data: { error: { code: 100, error_subcode: 33, message: 'Unsupported post request' } },
+      },
+    });
+    axios.post
+      .mockRejectedValueOnce(permissionErr)
+      .mockResolvedValueOnce({ data: { messages: [{ id: 'wamid_retry' }] } });
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await sendText('+43123456789', 'Hello', 'PROD_PHONE_ID');
+
+    expect(axios.post).toHaveBeenCalledTimes(2);
+    expect(axios.post.mock.calls[0][0]).toContain('PROD_PHONE_ID/messages');
+    expect(axios.post.mock.calls[1][0]).toContain('PHONE_ID/messages');
+    expect(warnSpy).toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
   test('send() logs and rethrows on API error', async () => {
     const apiErr = Object.assign(new Error('Bad request'), {
       response: { status: 400, data: { error: 'invalid' } },

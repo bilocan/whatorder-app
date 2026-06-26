@@ -80,32 +80,38 @@ async function handleCheckoutSessionCompleted(session) {
   }
 
   const order = orderSnap.data();
-  if (order.paymentStatus === 'paid') return;
+  if (order.paymentNotifiedAt) return;
 
+  const alreadyPaid = order.paymentStatus === 'paid';
   const grossAmountCents = session.amount_total ?? Math.round((order.total || 0) * 100);
   const feeConfig = await getFeeConfig();
   const whatorderFeeCents = calcFeeCents(grossAmountCents, feeConfig);
   const restaurantNetCents = Math.max(0, grossAmountCents - whatorderFeeCents);
   const settlementEligibleAt = new Date(Date.now() + SETTLEMENT_HOLD_DAYS * 24 * 60 * 60 * 1000);
 
-  await orderRef.update({
-    paymentStatus: 'paid',
-    paymentMethod: 'stripe',
-    paymentStripeSessionId: session.id,
-    stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
-    grossAmountCents,
-    whatorderFeeCents,
-    restaurantNetCents,
-    paymentProcessedAt: admin.firestore.FieldValue.serverTimestamp(),
-    settlementStatus: 'pending',
-    settlementEligibleAt: settlementEligibleAt.toISOString(),
-  });
+  if (!alreadyPaid) {
+    await orderRef.update({
+      paymentStatus: 'paid',
+      paymentMethod: 'stripe',
+      paymentStripeSessionId: session.id,
+      stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
+      grossAmountCents,
+      whatorderFeeCents,
+      restaurantNetCents,
+      paymentProcessedAt: admin.firestore.FieldValue.serverTimestamp(),
+      settlementStatus: 'pending',
+      settlementEligibleAt: settlementEligibleAt.toISOString(),
+    });
+  }
 
   try {
     const phoneNumberId = await resolvePhoneNumberIdForOrder(order, businessId);
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
     await sendText(order.customerPhone, t('paymentConfirmed', lang, shortId), phoneNumberId);
+    await orderRef.update({
+      paymentNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
   } catch (err) {
     console.error('[stripe] customer payment confirmation failed:', err.message);
   }
