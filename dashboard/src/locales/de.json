@@ -171,7 +171,12 @@
       "price": "Preis (€)",
       "category": "Kategorie",
       "description": "Beschreibung (optional)",
-      "available": "Verfügbar"
+      "available": "Verfügbar",
+      "photo": "Foto",
+      "photoRemove": "Foto entfernen",
+      "photoUploading": "Wird hochgeladen…",
+      "photoTooLarge": "Bild darf maximal 5MB groß sein.",
+      "photoInvalidType": "Die ausgewählte Datei ist kein Bild."
     },
     "category": {
       "mains": "Hauptgerichte",

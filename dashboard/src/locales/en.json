@@ -171,7 +171,12 @@
       "price": "Price (€)",
       "category": "Category",
       "description": "Description (optional)",
-      "available": "Available"
+      "available": "Available",
+      "photo": "Photo",
+      "photoRemove": "Remove photo",
+      "photoUploading": "Uploading…",
+      "photoTooLarge": "Image must be 5MB or smaller.",
+      "photoInvalidType": "Selected file is not an image."
     },
     "category": {
       "mains": "Mains",
