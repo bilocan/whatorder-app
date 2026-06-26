@@ -7,10 +7,11 @@ async function resolveRouting(phoneNumberId) {
     if (snap.exists) {
       const data = snap.data();
       const ids = Array.isArray(data.businessIds) ? data.businessIds : [];
-      return { businessIds: ids, defaultBusinessId: data.defaultBusinessId ?? null };
+      return { businessIds: ids, defaultBusinessId: data.defaultBusinessId ?? null, phoneNumberId };
     }
+    return { businessIds: [], defaultBusinessId: null, phoneNumberId };
   }
-  return { businessIds: [], defaultBusinessId: null };
+  return { businessIds: [], defaultBusinessId: null, phoneNumberId: null };
 }
 
 function verifyWebhook(req, res) {

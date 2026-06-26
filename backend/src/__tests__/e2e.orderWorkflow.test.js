@@ -22,6 +22,9 @@ jest.mock('../lib/firebase', () => ({
   },
 }));
 jest.mock('../lib/whatsapp');
+jest.mock('../lib/whatsappRouting', () => ({
+  resolvePhoneNumberIdForOrder: jest.fn().mockImplementation(async (order) => order?.whatsappPhoneNumberId ?? 'PH_E2E'),
+}));
 jest.mock('../lib/collections');
 jest.mock('../bot/sessionStore');
 jest.mock('../bot/menuService');
@@ -44,7 +47,7 @@ const { sortByDistance } = require('../lib/distance');
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const BIZ           = 'biz_e2e';
-const ROUTING       = { businessIds: [BIZ], defaultBusinessId: BIZ };
+const ROUTING       = { businessIds: [BIZ], defaultBusinessId: BIZ, phoneNumberId: 'PH_E2E' };
 const CUSTOMER_PHONE = '+43699000001';
 const OWNER_PHONE    = '+43699999999';
 const ORDER_ID       = 'order_E2ETEST';
@@ -79,7 +82,7 @@ function makeOrdersRefForTransition(status) {
   const existingDocRef = {
     get: jest.fn().mockResolvedValue({
       exists: true,
-      data: () => ({ status, customerPhone: CUSTOMER_PHONE, language: 'tr' }),
+      data: () => ({ status, customerPhone: CUSTOMER_PHONE, language: 'tr', whatsappPhoneNumberId: 'PH_E2E' }),
     }),
     update: mockUpdate,
   };
@@ -211,7 +214,7 @@ describe('E2E: Pickup order workflow — place → owner notified → mark ready
 
     await markReady(BIZ, ORDER_ID);
 
-    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String));
+    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String), 'PH_E2E');
   });
 
   test('Step 2: markReady updates Firestore status to "ready"', async () => {
@@ -256,7 +259,7 @@ describe('E2E: Pickup order workflow — place → owner notified → mark ready
     await markReady(BIZ, ORDER_ID);
 
     // Customer must be notified that the order is ready
-    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String));
+    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String), 'PH_E2E');
   });
 
 });
@@ -269,7 +272,7 @@ describe('E2E: Full pickup status path — pending → approved → preparing �
     const mockUpdate = makeOrdersRefForTransition('pending');
     await approveOrder(BIZ, ORDER_ID);
 
-    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String));
+    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String), 'PH_E2E');
     expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved' }));
   });
 
@@ -277,7 +280,7 @@ describe('E2E: Full pickup status path — pending → approved → preparing �
     const mockUpdate = makeOrdersRefForTransition('approved');
     await startPreparation(BIZ, ORDER_ID);
 
-    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String));
+    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String), 'PH_E2E');
     expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'preparing' }));
   });
 
@@ -285,7 +288,7 @@ describe('E2E: Full pickup status path — pending → approved → preparing �
     const mockUpdate = makeOrdersRefForTransition('preparing');
     await markReady(BIZ, ORDER_ID);
 
-    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String));
+    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String), 'PH_E2E');
     expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'ready', readyAt: expect.any(String) }));
   });
 
@@ -353,7 +356,7 @@ describe('E2E: Delivery order workflow — place → owner notified → mark on_
 
     await markOnTheWay(BIZ, ORDER_ID);
 
-    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String));
+    expect(sendText).toHaveBeenCalledWith(CUSTOMER_PHONE, expect.any(String), 'PH_E2E');
   });
 
 });

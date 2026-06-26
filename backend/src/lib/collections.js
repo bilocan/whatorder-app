@@ -16,6 +16,9 @@ const customersRef = (businessId) =>
 const phoneRoutingRef = (phoneNumberId) =>
   db.collection('phoneRouting').doc(phoneNumberId);
 
+const phoneRoutingByBusinessQuery = (businessId) =>
+  db.collection('phoneRouting').where('businessIds', 'array-contains', businessId).limit(10);
+
 // owners/{uid} → { businessId }  (which business this Firebase Auth user owns)
 const ownerRef = (uid) =>
   db.collection('owners').doc(uid);
@@ -46,7 +49,7 @@ const intentLearningRef = (businessId, keyHash) =>
 
 module.exports = {
   businessRef, menuRef, ordersRef, customersRef,
-  phoneRoutingRef,
+  phoneRoutingRef, phoneRoutingByBusinessQuery,
   ownerRef, adminRef,
   sessionRef,
   processedMessageRef,

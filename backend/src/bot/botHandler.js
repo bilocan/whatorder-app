@@ -83,6 +83,9 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   }
 
   let session = await getSession(from);
+  if (routing.phoneNumberId) {
+    session = { ...session, whatsappPhoneNumberId: routing.phoneNumberId };
+  }
   const norm = (text ?? '').trim().toLowerCase();
   const isMulti = routing.businessIds.length > 1;
 
