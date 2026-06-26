@@ -202,11 +202,20 @@
     }
   },
   "income": {
-    "title": "Gelir — Bugün",
+    "titleToday": "Gelir — Bugün",
+    "titleWeek": "Gelir — Bu Hafta",
+    "periodToday": "Bugün",
+    "periodWeek": "Bu Hafta",
     "earned": "Kazanılan",
     "pending": "Beklemede",
     "orders": "Siparişler",
     "whatorderFee": "WhatOrder Ücreti",
+    "analyticsTitle": "Ödeme Analizi",
+    "totalRevenue": "Toplam Gelir",
+    "paidCard": "Ödendi (Kart)",
+    "cashPending": "Nakit Bekliyor",
+    "recentRefunds": "İadeler",
+    "failureRate": "Ödeme Hata Oranı",
     "breakdown": "Detaylar",
     "noOrders": "Bugün sipariş yok.",
     "feeLabel": "Ücret: €{{fee}}"
