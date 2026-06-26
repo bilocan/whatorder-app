@@ -1,23 +1,33 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import MenuPage from '../pages/MenuPage'
 import { ConfirmDialogProvider } from '../components/ConfirmDialog'
 
-const { mockUseAuth, mockOnSnapshot } = vi.hoisted(() => ({
+const { mockUseAuth, mockOnSnapshot, mockAddDoc, mockUploadBytes, mockGetDownloadURL } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
   mockOnSnapshot: vi.fn(),
+  mockAddDoc: vi.fn(),
+  mockUploadBytes: vi.fn(),
+  mockGetDownloadURL: vi.fn(),
 }))
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: mockUseAuth }))
-vi.mock('../lib/firebase', () => ({ db: {} }))
+vi.mock('../lib/firebase', () => ({ db: {}, storage: {} }))
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
   onSnapshot: mockOnSnapshot,
-  addDoc: vi.fn(),
+  addDoc: mockAddDoc,
   updateDoc: vi.fn(),
   deleteDoc: vi.fn(),
   doc: vi.fn(),
+  deleteField: vi.fn(() => 'DELETE_FIELD'),
+}))
+vi.mock('firebase/storage', () => ({
+  ref: vi.fn(() => ({})),
+  uploadBytes: mockUploadBytes,
+  getDownloadURL: mockGetDownloadURL,
+  deleteObject: vi.fn(),
 }))
 
 const ITEMS = [
@@ -96,5 +106,35 @@ describe('MenuPage', () => {
     })
     renderPage()
     expect(screen.getByText('+ Add item')).toBeInTheDocument()
+  })
+
+  it('uploads a selected photo and saves the returned URL on the new item', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:preview')
+    URL.revokeObjectURL = vi.fn()
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: [] })
+      return vi.fn()
+    })
+    mockUploadBytes.mockResolvedValue(undefined)
+    mockGetDownloadURL.mockResolvedValue('https://cdn.example.com/doner.jpg')
+    mockAddDoc.mockResolvedValue(undefined)
+
+    const { container } = renderPage()
+    fireEvent.click(screen.getByText('+ Add item'))
+
+    const nameInput = container.querySelector('input[required]') as HTMLInputElement
+    fireEvent.change(nameInput, { target: { value: 'Döner' } })
+    const priceInput = container.querySelector('input[type="number"]') as HTMLInputElement
+    fireEvent.change(priceInput, { target: { value: '8.5' } })
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
+    const file = new File([new Uint8Array(10)], 'doner.jpg', { type: 'image/jpeg' })
+    fireEvent.change(fileInput, { target: { files: [file] } })
+
+    fireEvent.click(screen.getByText('Add'))
+
+    await waitFor(() => expect(mockAddDoc).toHaveBeenCalledTimes(1))
+    expect(mockUploadBytes).toHaveBeenCalledTimes(1)
+    expect(mockAddDoc.mock.calls[0][1]).toMatchObject({ photoUrl: 'https://cdn.example.com/doner.jpg' })
   })
 })

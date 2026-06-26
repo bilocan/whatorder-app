@@ -164,7 +164,9 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
   let etaTime = null;
   if (toStatus === 'approved') {
     const prepMins = Number(options.etaMinutes) > 0 ? Number(options.etaMinutes) : (order.prepMins || 30);
-    etaTime = new Date(Date.now() + prepMins * 60000).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+    const bizSnap = await businessRef(businessId).get();
+    const timezone = bizSnap.exists ? (bizSnap.data().timezone || 'Europe/Vienna') : 'Europe/Vienna';
+    etaTime = new Date(Date.now() + prepMins * 60000).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', timeZone: timezone });
     update.prepMins = prepMins;
     update.pickupTime = etaTime;
   }

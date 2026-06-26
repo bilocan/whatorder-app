@@ -41,10 +41,33 @@ describe('GET /api/maps/restaurants', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.restaurants).toEqual([
-      { id: 'biz_a', name: 'Near', lat: 48.2, lng: 16.37, address: 'Wien', distanceKm: null, durationMin: null },
-      { id: 'biz_b', name: 'Far', lat: 41, lng: 28.97, address: 'Wien', distanceKm: null, durationMin: null },
+      { id: 'biz_a', name: 'Near', lat: 48.2, lng: 16.37, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null },
+      { id: 'biz_b', name: 'Far', lat: 41, lng: 28.97, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null },
     ]);
     expect(sortByDistance).not.toHaveBeenCalled();
+  });
+
+  test('returns resolved imageUrl when present', async () => {
+    businessRef.mockImplementation((id) => ({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        id,
+        data: () => ({
+          name: 'Near',
+          lat: 48.2,
+          lng: 16.37,
+          address: 'Wien',
+          imageUrl: 'gs://my-bucket/businesses/biz_a/cover.jpg',
+        }),
+      }),
+    }));
+
+    const res = await request(app).get('/api/maps/restaurants').query({ ids: 'biz_a' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.restaurants[0].imageUrl).toBe(
+      'https://firebasestorage.googleapis.com/v0/b/my-bucket/o/businesses%2Fbiz_a%2Fcover.jpg?alt=media',
+    );
   });
 
   test('returns distance when clat/clng provided', async () => {

@@ -38,6 +38,13 @@ export interface Order {
   paymentStatus?: 'pending' | 'paid' | 'cash' | 'failed' | 'refunded';
   paymentMethod?: 'stripe' | 'cash';
   settlementStatus?: 'none' | 'pending' | 'included_in_payout' | 'paid_out' | 'refunded';
+  grossAmountCents?: number;
+  whatorderFeeCents?: number;
+  restaurantNetCents?: number;
+  paymentProcessedAt?: Timestamp | string | null;
+  settlementEligibleAt?: string;
+  /** Set once the weekly payout batch job ships — always absent today. */
+  paidAt?: string;
 }
 
 export interface MenuOption {
@@ -96,6 +103,7 @@ export interface Business {
   schedule?: BusinessSchedule;
   botLanguage?: 'de' | 'tr' | 'en';
   paymentEnabled?: boolean;
+  imageUrl?: string;
 }
 
 export interface PhoneRouting {

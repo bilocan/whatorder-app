@@ -56,6 +56,8 @@
     "payment": {
       "cash": "Nakit",
       "paid": "Ödendi",
+      "paidPending": "Ödendi · ödeme bekliyor",
+      "paidOut": "Ödendi · ödeme yapıldı",
       "pending": "Ödenmedi",
       "failed": "Başarısız"
     },
@@ -107,6 +109,16 @@
       "markReady": "Hazır olarak işaretle",
       "pickedUp": "Teslim alındı olarak işaretle",
       "delivered": "Teslim edildi olarak işaretle"
+    },
+    "settlement": {
+      "pendingPayout": "Ödeme bekliyor",
+      "paidOutOn": "{{date}} tarihinde ödendi",
+      "eligibleOn": "{{date}} tarihinde ödemeye uygun",
+      "refunded": "İade edildi",
+      "gross": "Brüt €{{amount}}",
+      "fee": "WhatOrder ücreti €{{amount}}",
+      "net": "Net tutarınız €{{amount}}",
+      "paidAt": "{{time}} tarihinde ödendi"
     }
   },
   "customers": {
@@ -159,7 +171,12 @@
       "price": "Fiyat (€)",
       "category": "Kategori",
       "description": "Açıklama (isteğe bağlı)",
-      "available": "Mevcut"
+      "available": "Mevcut",
+      "photo": "Fotoğraf",
+      "photoRemove": "Fotoğrafı kaldır",
+      "photoUploading": "Yükleniyor…",
+      "photoTooLarge": "Görsel en fazla 5MB olmalı.",
+      "photoInvalidType": "Seçilen dosya bir görsel değil."
     },
     "category": {
       "mains": "Ana Yemekler",
@@ -192,11 +209,20 @@
     }
   },
   "income": {
-    "title": "Gelir — Bugün",
+    "titleToday": "Gelir — Bugün",
+    "titleWeek": "Gelir — Bu Hafta",
+    "periodToday": "Bugün",
+    "periodWeek": "Bu Hafta",
     "earned": "Kazanılan",
     "pending": "Beklemede",
     "orders": "Siparişler",
     "whatorderFee": "WhatOrder Ücreti",
+    "analyticsTitle": "Ödeme Analizi",
+    "totalRevenue": "Toplam Gelir",
+    "paidCard": "Ödendi (Kart)",
+    "cashPending": "Nakit Bekliyor",
+    "recentRefunds": "İadeler",
+    "failureRate": "Ödeme Hata Oranı",
     "breakdown": "Detaylar",
     "noOrders": "Bugün sipariş yok.",
     "feeLabel": "Ücret: €{{fee}}"
@@ -241,6 +267,15 @@
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi",
       "invalidValue": "Geçersiz değer"
+    },
+    "payment": {
+      "title": "Kart ile Ödeme",
+      "description": "Müşteriler bot üzerinden ödeme sırasında kartla ödeyebilsin. Kapalıysa müşteriler yalnızca teslimat/gel-al sırasında nakit ödeyebilir.",
+      "acceptPayment": "Kart ödemelerini kabul et",
+      "save": "Ödeme ayarlarını kaydet",
+      "saving": "Kaydediliyor…",
+      "saved": "Kaydedildi",
+      "error": "Kaydedilemedi"
     },
     "botLanguage": {
       "title": "Bot Dili",
@@ -318,6 +353,13 @@
         "orderTotal": "Sipariş Toplamı",
         "fee": "WhatOrder Ücreti",
         "status": "Durum"
+      },
+      "settlement": {
+        "title": "Ödeme Durumu",
+        "pending": "Ödemesi Bekleyen",
+        "paidOut": "Ödendi",
+        "refunded": "İade Edildi",
+        "byRestaurant": "Restorana göre bekleyen ödeme"
       }
     },
     "restaurants": {
@@ -361,7 +403,8 @@
         "off": "Kapalı",
         "saving": "Kaydediliyor…",
         "turnOn": "Aç",
-        "turnOff": "Kapat"
+        "turnOff": "Kapat",
+        "imageRequired": "Müşteriler bu restoranı görebilmeden önce kapak görseli gerekli."
       },
       "details": {
         "name": "Ad",
@@ -370,6 +413,8 @@
         "businessId": "İşletme ID",
         "address": "Adres",
         "coordinates": "Koordinatlar",
+        "image": "Kapak görseli",
+        "imageHint": "Herkese açık HTTPS veya gs:// URL. Müşteriler bu restoranı görebilmeden önce gerekli.",
         "edit": "Düzenle",
         "statusActive": "Aktif",
         "statusPaused": "Duraklatıldı",

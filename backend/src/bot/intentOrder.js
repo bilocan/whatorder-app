@@ -1,8 +1,8 @@
 const { patchSession, getSession } = require('./sessionStore');
-const { sendButtonMessage, sendText } = require('../lib/whatsapp');
+const { sendButtonMessage, sendText, sendImage } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHelpers');
-const { getMenu } = require('./menuService');
+const { getMenu, resolvePhotoUrl } = require('./menuService');
 const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext } = require('./intentParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
 const { rememberValidatedLlmIntent } = require('./intentLearning');
@@ -50,8 +50,19 @@ function buildIntentConfirmBody(matched, unmatched, lang, specialNote) {
   return body;
 }
 
+async function sendIntentItemPhotos(from, items) {
+  const seenPhotos = new Set();
+  for (const item of items) {
+    const photoUrl = resolvePhotoUrl(item.photoUrl);
+    if (!photoUrl || seenPhotos.has(photoUrl)) continue;
+    seenPhotos.add(photoUrl);
+    try { await sendImage(from, { url: photoUrl, caption: item.name }); } catch { /* non-fatal */ }
+  }
+}
+
 async function sendIntentProposal({ from, session, lang, businessId, basket, matched, unmatched = [], rawText }) {
   const merged = mergePendingItems(matched.map(enrichPendingWithModifier));
+  await sendIntentItemPhotos(from, merged);
   const sourceText = rawText ?? session.pendingIntentRawText;
   const pendingIntentNote = collectSpicySpecialNote(sourceText, merged, lang);
   const proposalSession = {

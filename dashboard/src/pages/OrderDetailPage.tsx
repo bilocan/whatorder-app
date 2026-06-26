@@ -6,6 +6,7 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import type { Order, OrderStatus } from '../types';
 import { toDate } from '../types';
+import { paymentBadge } from '../lib/paymentBadge';
 
 import { API_URL } from '../lib/apiUrl';
 
@@ -45,6 +46,67 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled:  '#6b7280',
   completed:  '#22c55e',
 };
+
+function SettlementStatusLine({ order, t }: { order: Order; t: (key: string, opts?: Record<string, unknown>) => string }) {
+  if (order.settlementStatus === 'paid_out' && order.paidAt) {
+    return (
+      <p style={{ color: '#16a34a', fontSize: '0.85rem', margin: '0.2rem 0 0' }}>
+        {t('orderDetail.settlement.paidOutOn', { date: new Date(order.paidAt).toLocaleDateString('de-AT') })}
+      </p>
+    );
+  }
+
+  if (order.settlementStatus === 'refunded') {
+    return <p style={{ color: '#6b7280', fontSize: '0.85rem', margin: '0.2rem 0 0' }}>{t('orderDetail.settlement.refunded')}</p>;
+  }
+
+  if (order.settlementStatus === 'pending' || order.settlementStatus === 'included_in_payout') {
+    return (
+      <>
+        <p style={{ color: '#d97706', fontSize: '0.85rem', margin: '0.2rem 0 0' }}>{t('orderDetail.settlement.pendingPayout')}</p>
+        {order.settlementEligibleAt && (
+          <p style={{ color: '#999', fontSize: '0.8rem', margin: '0.2rem 0 0' }}>
+            {t('orderDetail.settlement.eligibleOn', { date: new Date(order.settlementEligibleAt).toLocaleDateString('de-AT') })}
+          </p>
+        )}
+      </>
+    );
+  }
+
+  return null;
+}
+
+function SettlementInfo({ order, t }: { order: Order; t: (key: string, opts?: Record<string, unknown>) => string }) {
+  const badge = paymentBadge(order, t);
+
+  return (
+    <div style={{ marginTop: '0.5rem' }}>
+      <span style={{ background: badge.color + '22', color: badge.color, padding: '0.2rem 0.6rem', borderRadius: 999, fontSize: '0.8rem', fontWeight: 600 }}>
+        {badge.label}
+      </span>
+
+      {order.paymentMethod === 'stripe' && typeof order.grossAmountCents === 'number' && (
+        <>
+          <p style={{ color: '#999', fontSize: '0.8rem', margin: '0.4rem 0 0' }}>
+            {t('orderDetail.settlement.gross', { amount: (order.grossAmountCents / 100).toFixed(2) })}
+            {' | '}
+            {t('orderDetail.settlement.fee', { amount: ((order.whatorderFeeCents ?? 0) / 100).toFixed(2) })}
+            {' | '}
+            {t('orderDetail.settlement.net', { amount: ((order.restaurantNetCents ?? 0) / 100).toFixed(2) })}
+          </p>
+          {order.paymentProcessedAt && (
+            <p style={{ color: '#999', fontSize: '0.8rem', margin: '0.2rem 0 0' }}>
+              {t('orderDetail.settlement.paidAt', {
+                time: toDate(order.paymentProcessedAt).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }),
+              })}
+            </p>
+          )}
+          <SettlementStatusLine order={order} t={t} />
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function OrderDetailPage() {
   const { t } = useTranslation();
@@ -161,6 +223,8 @@ export default function OrderDetailPage() {
       <p style={{ fontWeight: 600, color }}>
         {t(`orderDetail.status.${order.status}`, { defaultValue: order.status })}
       </p>
+
+      <SettlementInfo order={order} t={t} />
 
       {order.status === 'pending' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem' }}>

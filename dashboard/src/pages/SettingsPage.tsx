@@ -35,6 +35,8 @@ export default function SettingsPage() {
   const [deliverySaveStatus, setDeliverySaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [minimumOrderValue, setMinimumOrderValue] = useState('');
   const [minOrderSaveStatus, setMinOrderSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [paymentEnabled, setPaymentEnabled] = useState(false);
+  const [paymentSaveStatus, setPaymentSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [dayMap, setDayMap] = useState<DayMap>({
     0: null, 1: { ...DEFAULT_DAY }, 2: { ...DEFAULT_DAY },
     3: { ...DEFAULT_DAY }, 4: { ...DEFAULT_DAY }, 5: { ...DEFAULT_DAY }, 6: null,
@@ -57,6 +59,7 @@ export default function SettingsPage() {
         setDeliveryFee(data.deliveryFee != null ? String(data.deliveryFee) : '');
         setDeliveryZone(data.deliveryZone ?? '');
         setMinimumOrderValue(data.minimumOrderValue != null ? String(data.minimumOrderValue) : '');
+        setPaymentEnabled(data.paymentEnabled ?? false);
         if (data.botLanguage) setBotLanguage(data.botLanguage);
         if (data.schedule) {
           setDayMap(prev => {
@@ -134,6 +137,19 @@ export default function SettingsPage() {
       setTimeout(() => setMinOrderSaveStatus('idle'), 2500);
     } catch {
       setMinOrderSaveStatus('error');
+    }
+  }
+
+  async function handleSavePayment() {
+    if (!businessId) return;
+    setPaymentSaveStatus('saving');
+    try {
+      await updateDoc(doc(db, 'businesses', businessId), { paymentEnabled });
+      setBusiness(prev => prev ? { ...prev, paymentEnabled } : prev);
+      setPaymentSaveStatus('saved');
+      setTimeout(() => setPaymentSaveStatus('idle'), 2500);
+    } catch {
+      setPaymentSaveStatus('error');
     }
   }
 
@@ -292,6 +308,25 @@ export default function SettingsPage() {
             </button>
             {minOrderSaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>{t('settings.minimumOrder.saved')}</span>}
             {minOrderSaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{t('settings.minimumOrder.invalidValue')}</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* Card Payment */}
+      <div style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
+        <h3 style={{ margin: '0 0 0.25rem' }}>{t('settings.payment.title')}</h3>
+        <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 1rem' }}>{t('settings.payment.description')}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={paymentEnabled} onChange={e => setPaymentEnabled(e.target.checked)} style={{ width: 16, height: 16, accentColor: '#22c55e', cursor: 'pointer' }} />
+            <span style={{ fontSize: '0.9rem' }}>{t('settings.payment.acceptPayment')}</span>
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button onClick={handleSavePayment} disabled={paymentSaveStatus === 'saving'} style={{ padding: '0.4rem 1rem', background: '#fff', color: '#000', border: 'none', borderRadius: 4, cursor: paymentSaveStatus === 'saving' ? 'default' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
+              {paymentSaveStatus === 'saving' ? t('settings.payment.saving') : t('settings.payment.save')}
+            </button>
+            {paymentSaveStatus === 'saved' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>{t('settings.payment.saved')}</span>}
+            {paymentSaveStatus === 'error' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{t('settings.payment.error')}</span>}
           </div>
         </div>
       </div>
