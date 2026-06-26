@@ -74,3 +74,4 @@ coverage/
 **/coverage/
 .vercel
 backend/.env.production
+backend/.stripe-listen-secret
