@@ -6,6 +6,11 @@ const {
   checkCustomerAggregates,
   countOrdersByCustomer,
   parseTimestamp,
+  checkOwnerDoc,
+  checkBusinessesWithoutOwner,
+  checkDuplicateOwnerPhones,
+  normalizeOwnerPhone,
+  getOwnerBusinessIds,
 } = require('../firestoreAuditChecks');
 
 describe('parseTimestamp', () => {
@@ -99,5 +104,69 @@ describe('countOrdersByCustomer', () => {
     );
     expect(counts.get('43699111222')).toBe(2);
     expect(counts.get('43699333444')).toBe(1);
+  });
+});
+
+describe('normalizeOwnerPhone', () => {
+  it('normalizes to E.164', () => {
+    expect(normalizeOwnerPhone('4368120714531')).toBe('+4368120714531');
+    expect(normalizeOwnerPhone('+43 681 207 145 31')).toBe('+4368120714531');
+  });
+});
+
+describe('getOwnerBusinessIds', () => {
+  it('prefers businessIds array over legacy businessId', () => {
+    expect(getOwnerBusinessIds({ businessId: 'a', businessIds: ['b', 'c'] })).toEqual(['b', 'c']);
+  });
+
+  it('falls back to legacy businessId', () => {
+    expect(getOwnerBusinessIds({ businessId: 'a' })).toEqual(['a']);
+  });
+});
+
+describe('checkOwnerDoc', () => {
+  const businessIdSet = new Set(['biz_pizza', 'biz_test']);
+
+  it('flags stored phone mismatch vs Auth (Pizza Dorf pattern)', () => {
+    const issues = checkOwnerDoc(
+      {
+        id: 'uid_a',
+        data: { phone: '+4368120714531', businessId: 'biz_pizza' },
+      },
+      { auth: { exists: true, phone: '+905423458516' }, businessIdSet },
+    );
+    expect(issues.some((i) => i.includes('stored phone'))).toBe(true);
+    expect(issues.some((i) => i.includes('legacy businessId only'))).toBe(true);
+  });
+
+  it('passes when Auth phone matches stored phone', () => {
+    const issues = checkOwnerDoc(
+      {
+        id: 'uid_b',
+        data: { phone: '+4368120714531', businessIds: ['biz_test'] },
+      },
+      { auth: { exists: true, phone: '+4368120714531' }, businessIdSet },
+    );
+    expect(issues).toEqual([]);
+  });
+});
+
+describe('checkDuplicateOwnerPhones', () => {
+  it('flags same phone on multiple owner docs', () => {
+    const issues = checkDuplicateOwnerPhones([
+      { id: 'u1', data: { phone: '+43123' } },
+      { id: 'u2', data: { phone: '+43123' } },
+    ]);
+    expect(issues[0]).toContain('2 docs');
+  });
+});
+
+describe('checkBusinessesWithoutOwner', () => {
+  it('flags businesses with no owner link', () => {
+    const issues = checkBusinessesWithoutOwner(
+      ['biz_a', 'biz_b'],
+      [{ id: 'u1', data: { businessIds: ['biz_a'] } }],
+    );
+    expect(issues).toEqual(['businesses/biz_b: no owner linked (dashboard login unavailable)']);
   });
 });

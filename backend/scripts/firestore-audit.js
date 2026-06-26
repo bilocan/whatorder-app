@@ -8,7 +8,7 @@
  */
 require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
 
-const { db } = require('../src/lib/firebase');
+const { admin, db } = require('../src/lib/firebase');
 const { businessRef, configRef } = require('../src/lib/collections');
 const { normalizeCustomerPhone } = require('../src/lib/phone');
 const {
@@ -20,6 +20,9 @@ const {
   checkCustomerAggregates,
   countOrdersByCustomer,
   normalizeMenuName,
+  checkOwnerDoc,
+  checkBusinessesWithoutOwner,
+  checkDuplicateOwnerPhones,
 } = require('./lib/firestoreAuditChecks');
 
 const args = process.argv.slice(2);
@@ -37,6 +40,45 @@ if (businessFlagIdx >= 0 && !singleBusinessId) {
 async function listDocs(ref) {
   const snap = await ref.get();
   return snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+}
+
+/** @param {import('./lib/firestoreAuditChecks').AuditDoc[]} ownerDocs */
+async function loadOwnerAuthInfo(ownerDocs) {
+  /** @type {Map<string, { exists: boolean, phone: string | null }>} */
+  const map = new Map();
+  for (const doc of ownerDocs) {
+    try {
+      const user = await admin.auth().getUser(doc.id);
+      map.set(doc.id, { exists: true, phone: user.phoneNumber ?? null });
+    } catch (err) {
+      if (err.code === 'auth/user-not-found') {
+        map.set(doc.id, { exists: false, phone: null });
+      } else {
+        throw err;
+      }
+    }
+  }
+  return map;
+}
+
+/**
+ * @param {import('./lib/firestoreAuditChecks').AuditDoc[]} ownerDocs
+ * @param {Set<string>} businessIdSet
+ */
+async function auditOwners(ownerDocs, businessIdSet) {
+  const authByUid = await loadOwnerAuthInfo(ownerDocs);
+  const ownerIssues = ownerDocs.flatMap((doc) =>
+    checkOwnerDoc(doc, {
+      auth: authByUid.get(doc.id) ?? { exists: false, phone: null },
+      businessIdSet,
+    }),
+  );
+
+  return [
+    ...ownerIssues,
+    ...checkDuplicateOwnerPhones(ownerDocs),
+    ...checkBusinessesWithoutOwner([...businessIdSet], ownerDocs),
+  ];
 }
 
 /**
@@ -108,6 +150,8 @@ async function runAudit() {
 
   const sessionIssues = sessionDocs.flatMap((doc) => checkSession(doc, businessIdSet));
 
+  const ownerIssues = await auditOwners(ownerDocs, businessIdSet);
+
   const businessIdsToAudit = singleBusinessId
     ? allBusinessIds.filter((id) => id === singleBusinessId)
     : allBusinessIds;
@@ -126,6 +170,7 @@ async function runAudit() {
     ...routingCheck.routingMissingBusiness.map(
       (id) => `phoneRouting references missing business "${id}"`,
     ),
+    ...ownerIssues,
     ...sessionIssues,
     ...perBusiness.flatMap((b) => b.issues.map((issue) => `${b.businessId}: ${issue}`)),
   ];
@@ -161,6 +206,11 @@ async function runAudit() {
       referencedBusinessIds: [...new Set(routingBusinessIds)],
       missingBusinessDocs: routingCheck.routingMissingBusiness,
       protectedNotInRouting: routingCheck.protectedOrphans,
+    },
+    owners: {
+      docCount: ownerDocs.length,
+      issueCount: ownerIssues.length,
+      issues: ownerIssues,
     },
     manualDeleteSuggestions,
     integrityIssueCount: integrityIssues.length,
@@ -206,6 +256,18 @@ function printHumanReport(report) {
     console.log('\nProtected businesses not in phoneRouting (OK to keep)');
     for (const id of report.routing.protectedNotInRouting) {
       console.log(`  ${id}`);
+    }
+  }
+
+  if (report.owners.issueCount > 0) {
+    console.log(`\nOwner / access issues (${report.owners.issueCount})`);
+    console.log('  (stored phone ≠ Auth phone = owner cannot log in with that number)');
+    const ownerLimit = 20;
+    for (const issue of report.owners.issues.slice(0, ownerLimit)) {
+      console.log(`  ${issue}`);
+    }
+    if (report.owners.issues.length > ownerLimit) {
+      console.log(`  … and ${report.owners.issues.length - ownerLimit} more (use --json for full list)`);
     }
   }
 
