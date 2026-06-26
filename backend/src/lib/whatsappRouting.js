@@ -4,18 +4,10 @@ function envPhoneNumberId() {
   return process.env.WHATSAPP_PHONE_NUMBER_ID || null;
 }
 
-/**
- * Meta tokens are scoped to a WABA — this server can only send via WHATSAPP_PHONE_NUMBER_ID.
- * Orders may carry whatsappPhoneNumberId from another deployment (e.g. Cloud Run prod vs local test).
- */
+/** Prefer the number the customer messaged; fall back to this server's env. */
 function resolveSendPhoneNumberId(storedId) {
-  const envId = envPhoneNumberId();
-  if (!storedId) return envId;
-  if (!envId || storedId === envId) return storedId;
-  console.warn(
-    `[whatsappRouting] order whatsappPhoneNumberId=${storedId} differs from env ${envId}; using env (this server cannot send as stored number)`,
-  );
-  return envId;
+  if (storedId) return storedId;
+  return envPhoneNumberId();
 }
 
 /** Resolve Meta phone_number_id for outbound messages to a business's customers. */
@@ -35,8 +27,9 @@ async function resolvePhoneNumberIdForBusiness(businessId) {
 }
 
 async function resolvePhoneNumberIdForOrder(order, businessId) {
-  return resolveSendPhoneNumberId(order?.whatsappPhoneNumberId)
-    ?? resolvePhoneNumberIdForBusiness(businessId);
+  const fromOrder = resolveSendPhoneNumberId(order?.whatsappPhoneNumberId);
+  if (fromOrder) return fromOrder;
+  return resolvePhoneNumberIdForBusiness(businessId);
 }
 
 module.exports = {
