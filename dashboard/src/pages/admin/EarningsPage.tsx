@@ -8,6 +8,52 @@ import type { Order, Business } from '../../types';
 import { toDate } from '../../types';
 import { filterOrdersByPhoneRouting } from '../../lib/orderPhoneFilter';
 import { useAdminPhoneLine } from '../../contexts/AdminPhoneLineContext';
+import { API_URL } from '../../lib/apiUrl';
+import { auth } from '../../lib/firebase';
+import { orderNetCents, isPendingSettlement } from '../../lib/settlementAmounts';
+
+type PayoutRunSummary = {
+  batchesPaid?: number;
+  skippedBelowMinimum?: number;
+  skippedConnect?: number;
+};
+
+type PayoutRunResponse = {
+  payouts?: Array<{ status: string; businessId?: string; totalNetCents?: number; orderCount?: number }>;
+  summary?: PayoutRunSummary;
+  eligibleOrderCount?: number;
+  holdBlockedCount?: number;
+  ignoreHold?: boolean;
+};
+
+function formatPayoutResult(data: PayoutRunResponse, dryRun: boolean, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  const summary = data.summary ?? {};
+  const paid = summary.batchesPaid ?? 0;
+  const lines: string[] = [
+    dryRun
+      ? t('admin.earnings.payout.previewResult', { count: paid })
+      : t('admin.earnings.payout.runResult', { count: paid }),
+  ];
+  if (typeof data.eligibleOrderCount === 'number') {
+    lines.push(t('admin.earnings.payout.eligibleOrders', { count: data.eligibleOrderCount }));
+  }
+  if (data.holdBlockedCount && data.holdBlockedCount > 0) {
+    lines.push(t('admin.earnings.payout.holdBlocked', { count: data.holdBlockedCount }));
+  }
+  if (summary.skippedBelowMinimum && summary.skippedBelowMinimum > 0) {
+    lines.push(t('admin.earnings.payout.skippedMinimum', { count: summary.skippedBelowMinimum }));
+  }
+  if (summary.skippedConnect && summary.skippedConnect > 0) {
+    lines.push(t('admin.earnings.payout.skippedConnect', { count: summary.skippedConnect }));
+  }
+  if (paid === 0 && (data.eligibleOrderCount ?? 0) === 0 && !data.ignoreHold && (data.holdBlockedCount ?? 0) > 0) {
+    lines.push(t('admin.earnings.payout.allInHold'));
+  }
+  if (paid === 0 && (data.payouts ?? []).length === 0 && (data.eligibleOrderCount ?? 0) === 0) {
+    lines.push(t('admin.earnings.payout.noPending'));
+  }
+  return lines.join('\n');
+}
 
 type OrderRow = Order & { businessId: string; businessName: string };
 
@@ -21,6 +67,10 @@ export default function EarningsPage() {
   const [editType, setEditType] = useState<FeeConfig['feeType']>(feeConfig.feeType);
   const [editValue, setEditValue] = useState(String(feeConfig.feeValue));
   const [saving, setSaving] = useState(false);
+  const [payoutDryRun, setPayoutDryRun] = useState(true);
+  const [payoutRunning, setPayoutRunning] = useState(false);
+  const [payoutResult, setPayoutResult] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     setEditType(feeConfig.feeType);
@@ -58,7 +108,7 @@ export default function EarningsPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [phoneNumberId]);
+  }, [phoneNumberId, reloadKey]);
 
   async function saveFeeConfig() {
     const val = parseFloat(editValue);
@@ -68,22 +118,46 @@ export default function EarningsPage() {
     setSaving(false);
   }
 
+  async function runPayoutBatch() {
+    setPayoutRunning(true);
+    setPayoutResult(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch(`${API_URL}/admin/payouts/run`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ dryRun: payoutDryRun }),
+      });
+      const data = await res.json() as PayoutRunResponse;
+      if (!res.ok) throw new Error((data as { error?: string }).error || res.statusText);
+      setPayoutResult(formatPayoutResult(data, payoutDryRun, t));
+      if (!payoutDryRun) setReloadKey((k) => k + 1);
+    } catch (err) {
+      setPayoutResult(err instanceof Error ? err.message : t('admin.earnings.payout.failed'));
+    } finally {
+      setPayoutRunning(false);
+    }
+  }
+
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
   const totalFees = orders.reduce((s, o) => s + calcFee(o.total, feeConfig), 0);
 
   const pendingSettlementCents = orders
-    .filter((o) => o.settlementStatus === 'pending' || o.settlementStatus === 'included_in_payout')
-    .reduce((s, o) => s + (o.restaurantNetCents ?? 0), 0);
+    .filter((o) => isPendingSettlement(o))
+    .reduce((s, o) => s + orderNetCents(o, feeConfig), 0);
   const paidOutCents = orders
     .filter((o) => o.settlementStatus === 'paid_out')
-    .reduce((s, o) => s + (o.restaurantNetCents ?? 0), 0);
+    .reduce((s, o) => s + orderNetCents(o, feeConfig), 0);
   const refundedCount = orders.filter((o) => o.settlementStatus === 'refunded').length;
 
   const pendingByRestaurant = new Map<string, number>();
   orders
-    .filter((o) => o.settlementStatus === 'pending' || o.settlementStatus === 'included_in_payout')
+    .filter((o) => isPendingSettlement(o))
     .forEach((o) => {
-      pendingByRestaurant.set(o.businessName, (pendingByRestaurant.get(o.businessName) ?? 0) + (o.restaurantNetCents ?? 0));
+      pendingByRestaurant.set(o.businessName, (pendingByRestaurant.get(o.businessName) ?? 0) + orderNetCents(o, feeConfig));
     });
 
   const cardStyle: React.CSSProperties = {
@@ -181,6 +255,26 @@ export default function EarningsPage() {
           ))}
         </div>
       )}
+
+      <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #eee', borderRadius: 10 }}>
+        <div style={{ ...labelStyle, marginBottom: '0.5rem' }}>{t('admin.earnings.payout.title')}</div>
+        <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: '#666' }}>{t('admin.earnings.payout.hint')}</p>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+          <input type="checkbox" checked={payoutDryRun} onChange={(e) => setPayoutDryRun(e.target.checked)} />
+          {t('admin.earnings.payout.dryRun')}
+        </label>
+        <button
+          type="button"
+          onClick={runPayoutBatch}
+          disabled={payoutRunning}
+          style={{ padding: '0.4rem 1rem', borderRadius: 6, background: '#000', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
+        >
+          {payoutRunning ? t('admin.earnings.payout.running') : t('admin.earnings.payout.run')}
+        </button>
+        {payoutResult && (
+          <p style={{ margin: '0.75rem 0 0', fontSize: '0.85rem', color: '#444', whiteSpace: 'pre-line' }}>{payoutResult}</p>
+        )}
+      </div>
 
       {/* Orders table */}
       <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem' }}>{t('admin.earnings.allOrders')}</h3>

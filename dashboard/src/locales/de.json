@@ -374,6 +374,22 @@
         "paidOut": "Ausgezahlt",
         "refunded": "Erstattet",
         "byRestaurant": "Ausstehend nach Restaurant"
+      },
+      "payout": {
+        "title": "Auszahlungslauf starten",
+        "hint": "Standard: Mock Connect — keine echte Banküberweisung, bis connectMode live und Stripe Connect eingerichtet ist.",
+        "dryRun": "Nur Vorschau (Dry Run)",
+        "run": "Lauf starten",
+        "running": "Läuft…",
+        "previewResult": "Vorschau: {{count}} Restaurant-Batch(es) würden ausgezahlt.",
+        "runResult": "{{count}} Restaurant-Batch(es) ausgezahlt.",
+        "eligibleOrders": "{{count}} auszahlbare Kartenzahlung(en) gefunden.",
+        "holdBlocked": "{{count}} Bestellung(en) noch in der 7-Tage-Sperrfrist.",
+        "skippedMinimum": "{{count}} Restaurant(s) unter Mindestauszahlung.",
+        "skippedConnect": "{{count}} Restaurant(s) übersprungen — Connect nicht eingerichtet.",
+        "allInHold": "Alle ausstehenden Bestellungen sind noch in der Sperrfrist.",
+        "noPending": "Keine ausstehenden Kartenzahlungen gefunden.",
+        "failed": "Auszahlungslauf fehlgeschlagen"
       }
     },
     "restaurants": {
