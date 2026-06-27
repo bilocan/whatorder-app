@@ -1,18 +1,12 @@
 import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { calcFee, type FeeConfig } from '../lib/feeCalc';
 
-export interface FeeConfig {
-  feeType: 'fixed' | 'percent';
-  feeValue: number;
-}
+export type { FeeConfig };
+export { calcFee };
 
 const DEFAULT: FeeConfig = { feeType: 'percent', feeValue: 10 };
-
-export function calcFee(orderTotal: number, config: FeeConfig): number {
-  if (config.feeType === 'fixed') return config.feeValue;
-  return (orderTotal * config.feeValue) / 100;
-}
 
 export function useFeeConfig(): FeeConfig {
   const [config, setConfig] = useState<FeeConfig>(DEFAULT);

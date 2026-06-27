@@ -1,6 +1,6 @@
 import type { Order } from '../types';
-import type { FeeConfig } from '../hooks/useFeeConfig';
-import { calcFee } from '../hooks/useFeeConfig';
+import type { FeeConfig } from './feeCalc';
+import { calcFee } from './feeCalc';
 
 /** Restaurant net for settlement display — prefers stored cents, else derives from order. */
 export function orderNetCents(order: Order, feeConfig?: FeeConfig): number {
