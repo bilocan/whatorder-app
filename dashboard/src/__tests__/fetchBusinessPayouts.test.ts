@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sortByPaidAtDesc, isIndexNotReadyError } from '../lib/fetchBusinessPayouts'
+import { sortByPaidAtDesc, isIndexNotReadyError } from '../lib/fetchBusinessPayoutsUtils'
 import type { Payout } from '../types'
 
 describe('fetchBusinessPayouts helpers', () => {

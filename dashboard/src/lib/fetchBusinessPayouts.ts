@@ -1,19 +1,10 @@
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Payout } from '../types';
+import { sortByPaidAtDesc, isIndexNotReadyError } from './fetchBusinessPayoutsUtils';
 
 function mapPayoutDocs(docs: { id: string; data: () => unknown }[]): Payout[] {
   return docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Payout, 'id'>) }));
-}
-
-function sortByPaidAtDesc(rows: Payout[]): Payout[] {
-  return [...rows].sort((a, b) => new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime());
-}
-
-function isIndexNotReadyError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  const code = (err as { code?: string })?.code;
-  return code === 'failed-precondition' || /requires an index|failed-precondition/i.test(msg);
 }
 
 /** Owner-scoped payout history (newest first). */
@@ -31,4 +22,4 @@ export async function fetchBusinessPayouts(businessId: string): Promise<Payout[]
   }
 }
 
-export { sortByPaidAtDesc, isIndexNotReadyError };
+export { sortByPaidAtDesc, isIndexNotReadyError } from './fetchBusinessPayoutsUtils';
