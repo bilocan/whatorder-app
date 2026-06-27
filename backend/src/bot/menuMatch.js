@@ -63,6 +63,26 @@ const AMBIGUITY_SCORE_GAP = 25;
 const MIN_MATCH_SCORE = 10;
 const MAX_AMBIGUOUS_RESULTS = 8;
 
+function itemMatchLabels(item) {
+  return [...new Set([item.name, ...(item.aliases ?? [])].filter(Boolean))];
+}
+
+function labelStemMatchesNeedle(needle, label) {
+  const n = norm(label);
+  const tokens = nameTokens(n);
+  return n === needle
+    || n.startsWith(`${needle} `)
+    || n.startsWith(needle)
+    || n.includes(` ${needle}`)
+    || (!needle.includes(' ') && tokens.some(t => typoTolerantWordMatch(needle, t)));
+}
+
+function itemStemMatchesNeedles(item, needles) {
+  return itemMatchLabels(item).some(label => (
+    needles.some(needle => labelStemMatchesNeedle(needle, label))
+  ));
+}
+
 function wantsFamilienPizza(dishName) {
   const n = norm(dishName);
   return n.includes('familienpizza') || n.includes('familien pizza')
@@ -161,10 +181,12 @@ function classifyMenuMatch(rawName, menuItems, menuMatch = null) {
 
   // Multi-word dish names (e.g. "Döner Sandwich") — require all words on the item name
   if (dishWords.length >= 2) {
-    const wordHits = filterCandidatesForQuery(available.filter(item => {
-      const n = norm(item.name);
-      return dishWords.every(w => wordMatchesInText(w, n));
-    }), dishName);
+    const wordHits = filterCandidatesForQuery(available.filter(item => (
+      itemMatchLabels(item).some(label => {
+        const n = norm(label);
+        return dishWords.every(w => wordMatchesInText(w, n));
+      })
+    )), dishName);
     if (wordHits.length === 1) return { type: 'unique', item: wordHits[0] };
     if (wordHits.length > 1) {
       const scored = wordHits
@@ -180,17 +202,9 @@ function classifyMenuMatch(rawName, menuItems, menuMatch = null) {
   }
 
   // Single-word or fallback stem match (e.g. "döner", "cola")
-  const stemHits = filterCandidatesForQuery(available.filter(item => {
-    const n = norm(item.name);
-    const tokens = nameTokens(n);
-    return needles.some(needle =>
-      n === needle
-      || n.startsWith(`${needle} `)
-      || n.startsWith(needle)
-      || n.includes(` ${needle}`)
-      || (!needle.includes(' ') && tokens.some(t => typoTolerantWordMatch(needle, t))),
-    );
-  }), dishName);
+  const stemHits = filterCandidatesForQuery(available.filter(item => (
+    itemStemMatchesNeedles(item, needles)
+  )), dishName);
   if (stemHits.length > 1) {
     return finishAmbiguous(rawName, stemHits, menuMatch);
   }

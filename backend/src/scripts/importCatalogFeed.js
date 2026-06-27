@@ -15,6 +15,7 @@ const path = require('path');
 const { admin, db } = require('../lib/firebase');
 const { businessRef, menuRef } = require('../lib/collections');
 const { buildMenuMatchIndex } = require('../bot/menuMapper');
+const { suggestItemAliases } = require('../bot/menuItemAliases');
 
 const BATCH_SIZE = 400;
 
@@ -80,15 +81,17 @@ function csvRowToMenuItem(headers, values) {
   if (!id) throw new Error('Row missing id');
 
   const now = new Date();
+  const name = row.title?.trim() || id;
   return {
     id,
     data: {
-      name: row.title?.trim() || id,
-      description: row.description?.trim() || row.title?.trim() || '',
+      name,
+      description: row.description?.trim() || name,
       price: parsePrice(row.price),
       category: mapCategory(row.product_type),
       photoUrl: row.image_link?.trim() || null,
       available: String(row.availability ?? '').toLowerCase() === 'in stock',
+      aliases: suggestItemAliases(name),
       createdAt: now,
       updatedAt: now,
     },

@@ -167,6 +167,7 @@ module.exports = {
   norm,
   normalizeMenuLabel,
   collapsedMenuLabel,
+  tokensOf,
   scoreCategoryMatch,
   suggestCategoryAliases,
   buildMenuMatchIndex,

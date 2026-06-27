@@ -20,6 +20,13 @@ describe('expandNeedle', () => {
     expect(expanded).toEqual(expect.arrayContaining(['doner', 'kebap']));
   });
 
+  test('icetea and ice tea expand to eistee (EN/DE/TR drink synonyms)', () => {
+    for (const phrase of ['icetea', 'ice tea', 'eistee']) {
+      const expanded = expandNeedle(phrase);
+      expect(expanded).toEqual(expect.arrayContaining(['eistee', 'icetea', 'ice tea']));
+    }
+  });
+
   test('turkish pizza expands to lahmacun terms but bare pizza does not', () => {
     const turkish = expandNeedle('turkish pizza');
     expect(turkish).toEqual(expect.arrayContaining(['lahmacun', 'turkish pizza']));
