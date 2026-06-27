@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../lib/firebase';
+import { useAdminPhoneLine } from '../../contexts/AdminPhoneLineContext';
 import RestaurantMap, { type RestaurantMapPin } from '../../components/RestaurantMap';
 import type { Business } from '../../types';
 
@@ -16,7 +17,9 @@ function toPin(b: Business): RestaurantMapPin | null {
 export default function AdminRestaurantMapPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { phoneNumberId } = useAdminPhoneLine();
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [routedIds, setRoutedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     return onSnapshot(collection(db, 'businesses'), (snap) => {
@@ -24,11 +27,28 @@ export default function AdminRestaurantMapPage() {
     });
   }, []);
 
-  const pins = useMemo(
-    () => businesses.map(toPin).filter((p): p is RestaurantMapPin => p != null),
-    [businesses],
+  useEffect(() => {
+    if (!phoneNumberId) {
+      setRoutedIds(new Set());
+      return;
+    }
+    return onSnapshot(doc(db, 'phoneRouting', phoneNumberId), (snap) => {
+      const raw: unknown[] = snap.exists() ? (snap.data().businessIds ?? []) : [];
+      const ids = raw.filter((id): id is string => typeof id === 'string' && id.length > 0);
+      setRoutedIds(new Set(ids));
+    });
+  }, [phoneNumberId]);
+
+  const scopedBusinesses = useMemo(
+    () => (phoneNumberId ? businesses.filter((b) => routedIds.has(b.id)) : businesses),
+    [businesses, phoneNumberId, routedIds],
   );
-  const unmapped = businesses.filter((b) => !toPin(b));
+
+  const pins = useMemo(
+    () => scopedBusinesses.map(toPin).filter((p): p is RestaurantMapPin => p != null),
+    [scopedBusinesses],
+  );
+  const unmapped = scopedBusinesses.filter((b) => !toPin(b));
 
   return (
     <div>

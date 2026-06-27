@@ -4,10 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import LanguageSwitcher from './LanguageSwitcher';
 import RestaurantSwitcher from './RestaurantSwitcher';
+import AdminPhoneLineSwitcher from './AdminPhoneLineSwitcher';
+import { AdminPhoneLineProvider } from '../contexts/AdminPhoneLineContext';
 import BrandLogo from './BrandLogo';
 import { usePresence, toggleOrdersOpen, toggleDeliveryOpen } from '../hooks/usePresence';
+import { API_URL } from '../lib/apiUrl';
 
-export default function Layout() {
+function LayoutContent() {
   const { t } = useTranslation();
   const { user, businessId, isAdmin, signOut } = useAuth();
   const showTenantNav = !!businessId;
@@ -27,6 +30,10 @@ export default function Layout() {
     : '#22c55e';
 
   function closeMenu() { setMenuOpen(false); }
+
+  const devApiHint = import.meta.env.DEV
+    ? (API_URL ? API_URL : 'localhost:3000 (Vite proxy)')
+    : null;
 
   return (
     <div className="layout-root">
@@ -77,6 +84,7 @@ export default function Layout() {
           {isAdmin && (
             <>
               <div style={{ borderTop: '1px solid #eee', margin: '0.75rem 0' }} />
+              <AdminPhoneLineSwitcher />
               {[
                 { to: '/admin',          label: t('nav.admin') },
                 { to: '/admin/map',      label: t('nav.adminMap') },
@@ -155,6 +163,12 @@ export default function Layout() {
           </div>
         )}
 
+        {devApiHint && (
+          <div style={{ margin: '0 0 0.75rem', padding: '0.45rem 0.6rem', background: '#fef3c7', borderRadius: 6, fontSize: '0.72rem', color: '#92400e', lineHeight: 1.35 }}>
+            Dev API → {devApiHint}
+          </div>
+        )}
+
         <LanguageSwitcher />
         <div style={{ marginBottom: '0.5rem' }}>
           <div style={{ fontSize: '0.7rem', color: '#ccc', marginBottom: '0.15rem' }}>UID</div>
@@ -179,4 +193,16 @@ export default function Layout() {
       </main>
     </div>
   );
+}
+
+export default function Layout() {
+  const { isAdmin } = useAuth();
+  if (isAdmin) {
+    return (
+      <AdminPhoneLineProvider>
+        <LayoutContent />
+      </AdminPhoneLineProvider>
+    );
+  }
+  return <LayoutContent />;
 }

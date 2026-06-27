@@ -25,6 +25,17 @@ vi.mock('firebase/firestore', () => ({
   where: vi.fn(),
 }));
 
+const mockPhoneNumberId = vi.hoisted(() => ({ current: 'phone_456' as string | undefined }));
+
+vi.mock('../contexts/AdminPhoneLineContext', () => ({
+  useAdminPhoneLine: () => ({
+    phoneNumberId: mockPhoneNumberId.current,
+    phoneLines: mockPhoneNumberId.current ? [{ id: mockPhoneNumberId.current }] : [],
+    setPhoneNumberId: vi.fn(),
+    loading: false,
+  }),
+}));
+
 vi.mock('../lib/firebase', () => ({ db: {} }));
 vi.mock('../lib/geocode', () => ({ geocodeAddress: vi.fn() }));
 
@@ -58,6 +69,7 @@ function setupMocks({ botActive = false }: { botActive?: boolean } = {}) {
 }
 
 function renderPage(phoneNumberId: string = PHONE_NUMBER_ID) {
+  mockPhoneNumberId.current = phoneNumberId || undefined;
   vi.stubEnv('VITE_WHATSAPP_PHONE_NUMBER_ID', phoneNumberId);
 
   return render(
@@ -190,7 +202,7 @@ describe('RestaurantDetailPage — bot toggle', () => {
     expect(mockSetDoc).not.toHaveBeenCalled();
   });
 
-  it('hides the bot toggle entirely when VITE_WHATSAPP_PHONE_NUMBER_ID is not set', async () => {
+  it('hides the bot toggle when no WhatsApp line is selected', async () => {
     mockOnSnapshot
       .mockImplementationOnce((_: unknown, cb: (s: unknown) => void) => {
         cb({ exists: () => true, id: BUSINESS_ID, data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', alertPhone: '+43660123456', status: 'active', imageUrl: 'https://example.com/cover.jpg' }) });

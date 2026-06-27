@@ -45,6 +45,7 @@
   "orders": {
     "title": "Siparişler",
     "noOrders": "Henüz sipariş yok.",
+    "phoneLineScope": "Yalnızca bu WhatsApp hattındaki siparişler gösteriliyor.",
     "col": {
       "customer": "Müşteri",
       "items": "Ürünler",
@@ -75,6 +76,7 @@
   "orderDetail": {
     "loading": "Sipariş yükleniyor...",
     "back": "← Siparişlere dön",
+    "wrongPhoneLine": "Bu sipariş başka bir WhatsApp hattına ait; bu panel görünümünde kullanılamaz.",
     "delivery": "Teslimat",
     "col": {
       "item": "Ürün",
@@ -331,8 +333,21 @@
     "resumeDelivery": "Teslimatı devam ettir"
   },
   "admin": {
+    "phoneLine": {
+      "label": "WhatsApp hattı",
+      "loading": "Hatlar yükleniyor…",
+      "noneConfigured": "Firestore'da WhatsApp hattı yok. Önce bir phoneRouting belgesi ekleyin.",
+      "switchHint": "Admin verilerinin hangi WhatsApp numarasına göre yükleneceğini seçin",
+      "unlabeled": "Telefon numarası ayarlanmadı",
+      "setNumber": "Telefon numarası ayarla",
+      "editNumber": "Telefon numarasını düzenle",
+      "numberPlaceholder": "+43 660 1234567",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor…"
+    },
     "earnings": {
       "title": "Kazançlar",
+      "phoneLineScope": "Yalnızca seçili WhatsApp hattındaki siparişler gösteriliyor.",
       "feeModel": "Ücret modeli:",
       "feeFixed": "Sipariş başına sabit €",
       "feePercent": "Sipariş toplamının %'si",
@@ -366,8 +381,10 @@
       "title": "Restoranlar",
       "mapLink": "Haritada gör",
       "newButton": "+ Yeni Restoran",
-      "botConfigHint": "Restoran oluşturmak için ortam değişkenine VITE_WHATSAPP_PHONE_NUMBER_ID ekleyin.",
-      "botNotConfigured": "WhatsApp botu yapılandırılmamış.",
+      "botConfigHint": "Bot yönlendirmesi ve yeni restoranlar için kenar çubuğundan bir WhatsApp hattı seçin.",
+      "botNotConfigured": "WhatsApp hattı seçilmedi.",
+      "phoneLineScope": "Yalnızca seçili WhatsApp hattındaki restoranlar gösteriliyor.",
+      "noRestaurantsOnLine": "Bu WhatsApp hattında henüz restoran yok.",
       "noRestaurants": "Henüz restoran yok.",
       "col": {
         "name": "Ad",

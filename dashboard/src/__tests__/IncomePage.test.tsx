@@ -96,6 +96,7 @@ function renderPage() {
 describe('IncomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('VITE_WHATSAPP_PHONE_NUMBER_ID', '')
     mockUseAuth.mockReturnValue({ businessId: 'biz-1' })
     mockOnSnapshot.mockImplementation(() => vi.fn())
   })
