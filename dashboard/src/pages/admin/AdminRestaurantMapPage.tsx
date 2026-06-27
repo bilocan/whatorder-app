@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../lib/firebase';
 import { useAdminPhoneLine } from '../../contexts/AdminPhoneLineContext';
@@ -16,7 +16,6 @@ function toPin(b: Business): RestaurantMapPin | null {
 
 export default function AdminRestaurantMapPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const { phoneNumberId } = useAdminPhoneLine();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [routedIds, setRoutedIds] = useState<Set<string>>(new Set());
@@ -49,6 +48,7 @@ export default function AdminRestaurantMapPage() {
     [scopedBusinesses],
   );
   const unmapped = scopedBusinesses.filter((b) => !toPin(b));
+  const [focusedPinId, setFocusedPinId] = useState<string | null>(null);
 
   return (
     <div>
@@ -60,17 +60,103 @@ export default function AdminRestaurantMapPage() {
         <Link to="/admin" style={{ fontSize: '0.9rem', color: '#6366f1' }}>{t('admin.map.backToList')}</Link>
       </div>
 
-      <RestaurantMap
-        pins={pins}
-        onPinClick={(id) => navigate(`/admin/restaurants/${id}`)}
-      />
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div style={{ flex: '1 1 360px', minWidth: 0 }}>
+          <RestaurantMap
+            pins={pins}
+            focusedPinId={focusedPinId}
+            onPinClick={(id) => {
+              setFocusedPinId(id);
+            }}
+          />
+        </div>
 
-      <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap', fontSize: '0.85rem', color: '#555' }}>
-        <span>{t('admin.map.stats.onMap', { count: pins.length })}</span>
-        {unmapped.length > 0 && (
-          <span>{t('admin.map.stats.missing', { count: unmapped.length })}</span>
+        {pins.length > 0 && (
+          <div
+            style={{
+              flex: '0 1 280px',
+              width: '100%',
+              maxWidth: 320,
+              background: '#f9fafb',
+              borderRadius: 10,
+              border: '1px solid #e5e7eb',
+              padding: '0.75rem',
+            }}
+          >
+            <h3 style={{ margin: '0 0 0.65rem', fontSize: '0.9rem', fontWeight: 600 }}>
+              {t('admin.map.listTitle', { count: pins.length })}
+            </h3>
+            <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+              {pins.map((pin, index) => {
+                const selected = focusedPinId === pin.id;
+                return (
+                  <li key={pin.id} style={{ marginBottom: '0.4rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setFocusedPinId(pin.id)}
+                      aria-current={selected ? 'true' : undefined}
+                      aria-label={t('admin.map.showOnMap', { name: pin.name })}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.6rem',
+                        padding: '0.55rem 0.6rem',
+                        border: selected ? '1px solid #6366f1' : '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        background: selected ? '#eef2ff' : '#fff',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          width: 22,
+                          height: 22,
+                          borderRadius: '50%',
+                          background: selected ? '#6366f1' : '#ef4444',
+                          color: '#fff',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginTop: 1,
+                        }}
+                      >
+                        {index + 1}
+                      </span>
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', color: '#111' }}>
+                          {pin.name}
+                        </span>
+                        {pin.address && (
+                          <span style={{ display: 'block', fontSize: '0.78rem', color: '#666', marginTop: 2 }}>
+                            {pin.address}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                    <Link
+                      to={`/admin/restaurants/${pin.id}`}
+                      style={{ display: 'inline-block', marginTop: '0.2rem', marginLeft: '2.35rem', fontSize: '0.78rem', color: '#6366f1' }}
+                    >
+                      {t('admin.map.viewDetails')}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
       </div>
+
+      {unmapped.length > 0 && (
+        <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#555' }}>
+          {t('admin.map.stats.missing', { count: unmapped.length })}
+        </div>
+      )}
 
       {unmapped.length > 0 && (
         <div style={{ marginTop: '1.25rem', background: '#f9fafb', borderRadius: 10, padding: '1rem' }}>
