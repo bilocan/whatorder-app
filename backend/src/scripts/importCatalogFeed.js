@@ -12,8 +12,9 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.local') });
 const fs = require('fs');
 const path = require('path');
-const { db } = require('../lib/firebase');
+const { admin, db } = require('../lib/firebase');
 const { businessRef, menuRef } = require('../lib/collections');
+const { buildMenuMatchIndex } = require('../bot/menuMapper');
 
 const BATCH_SIZE = 400;
 
@@ -165,6 +166,17 @@ async function main() {
 
   await writeMenu(businessId, items);
   console.log(`Imported ${items.length} menu item(s)`);
+
+  const menuItems = items.map(({ id, data }) => ({ ...data, id }));
+  const existingMatch = bizSnap.data()?.menuMatch ?? null;
+  const menuMatch = buildMenuMatchIndex(menuItems, existingMatch);
+  await businessRef(businessId).set({
+    menuMatch: {
+      ...menuMatch,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+  }, { merge: true });
+  console.log(`Built menuMatch index (${Object.keys(menuMatch.categories).length} categories)`);
   console.log('Done.');
 }
 

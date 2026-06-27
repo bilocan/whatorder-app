@@ -133,4 +133,5 @@ module.exports = {
   typoTolerantWordMatch,
   nameTokens,
   levenshtein,
+  maxTypoDistance,
 };

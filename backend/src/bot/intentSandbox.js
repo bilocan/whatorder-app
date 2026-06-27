@@ -6,6 +6,7 @@ const { buildIntentConfirmBody } = require('./intentOrder');
 const { buildOptionLabel } = require('./intentCustomize');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
 const { norm } = require('./menuMatch');
+const { buildMenuMatchIndex } = require('./menuMapper');
 const { t } = require('./templates');
 
 /** Beilagen group so offline sandbox resolves mit allem / ohne scharf like pilot menus. */
@@ -41,12 +42,15 @@ const BUILTIN_MENU = [
 async function evaluateIntent(text, options = {}) {
   const {
     menu,
+    menuMatch: menuMatchOpt,
     lang = 'de',
     basket = [],
     phone = 'sandbox',
     businessId = null,
     llm = false,
   } = options;
+
+  const menuMatch = menuMatchOpt ?? buildMenuMatchIndex(menu);
 
   const trimmed = (text ?? '').trim();
   const normalized = norm(trimmed);
@@ -70,7 +74,7 @@ async function evaluateIntent(text, options = {}) {
     return { ...emptyResult(base, 'low_confidence'), intent };
   }
 
-  let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu);
+  let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch);
 
   const llmAllowed = llm && canCallLlm(phone);
   if (!matched.length && intent.parsedBy !== 'llm' && intent.parsedBy !== 'learned'
@@ -85,7 +89,7 @@ async function evaluateIntent(text, options = {}) {
         parsedBy: 'llm',
         confidence: llmResult.confidence,
       };
-      ({ matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu));
+      ({ matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch));
     }
   }
 

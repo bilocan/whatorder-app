@@ -1,7 +1,7 @@
 // Match customer text to menu categories and return category item lists (submenus).
 
-const { typoTolerantWordMatch, wordMatchesInText } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
+const { scoreCategoryMatch, groupMenuByCategory } = require('./menuMapper');
 
 const MIN_CATEGORY_SCORE = 70;
 const MAX_SUBMENU_ITEMS = 8;
@@ -15,30 +15,13 @@ function norm(str) {
     .trim();
 }
 
-function groupMenuByCategory(menuItems) {
-  const grouped = new Map();
-  for (const item of menuItems ?? []) {
-    const cat = item.category || 'other';
-    if (!grouped.has(cat)) grouped.set(cat, []);
-    grouped.get(cat).push(item);
-  }
-  return grouped;
-}
-
-function scoreCategoryQuery(query, categoryName) {
-  const q = norm(query);
-  const c = norm(categoryName);
-  if (!q || !c || c === 'other') return 0;
-  if (q === c) return 100;
-  if (c.startsWith(`${q} `) || q.startsWith(`${c} `)) return 85;
-  if (c.startsWith(q) || q.startsWith(c)) return 80;
-  if (wordMatchesInText(q, c) || wordMatchesInText(c, q)) return 75;
-  if (typoTolerantWordMatch(q, c)) return 75;
-  return 0;
+/** @deprecated use scoreCategoryMatch — kept for tests */
+function scoreCategoryQuery(query, categoryName, menuMatch = null) {
+  return scoreCategoryMatch(query, categoryName, menuMatch);
 }
 
 /** Items in the best-matching category (or categories tied at the top score). */
-function findCategorySubmenuItems(query, menuItems) {
+function findCategorySubmenuItems(query, menuItems, menuMatch = null) {
   const dishName = extractDishNameForMatch(query) || (query ?? '').trim();
   if (!dishName) return [];
 
@@ -48,7 +31,7 @@ function findCategorySubmenuItems(query, menuItems) {
   let bestScore = 0;
   const bestCats = [];
   for (const cat of grouped.keys()) {
-    const score = scoreCategoryQuery(dishName, cat);
+    const score = scoreCategoryMatch(dishName, cat, menuMatch);
     if (score > bestScore) {
       bestScore = score;
       bestCats.length = 0;
@@ -68,7 +51,7 @@ function findCategorySubmenuItems(query, menuItems) {
 }
 
 /** True when query names a category, not a specific item SKU. */
-function isCategorySubmenuQuery(query, candidates) {
+function isCategorySubmenuQuery(query, candidates, menuMatch = null) {
   const dishName = extractDishNameForMatch(query) || (query ?? '').trim();
   const list = candidates ?? [];
   if (!dishName || !list.length) return false;
@@ -76,12 +59,12 @@ function isCategorySubmenuQuery(query, candidates) {
   const cats = [...new Set(list.map(i => i.category || 'other'))];
   if (cats.length !== 1) return false;
 
-  if (scoreCategoryQuery(dishName, cats[0]) < MIN_CATEGORY_SCORE) return false;
+  if (scoreCategoryMatch(dishName, cats[0], menuMatch) < MIN_CATEGORY_SCORE) return false;
   return !list.some(i => norm(i.name) === norm(dishName));
 }
 
-function tryCategorySubmenu(rawName, menuItems) {
-  const items = findCategorySubmenuItems(rawName, menuItems);
+function tryCategorySubmenu(rawName, menuItems, menuMatch = null) {
+  const items = findCategorySubmenuItems(rawName, menuItems, menuMatch);
   if (!items.length) return null;
   if (items.length === 1) return { type: 'unique', item: items[0] };
   return {
