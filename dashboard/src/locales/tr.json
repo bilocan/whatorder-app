@@ -111,9 +111,10 @@
       "delivered": "Teslim edildi olarak işaretle"
     },
     "settlement": {
-      "pendingPayout": "Ödeme bekliyor",
+      "pendingPayout": "Sonraki ödeme döngüsünde",
       "paidOutOn": "{{date}} tarihinde ödendi",
-      "eligibleOn": "{{date}} tarihinde ödemeye uygun",
+      "eligibleOn": "Bekleme süresi {{date}} tarihine kadar",
+      "expectedPayoutOn": "Sonraki ödeme: {{date}}",
       "refunded": "İade edildi",
       "gross": "Brüt €{{amount}}",
       "fee": "WhatOrder ücreti €{{amount}}",
