@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -119,6 +119,7 @@ export default function OrderDetailPage() {
   const { t } = useTranslation();
   const { orderId } = useParams<{ orderId: string }>();
   const { businessId } = useAuth();
+  const location = useLocation();
   const [order, setOrder] = useState<Order | null>(null);
   const [orderLoaded, setOrderLoaded] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -175,7 +176,7 @@ export default function OrderDetailPage() {
   if (!order || !matchesActivePhoneRouting(order)) {
     return (
       <div style={{ maxWidth: 480, padding: '1rem 0' }}>
-        <Link to="/orders" style={{ fontSize: '0.9rem', color: '#666', textDecoration: 'none' }}>{t('orderDetail.back')}</Link>
+        <Link to={`/orders${location.search}`} style={{ fontSize: '0.9rem', color: '#666', textDecoration: 'none' }}>{t('orderDetail.back')}</Link>
         <p style={{ color: '#666', marginTop: '1rem' }}>{t('orderDetail.wrongPhoneLine')}</p>
       </div>
     );
@@ -186,7 +187,7 @@ export default function OrderDetailPage() {
 
   return (
     <div style={{ maxWidth: 480 }}>
-      <Link to="/orders" style={{ fontSize: '0.9rem', color: '#666', textDecoration: 'none' }}>{t('orderDetail.back')}</Link>
+      <Link to={`/orders${location.search}`} style={{ fontSize: '0.9rem', color: '#666', textDecoration: 'none' }}>{t('orderDetail.back')}</Link>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', marginBottom: '0.1rem' }}>
         <h2 style={{ margin: 0 }}>{order.customerName}</h2>
         {order.orderType === 'delivery' && (
