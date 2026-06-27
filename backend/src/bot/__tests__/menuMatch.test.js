@@ -1,4 +1,5 @@
 const { classifyMenuMatch } = require('../menuMatch');
+const { suggestItemAliases } = require('../menuItemAliases');
 
 const DONER_MENU = [
   { id: '1', name: 'Döner', price: 8.5, available: true },
@@ -143,6 +144,48 @@ const ENES_PIZZA_MENU = [
   { id: 'm2', name: 'Pizza Margherita (33cm)', price: 12.9, available: true },
   { id: 'm3', name: 'Pizza Spinachi (33cm)', price: 13.9, available: true },
 ];
+
+const BURGER_MENU = [
+  { id: 'b1', name: 'Cheeseburger XXXL mit Pommes', price: 12.9, available: true },
+  { id: 'b2', name: 'Hamburger XXXL', price: 10.9, available: true },
+];
+
+const EISTEE_MENU = [
+  { id: 'e1', name: 'Eistee Pfirsich 0.33L', price: 2.9, available: true },
+  { id: 'e2', name: 'Eistee Pfirsich 0.5L', price: 3.5, available: true },
+  { id: 'e3', name: 'Eistee Zitrone 0.33L', price: 2.9, available: true },
+];
+
+describe('classifyMenuMatch — ice tea synonyms', () => {
+  test('icetea and ice tea resolve via eistee stem', () => {
+    for (const phrase of ['icetea', 'ice tea']) {
+      const result = classifyMenuMatch(phrase, EISTEE_MENU);
+      expect(result.type).toBe('unique');
+      expect(result.item.name).toBe('Eistee Pfirsich 0.33L');
+    }
+  });
+
+  test('peach ice tea resolves via item aliases', () => {
+    const menu = [{
+      id: 'e1',
+      name: 'Eistee Pfirsich 0.33L',
+      price: 2.9,
+      available: true,
+      aliases: suggestItemAliases('Eistee Pfirsich 0.33L'),
+    }];
+    const result = classifyMenuMatch('peach ice tea', menu);
+    expect(result.type).toBe('unique');
+    expect(result.item.id).toBe('e1');
+  });
+});
+
+describe('classifyMenuMatch — burger TTS typos', () => {
+  test('chisburger matches Cheeseburger not Hamburger', () => {
+    const result = classifyMenuMatch('chisburger', BURGER_MENU);
+    expect(result.type).toBe('unique');
+    expect(result.item.name).toBe('Cheeseburger XXXL mit Pommes');
+  });
+});
 
 describe('classifyMenuMatch — Enes spinaci / spinachi typos', () => {
   test('spinaci matches Pizza Spinachi (33cm)', () => {

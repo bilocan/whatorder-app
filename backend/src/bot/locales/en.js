@@ -56,8 +56,19 @@ module.exports = {
       ? `🚚 Delivery to: ${deliveryAddress}`
       : `⏱️ Ready around ${pickupTime}`;
     const notesLine = notes ? `\n📝 Note: ${notes}` : '';
-    return `✅ Almost done!\n\n👤 ${name}\n💶 Total: €${total}\n${detail}${notesLine}\n\nConfirm your order?`;
+    return `✅ Almost done!\n\n👤 ${name}\n💶 Total: €${total}\n${detail}${notesLine}\n\nTap below to confirm or edit.`;
   },
+  confirmListHeader: () => 'Review order',
+  confirmListBtn: () => 'Confirm or edit',
+  confirmListSection: () => 'Options',
+  confirmEditNameBtn: () => 'Change name',
+  confirmEditAddressBtn: () => 'Change address',
+  confirmEditOrderTypeBtn: () => 'Pickup/delivery',
+  confirmOrderTypePickup: () => 'Pickup',
+  confirmOrderTypeDelivery: () => 'Delivery',
+  confirmNoAddressYet: () => 'No address yet',
+  askNameEdit: (current) => `Current name: ${current}\n\nType your updated name:`,
+  askOrderTypeFromConfirm: () => 'Choose pickup or delivery for this order:',
   confirmOrderBtn: () => 'Confirm ✅',
   addNoteBtn: () => 'Add note 📝',
   backToCartBtn: () => 'Back to cart 🛒',

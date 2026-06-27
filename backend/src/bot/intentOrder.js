@@ -2,7 +2,7 @@ const { patchSession, getSession } = require('./sessionStore');
 const { sendButtonMessage, sendText, sendImage } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHelpers');
-const { getMenu, resolvePhotoUrl } = require('./menuService');
+const { getMenu, getMenuMatch, resolvePhotoUrl } = require('./menuService');
 const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext, rulesParseQuality, isFreshStartCommand } = require('./intentParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
 const { rememberValidatedLlmIntent } = require('./intentLearning');
@@ -115,7 +115,8 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   if (intent.confidence != null && intent.confidence < 0.6) return false;
 
   let menu = await getMenu(businessId);
-  let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu);
+  const menuMatch = await getMenuMatch(businessId, menu);
+  let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch);
 
   // Zero menu hits — retry with LLM only when rules likely missed structure (not high-quality parse)
   if (!matched.length && intent.parsedBy !== 'llm' && intent.parsedBy !== 'learned'
@@ -130,7 +131,7 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
         parsedBy: 'llm',
         confidence: llm.confidence,
       };
-      ({ matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu));
+      ({ matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch));
     }
   }
 

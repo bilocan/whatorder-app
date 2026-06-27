@@ -2,7 +2,7 @@ const { patchSession } = require('./sessionStore');
 const { sendListMessage, sendButtonMessage } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { matchIntentToMenu, mergePendingLine, toPendingItem } = require('./intentMatcher');
-const { getMenu } = require('./menuService');
+const { getMenu, getMenuMatch } = require('./menuService');
 const { classifyMenuMatch, norm, scoreItemForNeedle } = require('./menuMatch');
 const { extractDishNameForMatch } = require('./intentModifiers');
 
@@ -74,7 +74,8 @@ async function hydrateDisambiguation(disambiguation, businessId) {
   if (candidates.length) return { ...disambiguation, candidates };
 
   const menu = await getMenu(businessId);
-  const result = classifyMenuMatch(disambiguation.rawName, menu);
+  const menuMatch = await getMenuMatch(businessId, menu);
+  const result = classifyMenuMatch(disambiguation.rawName, menu, menuMatch);
   if (result.type === 'ambiguous' && result.items?.length) {
     return { ...disambiguation, candidates: result.items };
   }
@@ -215,7 +216,8 @@ async function continueAfterLineResolved({ from, session, lang, businessId, bask
   }
 
   const menu = await getMenu(businessId);
-  const next = matchIntentToMenu(restIntent, menu);
+  const menuMatch = await getMenuMatch(businessId, menu);
+  const next = matchIntentToMenu(restIntent, menu, menuMatch);
 
   const allMatched = [...matched, ...next.matched];
   const allUnmatched = [...unmatched, ...next.unmatched];

@@ -1,4 +1,4 @@
-const { expandNeedle } = require('../menuSynonyms');
+const { expandNeedle, scoreStemTypo, MIN_FUZZY_SYNONYM_SCORE } = require('../menuSynonyms');
 const { classifyMenuMatch, matchMenuItem } = require('../menuMatch');
 
 const KEBAP_MENU = [
@@ -20,6 +20,13 @@ describe('expandNeedle', () => {
     expect(expanded).toEqual(expect.arrayContaining(['doner', 'kebap']));
   });
 
+  test('icetea and ice tea expand to eistee (EN/DE/TR drink synonyms)', () => {
+    for (const phrase of ['icetea', 'ice tea', 'eistee']) {
+      const expanded = expandNeedle(phrase);
+      expect(expanded).toEqual(expect.arrayContaining(['eistee', 'icetea', 'ice tea']));
+    }
+  });
+
   test('turkish pizza expands to lahmacun terms but bare pizza does not', () => {
     const turkish = expandNeedle('turkish pizza');
     expect(turkish).toEqual(expect.arrayContaining(['lahmacun', 'turkish pizza']));
@@ -27,6 +34,22 @@ describe('expandNeedle', () => {
     const pizza = expandNeedle('pizza');
     expect(pizza).not.toContain('lahmacun');
     expect(pizza).toContain('pizza');
+  });
+
+  test('fuzzy typo expands near-miss stems into synonym group (dner → döner/kebap)', () => {
+    expect(scoreStemTypo('dner', 'doner')).toBeGreaterThanOrEqual(MIN_FUZZY_SYNONYM_SCORE);
+    const expanded = expandNeedle('dner');
+    expect(expanded).toEqual(expect.arrayContaining(['doner', 'kebap', 'kebab']));
+  });
+
+  test('fuzzy expansion does not match unrelated short tokens', () => {
+    expect(scoreStemTypo('xyz', 'doner')).toBeLessThan(MIN_FUZZY_SYNONYM_SCORE);
+    expect(expandNeedle('xyz')).toEqual(['xyz']);
+  });
+
+  test('shared suffix typo scores TTS near-miss (chisburger ↔ cheeseburger)', () => {
+    expect(scoreStemTypo('chisburger', 'cheeseburger')).toBeGreaterThanOrEqual(MIN_FUZZY_SYNONYM_SCORE);
+    expect(scoreStemTypo('chisburger', 'hamburger')).toBeLessThan(MIN_FUZZY_SYNONYM_SCORE);
   });
 });
 

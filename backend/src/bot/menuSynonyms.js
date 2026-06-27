@@ -4,6 +4,7 @@ const SYNONYM_GROUPS = [
   ['doner', 'döner', 'kebap', 'kebab', 'kabap', 'durum', 'dürüm'],
   ['huhn', 'huhner', 'hühner', 'chicken', 'hahnchen', 'hähnchen', 'tavuk'],
   ['cola', 'kola', 'coke'],
+  ['eistee', 'eis tee', 'icetea', 'ice tea', 'ice-tea', 'soguk cay', 'buzlu cay'],
   ['ayran'],
   ['pizza'],
   ['margherita', 'margarita', 'margarete', 'margareta'],
@@ -12,7 +13,23 @@ const SYNONYM_GROUPS = [
   ['ayran', 'ayram', 'jogurt', 'joghurt'],
   ['lahmacun', 'turkish pizza', 'turkische pizza', 'turk pizzasi', 'turk pizzası'],
   ['pide'],
+  ['pfirsich', 'peach', 'seftali'],
+  ['zitrone', 'lemon', 'limon'],
+  ['pommes', 'fries', 'patates'],
+  ['cheeseburger', 'cheese burger', 'kasarli burger'],
+  ['hamburger', 'ham burger'],
+  ['sandwich', 'sandvic'],
+  ['falafel'],
+  ['wasser', 'water', 'su'],
+  ['bier', 'beer', 'bira'],
+  ['fanta'],
+  ['sprite'],
+  ['gross', 'grosse', 'groß', 'large', 'buyuk'],
+  ['klein', 'small', 'kucuk'],
 ];
+
+/** Min scoreStemTypo() to expand a token into a synonym group (typo / TTS near-miss). */
+const MIN_FUZZY_SYNONYM_SCORE = 60;
 
 function norm(str) {
   return str
@@ -109,6 +126,97 @@ function wordMatchesInText(word, textNorm) {
   return false;
 }
 
+function collapsedStem(str) {
+  return norm(str).replace(/\s+/g, '');
+}
+
+/** Score a customer token against a known synonym stem (0–100). */
+function scoreStemTypo(a, b) {
+  const x = collapsedStem(a);
+  const y = collapsedStem(b);
+  if (!x || !y) return 0;
+  if (x === y) return 100;
+  if (typoTolerantWordMatch(x, y)) return 78;
+  const maxDist = maxTypoDistance(x, y);
+  if (maxDist && levenshtein(x, y) <= maxDist) return 76;
+  return scoreSharedSuffixTypo(a, b);
+}
+
+/**
+ * TTS often garbles the prefix but keeps the dish suffix (cheeseburger → chisburger).
+ * Compare edit distance on the prefix when both strings share a long suffix.
+ */
+function scoreSharedSuffixTypo(a, b, minSuffix = 4) {
+  const x = collapsedStem(a);
+  const y = collapsedStem(b);
+  if (!x || !y || x.length < minSuffix + 2 || y.length < minSuffix + 2) return 0;
+
+  let suffixLen = 0;
+  while (
+    suffixLen < x.length
+    && suffixLen < y.length
+    && x[x.length - 1 - suffixLen] === y[y.length - 1 - suffixLen]
+  ) {
+    suffixLen += 1;
+  }
+  if (suffixLen < minSuffix) return 0;
+
+  const xPrefix = x.slice(0, -suffixLen);
+  const yPrefix = y.slice(0, -suffixLen);
+  if (!xPrefix.length || !yPrefix.length) return 100;
+  if (xPrefix === yPrefix) return 100;
+
+  const maxPrefix = Math.max(xPrefix.length, yPrefix.length);
+  const maxDist = suffixLen >= 5 ? 3 : maxPrefix <= 4 ? 1 : 2;
+  const dist = levenshtein(xPrefix, yPrefix);
+  if (dist > maxDist) return 0;
+  // TTS keeps suffix + often first syllable (chisburger ↔ cheeseburger, not hamburger).
+  let prefixCommon = 0;
+  while (
+    prefixCommon < xPrefix.length
+    && prefixCommon < yPrefix.length
+    && xPrefix[prefixCommon] === yPrefix[prefixCommon]
+  ) {
+    prefixCommon += 1;
+  }
+  if (maxDist >= 3 && prefixCommon < 2) return 0;
+  return Math.max(MIN_FUZZY_SYNONYM_SCORE, 76 - dist);
+}
+
+function tokensForFuzzyExpand(normPhrase) {
+  return normPhrase.split(/\s+/).filter(w => w.length >= 3 && !/^\d+$/.test(w));
+}
+
+function tokenHasExactSynonymCoverage(token, expanded) {
+  const t = norm(token);
+  for (const group of SYNONYM_GROUPS) {
+    const normalized = group.map(norm);
+    if (!normalized.includes(t)) continue;
+    if (normalized.some(term => expanded.has(term))) return true;
+  }
+  return false;
+}
+
+function fuzzyExpandSynonymGroups(token, expanded, minScore = MIN_FUZZY_SYNONYM_SCORE) {
+  if (tokenHasExactSynonymCoverage(token, expanded)) return;
+  for (const group of SYNONYM_GROUPS) {
+    const normalized = group.map(norm);
+    const best = normalized.reduce((max, term) => Math.max(max, scoreStemTypo(token, term)), 0);
+    if (best >= minScore) normalized.forEach(term => expanded.add(term));
+  }
+}
+
+/** All normalized terms in the same synonym group as token, or null. */
+function synonymGroupForToken(token) {
+  const t = norm(token);
+  if (!t) return null;
+  for (const group of SYNONYM_GROUPS) {
+    const normalized = group.map(norm);
+    if (normalized.includes(t)) return normalized;
+  }
+  return null;
+}
+
 function expandNeedle(rawName) {
   const n = norm(rawName);
   if (!n) return [];
@@ -121,16 +229,23 @@ function expandNeedle(rawName) {
       normalized.forEach(term => expanded.add(term));
     }
   }
+  for (const token of tokensForFuzzyExpand(n)) {
+    fuzzyExpandSynonymGroups(token, expanded);
+  }
   return [...expanded];
 }
 
 module.exports = {
   SYNONYM_GROUPS,
+  MIN_FUZZY_SYNONYM_SCORE,
   expandNeedle,
   wordMatchesInText,
   containsWord,
   splitCompoundDish,
   typoTolerantWordMatch,
+  scoreStemTypo,
+  synonymGroupForToken,
   nameTokens,
   levenshtein,
+  maxTypoDistance,
 };

@@ -53,6 +53,11 @@ describe('trySmartDefault — kebab', () => {
     expect(trySmartDefault('döner', menu)).toBeNull();
     expect(classifyMenuMatch('döner', menu).type).toBe('ambiguous');
   });
+
+  test('fuzzy kebab typo defaults like exact stem (dner → sandwich)', () => {
+    expect(trySmartDefault('dner', KEBAB_MENU)?.id).toBe('s1');
+    expect(classifyMenuMatch('dner', KEBAB_MENU).item.id).toBe('s1');
+  });
 });
 
 describe('classifyMenuMatch with smart defaults', () => {

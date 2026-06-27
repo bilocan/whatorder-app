@@ -20,6 +20,7 @@ function testId() {
 }
 
 const WA_BUTTON_TITLE_MAX = 20;
+const WA_LIST_ROW_TITLE_MAX = 24;
 
 /** WhatsApp reply-button titles: 1–20 chars (Meta Cloud API). */
 function clampWaButtonTitle(title, fallback = '…') {
@@ -28,6 +29,28 @@ function clampWaButtonTitle(title, fallback = '…') {
   const clamped = spread.slice(0, WA_BUTTON_TITLE_MAX).join('');
   if (clamped.length >= 1) return clamped;
   return fallback;
+}
+
+/** WhatsApp list row titles: max 24 chars (Meta Cloud API). */
+function clampWaListRowTitle(title, fallback = '…') {
+  const trimmed = String(title ?? '').trim();
+  const spread = [...trimmed];
+  const clamped = spread.slice(0, WA_LIST_ROW_TITLE_MAX).join('');
+  if (clamped.length >= 1) return clamped;
+  return fallback;
+}
+
+function sanitizeListSections(sections) {
+  return (sections ?? []).map((section) => ({
+    title: section.title,
+    rows: (section.rows ?? []).map((row) => ({
+      id: row.id,
+      title: clampWaListRowTitle(row.title),
+      ...(row.description != null && row.description !== ''
+        ? { description: String(row.description).slice(0, 72) }
+        : {}),
+    })),
+  }));
 }
 
 async function postMessage(payload, phoneNumberId) {
@@ -68,7 +91,7 @@ async function sendListMessage(to, { header, body, footer, buttonLabel, sections
     type: 'list',
     header: { type: 'text', text: header },
     body: { text: body },
-    action: { button: clampWaButtonTitle(buttonLabel, 'Menu'), sections },
+    action: { button: clampWaButtonTitle(buttonLabel, 'Menu'), sections: sanitizeListSections(sections) },
   };
   if (footer) interactive.footer = { text: footer };
   return send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive });
@@ -222,5 +245,5 @@ async function deleteMessage(messageId) {
 
 module.exports = {
   sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendCatalogMessage, sendFlowMessage,
-  sendLocationRequest, sendImage, deleteMessage, clampWaButtonTitle, WA_BUTTON_TITLE_MAX,
+  sendLocationRequest, sendImage, deleteMessage, clampWaButtonTitle, clampWaListRowTitle, sanitizeListSections, WA_BUTTON_TITLE_MAX, WA_LIST_ROW_TITLE_MAX,
 };
