@@ -1,6 +1,9 @@
 const {
   DEFAULT_GOLDEN_INFRA_BACKUP,
+  FIRESTORE_DATABASE,
+  FIRESTORE_PROJECT,
   INFRA_COLLECTION_IDS,
+  buildFirestoreImportArgs,
   parseResetProductionArgs,
   printResetPlan,
 } = require('../firestoreResetProductionLib');
@@ -56,5 +59,18 @@ describe('printResetPlan', () => {
   it('runs without throwing', () => {
     const opts = parseResetProductionArgs(['--dry-run']);
     expect(() => printResetPlan(opts)).not.toThrow();
+  });
+});
+
+describe('buildFirestoreImportArgs', () => {
+  it('imports full infra-only backup without collection filter', () => {
+    const opts = parseResetProductionArgs([]);
+    const args = buildFirestoreImportArgs(opts);
+    expect(args).toEqual([
+      'firestore', 'import', opts.gcsImportUri,
+      `--project=${FIRESTORE_PROJECT}`,
+      '--database', FIRESTORE_DATABASE,
+    ]);
+    expect(args.some((a) => a.startsWith('--collection-ids'))).toBe(false);
   });
 });
