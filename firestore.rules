@@ -81,9 +81,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Weekly payout batches. Backend writes via Admin SDK; admins read in dashboard.
+    // Weekly payout batches. Backend writes via Admin SDK; owners read their own rows.
     match /payouts/{payoutId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin()
+        || (isSignedIn()
+          && resource.data.businessId is string
+          && isOwnerOf(resource.data.businessId));
       allow write: if false;
     }
 

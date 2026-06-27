@@ -12,6 +12,8 @@ import { API_URL } from '../../lib/apiUrl';
 import { auth } from '../../lib/firebase';
 import { orderNetCents, isPendingSettlement } from '../../lib/settlementAmounts';
 import { fetchAllOrderDocs } from '../../lib/fetchAllOrders';
+import { formatPayoutDate } from '../../lib/formatPayoutDate';
+import PayoutHistorySection from '../../components/PayoutHistorySection';
 
 type PayoutRunSummary = {
   batchesPaid?: number;
@@ -61,12 +63,6 @@ type OrderRow = Order & { businessId: string; businessName: string };
 function settlementStatusKey(status: Order['settlementStatus']): string {
   if (!status || status === 'none') return 'none';
   return status;
-}
-
-function formatPayoutDate(iso: string): string {
-  return new Date(iso).toLocaleString('de-AT', {
-    day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
 }
 
 export default function EarningsPage() {
@@ -323,55 +319,11 @@ export default function EarningsPage() {
       </div>
 
       {/* Payout history */}
-      <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem' }}>{t('admin.earnings.payoutHistory.title')}</h3>
-      {loading && <p style={{ color: '#999' }}>{t('admin.earnings.loading')}</p>}
-      {!loading && payoutHistory.length === 0 && (
-        <p style={{ color: '#999', marginBottom: '2rem', fontSize: '0.9rem' }}>{t('admin.earnings.payoutHistory.empty')}</p>
-      )}
-      {!loading && payoutHistory.length > 0 && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', marginBottom: '2rem' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: '#999', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: '1px solid #eee' }}>
-              <th style={{ padding: '0.5rem 0.5rem 0.5rem 0' }}>{t('admin.earnings.payoutHistory.col.date')}</th>
-              <th style={{ padding: '0.5rem' }}>{t('admin.earnings.payoutHistory.col.restaurant')}</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right' }}>{t('admin.earnings.payoutHistory.col.amount')}</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right' }}>{t('admin.earnings.payoutHistory.col.orders')}</th>
-              <th style={{ padding: '0.5rem' }}>{t('admin.earnings.payoutHistory.col.mode')}</th>
-              <th style={{ padding: '0.5rem' }}>{t('admin.earnings.payoutHistory.col.transferId')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payoutHistory.map((p) => (
-              <tr key={p.id} style={{ borderBottom: '1px solid #f9f9f9' }}>
-                <td style={{ padding: '0.5rem 0.5rem 0.5rem 0', color: '#666', whiteSpace: 'nowrap' }}>
-                  {formatPayoutDate(p.paidAt)}
-                </td>
-                <td style={{ padding: '0.5rem', fontWeight: 600 }}>{p.businessName}</td>
-                <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600 }}>
-                  €{(p.totalNetCents / 100).toFixed(2)}
-                </td>
-                <td style={{ padding: '0.5rem', textAlign: 'right', color: '#666' }}>{p.orderIds.length}</td>
-                <td style={{ padding: '0.5rem' }}>
-                  <span style={{
-                    fontSize: '0.75rem',
-                    padding: '0.15rem 0.45rem',
-                    borderRadius: 4,
-                    background: p.connectMode === 'live' ? '#dcfce7' : '#f3f4f6',
-                    color: p.connectMode === 'live' ? '#166534' : '#6b7280',
-                  }}>
-                    {p.connectMode === 'live'
-                      ? t('admin.earnings.payoutHistory.modeLive')
-                      : t('admin.earnings.payoutHistory.modeMock')}
-                  </span>
-                </td>
-                <td style={{ padding: '0.5rem', fontFamily: 'monospace', fontSize: '0.78rem', color: '#666' }}>
-                  {p.stripeTransferId ?? '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <PayoutHistorySection
+        payouts={payoutHistory}
+        loading={loading}
+        showRestaurantColumn
+      />
 
       {/* Orders table */}
       <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem' }}>{t('admin.earnings.allOrders')}</h3>

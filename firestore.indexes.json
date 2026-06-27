@@ -62,6 +62,14 @@
         { "fieldPath": "settlementStatus", "order": "ASCENDING" },
         { "fieldPath": "settlementEligibleAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "payouts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "businessId", "order": "ASCENDING" },
+        { "fieldPath": "paidAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
