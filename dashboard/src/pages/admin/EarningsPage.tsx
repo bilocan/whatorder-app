@@ -7,13 +7,14 @@ import type { FeeConfig } from '../../hooks/useFeeConfig';
 import type { Order, Business } from '../../types';
 import { toDate } from '../../types';
 import { filterOrdersByPhoneRouting } from '../../lib/orderPhoneFilter';
-import { getActivePhoneNumberId } from '../../lib/activePhoneNumberId';
+import { useAdminPhoneLine } from '../../contexts/AdminPhoneLineContext';
 
 type OrderRow = Order & { businessId: string; businessName: string };
 
 export default function EarningsPage() {
   const { t } = useTranslation();
   const feeConfig = useFeeConfig();
+  const { phoneNumberId } = useAdminPhoneLine();
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,6 +29,7 @@ export default function EarningsPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
       const [businessSnap, ordersSnap] = await Promise.all([
         getDocs(collection(db, 'businesses')),
@@ -52,11 +54,11 @@ export default function EarningsPage() {
       });
 
       rows.sort((a, b) => toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime());
-      setOrders(filterOrdersByPhoneRouting(rows, getActivePhoneNumberId()));
+      setOrders(filterOrdersByPhoneRouting(rows, phoneNumberId));
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [phoneNumberId]);
 
   async function saveFeeConfig() {
     const val = parseFloat(editValue);
@@ -102,6 +104,9 @@ export default function EarningsPage() {
   return (
     <div>
       <h2>{t('admin.earnings.title')}</h2>
+      {phoneNumberId && (
+        <p style={{ margin: '0 0 1rem', fontSize: '0.78rem', color: '#666' }}>{t('admin.earnings.phoneLineScope')}</p>
+      )}
 
       {/* Fee config editor */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', flexWrap: 'wrap' }}>

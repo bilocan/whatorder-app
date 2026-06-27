@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { auth, db } from '../../lib/firebase';
 import { useConfirm } from '../../components/ConfirmDialog';
+import { useAdminPhoneLine } from '../../contexts/AdminPhoneLineContext';
 import type { Business } from '../../types';
 
 const TrashIcon = () => (
@@ -32,11 +33,11 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
-const PHONE_NUMBER_ID = import.meta.env.VITE_WHATSAPP_PHONE_NUMBER_ID as string | undefined;
 
 export default function RestaurantsPage() {
   const { t } = useTranslation();
   const confirmDialog = useConfirm();
+  const { phoneNumberId: activePhoneNumberId } = useAdminPhoneLine();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [routedIds, setRoutedIds] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
@@ -52,21 +53,29 @@ export default function RestaurantsPage() {
     });
 
     let routingUnsub: (() => void) | undefined;
-    if (PHONE_NUMBER_ID) {
-      routingUnsub = onSnapshot(doc(db, 'phoneRouting', PHONE_NUMBER_ID), (snap) => {
-        const ids: string[] = snap.exists() ? (snap.data().businessIds ?? []) : [];
+    if (activePhoneNumberId) {
+      routingUnsub = onSnapshot(doc(db, 'phoneRouting', activePhoneNumberId), (snap) => {
+        const raw: unknown[] = snap.exists() ? (snap.data().businessIds ?? []) : [];
+        const ids = raw.filter((id): id is string => typeof id === 'string' && id.length > 0);
         setRoutedIds(new Set(ids));
       });
+    } else {
+      setRoutedIds(new Set());
     }
 
     return () => { bizUnsub(); routingUnsub?.(); };
-  }, []);
+  }, [activePhoneNumberId]);
+
+  const visibleBusinesses = useMemo(() => {
+    if (!activePhoneNumberId) return [];
+    return businesses.filter((b) => routedIds.has(b.id));
+  }, [businesses, activePhoneNumberId, routedIds]);
 
   async function deleteRestaurant(id: string, bizName: string) {
     if (!(await confirmDialog(t('admin.restaurants.deleteConfirm', { name: bizName })))) return;
     await deleteDoc(doc(db, 'businesses', id));
-    if (PHONE_NUMBER_ID) {
-      await setDoc(doc(db, 'phoneRouting', PHONE_NUMBER_ID), { businessIds: arrayRemove(id) }, { merge: true });
+    if (activePhoneNumberId) {
+      await setDoc(doc(db, 'phoneRouting', activePhoneNumberId), { businessIds: arrayRemove(id) }, { merge: true });
     }
   }
 
@@ -83,8 +92,8 @@ export default function RestaurantsPage() {
         status: 'active',
         createdAt: new Date().toISOString(),
       });
-      if (PHONE_NUMBER_ID) {
-        await setDoc(doc(db, 'phoneRouting', PHONE_NUMBER_ID), { businessIds: arrayUnion(id) }, { merge: true });
+      if (activePhoneNumberId) {
+        await setDoc(doc(db, 'phoneRouting', activePhoneNumberId), { businessIds: arrayUnion(id) }, { merge: true });
       }
       const token = await auth.currentUser?.getIdToken();
       const ownerRes = await fetch(`${API_URL}/admin/owners`, {
@@ -112,7 +121,7 @@ export default function RestaurantsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: !PHONE_NUMBER_ID ? '0.75rem' : '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: !activePhoneNumberId ? '0.75rem' : '1.5rem' }}>
         <h2 style={{ margin: 0 }}>{t('admin.restaurants.title')}</h2>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <Link to="/admin/map" style={{ padding: '0.5rem 1rem', border: '1px solid #ddd', borderRadius: 8, textDecoration: 'none', color: '#000', fontWeight: 600, fontSize: '0.9rem' }}>
@@ -120,19 +129,23 @@ export default function RestaurantsPage() {
           </Link>
           <button
           onClick={() => setShowForm(!showForm)}
-          disabled={!PHONE_NUMBER_ID}
-          title={!PHONE_NUMBER_ID ? t('admin.restaurants.botConfigHint') : undefined}
-          style={{ padding: '0.5rem 1rem', background: '#000', color: '#fff', border: 'none', borderRadius: 8, cursor: !PHONE_NUMBER_ID ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: !PHONE_NUMBER_ID ? 0.4 : 1 }}
+          disabled={!activePhoneNumberId}
+          title={!activePhoneNumberId ? t('admin.restaurants.botConfigHint') : undefined}
+          style={{ padding: '0.5rem 1rem', background: '#000', color: '#fff', border: 'none', borderRadius: 8, cursor: !activePhoneNumberId ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: !activePhoneNumberId ? 0.4 : 1 }}
         >
           {t('admin.restaurants.newButton')}
         </button>
         </div>
       </div>
 
-      {!PHONE_NUMBER_ID && (
+      {!activePhoneNumberId && (
         <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.6rem 0.85rem', marginBottom: '1.5rem', fontSize: '0.85rem', color: '#92400e' }}>
           <strong>{t('admin.restaurants.botNotConfigured')}</strong> {t('admin.restaurants.botConfigHint')}
         </div>
+      )}
+
+      {activePhoneNumberId && (
+        <p style={{ margin: '0 0 1rem', fontSize: '0.78rem', color: '#666' }}>{t('admin.restaurants.phoneLineScope')}</p>
       )}
 
       {showForm && (
@@ -159,8 +172,11 @@ export default function RestaurantsPage() {
         </form>
       )}
 
-      {businesses.length === 0 && !showForm && <p style={{ color: '#999' }}>{t('admin.restaurants.noRestaurants')}</p>}
+      {visibleBusinesses.length === 0 && !showForm && activePhoneNumberId && (
+        <p style={{ color: '#999' }}>{t('admin.restaurants.noRestaurantsOnLine')}</p>
+      )}
 
+      {visibleBusinesses.length > 0 && (
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
@@ -173,7 +189,7 @@ export default function RestaurantsPage() {
           </tr>
         </thead>
         <tbody>
-          {businesses.map((b) => (
+          {visibleBusinesses.map((b) => (
             <tr key={b.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
               <td style={{ padding: '0.75rem 0.5rem' }}>
                 <Link to={`/admin/restaurants/${b.id}`} style={{ fontWeight: 600, color: '#000', textDecoration: 'none' }}>{b.name}</Link>
@@ -197,7 +213,7 @@ export default function RestaurantsPage() {
                   <span style={{ fontSize: '0.8rem', color: '#22c55e', fontWeight: 600 }}>{t('admin.restaurants.botOn')}</span>
                 ) : (
                   <span
-                    title={PHONE_NUMBER_ID
+                    title={activePhoneNumberId
                       ? 'Not connected to the WhatsApp bot. Open the restaurant and turn on the bot toggle.'
                       : t('admin.restaurants.botConfigHint')}
                     style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: 600, cursor: 'default' }}
@@ -219,6 +235,7 @@ export default function RestaurantsPage() {
           ))}
         </tbody>
       </table>
+      )}
     </div>
   );
 }

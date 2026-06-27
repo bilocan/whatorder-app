@@ -13,6 +13,14 @@ vi.mock('../hooks/usePresence', () => ({
 vi.mock('../components/RestaurantSwitcher', () => ({
   default: () => <div data-testid="restaurant-switcher" />,
 }))
+vi.mock('../components/AdminPhoneLineSwitcher', () => ({
+  default: () => <div data-testid="admin-phone-line-switcher" />,
+}))
+vi.mock('firebase/firestore', () => ({
+  collection: vi.fn(),
+  onSnapshot: vi.fn(() => vi.fn()),
+}))
+vi.mock('../lib/firebase', () => ({ db: {} }))
 vi.mock('react-router-dom', () => ({
   NavLink: ({ to, children }: { to: string; children: React.ReactNode; style: unknown }) => (
     <a href={to}>{children}</a>
