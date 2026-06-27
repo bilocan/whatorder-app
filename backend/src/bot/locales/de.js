@@ -81,6 +81,14 @@ module.exports = {
   paymentLink: (shortId, itemLines, total) => `Bestellung #${shortId} aufgegeben.\n\n${itemLines}\n\nGesamt: €${total}\n\nTippe unten auf den Button zum Bezahlen.`,
   paymentLinkFailed: (shortId) => `Bestellung #${shortId} wurde erstellt, aber der Zahlungslink ist fehlgeschlagen. Bitte kontaktiere das Restaurant.`,
   paymentConfirmed: (shortId) => `✅ Zahlung für Bestellung #${shortId} erhalten. Wir melden uns, wenn sie fertig ist. Danke! 🙏`,
+  paymentReturnSuccessTitle: () => 'Zahlung erhalten',
+  paymentReturnCancelTitle: () => 'Zahlung abgebrochen',
+  paymentReturnSuccessNoLink: () => 'Du kannst diese Seite schließen und zu WhatsApp zurückkehren.',
+  paymentReturnCancelNoLink: () => 'Kehre zu WhatsApp zurück, um es erneut zu versuchen oder bar zu bezahlen.',
+  paymentReturnRedirecting: () => 'Zurück zu WhatsApp…',
+  paymentReturnButton: () => 'Zu WhatsApp zurück',
+  paymentReturnFallbackLink: () => 'Tippe hier, wenn der Button nicht funktioniert.',
+  paymentReturnCloseHint: () => 'Du kannst diesen Tab schließen, nachdem du zurück bist.',
 
   menuEmpty: () => 'Aktuell keine Artikel verfügbar.',
 

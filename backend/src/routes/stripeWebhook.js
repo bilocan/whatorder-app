@@ -6,25 +6,27 @@ const {
   digitsOnly,
   waMeUrl,
   resolveWhatsAppReturnPhoneDigits,
+  resolvePaymentLang,
   buildPaymentReturnHtml,
 } = require('../lib/whatsappReturn');
 
 const router = express.Router();
 
-async function resolveWaUrlFromQuery(query) {
+async function resolveWaDigitsFromQuery(query) {
   const fromQuery = digitsOnly(query.wa);
-  if (fromQuery) return waMeUrl(fromQuery);
-  const resolved = await resolveWhatsAppReturnPhoneDigits();
-  return waMeUrl(resolved);
+  if (fromQuery) return fromQuery;
+  return resolveWhatsAppReturnPhoneDigits();
 }
 
 router.get('/payments/success', async (req, res) => {
   await confirmPaymentFromSessionId(req.query.session_id);
-  const waUrl = await resolveWaUrlFromQuery(req.query);
+  const waDigits = await resolveWaDigitsFromQuery(req.query);
+  const lang = resolvePaymentLang(req.query.lang);
   res.type('html').send(buildPaymentReturnHtml({
-    title: 'Payment received',
-    body: 'You can close this page and return to WhatsApp.',
-    waUrl,
+    variant: 'success',
+    lang,
+    waUrl: waMeUrl(waDigits),
+    waDigits,
   }));
 });
 
@@ -44,11 +46,13 @@ async function confirmPaymentFromSessionId(sessionId) {
 }
 
 router.get('/payments/cancel', async (req, res) => {
-  const waUrl = await resolveWaUrlFromQuery(req.query);
+  const waDigits = await resolveWaDigitsFromQuery(req.query);
+  const lang = resolvePaymentLang(req.query.lang);
   res.type('html').send(buildPaymentReturnHtml({
-    title: 'Payment cancelled',
-    body: 'Return to WhatsApp to retry or choose cash on pickup.',
-    waUrl,
+    variant: 'cancel',
+    lang,
+    waUrl: waMeUrl(waDigits),
+    waDigits,
   }));
 });
 
