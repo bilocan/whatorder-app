@@ -47,6 +47,7 @@
     "noOrders": "No orders yet.",
     "phoneLineScope": "Showing orders for this WhatsApp line only.",
     "col": {
+      "orderNumber": "Order #",
       "customer": "Customer",
       "items": "Items",
       "total": "Total",

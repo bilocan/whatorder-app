@@ -149,6 +149,16 @@ describe('OrdersPage', () => {
     expect(screen.queryByText('completed')).not.toBeInTheDocument()
   })
 
+  it('renders the order number derived from the doc id', () => {
+    mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+      cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage()
+    expect(screen.getByText('#O1')).toBeInTheDocument()
+    expect(screen.getByText('#O2')).toBeInTheDocument()
+  })
+
   it('renders a non-empty timestamp for each order', () => {
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
