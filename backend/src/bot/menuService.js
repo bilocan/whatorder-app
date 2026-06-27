@@ -1,10 +1,25 @@
 const { menuRef, businessRef } = require('../lib/collections');
 const { t } = require('./templates');
 const { matchMenuItem } = require('./menuMatch');
+const { buildMenuMatchIndex } = require('./menuMapper');
 
 async function getMenu(businessId) {
   const snap = await menuRef(businessId).where('available', '==', true).get();
   return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+}
+
+async function getMenuMatch(businessId, menuItems = null) {
+  const bizSnap = await businessRef(businessId).get();
+  const stored = bizSnap.exists ? bizSnap.data()?.menuMatch ?? null : null;
+  if (stored?.categories && Object.keys(stored.categories).length) return stored;
+  const items = menuItems ?? await getMenu(businessId);
+  return buildMenuMatchIndex(items, stored);
+}
+
+async function getMenuContext(businessId) {
+  const menu = await getMenu(businessId);
+  const menuMatch = await getMenuMatch(businessId, menu);
+  return { menu, menuMatch };
 }
 
 async function getBusinessInfo(businessId) {
@@ -34,4 +49,12 @@ function resolvePhotoUrl(photoUrl) {
   return null;
 }
 
-module.exports = { getMenu, getBusinessInfo, formatMenuText, matchMenuItem, resolvePhotoUrl };
+module.exports = {
+  getMenu,
+  getMenuMatch,
+  getMenuContext,
+  getBusinessInfo,
+  formatMenuText,
+  matchMenuItem,
+  resolvePhotoUrl,
+};

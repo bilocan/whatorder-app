@@ -56,8 +56,19 @@ module.exports = {
       ? `🚚 Lieferung an: ${deliveryAddress}`
       : `⏱️ Fertig gegen ${pickupTime}`;
     const notesLine = notes ? `\n📝 Notiz: ${notes}` : '';
-    return `✅ Fast fertig!\n\n👤 ${name}\n💶 Gesamt: €${total}\n${detail}${notesLine}\n\nBestellung bestätigen?`;
+    return `✅ Fast fertig!\n\n👤 ${name}\n💶 Gesamt: €${total}\n${detail}${notesLine}\n\nUnten tippen zum Bestätigen oder Ändern.`;
   },
+  confirmListHeader: () => 'Bestellung prüfen',
+  confirmListBtn: () => 'Optionen',
+  confirmListSection: () => 'Optionen',
+  confirmEditNameBtn: () => 'Name ändern',
+  confirmEditAddressBtn: () => 'Adresse ändern',
+  confirmEditOrderTypeBtn: () => 'Abholung/Lieferung',
+  confirmOrderTypePickup: () => 'Abholung',
+  confirmOrderTypeDelivery: () => 'Lieferung',
+  confirmNoAddressYet: () => 'Noch keine Adresse',
+  askNameEdit: (current) => `Aktueller Name: ${current}\n\nNeuen Namen eingeben:`,
+  askOrderTypeFromConfirm: () => 'Abholung oder Lieferung für diese Bestellung:',
   confirmOrderBtn: () => 'Bestätigen ✅',
   addNoteBtn: () => 'Notiz hinzufügen 📝',
   backToCartBtn: () => 'Zum Warenkorb 🛒',

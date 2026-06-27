@@ -12,8 +12,10 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.local') });
 const fs = require('fs');
 const path = require('path');
-const { db } = require('../lib/firebase');
+const { admin, db } = require('../lib/firebase');
 const { businessRef, menuRef } = require('../lib/collections');
+const { buildMenuMatchIndex } = require('../bot/menuMapper');
+const { suggestItemAliases } = require('../bot/menuItemAliases');
 
 const BATCH_SIZE = 400;
 
@@ -79,15 +81,17 @@ function csvRowToMenuItem(headers, values) {
   if (!id) throw new Error('Row missing id');
 
   const now = new Date();
+  const name = row.title?.trim() || id;
   return {
     id,
     data: {
-      name: row.title?.trim() || id,
-      description: row.description?.trim() || row.title?.trim() || '',
+      name,
+      description: row.description?.trim() || name,
       price: parsePrice(row.price),
       category: mapCategory(row.product_type),
       photoUrl: row.image_link?.trim() || null,
       available: String(row.availability ?? '').toLowerCase() === 'in stock',
+      aliases: suggestItemAliases(name),
       createdAt: now,
       updatedAt: now,
     },
@@ -165,6 +169,17 @@ async function main() {
 
   await writeMenu(businessId, items);
   console.log(`Imported ${items.length} menu item(s)`);
+
+  const menuItems = items.map(({ id, data }) => ({ ...data, id }));
+  const existingMatch = bizSnap.data()?.menuMatch ?? null;
+  const menuMatch = buildMenuMatchIndex(menuItems, existingMatch);
+  await businessRef(businessId).set({
+    menuMatch: {
+      ...menuMatch,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+  }, { merge: true });
+  console.log(`Built menuMatch index (${Object.keys(menuMatch.categories).length} categories)`);
   console.log('Done.');
 }
 

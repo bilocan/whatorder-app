@@ -1,6 +1,6 @@
 // Pure menu matching helpers (no Firestore). Used by menuService and intentMatcher.
 
-const { expandNeedle, wordMatchesInText, splitCompoundDish, nameTokens, typoTolerantWordMatch } = require('./menuSynonyms');
+const { expandNeedle, wordMatchesInText, splitCompoundDish, nameTokens, typoTolerantWordMatch, scoreStemTypo, MIN_FUZZY_SYNONYM_SCORE } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
 const { trySmartDefault } = require('./smartDefaults');
 const { tryCategorySubmenu, isCategorySubmenuQuery } = require('./menuCategory');
@@ -25,7 +25,16 @@ function scoreMatch(needle, candidate) {
   if (wordRe.test(needle)) return 80;
   if (candidate.startsWith(needle) || needle.startsWith(candidate)) return 50;
   if (candidate.includes(needle) || needle.includes(candidate)) return 10;
-  if (!needle.includes(' ') && nameTokens(candidate).some(t => typoTolerantWordMatch(needle, t))) return 75;
+  if (!needle.includes(' ')) {
+    const fullStem = scoreStemTypo(needle, candidate);
+    if (fullStem >= MIN_FUZZY_SYNONYM_SCORE) return fullStem;
+    let bestToken = 0;
+    for (const token of nameTokens(candidate)) {
+      bestToken = Math.max(bestToken, scoreStemTypo(needle, token));
+    }
+    if (bestToken >= MIN_FUZZY_SYNONYM_SCORE) return bestToken;
+    if (nameTokens(candidate).some(t => typoTolerantWordMatch(needle, t))) return 75;
+  }
   return 0;
 }
 
@@ -53,6 +62,26 @@ function matchMenuItem(rawName, menuItems) {
 const AMBIGUITY_SCORE_GAP = 25;
 const MIN_MATCH_SCORE = 10;
 const MAX_AMBIGUOUS_RESULTS = 8;
+
+function itemMatchLabels(item) {
+  return [...new Set([item.name, ...(item.aliases ?? [])].filter(Boolean))];
+}
+
+function labelStemMatchesNeedle(needle, label) {
+  const n = norm(label);
+  const tokens = nameTokens(n);
+  return n === needle
+    || n.startsWith(`${needle} `)
+    || n.startsWith(needle)
+    || n.includes(` ${needle}`)
+    || (!needle.includes(' ') && tokens.some(t => typoTolerantWordMatch(needle, t)));
+}
+
+function itemStemMatchesNeedles(item, needles) {
+  return itemMatchLabels(item).some(label => (
+    needles.some(needle => labelStemMatchesNeedle(needle, label))
+  ));
+}
 
 function wantsFamilienPizza(dishName) {
   const n = norm(dishName);
@@ -114,8 +143,8 @@ function applyPizzaSizePreference(items, dishName) {
   return standard.length ? standard : items;
 }
 
-function finishAmbiguous(rawName, items) {
-  if (!isCategorySubmenuQuery(rawName, items)) {
+function finishAmbiguous(rawName, items, menuMatch = null) {
+  if (!isCategorySubmenuQuery(rawName, items, menuMatch)) {
     const picked = trySmartDefault(rawName, items);
     if (picked) return { type: 'unique', item: picked };
   }
@@ -138,7 +167,7 @@ function scoreItemForNeedle(item, needles) {
 }
 
 /** Returns unique match, ambiguous list (≤8), or none — for Layer 1 disambiguation. */
-function classifyMenuMatch(rawName, menuItems) {
+function classifyMenuMatch(rawName, menuItems, menuMatch = null) {
   const dishName = extractDishNameForMatch(rawName) || (rawName ?? '').trim();
   const needles = expandNeedle(dishName);
   if (!needles.length) return { type: 'none' };
@@ -152,10 +181,12 @@ function classifyMenuMatch(rawName, menuItems) {
 
   // Multi-word dish names (e.g. "Döner Sandwich") — require all words on the item name
   if (dishWords.length >= 2) {
-    const wordHits = filterCandidatesForQuery(available.filter(item => {
-      const n = norm(item.name);
-      return dishWords.every(w => wordMatchesInText(w, n));
-    }), dishName);
+    const wordHits = filterCandidatesForQuery(available.filter(item => (
+      itemMatchLabels(item).some(label => {
+        const n = norm(label);
+        return dishWords.every(w => wordMatchesInText(w, n));
+      })
+    )), dishName);
     if (wordHits.length === 1) return { type: 'unique', item: wordHits[0] };
     if (wordHits.length > 1) {
       const scored = wordHits
@@ -166,29 +197,21 @@ function classifyMenuMatch(rawName, menuItems) {
       if (scored.length > 1 && top - scored[1].score >= AMBIGUITY_SCORE_GAP) {
         return { type: 'unique', item: scored[0].item };
       }
-      return finishAmbiguous(rawName, scored.slice(0, MAX_AMBIGUOUS_RESULTS).map(x => x.item));
+      return finishAmbiguous(rawName, scored.slice(0, MAX_AMBIGUOUS_RESULTS).map(x => x.item), menuMatch);
     }
   }
 
   // Single-word or fallback stem match (e.g. "döner", "cola")
-  const stemHits = filterCandidatesForQuery(available.filter(item => {
-    const n = norm(item.name);
-    const tokens = nameTokens(n);
-    return needles.some(needle =>
-      n === needle
-      || n.startsWith(`${needle} `)
-      || n.startsWith(needle)
-      || n.includes(` ${needle}`)
-      || (!needle.includes(' ') && tokens.some(t => typoTolerantWordMatch(needle, t))),
-    );
-  }), dishName);
+  const stemHits = filterCandidatesForQuery(available.filter(item => (
+    itemStemMatchesNeedles(item, needles)
+  )), dishName);
   if (stemHits.length > 1) {
-    return finishAmbiguous(rawName, stemHits);
+    return finishAmbiguous(rawName, stemHits, menuMatch);
   }
   if (stemHits.length === 1) return { type: 'unique', item: stemHits[0] };
 
   // Category submenu before fuzzy name scoring (e.g. "Familienpizza" → category rows, not every pizza SKU)
-  const categoryMatch = tryCategorySubmenu(rawName, available);
+  const categoryMatch = tryCategorySubmenu(rawName, available, menuMatch);
   if (categoryMatch) return categoryMatch;
 
   const scored = filterCandidatesForQuery(
@@ -214,7 +237,7 @@ function classifyMenuMatch(rawName, menuItems) {
   const topTier = scored.filter(x => x.score >= topScore - AMBIGUITY_SCORE_GAP);
   if (topTier.length === 1) return { type: 'unique', item: topTier[0].item };
 
-  return finishAmbiguous(rawName, topTier.slice(0, MAX_AMBIGUOUS_RESULTS).map(x => x.item));
+  return finishAmbiguous(rawName, topTier.slice(0, MAX_AMBIGUOUS_RESULTS).map(x => x.item), menuMatch);
 }
 
 module.exports = {
