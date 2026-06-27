@@ -587,6 +587,9 @@
         "onMap": "{{count}} on map",
         "missing": "{{count}} missing coordinates"
       },
+      "listTitle": "On map ({{count}})",
+      "showOnMap": "Show {{name}} on map",
+      "viewDetails": "Details →",
       "unmappedTitle": "Not on map yet",
       "addCoordsHint": "add address + coordinates in Details"
     }

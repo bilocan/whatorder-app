@@ -587,6 +587,9 @@
         "onMap": "Haritada {{count}}",
         "missing": "{{count}} koordinatsız"
       },
+      "listTitle": "Haritada ({{count}})",
+      "showOnMap": "{{name}} haritada göster",
+      "viewDetails": "Detaylar →",
       "unmappedTitle": "Henüz haritada değil",
       "addCoordsHint": "Detaylar'da adres + koordinat ekleyin"
     }

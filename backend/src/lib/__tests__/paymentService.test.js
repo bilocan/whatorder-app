@@ -18,6 +18,7 @@ jest.mock('../settlementConfig', () => ({
 }));
 jest.mock('../whatsapp', () => ({ sendText: jest.fn().mockResolvedValue('msg_1') }));
 jest.mock('../whatsappReturn', () => ({
+  ...jest.requireActual('../whatsappReturn'),
   resolveWhatsAppReturnPhoneDigits: jest.fn().mockResolvedValue('436601234567'),
   waMeUrl: jest.fn((d) => (d ? `https://wa.me/${d}` : null)),
 }));
@@ -61,11 +62,14 @@ describe('createCheckoutSessionForOrder', () => {
       totalEuros: 29,
       restaurantName: 'Döner Palace',
       shortId: 'ABC123',
+      lang: 'de',
     });
 
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
       mode: 'payment',
       metadata: { order_id: 'order_abc123', business_id: 'biz1' },
+      success_url: expect.stringContaining('&lang=de'),
+      cancel_url: expect.stringContaining('&lang=de'),
       line_items: [expect.objectContaining({
         price_data: expect.objectContaining({
           currency: 'eur',
