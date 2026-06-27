@@ -57,8 +57,6 @@
     "payment": {
       "cash": "Cash",
       "paid": "Paid",
-      "paidPending": "Paid · pending payout",
-      "paidOut": "Paid · paid out",
       "pending": "Unpaid",
       "failed": "Failed"
     },
