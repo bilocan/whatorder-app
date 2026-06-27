@@ -374,6 +374,22 @@
         "paidOut": "Ödendi",
         "refunded": "İade Edildi",
         "byRestaurant": "Restorana göre bekleyen ödeme"
+      },
+      "payout": {
+        "title": "Ödeme grubunu çalıştır",
+        "hint": "Varsayılan: Mock Connect — connectMode live ve Stripe Connect hazır olana kadar gerçek transfer yok.",
+        "dryRun": "Yalnızca önizleme (dry run)",
+        "run": "Grubu çalıştır",
+        "running": "Çalışıyor…",
+        "previewResult": "Önizleme: {{count}} restoran grubu ödenecek.",
+        "runResult": "{{count}} restoran grubu ödendi.",
+        "eligibleOrders": "{{count}} uygun kart ödemesi bulundu.",
+        "holdBlocked": "{{count}} sipariş hâlâ 7 günlük bekleme süresinde.",
+        "skippedMinimum": "{{count}} restoran minimum eşiğin altında.",
+        "skippedConnect": "{{count}} restoran atlandı — Connect kurulmamış.",
+        "allInHold": "Bekleyen tüm siparişler hâlâ bekleme süresinde.",
+        "noPending": "Bekleyen kart ödemesi bulunamadı.",
+        "failed": "Ödeme grubu başarısız"
       }
     },
     "restaurants": {

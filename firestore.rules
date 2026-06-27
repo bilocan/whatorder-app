@@ -74,6 +74,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Weekly payout batches. Backend writes via Admin SDK; admins read in dashboard.
+    match /payouts/{payoutId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // Bot sessions. Backend (Admin SDK) only — no client access.
     match /sessions/{sessionId} {
       allow read, write: if false;

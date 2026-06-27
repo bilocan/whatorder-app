@@ -43,7 +43,10 @@ export interface Order {
   restaurantNetCents?: number;
   paymentProcessedAt?: Timestamp | string | null;
   settlementEligibleAt?: string;
-  /** Set once the weekly payout batch job ships — always absent today. */
+  expectedPayoutAt?: string;
+  payoutId?: string;
+  stripeTransferId?: string;
+  /** Set when payout batch marks order paid_out. */
   paidAt?: string;
   /** Meta phone_number_id the customer used to place the order (phoneRouting scope). */
   whatsappPhoneNumberId?: string;

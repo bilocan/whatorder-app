@@ -43,6 +43,17 @@ const stripeEventRef = (eventId) =>
 const configRef = () =>
   db.collection('config').doc('whatorder');
 
+// config/settlement → hold, batch schedule, connect mode
+const settlementConfigRef = () =>
+  db.collection('config').doc('settlement');
+
+// payouts/{payoutId} → weekly batch per restaurant
+const payoutsRef = () =>
+  db.collection('payouts');
+
+const payoutRef = (payoutId) =>
+  payoutsRef().doc(payoutId);
+
 // businesses/{businessId}/intentLearnings/{keyHash} — Tier B → Tier A validated parses
 const intentLearningRef = (businessId, keyHash) =>
   businessRef(businessId).collection('intentLearnings').doc(keyHash);
@@ -55,5 +66,8 @@ module.exports = {
   processedMessageRef,
   stripeEventRef,
   configRef,
+  settlementConfigRef,
+  payoutsRef,
+  payoutRef,
   intentLearningRef,
 };

@@ -54,6 +54,14 @@
         { "fieldPath": "customerPhone", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "settlementStatus", "order": "ASCENDING" },
+        { "fieldPath": "settlementEligibleAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
