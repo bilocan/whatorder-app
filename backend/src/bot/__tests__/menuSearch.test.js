@@ -61,4 +61,15 @@ describe('rankMenuItems', () => {
   test('returns empty for no match', () => {
     expect(rankMenuItems('sushi', MENU)).toEqual([]);
   });
+
+  test('Familienpizza returns category submenu', () => {
+    const pizzaMenu = [
+      { id: 'f1', name: 'Margherita', price: 18, category: 'Familienpizza', available: true },
+      { id: 'f2', name: 'Salami', price: 19, category: 'Familienpizza', available: true },
+      { id: 'p1', name: 'Margherita', price: 10, category: 'Pizza', available: true },
+    ];
+    const results = rankMenuItems('Familienpizza', pizzaMenu);
+    expect(results).toHaveLength(2);
+    expect(results.every(i => i.category === 'Familienpizza')).toBe(true);
+  });
 });

@@ -3,6 +3,11 @@
 const { expandNeedle, wordMatchesInText, splitCompoundDish, nameTokens, typoTolerantWordMatch } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
 const { trySmartDefault } = require('./smartDefaults');
+const { tryCategorySubmenu, isCategorySubmenuQuery } = require('./menuCategory');
+
+const FAMILIEN_MARKER_RE = /\b(familien|family)\b/i;
+const GROSSE_MARKER_RE = /\b(gro[sß]e|large|xl)\b/i;
+const LARGE_CM_RE = /\b(4[5-9]|5\d|60)\s*cm\b/i;
 
 function norm(str) {
   return str
@@ -51,13 +56,30 @@ const MAX_AMBIGUOUS_RESULTS = 8;
 
 function wantsFamilienPizza(dishName) {
   const n = norm(dishName);
-  return n.includes('familienpizza') || n.includes('familien pizza');
+  return n.includes('familienpizza') || n.includes('familien pizza')
+    || n.includes('grosse pizza') || n.includes('große pizza') || n.includes('family pizza');
+}
+
+function isFamilienMenuItem(item) {
+  const n = norm(item.name);
+  const cat = norm(item.category ?? '');
+  if (FAMILIEN_MARKER_RE.test(n) || FAMILIEN_MARKER_RE.test(cat)) return true;
+  if (GROSSE_MARKER_RE.test(n)) return true;
+  if (LARGE_CM_RE.test(n)) return true;
+  return false;
+}
+
+function isPizzaMenuItem(item) {
+  const n = norm(item.name);
+  const cat = norm(item.category ?? '');
+  return n.includes('pizza') || FAMILIEN_MARKER_RE.test(n) || FAMILIEN_MARKER_RE.test(cat);
 }
 
 /** Only narrow to pizza SKUs when the customer actually ordered pizza. */
 function isPizzaQuery(dishName) {
   const n = norm(dishName);
-  return n.includes('pizza') || wantsFamilienPizza(dishName);
+  return n.includes('pizza') || n.includes('familienpizza') || n.includes('familien pizza')
+    || n.includes('grosse pizza') || n.includes('große pizza') || n.includes('family pizza');
 }
 
 function filterCandidatesForQuery(items, dishName) {
@@ -80,21 +102,23 @@ function filterCandidatesForQuery(items, dishName) {
 /** Austria: default pizza is ~33 cm; customers say Familienpizza for the large size. */
 function applyPizzaSizePreference(items, dishName) {
   if (!items.length) return items;
-  const pizzaItems = items.filter(i => norm(i.name).includes('pizza'));
+  const pizzaItems = items.filter(isPizzaMenuItem);
   if (!pizzaItems.length) return items;
 
   if (wantsFamilienPizza(dishName)) {
-    const fam = pizzaItems.filter(i => /familien/i.test(norm(i.name)));
+    const fam = pizzaItems.filter(isFamilienMenuItem);
     return fam.length ? fam : items;
   }
 
-  const standard = pizzaItems.filter(i => !/familien/i.test(norm(i.name)));
+  const standard = pizzaItems.filter(i => !isFamilienMenuItem(i));
   return standard.length ? standard : items;
 }
 
 function finishAmbiguous(rawName, items) {
-  const picked = trySmartDefault(rawName, items);
-  if (picked) return { type: 'unique', item: picked };
+  if (!isCategorySubmenuQuery(rawName, items)) {
+    const picked = trySmartDefault(rawName, items);
+    if (picked) return { type: 'unique', item: picked };
+  }
   return {
     type: 'ambiguous',
     items: items.slice(0, MAX_AMBIGUOUS_RESULTS),
@@ -163,6 +187,10 @@ function classifyMenuMatch(rawName, menuItems) {
   }
   if (stemHits.length === 1) return { type: 'unique', item: stemHits[0] };
 
+  // Category submenu before fuzzy name scoring (e.g. "Familienpizza" → category rows, not every pizza SKU)
+  const categoryMatch = tryCategorySubmenu(rawName, available);
+  if (categoryMatch) return categoryMatch;
+
   const scored = filterCandidatesForQuery(
     available
       .map(item => ({ item, score: scoreItemForNeedle(item, needles) }))
@@ -189,4 +217,11 @@ function classifyMenuMatch(rawName, menuItems) {
   return finishAmbiguous(rawName, topTier.slice(0, MAX_AMBIGUOUS_RESULTS).map(x => x.item));
 }
 
-module.exports = { norm, matchMenuItem, classifyMenuMatch, scoreMatch, scoreItemForNeedle };
+module.exports = {
+  norm,
+  matchMenuItem,
+  classifyMenuMatch,
+  scoreMatch,
+  scoreItemForNeedle,
+  isFamilienMenuItem,
+};
