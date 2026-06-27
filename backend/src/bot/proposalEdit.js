@@ -15,7 +15,7 @@ const { patchSession } = require('./sessionStore');
 const { sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { sendOrderEntryPrompt } = require('./orderEntry');
-const { getMenu } = require('./menuService');
+const { getMenu, getMenuMatch } = require('./menuService');
 const { canCallLlm, parseProposalEditWithLlm } = require('../lib/llm');
 
 const CANCEL_PHRASES = new Set([
@@ -145,7 +145,8 @@ function removeProposalItem(pending, rawName) {
 async function matchFragmentToMenu(fragment, menu, phone, businessId) {
   const intent = await parseIntentAsync(fragment, { phone, businessId });
   if (!intent.items.length) return null;
-  return matchIntentToMenu(intent, menu);
+  const menuMatch = businessId ? await getMenuMatch(businessId, menu) : null;
+  return matchIntentToMenu(intent, menu, menuMatch);
 }
 
 async function tryProposalEdit({ from, session, lang, businessId, basket, text, norm: normText }) {

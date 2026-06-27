@@ -15,7 +15,8 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const { BUILTIN_MENU, evaluateIntent, formatSandboxResult } = require('../src/bot/intentSandbox');
-const { getMenu } = require('../src/bot/menuService');
+const { getMenuContext } = require('../src/bot/menuService');
+const { buildMenuMatchIndex } = require('../src/bot/menuMapper');
 
 const HELP = `
 Intent sandbox — test parse → match → bot reply without WhatsApp or sessions.
@@ -90,13 +91,14 @@ function loadMenuFromFile(filePath) {
 async function resolveMenu(opts) {
   if (opts.menuPath) {
     const menu = loadMenuFromFile(opts.menuPath);
-    return { menu, source: `file:${opts.menuPath}` };
+    return { menu, menuMatch: buildMenuMatchIndex(menu), source: `file:${opts.menuPath}` };
   }
   if (opts.businessId) {
-    const menu = await getMenu(opts.businessId);
-    return { menu, source: `firestore:${opts.businessId}` };
+    const { menu, menuMatch } = await getMenuContext(opts.businessId);
+    return { menu, menuMatch, source: `firestore:${opts.businessId}` };
   }
-  return { menu: BUILTIN_MENU, source: 'builtin' };
+  const menu = BUILTIN_MENU;
+  return { menu, menuMatch: buildMenuMatchIndex(menu), source: 'builtin' };
 }
 
 function printResult(result, opts) {
@@ -121,6 +123,7 @@ function llmStatus(opts) {
 async function runPhrase(text, ctx) {
   const result = await evaluateIntent(text, {
     menu: ctx.menu,
+    menuMatch: ctx.menuMatch,
     lang: ctx.opts.lang,
     businessId: ctx.opts.businessId,
     llm: ctx.opts.llm,

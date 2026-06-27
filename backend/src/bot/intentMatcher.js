@@ -127,7 +127,7 @@ function toPendingItem(item, qty, { rawIntentName } = {}) {
   };
 }
 
-function matchIntentToMenu(intent, menuItems) {
+function matchIntentToMenu(intent, menuItems, menuMatch = null) {
   let matched = [];
   const unmatched = [];
   let disambiguation = null;
@@ -135,7 +135,7 @@ function matchIntentToMenu(intent, menuItems) {
   for (let i = 0; i < intent.items.length; i++) {
     const { name, qty } = intent.items[i];
     const matchName = normalizeIntentItemName(name);
-    const result = classifyMenuMatch(matchName, menuItems);
+    const result = classifyMenuMatch(matchName, menuItems, menuMatch);
 
     if (result.type === 'none') {
       if (!isModifierOnlyToken(name)) unmatched.push(name);

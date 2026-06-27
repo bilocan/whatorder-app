@@ -114,8 +114,8 @@ function applyPizzaSizePreference(items, dishName) {
   return standard.length ? standard : items;
 }
 
-function finishAmbiguous(rawName, items) {
-  if (!isCategorySubmenuQuery(rawName, items)) {
+function finishAmbiguous(rawName, items, menuMatch = null) {
+  if (!isCategorySubmenuQuery(rawName, items, menuMatch)) {
     const picked = trySmartDefault(rawName, items);
     if (picked) return { type: 'unique', item: picked };
   }
@@ -138,7 +138,7 @@ function scoreItemForNeedle(item, needles) {
 }
 
 /** Returns unique match, ambiguous list (≤8), or none — for Layer 1 disambiguation. */
-function classifyMenuMatch(rawName, menuItems) {
+function classifyMenuMatch(rawName, menuItems, menuMatch = null) {
   const dishName = extractDishNameForMatch(rawName) || (rawName ?? '').trim();
   const needles = expandNeedle(dishName);
   if (!needles.length) return { type: 'none' };
@@ -166,7 +166,7 @@ function classifyMenuMatch(rawName, menuItems) {
       if (scored.length > 1 && top - scored[1].score >= AMBIGUITY_SCORE_GAP) {
         return { type: 'unique', item: scored[0].item };
       }
-      return finishAmbiguous(rawName, scored.slice(0, MAX_AMBIGUOUS_RESULTS).map(x => x.item));
+      return finishAmbiguous(rawName, scored.slice(0, MAX_AMBIGUOUS_RESULTS).map(x => x.item), menuMatch);
     }
   }
 
@@ -183,12 +183,12 @@ function classifyMenuMatch(rawName, menuItems) {
     );
   }), dishName);
   if (stemHits.length > 1) {
-    return finishAmbiguous(rawName, stemHits);
+    return finishAmbiguous(rawName, stemHits, menuMatch);
   }
   if (stemHits.length === 1) return { type: 'unique', item: stemHits[0] };
 
   // Category submenu before fuzzy name scoring (e.g. "Familienpizza" → category rows, not every pizza SKU)
-  const categoryMatch = tryCategorySubmenu(rawName, available);
+  const categoryMatch = tryCategorySubmenu(rawName, available, menuMatch);
   if (categoryMatch) return categoryMatch;
 
   const scored = filterCandidatesForQuery(
@@ -214,7 +214,7 @@ function classifyMenuMatch(rawName, menuItems) {
   const topTier = scored.filter(x => x.score >= topScore - AMBIGUITY_SCORE_GAP);
   if (topTier.length === 1) return { type: 'unique', item: topTier[0].item };
 
-  return finishAmbiguous(rawName, topTier.slice(0, MAX_AMBIGUOUS_RESULTS).map(x => x.item));
+  return finishAmbiguous(rawName, topTier.slice(0, MAX_AMBIGUOUS_RESULTS).map(x => x.item), menuMatch);
 }
 
 module.exports = {
