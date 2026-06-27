@@ -45,6 +45,7 @@
   "orders": {
     "title": "Siparişler",
     "noOrders": "Henüz sipariş yok.",
+    "phoneLineScope": "Yalnızca bu WhatsApp hattındaki siparişler gösteriliyor.",
     "col": {
       "customer": "Müşteri",
       "items": "Ürünler",
@@ -75,6 +76,7 @@
   "orderDetail": {
     "loading": "Sipariş yükleniyor...",
     "back": "← Siparişlere dön",
+    "wrongPhoneLine": "Bu sipariş başka bir WhatsApp hattına ait; bu panel görünümünde kullanılamaz.",
     "delivery": "Teslimat",
     "col": {
       "item": "Ürün",

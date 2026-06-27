@@ -59,6 +59,7 @@ function renderPage() {
 describe('OrdersPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('VITE_WHATSAPP_PHONE_NUMBER_ID', '')
     mockUseAuth.mockReturnValue({ businessId: 'biz-1' })
   })
 
@@ -76,6 +77,23 @@ describe('OrdersPage', () => {
     renderPage()
     expect(mockOnSnapshot).not.toHaveBeenCalled()
     expect(screen.getByText('No orders yet.')).toBeInTheDocument()
+  })
+
+    it('hides orders from other WhatsApp lines when VITE_WHATSAPP_PHONE_NUMBER_ID is set', () => {
+    vi.stubEnv('VITE_WHATSAPP_PHONE_NUMBER_ID', 'line_a')
+    mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+      cb({
+        docs: [
+          { id: 'o1', data: () => ({ ...ORDERS[0], whatsappPhoneNumberId: 'line_a' }) },
+          { id: 'o2', data: () => ({ ...ORDERS[1], whatsappPhoneNumberId: 'line_b' }) },
+        ],
+      })
+      return vi.fn()
+    })
+    renderPage()
+    expect(screen.getByRole('link', { name: 'Ali Veli' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Max Muster' })).not.toBeInTheDocument()
+    vi.unstubAllEnvs()
   })
 
   it('renders customer names and links for active orders, hides completed by default', () => {

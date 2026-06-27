@@ -9,6 +9,7 @@ import { toDate } from '../types';
 import { paymentBadge } from '../lib/paymentBadge';
 
 import { API_URL } from '../lib/apiUrl';
+import { matchesActivePhoneRouting } from '../lib/orderPhoneFilter';
 
 type ActionButton = { labelKey: string; action: string; style?: React.CSSProperties };
 
@@ -113,14 +114,18 @@ export default function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const { businessId } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
+  const [orderLoaded, setOrderLoaded] = useState(false);
   const [actionError, setActionError] = useState('');
   const [loading, setLoading] = useState(false);
   const [etaMinutes, setEtaMinutes] = useState(30);
 
   useEffect(() => {
     if (!orderId || !businessId) return;
+    setOrderLoaded(false);
     getDoc(doc(db, 'businesses', businessId, 'orders', orderId)).then((snap) => {
       if (snap.exists()) setOrder({ id: snap.id, ...snap.data({ serverTimestamps: 'estimate' }) } as Order);
+      else setOrder(null);
+      setOrderLoaded(true);
     });
   }, [orderId, businessId]);
 
@@ -159,7 +164,16 @@ export default function OrderDetailPage() {
     }
   }
 
-  if (!order) return <p style={{ padding: '1rem' }}>{t('orderDetail.loading')}</p>;
+  if (!orderLoaded) return <p style={{ padding: '1rem' }}>{t('orderDetail.loading')}</p>;
+
+  if (!order || !matchesActivePhoneRouting(order)) {
+    return (
+      <div style={{ maxWidth: 480, padding: '1rem 0' }}>
+        <Link to="/orders" style={{ fontSize: '0.9rem', color: '#666', textDecoration: 'none' }}>{t('orderDetail.back')}</Link>
+        <p style={{ color: '#666', marginTop: '1rem' }}>{t('orderDetail.wrongPhoneLine')}</p>
+      </div>
+    );
+  }
 
   const buttons = getActionButtons(order.status, order.orderType);
   const color = STATUS_COLOR[order.status] ?? '#999';
