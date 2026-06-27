@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Order, OrderStatus } from '../types';
 import { toDate } from '../types';
 import { paymentBadge } from '../lib/paymentBadge';
+import { shortId } from '../lib/shortId';
 
 import { API_URL } from '../lib/apiUrl';
 import { matchesActivePhoneRouting } from '../lib/orderPhoneFilter';
@@ -189,6 +190,7 @@ export default function OrderDetailPage() {
           </span>
         )}
       </div>
+      <p style={{ color: '#999', margin: 0, fontFamily: 'monospace', fontSize: '0.85rem' }}>#{shortId(order.id)}</p>
       <p style={{ color: '#999', margin: 0, marginBottom: order.orderType === 'delivery' ? '0.25rem' : '1.5rem' }}>{order.customerPhone}</p>
       {order.orderType === 'delivery' && order.deliveryAddress && (
         <p style={{ color: '#0ea5e9', fontSize: '0.85rem', margin: '0 0 1.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.25rem' }}>
