@@ -226,7 +226,52 @@
     "failureRate": "Fehlerquote",
     "breakdown": "Aufschlüsselung",
     "noOrders": "Heute keine Bestellungen.",
-    "feeLabel": "Gebühr: €{{fee}}"
+    "feeLabel": "Gebühr: €{{fee}}",
+    "settlement": {
+      "title": "Kartenauszahlungen",
+      "hint": "Netto aus Kartenzahlungen nach WhatOrder-Gebühr. Barbestellungen werden nicht über WhatOrder ausgezahlt.",
+      "pending": "Ausstehende Auszahlung",
+      "paidOut": "Ausgezahlt"
+    },
+    "payoutLoadError": "Auszahlungsverlauf konnte nicht geladen werden."
+  },
+  "payout": {
+    "history": {
+      "title": "Auszahlungsverlauf",
+      "loading": "Lade…",
+      "empty": "Noch keine Auszahlungen — nur echte Läufe (ohne Dry Run) werden gespeichert.",
+      "col": {
+        "date": "Datum",
+        "restaurant": "Restaurant",
+        "amount": "Netto",
+        "orders": "Bestellungen",
+        "mode": "Modus",
+        "transferId": "Transfer-ID"
+      },
+      "modeMock": "Mock",
+      "modeLive": "Live"
+    },
+    "reconciliation": {
+      "title": "Stripe-Abstimmung",
+      "gross": "Brutto (Karte)",
+      "fee": "WhatOrder-Gebühr",
+      "net": "Netto überwiesen",
+      "transferId": "Stripe-Transfer",
+      "connectAccount": "Connect-Konto",
+      "viewInStripe": "Transfer in Stripe anzeigen"
+    },
+    "orders": {
+      "title": "Bestellungen in dieser Auszahlung ({{count}})",
+      "loading": "Bestellungen laden…",
+      "empty": "Keine Bestellungen für diese Auszahlung gefunden.",
+      "loadError": "Bestellungen konnten nicht geladen werden.",
+      "total": "Netto gesamt",
+      "col": {
+        "customer": "Kunde",
+        "date": "Datum",
+        "net": "Netto"
+      }
+    }
   },
   "settings": {
     "title": "Einstellungen",

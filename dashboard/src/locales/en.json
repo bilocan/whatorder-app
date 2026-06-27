@@ -226,7 +226,52 @@
     "failureRate": "Payment Failure Rate",
     "breakdown": "Breakdown",
     "noOrders": "No orders today.",
-    "feeLabel": "Fee: €{{fee}}"
+    "feeLabel": "Fee: €{{fee}}",
+    "settlement": {
+      "title": "Card payouts",
+      "hint": "Net from card orders after the WhatOrder fee. Cash orders are not settled through WhatOrder.",
+      "pending": "Pending payout",
+      "paidOut": "Paid out"
+    },
+    "payoutLoadError": "Could not load payout history."
+  },
+  "payout": {
+    "history": {
+      "title": "Payout history",
+      "loading": "Loading…",
+      "empty": "No payouts yet — only real runs (not dry run) are saved.",
+      "col": {
+        "date": "Date",
+        "restaurant": "Restaurant",
+        "amount": "Net",
+        "orders": "Orders",
+        "mode": "Mode",
+        "transferId": "Transfer ID"
+      },
+      "modeMock": "Mock",
+      "modeLive": "Live"
+    },
+    "reconciliation": {
+      "title": "Stripe reconciliation",
+      "gross": "Gross (card)",
+      "fee": "WhatOrder fee",
+      "net": "Net transferred",
+      "transferId": "Stripe transfer",
+      "connectAccount": "Connect account",
+      "viewInStripe": "View transfer in Stripe"
+    },
+    "orders": {
+      "title": "Orders in this payout ({{count}})",
+      "loading": "Loading orders…",
+      "empty": "No orders found for this payout.",
+      "loadError": "Could not load orders.",
+      "total": "Total net",
+      "col": {
+        "customer": "Customer",
+        "date": "Date",
+        "net": "Net"
+      }
+    }
   },
   "settings": {
     "title": "Settings",

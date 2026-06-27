@@ -226,7 +226,52 @@
     "failureRate": "Ödeme Hata Oranı",
     "breakdown": "Detaylar",
     "noOrders": "Bugün sipariş yok.",
-    "feeLabel": "Ücret: €{{fee}}"
+    "feeLabel": "Ücret: €{{fee}}",
+    "settlement": {
+      "title": "Kart ödemeleri",
+      "hint": "WhatOrder ücreti sonrası kart siparişlerinden net tutar. Nakit siparişler WhatOrder üzerinden ödenmez.",
+      "pending": "Bekleyen ödeme",
+      "paidOut": "Ödendi"
+    },
+    "payoutLoadError": "Ödeme geçmişi yüklenemedi."
+  },
+  "payout": {
+    "history": {
+      "title": "Ödeme geçmişi",
+      "loading": "Yükleniyor…",
+      "empty": "Henüz ödeme yok — yalnızca gerçek çalıştırmalar (dry run değil) kaydedilir.",
+      "col": {
+        "date": "Tarih",
+        "restaurant": "Restoran",
+        "amount": "Net",
+        "orders": "Siparişler",
+        "mode": "Mod",
+        "transferId": "Transfer ID"
+      },
+      "modeMock": "Mock",
+      "modeLive": "Canlı"
+    },
+    "reconciliation": {
+      "title": "Stripe mutabakatı",
+      "gross": "Brüt (kart)",
+      "fee": "WhatOrder ücreti",
+      "net": "Net transfer",
+      "transferId": "Stripe transferi",
+      "connectAccount": "Connect hesabı",
+      "viewInStripe": "Stripe'da transferi görüntüle"
+    },
+    "orders": {
+      "title": "Bu ödemede siparişler ({{count}})",
+      "loading": "Siparişler yükleniyor…",
+      "empty": "Bu ödeme için sipariş bulunamadı.",
+      "loadError": "Siparişler yüklenemedi.",
+      "total": "Toplam net",
+      "col": {
+        "customer": "Müşteri",
+        "date": "Tarih",
+        "net": "Net"
+      }
+    }
   },
   "settings": {
     "title": "Ayarlar",
