@@ -9,7 +9,7 @@ const { tryTextIntentOrder, handleIntentButtons, isIntentConfirmText } = require
 const { tryProposalEdit, parseProposalEdit } = require('../proposalEdit');
 const { handleReorderButtons, tryOfferReorder } = require('../reorder');
 const { isMenuRequest, sendOrderEntryPrompt } = require('../orderEntry');
-const { isGreetingOnly, looksLikeOrderText } = require('../intentParser');
+const { isGreetingOnly, looksLikeOrderText, isFreshStartCommand } = require('../intentParser');
 const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
 const { resumeDeliveryCheckout, showDeliveryBasketGate, proceedFromConfirmedBasket } = require('./checkout');
@@ -502,8 +502,8 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     }
   }
 
-  // Text: greeting with empty basket — offer reorder (Layer 0) before order entry
-  if (type === 'text' && text?.trim() && isGreetingOnly(norm) && !basket.length) {
+  // Text: fresh start or greeting with empty basket — offer reorder before order entry
+  if (type === 'text' && text?.trim() && (isGreetingOnly(norm) || isFreshStartCommand(norm)) && !basket.length) {
     if (await tryOfferReorder({ from, session, lang, businessId, basket })) return;
     await sendOrderEntryPrompt({ from, session, lang, businessId, basket });
     return;

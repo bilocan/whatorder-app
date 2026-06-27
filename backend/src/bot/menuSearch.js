@@ -2,7 +2,7 @@ const { scoreItemForNeedle } = require('./menuMatch');
 const { patchSession } = require('./sessionStore');
 const { sendListMessage } = require('../lib/whatsapp');
 const { t } = require('./templates');
-const { isGreetingOnly } = require('./intentParser');
+const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
 const { isMenuRequest } = require('./orderEntry');
 const { getMenu } = require('./menuService');
 const { sendOrderEntryPrompt } = require('./orderEntry');
@@ -24,7 +24,7 @@ function isSearchKeyword(norm) {
 /** 1–2 word lookup queries (Layer 2 search entry), not full orders. */
 function isShortLookupText(text, norm) {
   const trimmed = (text ?? '').trim();
-  if (!trimmed || isGreetingOnly(norm)) return false;
+  if (!trimmed || isGreetingOnly(norm) || isFreshStartCommand(norm)) return false;
   if (isMenuRequest(norm) || isSearchKeyword(norm)) return false;
   if (isOrderDeepLink(trimmed)) return false;
 

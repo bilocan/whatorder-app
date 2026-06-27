@@ -1,4 +1,4 @@
-const { parseIntent, looksLikeOrderText, extractPartySize, applyJeweilsBasketContext } = require('../intentParser');
+const { parseIntent, looksLikeOrderText, extractPartySize, applyJeweilsBasketContext, rulesParseQuality } = require('../intentParser');
 
 describe('parseIntent', () => {
   test('pizza and cola for 2', () => {
@@ -196,9 +196,31 @@ describe('looksLikeOrderText', () => {
     expect(looksLikeOrderText('Hello', 'hello')).toBe(false);
   });
 
+  test('rejects fresh start commands', () => {
+    expect(looksLikeOrderText('start', 'start')).toBe(false);
+    expect(looksLikeOrderText('Starten', 'starten')).toBe(false);
+  });
+
   test('accepts order-like text', () => {
     expect(looksLikeOrderText('2x döner + cola', '2x döner + cola')).toBe(true);
     expect(looksLikeOrderText('döner', 'döner')).toBe(true);
     expect(looksLikeOrderText('jeweils ayran noch bitte', 'jeweils ayran noch bitte')).toBe(true);
+    expect(looksLikeOrderText('Lahmacun cola', 'lahmacun cola')).toBe(true);
+  });
+});
+
+describe('parseFoodDrinkPair via parseIntent', () => {
+  test('splits food + drink without conjunction', () => {
+    const r = parseIntent('Lahmacun cola');
+    expect(r.items).toEqual([
+      { name: 'Lahmacun', qty: 1 },
+      { name: 'cola', qty: 1 },
+    ]);
+    expect(rulesParseQuality('Lahmacun cola')).toBe('high');
+  });
+
+  test('does not split two food words', () => {
+    const r = parseIntent('döner kebap');
+    expect(r.items).toEqual([{ name: 'döner kebap', qty: 1 }]);
   });
 });
