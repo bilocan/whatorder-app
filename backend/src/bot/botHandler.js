@@ -163,6 +163,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       // if the call succeeds, update pendingDeleteIds so the message is cleaned up next turn.
       await setSession(from, { state: 'awaiting_location', language: langForMulti, basket: [], businessId: null, pendingDeleteIds: [] });
       try {
+        await sendText(from, t('multiWelcomeBody', langForMulti));
         const locId = await sendLocationRequest(from, t('locationRequestBody', langForMulti));
         if (locId) await setSession(from, { state: 'awaiting_location', language: langForMulti, basket: [], businessId: null, pendingDeleteIds: [locId] });
       } catch { /* ignore — awaiting_location handler will show the picker on next message */ }
@@ -236,6 +237,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   // Switch restaurant command — available from any state (multi only)
   if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {
     await sendText(from, t('switchConfirmed', lang));
+    await sendText(from, t('multiWelcomeBody', lang));
     if (session.lat != null && session.lng != null) {
       const { pendingDeleteIds } = await presentRestaurantPickerForLocation(
         from, routing.businessIds, session.lat, session.lng, lang,

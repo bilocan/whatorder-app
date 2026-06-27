@@ -133,6 +133,7 @@ module.exports = {
   deliveryNewAddr:          () => '✏️ Yeni adres girin',
   deliveryShareLoc:         () => '📡 Konum paylaş',
 
+  multiWelcomeBody: () => '👋 WhatOrder\'a hoş geldiniz!',
   locationRequestBody: () => '📍 Konumunuzu paylaşın, en yakın restoranları önce gösterelim.\n\nYa da herhangi bir şey yazarak tüm restoranları görebilirsiniz.',
   restaurantPickerBody: () => 'Hangi restorandan sipariş vermek istersiniz?',
   restaurantPickerButton: () => 'Restoranlar',
