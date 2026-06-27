@@ -4,6 +4,7 @@ const SYNONYM_GROUPS = [
   ['doner', 'döner', 'kebap', 'kebab', 'kabap', 'durum', 'dürüm'],
   ['huhn', 'huhner', 'hühner', 'chicken', 'hahnchen', 'hähnchen', 'tavuk'],
   ['cola', 'kola', 'coke'],
+  ['eistee', 'eis tee', 'icetea', 'ice tea', 'ice-tea', 'soguk cay', 'buzlu cay'],
   ['ayran'],
   ['pizza'],
   ['margherita', 'margarita', 'margarete', 'margareta'],
@@ -12,6 +13,19 @@ const SYNONYM_GROUPS = [
   ['ayran', 'ayram', 'jogurt', 'joghurt'],
   ['lahmacun', 'turkish pizza', 'turkische pizza', 'turk pizzasi', 'turk pizzası'],
   ['pide'],
+  ['pfirsich', 'peach', 'seftali'],
+  ['zitrone', 'lemon', 'limon'],
+  ['pommes', 'fries', 'patates'],
+  ['cheeseburger', 'cheese burger', 'kasarli burger'],
+  ['hamburger', 'ham burger'],
+  ['sandwich', 'sandvic'],
+  ['falafel'],
+  ['wasser', 'water', 'su'],
+  ['bier', 'beer', 'bira'],
+  ['fanta'],
+  ['sprite'],
+  ['gross', 'grosse', 'groß', 'large', 'buyuk'],
+  ['klein', 'small', 'kucuk'],
 ];
 
 /** Min scoreStemTypo() to expand a token into a synonym group (typo / TTS near-miss). */
@@ -192,6 +206,17 @@ function fuzzyExpandSynonymGroups(token, expanded, minScore = MIN_FUZZY_SYNONYM_
   }
 }
 
+/** All normalized terms in the same synonym group as token, or null. */
+function synonymGroupForToken(token) {
+  const t = norm(token);
+  if (!t) return null;
+  for (const group of SYNONYM_GROUPS) {
+    const normalized = group.map(norm);
+    if (normalized.includes(t)) return normalized;
+  }
+  return null;
+}
+
 function expandNeedle(rawName) {
   const n = norm(rawName);
   if (!n) return [];
@@ -219,6 +244,7 @@ module.exports = {
   splitCompoundDish,
   typoTolerantWordMatch,
   scoreStemTypo,
+  synonymGroupForToken,
   nameTokens,
   levenshtein,
   maxTypoDistance,

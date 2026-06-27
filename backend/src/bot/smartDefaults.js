@@ -12,7 +12,7 @@ function norm(str) {
 
 const DRINK_STEMS = [
   'cola', 'kola', 'coke', 'pepsi', 'fanta', 'sprite', 'ayran', 'ayram',
-  'bier', 'beer', 'wasser', 'water', 'saft', 'eistee', 'ice tea', 'red bull', 'monster',
+  'bier', 'beer', 'wasser', 'water', 'saft', 'eistee', 'icetea', 'ice tea', 'red bull', 'monster',
 ];
 
 const KEBAB_STEMS = ['doner', 'döner', 'kebap', 'kebab', 'durum', 'dürüm', 'sandwich'];
