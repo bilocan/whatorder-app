@@ -333,8 +333,21 @@
     "resumeDelivery": "Lieferung fortsetzen"
   },
   "admin": {
+    "phoneLine": {
+      "label": "WhatsApp-Leitung",
+      "loading": "Leitungen werden geladen…",
+      "noneConfigured": "Keine WhatsApp-Leitungen in Firestore. Zuerst ein phoneRouting-Dokument anlegen.",
+      "switchHint": "WhatsApp-Nummer wählen, für die Admin-Daten geladen werden",
+      "unlabeled": "Telefonnummer nicht gesetzt",
+      "setNumber": "Telefonnummer setzen",
+      "editNumber": "Telefonnummer bearbeiten",
+      "numberPlaceholder": "+43 660 1234567",
+      "save": "Speichern",
+      "saving": "Speichern…"
+    },
     "earnings": {
       "title": "Erlöse",
+      "phoneLineScope": "Nur Bestellungen der gewählten WhatsApp-Leitung.",
       "feeModel": "Gebührenmodell:",
       "feeFixed": "Feste € pro Bestellung",
       "feePercent": "% des Bestellwerts",
@@ -368,8 +381,10 @@
       "title": "Restaurants",
       "mapLink": "Auf Karte anzeigen",
       "newButton": "+ Neues Restaurant",
-      "botConfigHint": "VITE_WHATSAPP_PHONE_NUMBER_ID in der Umgebung setzen, um Restaurants erstellen zu können.",
-      "botNotConfigured": "WhatsApp-Bot nicht konfiguriert.",
+      "botConfigHint": "Wähle in der Seitenleiste eine WhatsApp-Leitung für Bot-Routing und neue Restaurants.",
+      "botNotConfigured": "Keine WhatsApp-Leitung ausgewählt.",
+      "phoneLineScope": "Nur Restaurants der gewählten WhatsApp-Leitung.",
+      "noRestaurantsOnLine": "Noch keine Restaurants auf dieser WhatsApp-Leitung.",
       "noRestaurants": "Noch keine Restaurants.",
       "col": {
         "name": "Name",

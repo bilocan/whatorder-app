@@ -4,11 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import LanguageSwitcher from './LanguageSwitcher';
 import RestaurantSwitcher from './RestaurantSwitcher';
+import AdminPhoneLineSwitcher from './AdminPhoneLineSwitcher';
+import { AdminPhoneLineProvider } from '../contexts/AdminPhoneLineContext';
 import BrandLogo from './BrandLogo';
 import { usePresence, toggleOrdersOpen, toggleDeliveryOpen } from '../hooks/usePresence';
 import { API_URL } from '../lib/apiUrl';
 
-export default function Layout() {
+function LayoutContent() {
   const { t } = useTranslation();
   const { user, businessId, isAdmin, signOut } = useAuth();
   const showTenantNav = !!businessId;
@@ -82,6 +84,7 @@ export default function Layout() {
           {isAdmin && (
             <>
               <div style={{ borderTop: '1px solid #eee', margin: '0.75rem 0' }} />
+              <AdminPhoneLineSwitcher />
               {[
                 { to: '/admin',          label: t('nav.admin') },
                 { to: '/admin/map',      label: t('nav.adminMap') },
@@ -190,4 +193,16 @@ export default function Layout() {
       </main>
     </div>
   );
+}
+
+export default function Layout() {
+  const { isAdmin } = useAuth();
+  if (isAdmin) {
+    return (
+      <AdminPhoneLineProvider>
+        <LayoutContent />
+      </AdminPhoneLineProvider>
+    );
+  }
+  return <LayoutContent />;
 }

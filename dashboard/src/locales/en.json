@@ -333,8 +333,21 @@
     "resumeDelivery": "Resume delivery"
   },
   "admin": {
+    "phoneLine": {
+      "label": "WhatsApp line",
+      "loading": "Loading lines…",
+      "noneConfigured": "No WhatsApp lines in Firestore. Add a phoneRouting document first.",
+      "switchHint": "Switch which WhatsApp number admin data is scoped to",
+      "unlabeled": "Phone number not set",
+      "setNumber": "Set phone number",
+      "editNumber": "Edit phone number",
+      "numberPlaceholder": "+43 660 1234567",
+      "save": "Save",
+      "saving": "Saving…"
+    },
     "earnings": {
       "title": "Earnings",
+      "phoneLineScope": "Showing orders for the selected WhatsApp line only.",
       "feeModel": "Fee model:",
       "feeFixed": "Fixed € per order",
       "feePercent": "% of order total",
@@ -368,8 +381,10 @@
       "title": "Restaurants",
       "mapLink": "View on map",
       "newButton": "+ New Restaurant",
-      "botConfigHint": "Set VITE_WHATSAPP_PHONE_NUMBER_ID in your env to enable restaurant creation.",
-      "botNotConfigured": "WhatsApp bot not configured.",
+      "botConfigHint": "Select a WhatsApp line in the sidebar to manage bot routing and create restaurants.",
+      "botNotConfigured": "No WhatsApp line selected.",
+      "phoneLineScope": "Showing restaurants on the selected WhatsApp line only.",
+      "noRestaurantsOnLine": "No restaurants on this WhatsApp line yet.",
       "noRestaurants": "No restaurants yet.",
       "col": {
         "name": "Name",
