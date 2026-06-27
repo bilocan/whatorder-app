@@ -62,6 +62,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
         totalEuros: total,
         restaurantName: info.name,
         shortId,
+        lang,
       });
       await ordersRef(businessId).doc(orderId).update({ paymentStripeSessionId: sessionId });
       await sendCtaUrlMessage(from, {

@@ -81,6 +81,14 @@ module.exports = {
   paymentLink: (shortId, itemLines, total) => `Sipariş #${shortId} alındı.\n\n${itemLines}\n\nToplam: €${total}\n\nÖdemek için aşağıdaki düğmeye dokunun.`,
   paymentLinkFailed: (shortId) => `Sipariş #${shortId} oluşturuldu ancak ödeme bağlantısı başarısız oldu. Lütfen restoranla iletişime geçin.`,
   paymentConfirmed: (shortId) => `✅ Sipariş #${shortId} için ödeme alındı. Hazır olunca haber vereceğiz. Teşekkürler! 🙏`,
+  paymentReturnSuccessTitle: () => 'Ödeme alındı',
+  paymentReturnCancelTitle: () => 'Ödeme iptal edildi',
+  paymentReturnSuccessNoLink: () => 'Bu sayfayı kapatabilir ve WhatsApp\'a dönebilirsiniz.',
+  paymentReturnCancelNoLink: () => 'Tekrar denemek veya nakit ödemek için WhatsApp\'a dönün.',
+  paymentReturnRedirecting: () => 'WhatsApp\'a dönülüyor…',
+  paymentReturnButton: () => 'WhatsApp\'a dön',
+  paymentReturnFallbackLink: () => 'Düğme çalışmazsa buraya dokunun.',
+  paymentReturnCloseHint: () => 'Döndükten sonra bu sekmeyi kapatabilirsiniz.',
 
   menuEmpty: () => 'Şu an menümüzde ürün yok.',
 

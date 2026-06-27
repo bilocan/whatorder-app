@@ -3,7 +3,7 @@ const { admin } = require('./firebase');
 const { getStripe } = require('./stripe');
 const { getFeeConfig, calcFeeCents } = require('./feeConfig');
 const { getSettlementConfig, computeHoldEndsAt, computeExpectedPayoutAt } = require('./settlementConfig');
-const { resolveWhatsAppReturnPhoneDigits, waMeUrl } = require('./whatsappReturn');
+const { resolveWhatsAppReturnPhoneDigits, waMeUrl, resolvePaymentLang } = require('./whatsappReturn');
 const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('./whatsappRouting');
 const { sendText } = require('./whatsapp');
 const { t } = require('../bot/templates');
@@ -17,7 +17,7 @@ function paymentBaseUrl() {
   return 'http://localhost:3000';
 }
 
-async function createCheckoutSessionForOrder(businessId, orderId, { totalEuros, restaurantName, shortId }) {
+async function createCheckoutSessionForOrder(businessId, orderId, { totalEuros, restaurantName, shortId, lang = 'en' }) {
   const stripe = getStripe();
   if (!stripe) throw new Error('Stripe is not configured');
 
@@ -27,6 +27,7 @@ async function createCheckoutSessionForOrder(businessId, orderId, { totalEuros, 
   const base = paymentBaseUrl();
   const waDigits = await resolveWhatsAppReturnPhoneDigits();
   const waQuery = waDigits ? `&wa=${encodeURIComponent(waDigits)}` : '';
+  const langQuery = `&lang=${encodeURIComponent(resolvePaymentLang(lang))}`;
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     line_items: [{
@@ -44,8 +45,8 @@ async function createCheckoutSessionForOrder(businessId, orderId, { totalEuros, 
       order_id: orderId,
       business_id: businessId,
     },
-    success_url: `${base}/payments/success?session_id={CHECKOUT_SESSION_ID}${waQuery}`,
-    cancel_url: `${base}/payments/cancel?session_id={CHECKOUT_SESSION_ID}${waQuery}`,
+    success_url: `${base}/payments/success?session_id={CHECKOUT_SESSION_ID}${waQuery}${langQuery}`,
+    cancel_url: `${base}/payments/cancel?session_id={CHECKOUT_SESSION_ID}${waQuery}${langQuery}`,
   });
 
   return { url: session.url, sessionId: session.id };

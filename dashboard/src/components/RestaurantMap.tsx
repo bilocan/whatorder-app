@@ -15,12 +15,15 @@ type Props = {
   customer?: { lat: number; lng: number } | null;
   height?: string;
   onPinClick?: (id: string) => void;
+  focusedPinId?: string | null;
 };
 
-export default function RestaurantMap({ pins, customer, height = '420px', onPinClick }: Props) {
+export default function RestaurantMap({ pins, customer, height = '420px', onPinClick, focusedPinId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const markerByIdRef = useRef<Map<string, google.maps.Marker>>(new Map());
+  const infoByIdRef = useRef<Map<string, google.maps.InfoWindow>>(new Map());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,6 +52,8 @@ export default function RestaurantMap({ pins, customer, height = '420px', onPinC
 
         markersRef.current.forEach((m) => m.setMap(null));
         markersRef.current = [];
+        markerByIdRef.current.clear();
+        infoByIdRef.current.clear();
 
         const bounds = new google.maps.LatLngBounds();
 
@@ -83,10 +88,13 @@ export default function RestaurantMap({ pins, customer, height = '420px', onPinC
             content: `<div style="font-family:sans-serif;max-width:240px">${pin.imageUrl ? `<img src="${escapeHtml(pin.imageUrl)}" style="width:100%;max-width:240px;border-radius:8px;margin-bottom:8px"/>` : ''}<strong>${escapeHtml(pin.name)}</strong>${pin.address ? `<br><span style="color:#666;font-size:12px">${escapeHtml(pin.address)}</span>` : ''}</div>`,
           });
           marker.addListener('click', () => {
+            infoByIdRef.current.forEach((iw) => iw.close());
             info.open({ map: mapRef.current!, anchor: marker });
             onPinClick?.(pin.id);
           });
           markersRef.current.push(marker);
+          markerByIdRef.current.set(pin.id, marker);
+          infoByIdRef.current.set(pin.id, info);
           bounds.extend(position);
         });
 
@@ -100,6 +108,24 @@ export default function RestaurantMap({ pins, customer, height = '420px', onPinC
 
     return () => { cancelled = true; };
   }, [pins, customer, onPinClick]);
+
+  useEffect(() => {
+    if (!focusedPinId || !mapRef.current) return;
+
+    const marker = markerByIdRef.current.get(focusedPinId);
+    const info = infoByIdRef.current.get(focusedPinId);
+    if (!marker) return;
+
+    const position = marker.getPosition();
+    if (position) {
+      mapRef.current.panTo(position);
+      const zoom = mapRef.current.getZoom() ?? 14;
+      if (zoom < 14) mapRef.current.setZoom(14);
+    }
+
+    infoByIdRef.current.forEach((iw) => iw.close());
+    info?.open({ map: mapRef.current, anchor: marker });
+  }, [focusedPinId]);
 
   if (error === 'missing_key') {
     return (

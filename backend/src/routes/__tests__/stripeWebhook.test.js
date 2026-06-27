@@ -46,7 +46,16 @@ describe('Stripe webhook route', () => {
     const res = await request(app).get('/payments/success?wa=436601234567');
     expect(res.status).toBe(200);
     expect(res.text).toContain('https://wa.me/436601234567');
-    expect(res.text).toContain('Returning to WhatsApp');
+    expect(res.text).toContain('whatsapp://send?phone=436601234567');
+    expect(res.text).toContain('Return to WhatsApp');
+  });
+
+  test('GET /payments/success with lang=de renders German copy', async () => {
+    const app = require('../../index');
+    const res = await request(app).get('/payments/success?wa=436601234567&lang=de');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Zahlung erhalten');
+    expect(res.text).toContain('Zu WhatsApp zurück');
   });
 
   test('GET /payments/success with session_id confirms payment when paid', async () => {
