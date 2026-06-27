@@ -57,8 +57,6 @@
     "payment": {
       "cash": "Nakit",
       "paid": "Ödendi",
-      "paidPending": "Ödendi · ödeme bekliyor",
-      "paidOut": "Ödendi · ödeme yapıldı",
       "pending": "Ödenmedi",
       "failed": "Başarısız"
     },
