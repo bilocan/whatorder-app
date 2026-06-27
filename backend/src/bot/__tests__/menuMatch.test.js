@@ -100,6 +100,18 @@ describe('classifyMenuMatch — Austrian pizza', () => {
     expect(result.item.id).toBe('fp1');
   });
 
+  test('Familienpizza alone lists category submenu', () => {
+    const menu = [
+      { id: 'f1', name: 'Margherita', price: 18, category: 'Familienpizza', available: true },
+      { id: 'f2', name: 'Salami', price: 19, category: 'Familienpizza', available: true },
+      { id: 'p1', name: 'Margherita', price: 10, category: 'Pizza', available: true },
+    ];
+    const result = classifyMenuMatch('Familienpizza', menu);
+    expect(result.type).toBe('ambiguous');
+    expect(result.items).toHaveLength(2);
+    expect(result.items.every(i => i.category === 'Familienpizza')).toBe(true);
+  });
+
   test('Eine Pizza Margarita und eine spinati — both unique', () => {
     const { parseIntent } = require('../intentParser');
     const { matchIntentToMenu } = require('../intentMatcher');
