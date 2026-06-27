@@ -30,34 +30,18 @@ function clampWaButtonTitle(title, fallback = '…') {
   return fallback;
 }
 
-function isPhoneNumberPermissionError(err) {
-  const e = err.response?.data?.error;
-  return err.response?.status === 400 && e?.code === 100 && e?.error_subcode === 33;
-}
-
 async function postMessage(payload, phoneNumberId) {
   const response = await axios.post(apiUrl(phoneNumberId), payload, { headers: headers() });
   return response.data?.messages?.[0]?.id ?? null;
 }
 
 async function send(payload, phoneNumberId) {
-  const envId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const primaryId = phoneNumberId || envId;
+  const primaryId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
   try {
     return await postMessage(payload, primaryId);
   } catch (err) {
-    if (phoneNumberId && envId && phoneNumberId !== envId && isPhoneNumberPermissionError(err)) {
-      console.warn(`[WA] phoneNumberId=${phoneNumberId} not permitted on this server; retrying with env ${envId}`);
-      try {
-        return await postMessage(payload, envId);
-      } catch (retryErr) {
-        const detail = retryErr.response?.data ? JSON.stringify(retryErr.response.data) : retryErr.message;
-        console.error(`[WA] ${retryErr.response?.status ?? 'ERR'} to=${payload.to} type=${payload.type} — ${detail}`);
-        throw retryErr;
-      }
-    }
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-    console.error(`[WA] ${err.response?.status ?? 'ERR'} to=${payload.to} type=${payload.type} — ${detail}`);
+    console.error(`[WA] ${err.response?.status ?? 'ERR'} to=${payload.to} type=${payload.type} phoneNumberId=${primaryId} — ${detail}`);
     throw err;
   }
 }
@@ -113,11 +97,11 @@ async function sendButtonMessage(to, { body, footer, buttons }) {
 }
 
 // Opens url in the device browser — use instead of pasting long URLs in message body.
-async function sendCtaUrlMessage(to, { body, footer, buttonLabel, url }) {
+async function sendCtaUrlMessage(to, { body, footer, buttonLabel, url }, phoneNumberId) {
   const normalized = normalizePhone(to);
   const displayText = clampWaButtonTitle(buttonLabel, 'Open');
   if (process.env.NODE_ENV === 'test') {
-    console.log(`\n[WA CTA URL → ${normalized}]\n${body}\n[${displayText}] → ${url}\n`);
+    console.log(`\n[WA CTA URL → ${normalized}] phoneNumberId=${phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || 'default'}\n${body}\n[${displayText}] → ${url}\n`);
     return testId();
   }
   const interactive = {
@@ -129,7 +113,7 @@ async function sendCtaUrlMessage(to, { body, footer, buttonLabel, url }) {
     },
   };
   if (footer) interactive.footer = { text: footer };
-  return send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive });
+  return send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive }, phoneNumberId);
 }
 
 // catalogId: Meta Commerce Manager catalog ID for the business

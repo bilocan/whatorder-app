@@ -1,40 +1,37 @@
-const { phoneRoutingByBusinessQuery } = require('./collections');
-
-function envPhoneNumberId() {
-  return process.env.WHATSAPP_PHONE_NUMBER_ID || null;
-}
-
-/** Prefer the number the customer messaged; fall back to this server's env. */
-function resolveSendPhoneNumberId(storedId) {
-  if (storedId) return storedId;
-  return envPhoneNumberId();
-}
-
-/** Resolve Meta phone_number_id for outbound messages to a business's customers. */
-async function resolvePhoneNumberIdForBusiness(businessId) {
-  const envId = envPhoneNumberId();
-  if (envId) return envId;
-  if (!businessId) return null;
-
-  try {
-    const snap = await phoneRoutingByBusinessQuery(businessId).get();
-    if (snap.empty) return null;
-    return snap.docs[0].id;
-  } catch (err) {
-    console.error('[whatsappRouting] phoneRouting lookup failed:', err.message);
-    return null;
+class WhatsAppRoutingError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'WhatsAppRoutingError';
   }
 }
 
-async function resolvePhoneNumberIdForOrder(order, businessId) {
-  const fromOrder = resolveSendPhoneNumberId(order?.whatsappPhoneNumberId);
-  if (fromOrder) return fromOrder;
-  return resolvePhoneNumberIdForBusiness(businessId);
+/**
+ * Resolve the Meta phone_number_id for order-related outbound messages.
+ * Uses only the ID stored on the order at placement (from webhook metadata).
+ * No env or phoneRouting fallback — wrong-number sends are worse than a loud failure.
+ */
+function resolvePhoneNumberIdForOrder(order, businessId, orderId = order?.id) {
+  const id = order?.whatsappPhoneNumberId;
+  if (!id) {
+    throw new WhatsAppRoutingError(
+      `Order ${orderId ?? 'unknown'} (business ${businessId}) has no whatsappPhoneNumberId. `
+      + 'Order notifications must send from the WhatsApp number the customer used to place the order. '
+      + 'Ensure the order is created via the bot webhook flow (metadata.phone_number_id → session → order).',
+    );
+  }
+  return id;
+}
+
+function formatOrderWhatsAppSendError(err, { orderId, businessId, phoneNumberId, kind }) {
+  const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+  return (
+    `[order] ${kind} failed for order ${orderId} (business ${businessId}, phone_number_id ${phoneNumberId}): ${detail}. `
+    + 'Verify WHATSAPP_ACCESS_TOKEN on this server is permitted to send from that Meta phone number ID.'
+  );
 }
 
 module.exports = {
-  envPhoneNumberId,
-  resolveSendPhoneNumberId,
-  resolvePhoneNumberIdForBusiness,
+  WhatsAppRoutingError,
   resolvePhoneNumberIdForOrder,
+  formatOrderWhatsAppSendError,
 };

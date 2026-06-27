@@ -1,7 +1,7 @@
 const { ordersRef, businessRef, customersRef } = require('../lib/collections');
 const { admin } = require('../lib/firebase');
 const { sendText } = require('../lib/whatsapp');
-const { resolvePhoneNumberIdForOrder } = require('../lib/whatsappRouting');
+const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('../lib/whatsappRouting');
 const { formatBasketItemsText } = require('./botHelpers');
 const { t } = require('./templates');
 const { normalizeCustomerPhone, customerPhoneVariants } = require('../lib/phone');
@@ -127,7 +127,7 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
 
   // Notify owner
   try {
-    const phoneNumberId = await resolvePhoneNumberIdForOrder(doc, businessId);
+    const phoneNumberId = resolvePhoneNumberIdForOrder(doc, businessId, ref.id);
     const bizSnap = await businessRef(businessId).get();
     const biz = bizSnap.exists ? bizSnap.data() : null;
     if (biz?.alertPhone) {
@@ -139,7 +139,10 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
       await sendText(biz.alertPhone, ownerMsg, phoneNumberId);
     }
   } catch (err) {
-    console.error('Owner notification failed:', err.message);
+    const msg = err.name === 'WhatsAppRoutingError'
+      ? err.message
+      : formatOrderWhatsAppSendError(err, { orderId: ref.id, businessId, phoneNumberId: doc.whatsappPhoneNumberId, kind: 'Owner notification' });
+    console.error(msg);
   }
 
   return ref.id;
@@ -174,13 +177,16 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
   await ref.update(update);
 
   try {
-    const phoneNumberId = await resolvePhoneNumberIdForOrder(order, businessId);
+    const phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
     const notifyArgs = toStatus === 'approved' ? [shortId, etaTime] : [shortId];
     await sendText(order.customerPhone, t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs), phoneNumberId);
   } catch (err) {
-    console.error('Customer notification failed:', err.message);
+    const msg = err.name === 'WhatsAppRoutingError'
+      ? err.message
+      : formatOrderWhatsAppSendError(err, { orderId, businessId, phoneNumberId: order.whatsappPhoneNumberId, kind: 'Customer status notification' });
+    console.error(msg);
   }
 }
 

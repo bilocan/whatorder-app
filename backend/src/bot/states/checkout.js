@@ -35,6 +35,7 @@ function orderTotals(basket, session, info) {
 async function placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod }) {
   const info = await getBusinessInfo(businessId);
   const { subtotal, deliveryFee, total, isDelivery } = orderTotals(basket, session, info);
+  const phoneNumberId = session.whatsappPhoneNumberId || null;
   const orderId = await createOrder(businessId, {
     customerPhone: from,
     customerName: session.customerName || contactName || null,
@@ -67,15 +68,15 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
         body: t('paymentLink', lang, shortId, itemLines, total.toFixed(2)),
         buttonLabel: t('payNowBtn', lang),
         url,
-      });
+      }, phoneNumberId);
     } catch (err) {
       console.error('[payment] checkout session failed:', err.message);
-      await sendText(from, t('paymentLinkFailed', lang, shortId));
+      await sendText(from, t('paymentLinkFailed', lang, shortId), phoneNumberId);
     }
     return;
   }
 
-  await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, info.alertPhone || null, info.address || null));
+  await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, info.alertPhone || null, info.address || null), phoneNumberId);
 }
 
 async function getKnownName(phone, businessId) {

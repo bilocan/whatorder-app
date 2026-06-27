@@ -22,9 +22,7 @@ jest.mock('../lib/firebase', () => ({
   },
 }));
 jest.mock('../lib/whatsapp');
-jest.mock('../lib/whatsappRouting', () => ({
-  resolvePhoneNumberIdForOrder: jest.fn().mockImplementation(async (order) => order?.whatsappPhoneNumberId ?? 'PH_E2E'),
-}));
+jest.mock('../lib/whatsappRouting', () => jest.requireActual('../lib/whatsappRouting'));
 jest.mock('../lib/collections');
 jest.mock('../bot/sessionStore');
 jest.mock('../bot/menuService');
