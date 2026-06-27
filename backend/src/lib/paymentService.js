@@ -3,7 +3,7 @@ const { admin } = require('./firebase');
 const { getStripe } = require('./stripe');
 const { getFeeConfig, calcFeeCents } = require('./feeConfig');
 const { resolveWhatsAppReturnPhoneDigits, waMeUrl } = require('./whatsappReturn');
-const { resolvePhoneNumberIdForOrder } = require('./whatsappRouting');
+const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('./whatsappRouting');
 const { sendText } = require('./whatsapp');
 const { t } = require('../bot/templates');
 
@@ -105,7 +105,7 @@ async function handleCheckoutSessionCompleted(session) {
   }
 
   try {
-    const phoneNumberId = await resolvePhoneNumberIdForOrder(order, businessId);
+    const phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
     await sendText(order.customerPhone, t('paymentConfirmed', lang, shortId), phoneNumberId);
@@ -113,7 +113,10 @@ async function handleCheckoutSessionCompleted(session) {
       paymentNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   } catch (err) {
-    console.error('[stripe] customer payment confirmation failed:', err.message);
+    const msg = err.name === 'WhatsAppRoutingError'
+      ? err.message
+      : formatOrderWhatsAppSendError(err, { orderId, businessId, phoneNumberId: order.whatsappPhoneNumberId, kind: 'Payment confirmation' });
+    console.error(`[stripe] ${msg}`);
   }
 }
 

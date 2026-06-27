@@ -47,7 +47,7 @@ const { reverseGeocode } = require('../../lib/geocode');
 const { customersRef } = require('../../lib/collections');
 
 const BIZ = 'biz_test';
-const ROUTING = { businessIds: [BIZ], defaultBusinessId: BIZ };
+const ROUTING = { businessIds: [BIZ], defaultBusinessId: BIZ, phoneNumberId: 'test_phone_id' };
 const FROM = '+43699000001';
 
 const MENU = [
@@ -222,7 +222,7 @@ describe('Full flow: language detection → catalog → cart → name → confir
       notes: 'Extra spicy',
     }));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'), 'test_phone_id');
   });
 
 });
@@ -408,7 +408,7 @@ describe('Edge cases', () => {
 
 // ─── Multi-restaurant helpers ──────────────────────────────────────────────────
 
-const ROUTING_MULTI = { businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null };
+const ROUTING_MULTI = { businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null, phoneNumberId: 'test_phone_id' };
 const BIZ_A_INFO = { name: 'Döner Palace', tagline: 'Best döner in town', avgPrepTime: 20, catalogId: 'cat_a', imageUrl: 'https://example.com/biz_a.jpg' };
 const BIZ_B_INFO = { name: 'Pizza Roma',   tagline: 'Authentic Italian',  avgPrepTime: 25, catalogId: 'cat_b', imageUrl: 'https://example.com/biz_b.jpg' };
 
@@ -703,7 +703,7 @@ describe('Multi-restaurant: order confirmed sends receipt and resets session', (
       businessId: null,
       basket: [],
     }));
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Döner Palace'));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Döner Palace'), 'test_phone_id');
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
@@ -719,7 +719,7 @@ describe('Multi-restaurant: order confirmed sends receipt and resets session', (
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Confirm ✅' }));
 
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'), 'test_phone_id');
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 });
@@ -851,7 +851,7 @@ describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Confirm ✅' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'), 'test_phone_id');
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
