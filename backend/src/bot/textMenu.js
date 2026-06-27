@@ -8,6 +8,7 @@ function buildTextMenuIndex(items) {
     id: item.id,
     name: item.name,
     price: item.price,
+    photoUrl: item.photoUrl ?? undefined,
     ...(item.optionGroups?.length ? { optionGroups: item.optionGroups } : {}),
   }));
 }
@@ -59,6 +60,7 @@ function parseNumberSelection(text, textMenuIndex) {
       name: item.name,
       qty: Math.min(99, Math.max(1, parsed.qty)),
       price: item.price,
+      photoUrl: item.photoUrl,
       ...(item.optionGroups?.length ? { optionGroups: item.optionGroups } : {}),
     });
   }

@@ -14,6 +14,7 @@ async function resolveTextMenuIndex(session, businessId) {
     id: item.id,
     name: item.name,
     price: item.price,
+    photoUrl: item.photoUrl ?? undefined,
     ...(item.optionGroups?.length ? { optionGroups: item.optionGroups } : {}),
   })) : null;
 }
