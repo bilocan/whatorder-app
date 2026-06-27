@@ -70,6 +70,11 @@ function SettlementStatusLine({ order, t }: { order: Order; t: (key: string, opt
             {t('orderDetail.settlement.eligibleOn', { date: new Date(order.settlementEligibleAt).toLocaleDateString('de-AT') })}
           </p>
         )}
+        {order.expectedPayoutAt && (
+          <p style={{ color: '#999', fontSize: '0.8rem', margin: '0.2rem 0 0' }}>
+            {t('orderDetail.settlement.expectedPayoutOn', { date: new Date(order.expectedPayoutAt).toLocaleDateString('de-AT') })}
+          </p>
+        )}
       </>
     );
   }

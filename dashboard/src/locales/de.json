@@ -111,9 +111,10 @@
       "delivered": "Als geliefert markieren"
     },
     "settlement": {
-      "pendingPayout": "Auszahlung ausstehend",
+      "pendingPayout": "Nächste Auszahlung ausstehend",
       "paidOutOn": "Ausgezahlt am {{date}}",
-      "eligibleOn": "Auszahlungsfähig ab {{date}}",
+      "eligibleOn": "Prüfzeitraum bis {{date}}",
+      "expectedPayoutOn": "Nächste Auszahlung: {{date}}",
       "refunded": "Erstattet",
       "gross": "Brutto €{{amount}}",
       "fee": "WhatOrder-Gebühr €{{amount}}",
@@ -225,7 +226,52 @@
     "failureRate": "Fehlerquote",
     "breakdown": "Aufschlüsselung",
     "noOrders": "Heute keine Bestellungen.",
-    "feeLabel": "Gebühr: €{{fee}}"
+    "feeLabel": "Gebühr: €{{fee}}",
+    "settlement": {
+      "title": "Kartenauszahlungen",
+      "hint": "Netto aus Kartenzahlungen nach WhatOrder-Gebühr. Barbestellungen werden nicht über WhatOrder ausgezahlt.",
+      "pending": "Ausstehende Auszahlung",
+      "paidOut": "Ausgezahlt"
+    },
+    "payoutLoadError": "Auszahlungsverlauf konnte nicht geladen werden."
+  },
+  "payout": {
+    "history": {
+      "title": "Auszahlungsverlauf",
+      "loading": "Lade…",
+      "empty": "Noch keine Auszahlungen — nur echte Läufe (ohne Dry Run) werden gespeichert.",
+      "col": {
+        "date": "Datum",
+        "restaurant": "Restaurant",
+        "amount": "Netto",
+        "orders": "Bestellungen",
+        "mode": "Modus",
+        "transferId": "Transfer-ID"
+      },
+      "modeMock": "Mock",
+      "modeLive": "Live"
+    },
+    "reconciliation": {
+      "title": "Stripe-Abstimmung",
+      "gross": "Brutto (Karte)",
+      "fee": "WhatOrder-Gebühr",
+      "net": "Netto überwiesen",
+      "transferId": "Stripe-Transfer",
+      "connectAccount": "Connect-Konto",
+      "viewInStripe": "Transfer in Stripe anzeigen"
+    },
+    "orders": {
+      "title": "Bestellungen in dieser Auszahlung ({{count}})",
+      "loading": "Bestellungen laden…",
+      "empty": "Keine Bestellungen für diese Auszahlung gefunden.",
+      "loadError": "Bestellungen konnten nicht geladen werden.",
+      "total": "Netto gesamt",
+      "col": {
+        "customer": "Kunde",
+        "date": "Datum",
+        "net": "Netto"
+      }
+    }
   },
   "settings": {
     "title": "Einstellungen",
@@ -358,6 +404,7 @@
       },
       "allOrders": "Alle Bestellungen",
       "loading": "Lade…",
+      "loadError": "Bestellungen konnten nicht geladen werden. Firestore-Regeln deployen: firebase deploy --only firestore:rules",
       "noOrders": "Noch keine Bestellungen.",
       "col": {
         "restaurant": "Restaurant",
@@ -365,7 +412,15 @@
         "customer": "Kunde",
         "orderTotal": "Bestellsumme",
         "fee": "WhatOrder-Gebühr",
-        "status": "Status"
+        "status": "Status",
+        "settlement": "Auszahlung"
+      },
+      "settlementStatus": {
+        "pending": "Ausstehend",
+        "paid_out": "Ausgezahlt",
+        "refunded": "Erstattet",
+        "included_in_payout": "Im Lauf",
+        "none": "—"
       },
       "settlement": {
         "title": "Auszahlung",
@@ -373,6 +428,36 @@
         "paidOut": "Ausgezahlt",
         "refunded": "Erstattet",
         "byRestaurant": "Ausstehend nach Restaurant"
+      },
+      "payout": {
+        "title": "Auszahlungslauf starten",
+        "hint": "Standard: Mock Connect — keine echte Banküberweisung, bis connectMode live und Stripe Connect eingerichtet ist.",
+        "dryRun": "Nur Vorschau (Dry Run)",
+        "run": "Lauf starten",
+        "running": "Läuft…",
+        "previewResult": "Vorschau: {{count}} Restaurant-Batch(es) würden ausgezahlt.",
+        "runResult": "{{count}} Restaurant-Batch(es) ausgezahlt.",
+        "eligibleOrders": "{{count}} auszahlbare Kartenzahlung(en) gefunden.",
+        "holdBlocked": "{{count}} Bestellung(en) noch in der 7-Tage-Sperrfrist.",
+        "skippedMinimum": "{{count}} Restaurant(s) unter Mindestauszahlung.",
+        "skippedConnect": "{{count}} Restaurant(s) übersprungen — Connect nicht eingerichtet.",
+        "allInHold": "Alle ausstehenden Bestellungen sind noch in der Sperrfrist.",
+        "noPending": "Keine ausstehenden Kartenzahlungen gefunden.",
+        "failed": "Auszahlungslauf fehlgeschlagen"
+      },
+      "payoutHistory": {
+        "title": "Auszahlungsverlauf",
+        "empty": "Noch keine Auszahlungen — nur echte Läufe (ohne Dry Run) werden gespeichert.",
+        "col": {
+          "date": "Datum",
+          "restaurant": "Restaurant",
+          "amount": "Netto",
+          "orders": "Bestellungen",
+          "mode": "Modus",
+          "transferId": "Transfer-ID"
+        },
+        "modeMock": "Mock",
+        "modeLive": "Live"
       }
     },
     "restaurants": {

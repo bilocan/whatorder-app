@@ -4,16 +4,22 @@ import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeeConfig, calcFee } from '../hooks/useFeeConfig';
-import type { Order } from '../types';
+import type { Order, Payout } from '../types';
 import { toDate } from '../types';
 import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
 import { getActivePhoneNumberId } from '../lib/activePhoneNumberId';
+import { orderNetCents, isPendingSettlement } from '../lib/settlementAmounts';
+import { fetchBusinessPayouts } from '../lib/fetchBusinessPayouts';
+import PayoutHistorySection from '../components/PayoutHistorySection';
 
 export default function IncomePage() {
   const { t } = useTranslation();
   const { businessId } = useAuth();
   const feeConfig = useFeeConfig();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [payoutHistory, setPayoutHistory] = useState<Payout[]>([]);
+  const [payoutsLoading, setPayoutsLoading] = useState(true);
+  const [payoutLoadError, setPayoutLoadError] = useState<string | null>(null);
   const activePhoneNumberId = getActivePhoneNumberId();
 
   useEffect(() => {
@@ -23,6 +29,24 @@ export default function IncomePage() {
       setOrders(filterOrdersByPhoneRouting(docs, activePhoneNumberId));
     });
   }, [businessId, activePhoneNumberId]);
+
+  useEffect(() => {
+    if (!businessId) return;
+    let cancelled = false;
+    setPayoutsLoading(true);
+    setPayoutLoadError(null);
+    fetchBusinessPayouts(businessId)
+      .then((rows) => { if (!cancelled) setPayoutHistory(rows); })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('[IncomePage] payouts fetch failed', err);
+          setPayoutLoadError(err instanceof Error ? err.message : t('income.payoutLoadError'));
+          setPayoutHistory([]);
+        }
+      })
+      .finally(() => { if (!cancelled) setPayoutsLoading(false); });
+    return () => { cancelled = true; };
+  }, [businessId, t]);
 
   const [period, setPeriod] = useState<'today' | 'week'>('today');
 
@@ -46,7 +70,6 @@ export default function IncomePage() {
 
   const totalRevenue = periodOrders.reduce((s, o) => s + o.total, 0);
   const cardPaid = periodOrders.filter((o) => o.paymentMethod === 'stripe' && o.paymentStatus === 'paid').reduce((s, o) => s + o.total, 0);
-  // Everything not yet confirmed paid by card: actual cash orders + stripe orders still pending/failed.
   const cashPending = totalRevenue - cardPaid;
   const cardPct = totalRevenue ? (cardPaid / totalRevenue) * 100 : 0;
   const cashPct = totalRevenue ? (cashPending / totalRevenue) * 100 : 0;
@@ -54,6 +77,28 @@ export default function IncomePage() {
   const stripeAttempts = periodOrders.filter((o) => o.paymentMethod === 'stripe');
   const failedAttempts = stripeAttempts.filter((o) => o.paymentStatus === 'failed').length;
   const failureRate = stripeAttempts.length ? (failedAttempts / stripeAttempts.length) * 100 : 0;
+
+  const pendingSettlementCents = orders
+    .filter((o) => isPendingSettlement(o))
+    .reduce((s, o) => s + orderNetCents(o, feeConfig), 0);
+  const paidOutCents = orders
+    .filter((o) => o.settlementStatus === 'paid_out')
+    .reduce((s, o) => s + orderNetCents(o, feeConfig), 0);
+
+  const cardStyle: React.CSSProperties = {
+    padding: '1rem 1.5rem',
+    border: '1px solid #eee',
+    borderRadius: 10,
+    minWidth: 140,
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: '0.75rem',
+    color: '#999',
+    marginBottom: '0.3rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  };
+  const valueStyle: React.CSSProperties = { fontSize: '1.75rem', fontWeight: 700 };
 
   return (
     <div>
@@ -85,6 +130,26 @@ export default function IncomePage() {
           </div>
         ))}
       </div>
+
+      <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem' }}>{t('income.settlement.title')}</h3>
+      <p style={{ margin: '0 0 1rem', fontSize: '0.85rem', color: '#666' }}>{t('income.settlement.hint')}</p>
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+        <div style={cardStyle}>
+          <div style={labelStyle}>{t('income.settlement.pending')}</div>
+          <div style={valueStyle}>€{(pendingSettlementCents / 100).toFixed(2)}</div>
+        </div>
+        <div style={cardStyle}>
+          <div style={labelStyle}>{t('income.settlement.paidOut')}</div>
+          <div style={valueStyle}>€{(paidOutCents / 100).toFixed(2)}</div>
+        </div>
+      </div>
+
+      {payoutLoadError && (
+        <p style={{ margin: '0 0 1rem', padding: '0.75rem', background: '#fef2f2', color: '#b91c1c', borderRadius: 8, fontSize: '0.85rem' }}>
+          {payoutLoadError}
+        </p>
+      )}
+      <PayoutHistorySection payouts={payoutHistory} loading={payoutsLoading} />
 
       <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem' }}>{t('income.analyticsTitle')}</h3>
       <div style={{ padding: '1rem 1.5rem', border: '1px solid #eee', borderRadius: 10, marginBottom: '2rem', maxWidth: 420 }}>

@@ -9,6 +9,7 @@ const cors = require('cors');
 const webhookRouter = require('./routes/webhook');
 const ordersRouter = require('./routes/orders');
 const adminRouter = require('./routes/admin');
+const payoutsRouter = require('./routes/payouts');
 const flowRouter = require('./routes/flow');
 
 const stripeWebhookRouter = require('./routes/stripeWebhook');
@@ -34,6 +35,7 @@ app.get('/health', (req, res) => {
 app.use(chatRouter);
 app.use('/webhooks/whatsapp', webhookRouter);
 app.use('/admin', adminRouter);
+app.use('/admin', payoutsRouter);
 app.use('/', flowRouter);
 app.use('/', ordersRouter);
 app.use('/api', ordersRouter);
