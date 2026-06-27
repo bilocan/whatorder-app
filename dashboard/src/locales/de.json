@@ -587,6 +587,9 @@
         "onMap": "{{count}} auf der Karte",
         "missing": "{{count}} ohne Koordinaten"
       },
+      "listTitle": "Auf der Karte ({{count}})",
+      "showOnMap": "{{name}} auf der Karte anzeigen",
+      "viewDetails": "Details →",
       "unmappedTitle": "Noch nicht auf der Karte",
       "addCoordsHint": "Adresse + Koordinaten unter Details hinzufügen"
     }

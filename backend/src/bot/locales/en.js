@@ -81,6 +81,14 @@ module.exports = {
   paymentLink: (shortId, itemLines, total) => `Order #${shortId} placed.\n\n${itemLines}\n\nTotal: €${total}\n\nTap the button below to pay securely.`,
   paymentLinkFailed: (shortId) => `Order #${shortId} was created but the payment link failed. Please contact the restaurant or try again.`,
   paymentConfirmed: (shortId) => `✅ Payment received for order #${shortId}. We'll notify you when it's ready. Thank you! 🙏`,
+  paymentReturnSuccessTitle: () => 'Payment received',
+  paymentReturnCancelTitle: () => 'Payment cancelled',
+  paymentReturnSuccessNoLink: () => 'You can close this page and return to WhatsApp.',
+  paymentReturnCancelNoLink: () => 'Return to WhatsApp to retry or choose cash on pickup.',
+  paymentReturnRedirecting: () => 'Returning to WhatsApp…',
+  paymentReturnButton: () => 'Return to WhatsApp',
+  paymentReturnFallbackLink: () => 'Tap here if the button does not work.',
+  paymentReturnCloseHint: () => 'You can close this tab after returning.',
 
   menuEmpty: () => 'No items available right now.',
 
