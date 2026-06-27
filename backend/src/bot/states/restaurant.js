@@ -10,6 +10,7 @@ const {
 const { startRestaurantBrowsing } = require('../reorder');
 const { getBusinessInfo } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
+const { isAcceptingOrders } = require('../../lib/presence');
 
 async function handleAwaitingLocation({ from, session, lang, routing, type, latitude, longitude }) {
   let lat = null;
@@ -72,7 +73,7 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
       await sendText(from, t('restaurantClosed', lang, selectedInfo.name, _w?.firstOrderTime ?? null, _w?.lastOrderTime ?? null));
       return;
     }
-    if (selectedInfo.isOnline === false || selectedInfo.ordersOpen === false) {
+    if (!isAcceptingOrders(selectedInfo)) {
       await sendText(from, t('ordersClosedByOwner', lang, selectedInfo.name));
       return;
     }

@@ -4,6 +4,7 @@ const { sendText, sendLocationRequest, sendFlowMessage, deleteMessage } = requir
 const { detectLanguage, scoreLanguage, getOverride } = require('./languageDetector');
 const { t } = require('./templates');
 const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
+const { isAcceptingOrders } = require('../lib/presence');
 const { getBusinessesInfo, sendRestaurantPicker, presentRestaurantPickerForLocation } = require('./botHelpers');
 const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/restaurant');
 const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming, handleAwaitingPaymentMethod } = require('./states/checkout');
@@ -58,7 +59,7 @@ async function enterRestaurantDirect(from, bid, lang) {
     await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
     return;
   }
-  if (bidInfo.isOnline === false || bidInfo.ordersOpen === false) {
+  if (!isAcceptingOrders(bidInfo)) {
     await sendText(from, t('ordersClosedByOwner', lang, bidInfo.name));
     await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
     return;
@@ -176,7 +177,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       await setSession(from, { state: 'browsing', language: langResolved, basket: [], businessId: bid, pendingDeleteIds: [] });
       return;
     }
-    if (bidInfo.isOnline === false || bidInfo.ordersOpen === false) {
+    if (!isAcceptingOrders(bidInfo)) {
       await sendText(from, t('ordersClosedByOwner', langResolved, bidInfo.name));
       await setSession(from, { state: 'browsing', language: langResolved, basket: [], businessId: bid, pendingDeleteIds: [] });
       return;
@@ -206,7 +207,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [] });
       return;
     }
-    if (bidInfo.isOnline === false || bidInfo.ordersOpen === false) {
+    if (!isAcceptingOrders(bidInfo)) {
       await sendText(from, t('ordersClosedByOwner', lang, bidInfo.name));
       await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [] });
       return;
