@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,9 +31,34 @@ export default function OrdersPage() {
   const { businessId } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const activePhoneNumberId = getActivePhoneNumberId();
-  const [filter, setFilter] = useState<'active' | 'completed-2w' | 'completed-custom'>('active');
-  const [customFrom, setCustomFrom] = useState('');
-  const [customTo, setCustomTo] = useState('');
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filter = (searchParams.get('filter') as 'active' | 'completed-2w' | 'completed-custom') || 'active';
+  const customFrom = searchParams.get('from') ?? '';
+  const customTo = searchParams.get('to') ?? '';
+
+  function setFilter(next: 'active' | 'completed-2w' | 'completed-custom') {
+    const params = new URLSearchParams(searchParams);
+    if (next === 'active') params.delete('filter');
+    else params.set('filter', next);
+    if (next !== 'completed-custom') {
+      params.delete('from');
+      params.delete('to');
+    }
+    setSearchParams(params, { replace: true });
+  }
+
+  function setCustomFrom(value: string) {
+    const params = new URLSearchParams(searchParams);
+    if (value) params.set('from', value); else params.delete('from');
+    setSearchParams(params, { replace: true });
+  }
+
+  function setCustomTo(value: string) {
+    const params = new URLSearchParams(searchParams);
+    if (value) params.set('to', value); else params.delete('to');
+    setSearchParams(params, { replace: true });
+  }
 
   useEffect(() => {
     if (!businessId) return;
@@ -150,13 +175,13 @@ export default function OrdersPage() {
           {visibleOrders.map((order) => (
             <tr key={order.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
               <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', fontFamily: 'monospace' }}>
-                <Link to={`/orders/${order.id}`} style={{ color: '#666', textDecoration: 'none' }}>
+                <Link to={`/orders/${order.id}${location.search}`} style={{ color: '#666', textDecoration: 'none' }}>
                   #{shortId(order.id)}
                 </Link>
               </td>
               <td style={{ padding: '0.75rem 0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  <Link to={`/orders/${order.id}`} style={{ fontWeight: 600, color: '#000', textDecoration: 'none' }}>
+                  <Link to={`/orders/${order.id}${location.search}`} style={{ fontWeight: 600, color: '#000', textDecoration: 'none' }}>
                     {order.customerName}
                   </Link>
                   {order.orderType === 'delivery' && (
