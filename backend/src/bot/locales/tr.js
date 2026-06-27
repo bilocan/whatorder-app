@@ -56,8 +56,19 @@ module.exports = {
       ? `🚚 Teslimat adresi: ${deliveryAddress}`
       : `⏱️ Hazır saat: ~${pickupTime}`;
     const notesLine = notes ? `\n📝 Not: ${notes}` : '';
-    return `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n${detail}${notesLine}\n\nSiparişi onaylıyor musunuz?`;
+    return `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n${detail}${notesLine}\n\nOnaylamak veya düzenlemek için aşağıya dokunun.`;
   },
+  confirmListHeader: () => 'Siparişi kontrol et',
+  confirmListBtn: () => 'Onayla / düzenle',
+  confirmListSection: () => 'Seçenekler',
+  confirmEditNameBtn: () => 'Adı değiştir',
+  confirmEditAddressBtn: () => 'Adresi değiştir',
+  confirmEditOrderTypeBtn: () => 'Gel-al/Teslimat',
+  confirmOrderTypePickup: () => 'Gel-al',
+  confirmOrderTypeDelivery: () => 'Teslimat',
+  confirmNoAddressYet: () => 'Henüz adres yok',
+  askNameEdit: (current) => `Mevcut ad: ${current}\n\nYeni adınızı yazın:`,
+  askOrderTypeFromConfirm: () => 'Bu sipariş için gel-al veya teslimat seçin:',
   confirmOrderBtn: () => 'Onayla ✅',
   addNoteBtn: () => 'Not ekle 📝',
   backToCartBtn: () => 'Sepete dön 🛒',

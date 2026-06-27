@@ -180,9 +180,10 @@ describe('Full flow: language detection → catalog → cart → name → confir
     expect(sendText).toHaveBeenCalledWith(FROM, expect.any(String));
   });
 
-  test('Step 3: user sends name → shows final confirm button message', async () => {
+  test('Step 3: user sends name → shows final confirm list with order-type row when delivery enabled', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, deliveryFee: 2.5 });
     getSession.mockResolvedValue({
-      language: 'tr', state: 'awaiting_name',
+      language: 'tr', state: 'awaiting_name', orderType: 'pickup',
       basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
       pickupTime: '14:30', prepMins: 20,
     });
@@ -193,14 +194,35 @@ describe('Full flow: language detection → catalog → cart → name → confir
       state: 'confirming',
       customerName: 'Ahmet',
     }));
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('Ahmet'),
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_place_order' }),
-        expect.objectContaining({ id: 'btn_add_note' }),
-        expect.objectContaining({ id: 'btn_back_to_cart' }),
+      sections: expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([
+            expect.objectContaining({ id: 'btn_place_order' }),
+            expect.objectContaining({ id: 'confirm_edit_order_type' }),
+            expect.objectContaining({ id: 'confirm_edit_name' }),
+            expect.objectContaining({ id: 'btn_add_note' }),
+            expect.objectContaining({ id: 'btn_back_to_cart' }),
+          ]),
+        }),
       ]),
     }));
+  });
+
+  test('Step 3: user sends name → confirm list omits order-type row when delivery disabled', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: false });
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'awaiting_name',
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      pickupTime: '14:30', prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Ahmet' }));
+
+    const listCall = sendListMessage.mock.calls.find(([to]) => to === FROM);
+    const rows = listCall?.[1]?.sections?.[0]?.rows ?? [];
+    expect(rows.some(r => r.id === 'confirm_edit_order_type')).toBe(false);
   });
 
   test('Step 4: btn_place_order creates order with notes and sends confirmation', async () => {
@@ -255,12 +277,14 @@ describe('Add note / Back to cart on the final confirmation screen', () => {
       state: 'confirming',
       specialRequests: 'No onions please',
     }));
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('No onions please'),
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_place_order' }),
-        expect.objectContaining({ id: 'btn_add_note' }),
-        expect.objectContaining({ id: 'btn_back_to_cart' }),
+      sections: expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([
+            expect.objectContaining({ id: 'btn_place_order' }),
+          ]),
+        }),
       ]),
     }));
   });
@@ -2077,10 +2101,117 @@ describe('awaiting_name: non-text input shows order summary', () => {
   });
 });
 
+describe('Confirm list: edit name and address before placing order', () => {
+  test('confirm_edit_name asks for updated name and moves to awaiting_name', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'confirming',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'confirm_edit_name', title: 'Change name' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('John'));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_name' }));
+  });
+
+  test('confirm_edit_address re-opens delivery address picker', async () => {
+    mockCustomerProfile({ lastDeliveryAddress: 'Naschmarkt 5, 1040 Wien' });
+    getSession.mockResolvedValue({
+      language: 'en', state: 'confirming', orderType: 'delivery',
+      deliveryAddress: 'Old Street 1',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'confirm_edit_address', title: 'Change address' }));
+
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      header: expect.stringContaining('Delivery address'),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_delivery_address_choice' }));
+  });
+
+  test('confirm_edit_order_type shows pickup/delivery prompt and sets confirmingOrderTypeEdit', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, deliveryFee: 2.5 });
+    getSession.mockResolvedValue({
+      language: 'en', state: 'confirming', orderType: 'pickup',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'confirm_edit_order_type', title: 'Pickup / delivery' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/pickup|delivery/i),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_pickup' }),
+        expect.objectContaining({ id: 'btn_delivery' }),
+      ]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_order_type',
+      confirmingOrderTypeEdit: true,
+    }));
+  });
+
+  test('switching to pickup from confirm re-shows confirm list without re-asking name', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, deliveryFee: 2.5 });
+    getSession.mockResolvedValue({
+      language: 'en', state: 'awaiting_order_type', confirmingOrderTypeEdit: true,
+      orderType: 'delivery', deliveryAddress: 'Old Street 1',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_pickup', title: 'Pickup' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      customerName: 'John',
+    }));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.not.stringContaining('Old Street 1'),
+    }));
+  });
+
+  test('switching to delivery from confirm goes to address picker then back to confirm', async () => {
+    mockCustomerProfile({ lastDeliveryAddress: 'Naschmarkt 5, 1040 Wien' });
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, deliveryFee: 2.5 });
+    getSession.mockResolvedValue({
+      language: 'en', state: 'awaiting_order_type', confirmingOrderTypeEdit: true,
+      orderType: 'pickup',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_delivery', title: 'Delivery' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_delivery_address_choice' }));
+
+    getSession.mockResolvedValue({
+      language: 'en', state: 'awaiting_delivery_address_choice', confirmingOrderTypeEdit: true,
+      orderType: 'delivery',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'delivery_addr_saved', title: 'Last address' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      customerName: 'John',
+    }));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Naschmarkt'),
+    }));
+  });
+});
+
 // ─── confirming state: ambiguous input ───────────────────────────────────────
 
 describe('Confirming state: ambiguous input', () => {
-  test('unrecognized text sends yesNoOnly and does not create order', async () => {
+  test('unrecognized text re-shows confirm list and does not create order', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'confirming',
       basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
@@ -2090,7 +2221,9 @@ describe('Confirming state: ambiguous input', () => {
     await handleMessage(ROUTING, msg({ text: 'maybe later' }));
 
     expect(createOrder).not.toHaveBeenCalled();
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('YES or NO'));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('John'),
+    }));
   });
 
   test('greeting in confirming state restarts ordering instead of yesNoOnly', async () => {
