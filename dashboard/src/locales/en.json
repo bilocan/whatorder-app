@@ -45,6 +45,7 @@
   "orders": {
     "title": "Orders",
     "noOrders": "No orders yet.",
+    "phoneLineScope": "Showing orders for this WhatsApp line only.",
     "col": {
       "customer": "Customer",
       "items": "Items",
@@ -75,6 +76,7 @@
   "orderDetail": {
     "loading": "Loading order...",
     "back": "← Back to orders",
+    "wrongPhoneLine": "This order belongs to another WhatsApp line and is not available in this dashboard view.",
     "delivery": "Delivery",
     "col": {
       "item": "Item",

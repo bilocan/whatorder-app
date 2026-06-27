@@ -45,6 +45,7 @@
   "orders": {
     "title": "Bestellungen",
     "noOrders": "Noch keine Bestellungen.",
+    "phoneLineScope": "Nur Bestellungen über diese WhatsApp-Leitung.",
     "col": {
       "customer": "Kunde",
       "items": "Artikel",
@@ -75,6 +76,7 @@
   "orderDetail": {
     "loading": "Lade Bestellung...",
     "back": "← Zurück zu Bestellungen",
+    "wrongPhoneLine": "Diese Bestellung gehört zu einer anderen WhatsApp-Leitung und ist in dieser Dashboard-Ansicht nicht verfügbar.",
     "delivery": "Lieferung",
     "col": {
       "item": "Artikel",

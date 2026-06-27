@@ -6,6 +6,8 @@ import { useFeeConfig, calcFee } from '../../hooks/useFeeConfig';
 import type { FeeConfig } from '../../hooks/useFeeConfig';
 import type { Order, Business } from '../../types';
 import { toDate } from '../../types';
+import { filterOrdersByPhoneRouting } from '../../lib/orderPhoneFilter';
+import { getActivePhoneNumberId } from '../../lib/activePhoneNumberId';
 
 type OrderRow = Order & { businessId: string; businessName: string };
 
@@ -50,7 +52,7 @@ export default function EarningsPage() {
       });
 
       rows.sort((a, b) => toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime());
-      setOrders(rows);
+      setOrders(filterOrdersByPhoneRouting(rows, getActivePhoneNumberId()));
       setLoading(false);
     })();
     return () => { cancelled = true; };
