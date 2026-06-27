@@ -9,9 +9,7 @@ jest.mock('../whatsappReturn', () => ({
   resolveWhatsAppReturnPhoneDigits: jest.fn().mockResolvedValue('436601234567'),
   waMeUrl: jest.fn((d) => (d ? `https://wa.me/${d}` : null)),
 }));
-jest.mock('../whatsappRouting', () => ({
-  resolvePhoneNumberIdForOrder: jest.fn().mockResolvedValue('PHONE_ROUTING_ID'),
-}));
+jest.mock('../whatsappRouting', () => jest.requireActual('../whatsappRouting'));
 jest.mock('../../bot/templates', () => ({ t: jest.fn((_k, _lang, shortId) => `paid:${shortId}`) }));
 
 const { ordersRef, stripeEventRef } = require('../collections');
@@ -109,6 +107,7 @@ describe('handleCheckoutSessionCompleted', () => {
         total: 29,
         customerPhone: '+431234',
         language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
       }),
     });
 
@@ -127,7 +126,7 @@ describe('handleCheckoutSessionCompleted', () => {
       restaurantNetCents: 2850,
       settlementStatus: 'pending',
     }));
-    expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123', 'PHONE_ROUTING_ID');
+    expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123', 'prod_phone_id');
     expect(mockOrderUpdate).toHaveBeenCalledTimes(2);
     expect(mockOrderUpdate.mock.calls[1][0]).toEqual({ paymentNotifiedAt: 'TS' });
   });
@@ -139,6 +138,7 @@ describe('handleCheckoutSessionCompleted', () => {
         paymentStatus: 'paid',
         customerPhone: '+431234',
         language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
       }),
     });
 
@@ -149,7 +149,7 @@ describe('handleCheckoutSessionCompleted', () => {
 
     expect(mockOrderUpdate).toHaveBeenCalledTimes(1);
     expect(mockOrderUpdate.mock.calls[0][0]).toEqual({ paymentNotifiedAt: 'TS' });
-    expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123', 'PHONE_ROUTING_ID');
+    expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123', 'prod_phone_id');
   });
 
   test('skips when payment already notified', async () => {
@@ -165,6 +165,30 @@ describe('handleCheckoutSessionCompleted', () => {
 
     expect(mockOrderUpdate).not.toHaveBeenCalled();
     expect(sendText).not.toHaveBeenCalled();
+  });
+
+  test('logs error and skips notify when order has no whatsappPhoneNumberId', async () => {
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'pending',
+        customerPhone: '+431234',
+        language: 'en',
+      }),
+    });
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    await handleCheckoutSessionCompleted({
+      id: 'cs_1',
+      amount_total: 2900,
+      metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+    });
+
+    expect(sendText).not.toHaveBeenCalled();
+    expect(mockOrderUpdate).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringMatching(/whatsappPhoneNumberId/));
+
+    errorSpy.mockRestore();
   });
 });
 

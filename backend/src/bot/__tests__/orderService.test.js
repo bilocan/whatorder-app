@@ -11,9 +11,7 @@ jest.mock('../../lib/firebase', () => ({
   },
 }));
 jest.mock('../../lib/whatsapp');
-jest.mock('../../lib/whatsappRouting', () => ({
-  resolvePhoneNumberIdForOrder: jest.fn().mockResolvedValue('PHONE_ROUTING_ID'),
-}));
+jest.mock('../../lib/whatsappRouting', () => jest.requireActual('../../lib/whatsappRouting'));
 jest.mock('../templates');
 
 const { createOrder, getLastOrderForCustomer, approveOrder, rejectOrder, startPreparation, markReady, markOnTheWay, markPickedUp, markDelivered, cancelOrder } = require('../orderService');
@@ -30,6 +28,7 @@ const ORDER_PARAMS = {
   total: 17,
   language: 'tr',
   pickupTime: '14:30',
+  whatsappPhoneNumberId: 'prod_phone_id',
 };
 
 const mockCustomerSet = jest.fn().mockResolvedValue(undefined);
@@ -92,7 +91,7 @@ describe('createOrder', () => {
     expect(sendText).toHaveBeenCalledWith(
       '+4312345678',
       expect.stringContaining('New Order'),
-      'PHONE_ROUTING_ID',
+      'prod_phone_id',
     );
   });
 
@@ -124,7 +123,7 @@ describe('createOrder', () => {
 
     await createOrder(BIZ, ORDER_PARAMS);
 
-    expect(sendText).toHaveBeenCalledWith('+4312345678', expect.stringContaining('ABC123'), 'PHONE_ROUTING_ID');
+    expect(sendText).toHaveBeenCalledWith('+4312345678', expect.stringContaining('ABC123'), 'prod_phone_id');
   });
 
   test('does not send owner notification when business has no alertPhone', async () => {
@@ -317,7 +316,12 @@ describe('Order state machine', () => {
     return { mockUpdate };
   }
 
-  const ORDER = (status) => ({ status, customerPhone: '+43699000001', language: 'tr' });
+  const ORDER = (status) => ({
+    status,
+    customerPhone: '+43699000001',
+    language: 'tr',
+    whatsappPhoneNumberId: 'prod_phone_id',
+  });
 
   // ── approveOrder ──────────────────────────────────────────────────────────
   test('approveOrder: pending → approved, writes approvedAt, notifies customer', async () => {
@@ -328,7 +332,7 @@ describe('Order state machine', () => {
 
     expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved', approvedAt: expect.any(String), prepMins: 30, pickupTime: expect.any(String) }));
     expect(t).toHaveBeenCalledWith('orderApproved', 'tr', 'ABC123', expect.any(String));
-    expect(sendText).toHaveBeenCalledWith('+43699000001', 'Onaylandı!', 'PHONE_ROUTING_ID');
+    expect(sendText).toHaveBeenCalledWith('+43699000001', 'Onaylandı!', 'prod_phone_id');
   });
 
   test('approveOrder: honors owner-supplied etaMinutes override', async () => {
