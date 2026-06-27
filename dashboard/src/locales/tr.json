@@ -47,6 +47,7 @@
     "noOrders": "Henüz sipariş yok.",
     "phoneLineScope": "Yalnızca bu WhatsApp hattındaki siparişler gösteriliyor.",
     "col": {
+      "orderNumber": "Sipariş #",
       "customer": "Müşteri",
       "items": "Ürünler",
       "total": "Toplam",
