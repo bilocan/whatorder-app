@@ -116,4 +116,15 @@ describe('buildPaymentReturnHtml', () => {
     expect(html).toContain('WhatsApp\'a dönün');
     expect(html).not.toContain('whatsapp://');
   });
+
+  test('uses custom title and body when provided (chat redirect page)', () => {
+    const html = buildPaymentReturnHtml({
+      title: 'Weiter zu WhatsApp',
+      body: 'Scan oder Link öffnet den WhatOrder-Bot in WhatsApp.',
+      waUrl: 'https://wa.me/436601234567?text=Hallo',
+    });
+    expect(html).toContain('Weiter zu WhatsApp');
+    expect(html).toContain('Scan oder Link öffnet den WhatOrder-Bot in WhatsApp.');
+    expect(html).not.toContain('Payment received');
+  });
 });
