@@ -24,6 +24,7 @@ describe('de locale', () => {
   test('deliverySavedAddr', () => expect(str(de.deliverySavedAddr())).toBe(true));
   test('deliveryNewAddr', () => expect(str(de.deliveryNewAddr())).toBe(true));
   test('deliveryShareLoc', () => expect(str(de.deliveryShareLoc())).toBe(true));
+  test('multiWelcomeBody', () => expect(str(de.multiWelcomeBody())).toBe(true));
   test('locationRequestBody', () => expect(str(de.locationRequestBody())).toBe(true));
   test('restaurantPickerBody', () => expect(str(de.restaurantPickerBody())).toBe(true));
   test('restaurantPickerButton', () => expect(str(de.restaurantPickerButton())).toBe(true));
@@ -51,6 +52,7 @@ describe('tr locale', () => {
   test('deliverySavedAddr', () => expect(str(tr.deliverySavedAddr())).toBe(true));
   test('deliveryNewAddr', () => expect(str(tr.deliveryNewAddr())).toBe(true));
   test('deliveryShareLoc', () => expect(str(tr.deliveryShareLoc())).toBe(true));
+  test('multiWelcomeBody', () => expect(str(tr.multiWelcomeBody())).toBe(true));
   test('locationRequestBody', () => expect(str(tr.locationRequestBody())).toBe(true));
   test('restaurantPickerBody', () => expect(str(tr.restaurantPickerBody())).toBe(true));
   test('restaurantPickerButton', () => expect(str(tr.restaurantPickerButton())).toBe(true));
@@ -66,6 +68,7 @@ describe('tr locale', () => {
 describe('en locale — previously uncovered', () => {
   test('catalogUnavailable', () => expect(str(en.catalogUnavailable())).toBe(true));
   test('deliveryOutOfZone', () => expect(str(en.deliveryOutOfZone())).toBe(true));
+  test('multiWelcomeBody', () => expect(str(en.multiWelcomeBody())).toBe(true));
 });
 
 const STATUS_NOTIFY_KEYS = [
