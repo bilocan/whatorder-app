@@ -111,9 +111,10 @@
       "delivered": "Mark Delivered"
     },
     "settlement": {
-      "pendingPayout": "Settlement pending",
+      "pendingPayout": "Payout in next cycle",
       "paidOutOn": "Paid out on {{date}}",
-      "eligibleOn": "Eligible for payout on {{date}}",
+      "eligibleOn": "Hold period until {{date}}",
+      "expectedPayoutOn": "Next payout: {{date}}",
       "refunded": "Refunded",
       "gross": "Gross €{{amount}}",
       "fee": "WhatOrder fee €{{amount}}",
@@ -225,7 +226,52 @@
     "failureRate": "Payment Failure Rate",
     "breakdown": "Breakdown",
     "noOrders": "No orders today.",
-    "feeLabel": "Fee: €{{fee}}"
+    "feeLabel": "Fee: €{{fee}}",
+    "settlement": {
+      "title": "Card payouts",
+      "hint": "Net from card orders after the WhatOrder fee. Cash orders are not settled through WhatOrder.",
+      "pending": "Pending payout",
+      "paidOut": "Paid out"
+    },
+    "payoutLoadError": "Could not load payout history."
+  },
+  "payout": {
+    "history": {
+      "title": "Payout history",
+      "loading": "Loading…",
+      "empty": "No payouts yet — only real runs (not dry run) are saved.",
+      "col": {
+        "date": "Date",
+        "restaurant": "Restaurant",
+        "amount": "Net",
+        "orders": "Orders",
+        "mode": "Mode",
+        "transferId": "Transfer ID"
+      },
+      "modeMock": "Mock",
+      "modeLive": "Live"
+    },
+    "reconciliation": {
+      "title": "Stripe reconciliation",
+      "gross": "Gross (card)",
+      "fee": "WhatOrder fee",
+      "net": "Net transferred",
+      "transferId": "Stripe transfer",
+      "connectAccount": "Connect account",
+      "viewInStripe": "View transfer in Stripe"
+    },
+    "orders": {
+      "title": "Orders in this payout ({{count}})",
+      "loading": "Loading orders…",
+      "empty": "No orders found for this payout.",
+      "loadError": "Could not load orders.",
+      "total": "Total net",
+      "col": {
+        "customer": "Customer",
+        "date": "Date",
+        "net": "Net"
+      }
+    }
   },
   "settings": {
     "title": "Settings",
@@ -358,6 +404,7 @@
       },
       "allOrders": "All Orders",
       "loading": "Loading…",
+      "loadError": "Could not load orders. If this persists, deploy Firestore rules: firebase deploy --only firestore:rules",
       "noOrders": "No orders yet.",
       "col": {
         "restaurant": "Restaurant",
@@ -365,7 +412,15 @@
         "customer": "Customer",
         "orderTotal": "Order Total",
         "fee": "WhatOrder Fee",
-        "status": "Status"
+        "status": "Status",
+        "settlement": "Settlement"
+      },
+      "settlementStatus": {
+        "pending": "Pending",
+        "paid_out": "Paid out",
+        "refunded": "Refunded",
+        "included_in_payout": "In batch",
+        "none": "—"
       },
       "settlement": {
         "title": "Settlement",
@@ -373,6 +428,36 @@
         "paidOut": "Paid Out",
         "refunded": "Refunded",
         "byRestaurant": "Pending payout by restaurant"
+      },
+      "payout": {
+        "title": "Run payout batch",
+        "hint": "Mock Connect by default — no real bank transfer until connectMode is live and Stripe Connect is onboarded.",
+        "dryRun": "Preview only (dry run)",
+        "run": "Run batch",
+        "running": "Running…",
+        "previewResult": "Preview: {{count}} restaurant batch(es) would pay out.",
+        "runResult": "Paid out {{count}} restaurant batch(es).",
+        "eligibleOrders": "{{count}} eligible card order(s) found.",
+        "holdBlocked": "{{count}} order(s) still in 7-day hold.",
+        "skippedMinimum": "{{count}} restaurant(s) below minimum payout threshold.",
+        "skippedConnect": "{{count}} restaurant(s) skipped — Connect not onboarded.",
+        "allInHold": "All pending orders are still in the hold period.",
+        "noPending": "No pending card settlements found.",
+        "failed": "Payout batch failed"
+      },
+      "payoutHistory": {
+        "title": "Payout history",
+        "empty": "No payouts yet — only real runs (not dry run) are saved.",
+        "col": {
+          "date": "Date",
+          "restaurant": "Restaurant",
+          "amount": "Net",
+          "orders": "Orders",
+          "mode": "Mode",
+          "transferId": "Transfer ID"
+        },
+        "modeMock": "Mock",
+        "modeLive": "Live"
       }
     },
     "restaurants": {

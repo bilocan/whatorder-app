@@ -195,4 +195,5 @@ module.exports = {
   isKebabQuery,
   hasExplicitDrinkSize,
   pickStandardDrinkSize,
+  PIZZA_GENERIC_WORDS,
 };

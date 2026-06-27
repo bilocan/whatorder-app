@@ -4,6 +4,18 @@ jest.mock('../firebase', () => ({
 }));
 jest.mock('../stripe');
 jest.mock('../feeConfig');
+jest.mock('../settlementConfig', () => ({
+  getSettlementConfig: jest.fn().mockResolvedValue({
+    holdDays: 7,
+    payoutWeekday: 2,
+    payoutTime: '10:00',
+    timezone: 'Europe/Vienna',
+    minimumPayoutCents: 2500,
+    connectMode: 'mock',
+  }),
+  computeHoldEndsAt: jest.fn((d, c) => new Date(d.getTime() + (c?.holdDays ?? 7) * 86400000)),
+  computeExpectedPayoutAt: jest.fn((d) => new Date(d.getTime() + 86400000)),
+}));
 jest.mock('../whatsapp', () => ({ sendText: jest.fn().mockResolvedValue('msg_1') }));
 jest.mock('../whatsappReturn', () => ({
   resolveWhatsAppReturnPhoneDigits: jest.fn().mockResolvedValue('436601234567'),

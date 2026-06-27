@@ -11,6 +11,9 @@ const { mockUseAuth, mockGetDocs, mockOnSnapshot } = vi.hoisted(() => ({
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: mockUseAuth }))
 vi.mock('../lib/firebase', () => ({ db: {} }))
+vi.mock('../lib/fetchBusinessPayouts', () => ({
+  fetchBusinessPayouts: vi.fn().mockResolvedValue([]),
+}))
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
   doc: vi.fn(),

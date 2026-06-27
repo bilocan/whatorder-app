@@ -62,6 +62,13 @@ service cloud.firestore {
       }
     }
 
+    // Collection-group queries (Admin → Erlöse) require a recursive match.
+    // Nested businesses/{id}/orders rules alone do not authorize collectionGroup('orders').
+    match /{path=**}/orders/{orderId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // Phone-number-ID → businessId routing. Admin panel only.
     match /phoneRouting/{phoneId} {
       allow read, write: if isAdmin();
@@ -72,6 +79,15 @@ service cloud.firestore {
     match /config/{configId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    // Weekly payout batches. Backend writes via Admin SDK; owners read their own rows.
+    match /payouts/{payoutId} {
+      allow read: if isAdmin()
+        || (isSignedIn()
+          && resource.data.businessId is string
+          && isOwnerOf(resource.data.businessId));
+      allow write: if false;
     }
 
     // Bot sessions. Backend (Admin SDK) only — no client access.

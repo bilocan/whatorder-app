@@ -1,4 +1,5 @@
 const { scoreItemForNeedle } = require('./menuMatch');
+const { findCategorySubmenuItems } = require('./menuCategory');
 const { patchSession } = require('./sessionStore');
 const { sendListMessage } = require('../lib/whatsapp');
 const { t } = require('./templates');
@@ -41,6 +42,10 @@ function rankMenuItems(query, menuItems, limit = MAX_SEARCH_RESULTS) {
   if (!q) return [];
 
   const available = menuItems.filter(i => i.available !== false);
+
+  const categoryItems = findCategorySubmenuItems(q, available);
+  if (categoryItems.length) return categoryItems.slice(0, limit);
+
   const scored = available
     .map(item => ({ item, score: scoreItemForNeedle(item, q) }))
     .filter(x => x.score > 0)

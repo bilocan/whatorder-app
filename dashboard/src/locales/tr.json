@@ -111,9 +111,10 @@
       "delivered": "Teslim edildi olarak işaretle"
     },
     "settlement": {
-      "pendingPayout": "Ödeme bekliyor",
+      "pendingPayout": "Sonraki ödeme döngüsünde",
       "paidOutOn": "{{date}} tarihinde ödendi",
-      "eligibleOn": "{{date}} tarihinde ödemeye uygun",
+      "eligibleOn": "Bekleme süresi {{date}} tarihine kadar",
+      "expectedPayoutOn": "Sonraki ödeme: {{date}}",
       "refunded": "İade edildi",
       "gross": "Brüt €{{amount}}",
       "fee": "WhatOrder ücreti €{{amount}}",
@@ -225,7 +226,52 @@
     "failureRate": "Ödeme Hata Oranı",
     "breakdown": "Detaylar",
     "noOrders": "Bugün sipariş yok.",
-    "feeLabel": "Ücret: €{{fee}}"
+    "feeLabel": "Ücret: €{{fee}}",
+    "settlement": {
+      "title": "Kart ödemeleri",
+      "hint": "WhatOrder ücreti sonrası kart siparişlerinden net tutar. Nakit siparişler WhatOrder üzerinden ödenmez.",
+      "pending": "Bekleyen ödeme",
+      "paidOut": "Ödendi"
+    },
+    "payoutLoadError": "Ödeme geçmişi yüklenemedi."
+  },
+  "payout": {
+    "history": {
+      "title": "Ödeme geçmişi",
+      "loading": "Yükleniyor…",
+      "empty": "Henüz ödeme yok — yalnızca gerçek çalıştırmalar (dry run değil) kaydedilir.",
+      "col": {
+        "date": "Tarih",
+        "restaurant": "Restoran",
+        "amount": "Net",
+        "orders": "Siparişler",
+        "mode": "Mod",
+        "transferId": "Transfer ID"
+      },
+      "modeMock": "Mock",
+      "modeLive": "Canlı"
+    },
+    "reconciliation": {
+      "title": "Stripe mutabakatı",
+      "gross": "Brüt (kart)",
+      "fee": "WhatOrder ücreti",
+      "net": "Net transfer",
+      "transferId": "Stripe transferi",
+      "connectAccount": "Connect hesabı",
+      "viewInStripe": "Stripe'da transferi görüntüle"
+    },
+    "orders": {
+      "title": "Bu ödemede siparişler ({{count}})",
+      "loading": "Siparişler yükleniyor…",
+      "empty": "Bu ödeme için sipariş bulunamadı.",
+      "loadError": "Siparişler yüklenemedi.",
+      "total": "Toplam net",
+      "col": {
+        "customer": "Müşteri",
+        "date": "Tarih",
+        "net": "Net"
+      }
+    }
   },
   "settings": {
     "title": "Ayarlar",
@@ -358,6 +404,7 @@
       },
       "allOrders": "Tüm Siparişler",
       "loading": "Yükleniyor…",
+      "loadError": "Siparişler yüklenemedi. Kalıcıysa: firebase deploy --only firestore:rules",
       "noOrders": "Henüz sipariş yok.",
       "col": {
         "restaurant": "Restoran",
@@ -365,7 +412,15 @@
         "customer": "Müşteri",
         "orderTotal": "Sipariş Toplamı",
         "fee": "WhatOrder Ücreti",
-        "status": "Durum"
+        "status": "Durum",
+        "settlement": "Ödeme"
+      },
+      "settlementStatus": {
+        "pending": "Bekliyor",
+        "paid_out": "Ödendi",
+        "refunded": "İade",
+        "included_in_payout": "Grupta",
+        "none": "—"
       },
       "settlement": {
         "title": "Ödeme Durumu",
@@ -373,6 +428,36 @@
         "paidOut": "Ödendi",
         "refunded": "İade Edildi",
         "byRestaurant": "Restorana göre bekleyen ödeme"
+      },
+      "payout": {
+        "title": "Ödeme grubunu çalıştır",
+        "hint": "Varsayılan: Mock Connect — connectMode live ve Stripe Connect hazır olana kadar gerçek transfer yok.",
+        "dryRun": "Yalnızca önizleme (dry run)",
+        "run": "Grubu çalıştır",
+        "running": "Çalışıyor…",
+        "previewResult": "Önizleme: {{count}} restoran grubu ödenecek.",
+        "runResult": "{{count}} restoran grubu ödendi.",
+        "eligibleOrders": "{{count}} uygun kart ödemesi bulundu.",
+        "holdBlocked": "{{count}} sipariş hâlâ 7 günlük bekleme süresinde.",
+        "skippedMinimum": "{{count}} restoran minimum eşiğin altında.",
+        "skippedConnect": "{{count}} restoran atlandı — Connect kurulmamış.",
+        "allInHold": "Bekleyen tüm siparişler hâlâ bekleme süresinde.",
+        "noPending": "Bekleyen kart ödemesi bulunamadı.",
+        "failed": "Ödeme grubu başarısız"
+      },
+      "payoutHistory": {
+        "title": "Ödeme geçmişi",
+        "empty": "Henüz ödeme yok — yalnızca gerçek çalıştırmalar (dry run değil) kaydedilir.",
+        "col": {
+          "date": "Tarih",
+          "restaurant": "Restoran",
+          "amount": "Net",
+          "orders": "Siparişler",
+          "mode": "Mod",
+          "transferId": "Transfer ID"
+        },
+        "modeMock": "Mock",
+        "modeLive": "Canlı"
       }
     },
     "restaurants": {

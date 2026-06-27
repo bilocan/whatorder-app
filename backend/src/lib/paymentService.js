@@ -2,12 +2,11 @@ const { ordersRef, stripeEventRef } = require('./collections');
 const { admin } = require('./firebase');
 const { getStripe } = require('./stripe');
 const { getFeeConfig, calcFeeCents } = require('./feeConfig');
+const { getSettlementConfig, computeHoldEndsAt, computeExpectedPayoutAt } = require('./settlementConfig');
 const { resolveWhatsAppReturnPhoneDigits, waMeUrl } = require('./whatsappReturn');
 const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('./whatsappRouting');
 const { sendText } = require('./whatsapp');
 const { t } = require('../bot/templates');
-
-const SETTLEMENT_HOLD_DAYS = 7;
 
 function paymentBaseUrl() {
   const url = process.env.BACKEND_URL?.replace(/\/$/, '');
@@ -85,9 +84,12 @@ async function handleCheckoutSessionCompleted(session) {
   const alreadyPaid = order.paymentStatus === 'paid';
   const grossAmountCents = session.amount_total ?? Math.round((order.total || 0) * 100);
   const feeConfig = await getFeeConfig();
+  const settlementConfig = await getSettlementConfig();
   const whatorderFeeCents = calcFeeCents(grossAmountCents, feeConfig);
   const restaurantNetCents = Math.max(0, grossAmountCents - whatorderFeeCents);
-  const settlementEligibleAt = new Date(Date.now() + SETTLEMENT_HOLD_DAYS * 24 * 60 * 60 * 1000);
+  const holdEndsAt = computeHoldEndsAt(new Date(), settlementConfig);
+  const settlementEligibleAt = holdEndsAt.toISOString();
+  const expectedPayoutAt = computeExpectedPayoutAt(holdEndsAt, settlementConfig).toISOString();
 
   if (!alreadyPaid) {
     await orderRef.update({
@@ -100,7 +102,8 @@ async function handleCheckoutSessionCompleted(session) {
       restaurantNetCents,
       paymentProcessedAt: admin.firestore.FieldValue.serverTimestamp(),
       settlementStatus: 'pending',
-      settlementEligibleAt: settlementEligibleAt.toISOString(),
+      settlementEligibleAt,
+      expectedPayoutAt,
     });
   }
 

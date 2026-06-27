@@ -43,10 +43,28 @@ export interface Order {
   restaurantNetCents?: number;
   paymentProcessedAt?: Timestamp | string | null;
   settlementEligibleAt?: string;
-  /** Set once the weekly payout batch job ships — always absent today. */
+  expectedPayoutAt?: string;
+  payoutId?: string;
+  stripeTransferId?: string;
+  /** Set when payout batch marks order paid_out. */
   paidAt?: string;
   /** Meta phone_number_id the customer used to place the order (phoneRouting scope). */
   whatsappPhoneNumberId?: string;
+}
+
+/** Weekly payout batch record — written by backend on real (non-dry-run) batch. */
+export interface Payout {
+  id: string;
+  businessId: string;
+  orderIds: string[];
+  totalNetCents: number;
+  whatorderFeeCentsTotal?: number;
+  status: 'paid';
+  connectMode: 'mock' | 'live';
+  stripeTransferId?: string;
+  stripeConnectAccountId?: string;
+  paidAt: string;
+  createdAt?: Timestamp | string | null;
 }
 
 export interface MenuOption {
