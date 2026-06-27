@@ -10,12 +10,12 @@ const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/
 const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming, handleAwaitingPaymentMethod } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
-const { isGreetingOnly } = require('./intentParser');
+const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
 const { handleIntentCustomize } = require('./intentCustomize');
 const { handleDisambiguatingIntent } = require('./intentDisambiguate');
 const { parseOrderDeepLink } = require('../lib/chatDeepLink');
 
-const SWITCH_KEYWORDS = new Set(['switch', 'change', 'restaurants', 'back', 'home', 'wechseln', 'zurück', 'zuruck', 'değiştir', 'degistir', 'restoranlar', 'start']);
+const SWITCH_KEYWORDS = new Set(['switch', 'change', 'restaurants', 'back', 'home', 'wechseln', 'zurück', 'zuruck', 'değiştir', 'degistir', 'restoranlar', 'start', 'starten']);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsing sessions
 // Greeting while stuck in checkout → fresh menu/reorder, not "type YES or NO"
 const GREETING_FRESH_START_STATES = new Set([
@@ -198,8 +198,8 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     : (routing.defaultBusinessId || routing.businessIds[0]);
   const basket = session.basket ?? [];
 
-  // Abandoned checkout + greeting → restart ordering (Layer 0 / catalog), not yesNoOnly
-  if (type === 'text' && isGreetingOnly(norm) && GREETING_FRESH_START_STATES.has(session.state)) {
+  // Abandoned checkout + greeting or fresh start → catalog/reorder, not yesNoOnly
+  if (type === 'text' && (isGreetingOnly(norm) || isFreshStartCommand(norm)) && GREETING_FRESH_START_STATES.has(session.state)) {
     const bidInfo = await getBusinessInfo(businessId);
     if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
       const _w = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');

@@ -40,6 +40,10 @@ describe('rulesParseQuality', () => {
     expect(rulesParseQuality(text)).toBe('high');
   });
 
+  test('high for food + drink pair without conjunction', () => {
+    expect(rulesParseQuality('Lahmacun cola')).toBe('high');
+  });
+
   test('low for conversational single blob without structure', () => {
     expect(rulesParseQuality('was empfehlt ihr für heute abend')).toBe('low');
   });
@@ -124,6 +128,16 @@ describe('parseIntentAsync', () => {
       expect(r.items).toEqual([{ name: word, qty: 1 }]);
       expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
     }
+  });
+
+  test('uses rules for Lahmacun cola food+drink pair without calling LLM', async () => {
+    const r = await parseIntentAsync('Lahmacun cola', { phone: '+441' });
+    expect(r.parsedBy).toBe('rules');
+    expect(r.items).toEqual([
+      { name: 'Lahmacun', qty: 1 },
+      { name: 'cola', qty: 1 },
+    ]);
+    expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
   });
 
   test('uses rules for single item with mit allem ohne scharf without calling LLM', async () => {
