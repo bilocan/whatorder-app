@@ -359,6 +359,7 @@
       },
       "allOrders": "Alle Bestellungen",
       "loading": "Lade…",
+      "loadError": "Bestellungen konnten nicht geladen werden. Firestore-Regeln deployen: firebase deploy --only firestore:rules",
       "noOrders": "Noch keine Bestellungen.",
       "col": {
         "restaurant": "Restaurant",
@@ -366,7 +367,15 @@
         "customer": "Kunde",
         "orderTotal": "Bestellsumme",
         "fee": "WhatOrder-Gebühr",
-        "status": "Status"
+        "status": "Status",
+        "settlement": "Auszahlung"
+      },
+      "settlementStatus": {
+        "pending": "Ausstehend",
+        "paid_out": "Ausgezahlt",
+        "refunded": "Erstattet",
+        "included_in_payout": "Im Lauf",
+        "none": "—"
       },
       "settlement": {
         "title": "Auszahlung",
@@ -390,6 +399,20 @@
         "allInHold": "Alle ausstehenden Bestellungen sind noch in der Sperrfrist.",
         "noPending": "Keine ausstehenden Kartenzahlungen gefunden.",
         "failed": "Auszahlungslauf fehlgeschlagen"
+      },
+      "payoutHistory": {
+        "title": "Auszahlungsverlauf",
+        "empty": "Noch keine Auszahlungen — nur echte Läufe (ohne Dry Run) werden gespeichert.",
+        "col": {
+          "date": "Datum",
+          "restaurant": "Restaurant",
+          "amount": "Netto",
+          "orders": "Bestellungen",
+          "mode": "Modus",
+          "transferId": "Transfer-ID"
+        },
+        "modeMock": "Mock",
+        "modeLive": "Live"
       }
     },
     "restaurants": {

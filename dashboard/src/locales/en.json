@@ -359,6 +359,7 @@
       },
       "allOrders": "All Orders",
       "loading": "Loading…",
+      "loadError": "Could not load orders. If this persists, deploy Firestore rules: firebase deploy --only firestore:rules",
       "noOrders": "No orders yet.",
       "col": {
         "restaurant": "Restaurant",
@@ -366,7 +367,15 @@
         "customer": "Customer",
         "orderTotal": "Order Total",
         "fee": "WhatOrder Fee",
-        "status": "Status"
+        "status": "Status",
+        "settlement": "Settlement"
+      },
+      "settlementStatus": {
+        "pending": "Pending",
+        "paid_out": "Paid out",
+        "refunded": "Refunded",
+        "included_in_payout": "In batch",
+        "none": "—"
       },
       "settlement": {
         "title": "Settlement",
@@ -390,6 +399,20 @@
         "allInHold": "All pending orders are still in the hold period.",
         "noPending": "No pending card settlements found.",
         "failed": "Payout batch failed"
+      },
+      "payoutHistory": {
+        "title": "Payout history",
+        "empty": "No payouts yet — only real runs (not dry run) are saved.",
+        "col": {
+          "date": "Date",
+          "restaurant": "Restaurant",
+          "amount": "Net",
+          "orders": "Orders",
+          "mode": "Mode",
+          "transferId": "Transfer ID"
+        },
+        "modeMock": "Mock",
+        "modeLive": "Live"
       }
     },
     "restaurants": {

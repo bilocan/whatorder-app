@@ -1,14 +1,46 @@
 const { db, admin } = require('./firebase');
-const { businessRef, payoutsRef } = require('./collections');
+const { businessRef, ordersRef, payoutsRef } = require('./collections');
 const { getSettlementConfig, resolveConnectMode } = require('./settlementConfig');
 const { executeConnectTransfer } = require('./connectTransfer');
 
-async function fetchEligibleOrders(batchRunTimeIso, { ignoreHold }) {
-  let query = db.collectionGroup('orders').where('settlementStatus', '==', 'pending');
-  if (!ignoreHold) {
-    query = query.where('settlementEligibleAt', '<=', batchRunTimeIso);
-  }
-  const snap = await query.get();
+function isMissingIndexError(err) {
+  const code = err?.code;
+  const msg = err?.message ?? '';
+  return code === 9 || /requires an index|COLLECTION_GROUP/i.test(msg);
+}
+
+function filterEligibleDocs(docs, batchRunTimeIso, ignoreHold) {
+  return docs.filter((doc) => {
+    if (ignoreHold) return true;
+    const at = doc.data().settlementEligibleAt;
+    return typeof at === 'string' && at <= batchRunTimeIso;
+  });
+}
+
+/** Per-business scan — no collectionGroup index required (pilot scale). */
+async function fetchEligibleOrdersPerBusiness(batchRunTimeIso, { ignoreHold }) {
+  const bizSnap = await db.collection('businesses').get();
+  const byBusiness = new Map();
+
+  await Promise.all(bizSnap.docs.map(async (bizDoc) => {
+    const businessId = bizDoc.id;
+    const snap = await ordersRef(businessId).where('settlementStatus', '==', 'pending').get();
+    const docs = filterEligibleDocs(snap.docs, batchRunTimeIso, ignoreHold);
+    if (docs.length) byBusiness.set(businessId, docs);
+  }));
+
+  return byBusiness;
+}
+
+/** Upper bound when mock skips hold — keeps query on the composite collectionGroup index. */
+const HOLD_IGNORED_CUTOFF = '9999-12-31T23:59:59.999Z';
+
+async function fetchEligibleOrdersCollectionGroup(batchRunTimeIso, { ignoreHold }) {
+  const holdCutoff = ignoreHold ? HOLD_IGNORED_CUTOFF : batchRunTimeIso;
+  const snap = await db.collectionGroup('orders')
+    .where('settlementStatus', '==', 'pending')
+    .where('settlementEligibleAt', '<=', holdCutoff)
+    .get();
 
   const byBusiness = new Map();
   for (const doc of snap.docs) {
@@ -20,12 +52,37 @@ async function fetchEligibleOrders(batchRunTimeIso, { ignoreHold }) {
   return byBusiness;
 }
 
+async function fetchEligibleOrders(batchRunTimeIso, { ignoreHold }) {
+  try {
+    return await fetchEligibleOrdersCollectionGroup(batchRunTimeIso, { ignoreHold });
+  } catch (err) {
+    if (!isMissingIndexError(err)) throw err;
+    console.warn('[payout] collectionGroup index missing — deploy firestore:indexes; using per-business scan');
+    return fetchEligibleOrdersPerBusiness(batchRunTimeIso, { ignoreHold });
+  }
+}
+
 async function countHoldBlockedOrders(batchRunTimeIso) {
-  const snap = await db.collectionGroup('orders')
-    .where('settlementStatus', '==', 'pending')
-    .where('settlementEligibleAt', '>', batchRunTimeIso)
-    .get();
-  return snap.size;
+  try {
+    const snap = await db.collectionGroup('orders')
+      .where('settlementStatus', '==', 'pending')
+      .where('settlementEligibleAt', '>', batchRunTimeIso)
+      .get();
+    return snap.size;
+  } catch (err) {
+    if (!isMissingIndexError(err)) throw err;
+  }
+
+  const bizSnap = await db.collection('businesses').get();
+  let count = 0;
+  await Promise.all(bizSnap.docs.map(async (bizDoc) => {
+    const snap = await ordersRef(bizDoc.id).where('settlementStatus', '==', 'pending').get();
+    count += snap.docs.filter((doc) => {
+      const at = doc.data().settlementEligibleAt;
+      return typeof at === 'string' && at > batchRunTimeIso;
+    }).length;
+  }));
+  return count;
 }
 
 async function runPayoutBatch({ batchRunTime = new Date(), dryRun = false } = {}) {
@@ -161,4 +218,9 @@ async function runPayoutBatch({ batchRunTime = new Date(), dryRun = false } = {}
   };
 }
 
-module.exports = { runPayoutBatch, fetchEligibleOrders, countHoldBlockedOrders };
+module.exports = {
+  runPayoutBatch,
+  fetchEligibleOrders,
+  fetchEligibleOrdersPerBusiness,
+  countHoldBlockedOrders,
+};
