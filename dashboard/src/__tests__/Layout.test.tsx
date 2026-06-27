@@ -10,6 +10,9 @@ vi.mock('../hooks/usePresence', () => ({
   toggleOrdersOpen: vi.fn(),
   toggleDeliveryOpen: vi.fn(),
 }))
+vi.mock('../hooks/useNewOrderAlert', () => ({
+  useNewOrderAlert: vi.fn(() => ({ unseenCount: 0 })),
+}))
 vi.mock('../components/RestaurantSwitcher', () => ({
   default: () => <div data-testid="restaurant-switcher" />,
 }))
