@@ -111,9 +111,10 @@
       "delivered": "Mark Delivered"
     },
     "settlement": {
-      "pendingPayout": "Settlement pending",
+      "pendingPayout": "Payout in next cycle",
       "paidOutOn": "Paid out on {{date}}",
-      "eligibleOn": "Eligible for payout on {{date}}",
+      "eligibleOn": "Hold period until {{date}}",
+      "expectedPayoutOn": "Next payout: {{date}}",
       "refunded": "Refunded",
       "gross": "Gross €{{amount}}",
       "fee": "WhatOrder fee €{{amount}}",

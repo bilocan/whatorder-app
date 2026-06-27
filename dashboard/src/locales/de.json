@@ -111,9 +111,10 @@
       "delivered": "Als geliefert markieren"
     },
     "settlement": {
-      "pendingPayout": "Auszahlung ausstehend",
+      "pendingPayout": "Nächste Auszahlung ausstehend",
       "paidOutOn": "Ausgezahlt am {{date}}",
-      "eligibleOn": "Auszahlungsfähig ab {{date}}",
+      "eligibleOn": "Prüfzeitraum bis {{date}}",
+      "expectedPayoutOn": "Nächste Auszahlung: {{date}}",
       "refunded": "Erstattet",
       "gross": "Brutto €{{amount}}",
       "fee": "WhatOrder-Gebühr €{{amount}}",
