@@ -149,8 +149,10 @@ export default function OrdersPage() {
         <tbody>
           {visibleOrders.map((order) => (
             <tr key={order.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', color: '#666', fontFamily: 'monospace' }}>
-                #{shortId(order.id)}
+              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', fontFamily: 'monospace' }}>
+                <Link to={`/orders/${order.id}`} style={{ color: '#666', textDecoration: 'none' }}>
+                  #{shortId(order.id)}
+                </Link>
               </td>
               <td style={{ padding: '0.75rem 0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>

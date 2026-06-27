@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,14 +8,22 @@ import AdminPhoneLineSwitcher from './AdminPhoneLineSwitcher';
 import { AdminPhoneLineProvider } from '../contexts/AdminPhoneLineContext';
 import BrandLogo from './BrandLogo';
 import { usePresence, toggleOrdersOpen, toggleDeliveryOpen } from '../hooks/usePresence';
+import { useNewOrderAlert } from '../hooks/useNewOrderAlert';
 import { API_URL } from '../lib/apiUrl';
+
+const BASE_TITLE = document.title;
 
 function LayoutContent() {
   const { t } = useTranslation();
   const { user, businessId, isAdmin, signOut } = useAuth();
   const showTenantNav = !!businessId;
   const presence = usePresence(businessId);
+  const { unseenCount } = useNewOrderAlert(businessId);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    document.title = unseenCount > 0 ? `(${unseenCount}) ${BASE_TITLE}` : BASE_TITLE;
+  }, [unseenCount]);
 
   const navItems = [
     { to: '/orders',    label: t('nav.orders') },
