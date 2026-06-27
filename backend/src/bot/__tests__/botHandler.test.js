@@ -2832,6 +2832,25 @@ describe('Layer 0: reorder-first for returning customers', () => {
     }));
   });
 
+  test('greeting mid-conversation (already browsing, empty basket) shows reorder prompt with restaurant name, not "undefined"', async () => {
+    getLastOrderForCustomer.mockResolvedValue(LAST_ORDER);
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'browsing',
+      businessId: BIZ,
+      basket: [],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Hallo' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining(BIZ_INFO.name),
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('undefined'),
+    }));
+  });
+
   test('btn_reorder_confirm loads last order into basket', async () => {
     getSession.mockResolvedValue({
       language: 'de',
