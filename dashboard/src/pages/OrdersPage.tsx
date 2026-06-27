@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Order, OrderStatus } from '../types';
 import { toDate } from '../types';
 import { paymentBadge } from '../lib/paymentBadge';
+import { shortId } from '../lib/shortId';
 import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
 import { getActivePhoneNumberId } from '../lib/activePhoneNumberId';
 
@@ -136,6 +137,7 @@ export default function OrdersPage() {
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
         <thead>
           <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
+            <th style={{ padding: '0.5rem' }}>{t('orders.col.orderNumber')}</th>
             <th style={{ padding: '0.5rem' }}>{t('orders.col.customer')}</th>
             <th style={{ padding: '0.5rem' }}>{t('orders.col.items')}</th>
             <th style={{ padding: '0.5rem' }}>{t('orders.col.total')}</th>
@@ -147,6 +149,9 @@ export default function OrdersPage() {
         <tbody>
           {visibleOrders.map((order) => (
             <tr key={order.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', color: '#666', fontFamily: 'monospace' }}>
+                #{shortId(order.id)}
+              </td>
               <td style={{ padding: '0.75rem 0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                   <Link to={`/orders/${order.id}`} style={{ fontWeight: 600, color: '#000', textDecoration: 'none' }}>

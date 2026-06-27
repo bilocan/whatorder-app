@@ -47,6 +47,7 @@
     "noOrders": "Noch keine Bestellungen.",
     "phoneLineScope": "Nur Bestellungen über diese WhatsApp-Leitung.",
     "col": {
+      "orderNumber": "Bestellnr.",
       "customer": "Kunde",
       "items": "Artikel",
       "total": "Gesamt",
