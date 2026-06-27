@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { doc, getDoc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  serverTimestamp,
+  updateDoc,
+  deleteField,
+  runTransaction,
+  type DocumentReference,
+} from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export interface PresenceData {
@@ -10,6 +19,7 @@ export interface PresenceData {
 }
 
 const HEARTBEAT_MS = 60_000;
+const TAB_ID_KEY = 'presenceTabId';
 
 // Mirrors backend/src/lib/schedule.js
 // schedule format: { "0": { firstOrderTime: "HH:MM", lastOrderTime: "HH:MM" }, ... }
@@ -33,6 +43,45 @@ function isOrderingOpenNow(
   return time >= dayConfig.firstOrderTime && time <= dayConfig.lastOrderTime;
 }
 
+function getTabId(): string {
+  let id = sessionStorage.getItem(TAB_ID_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem(TAB_ID_KEY, id);
+  }
+  return id;
+}
+
+async function claimPresence(
+  bizRef: DocumentReference,
+  tabId: string,
+  deliveryOpen: boolean,
+): Promise<void> {
+  await updateDoc(bizRef, {
+    [`presenceSessions.${tabId}`]: serverTimestamp(),
+    isOnline: true,
+    deliveryOpen,
+    lastSeenAt: serverTimestamp(),
+  });
+}
+
+async function releasePresence(bizRef: DocumentReference, tabId: string): Promise<void> {
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(bizRef);
+    if (!snap.exists()) return;
+
+    const sessions = { ...(snap.data().presenceSessions ?? {}) };
+    delete sessions[tabId];
+    const hasSessions = Object.keys(sessions).length > 0;
+
+    tx.update(bizRef, {
+      [`presenceSessions.${tabId}`]: deleteField(),
+      isOnline: hasSessions,
+      ...(hasSessions ? {} : { deliveryOpen: false }),
+    });
+  });
+}
+
 export function usePresence(businessId: string | null): PresenceData | null {
   const [data, setData] = useState<PresenceData | null>(null);
 
@@ -42,7 +91,7 @@ export function usePresence(businessId: string | null): PresenceData | null {
     let mounted = true;
     let heartbeat: ReturnType<typeof setInterval>;
     let unsub: (() => void) | null = null;
-
+    const tabId = getTabId();
     const bizRef = doc(db, 'businesses', businessId);
 
     const connect = async () => {
@@ -55,17 +104,15 @@ export function usePresence(businessId: string | null): PresenceData | null {
         ? isOrderingOpenNow(bizData.schedule, tz)
         : false;
 
-      await updateDoc(bizRef, {
-        isOnline: true,
-        ordersOpen: true,
-        deliveryOpen,
-        lastSeenAt: serverTimestamp(),
-      });
+      await claimPresence(bizRef, tabId, deliveryOpen);
 
       if (!mounted) return;
 
       heartbeat = setInterval(() => {
-        updateDoc(bizRef, { lastSeenAt: serverTimestamp() }).catch(console.error);
+        updateDoc(bizRef, {
+          [`presenceSessions.${tabId}`]: serverTimestamp(),
+          lastSeenAt: serverTimestamp(),
+        }).catch(console.error);
       }, HEARTBEAT_MS);
 
       unsub = onSnapshot(bizRef, (s) => {
@@ -82,17 +129,17 @@ export function usePresence(businessId: string | null): PresenceData | null {
 
     connect().catch(console.error);
 
-    const handleBeforeUnload = () => {
-      updateDoc(bizRef, { isOnline: false, ordersOpen: false, deliveryOpen: false }).catch(() => {});
+    const handlePageHide = () => {
+      releasePresence(bizRef, tabId).catch(() => {});
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handlePageHide);
 
     return () => {
       mounted = false;
       clearInterval(heartbeat);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
       if (unsub) unsub();
-      updateDoc(bizRef, { isOnline: false, ordersOpen: false, deliveryOpen: false }).catch(() => {});
+      releasePresence(bizRef, tabId).catch(() => {});
     };
   }, [businessId]);
 

@@ -1,4 +1,5 @@
 const { spawnSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 
 /** Golden infra-only GCS folder under gs://whatorder-fire-backups/manual/ */
@@ -55,12 +56,41 @@ function parseResetProductionArgs(argv) {
   };
 }
 
+function resolveGcloudPs1() {
+  const root = process.env.CLOUDSDK_ROOT_DIR;
+  if (root) {
+    const ps1 = path.join(root, 'bin', 'gcloud.ps1');
+    if (fs.existsSync(ps1)) return ps1;
+  }
+  const candidates = [
+    'C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.ps1',
+    'C:\\Program Files\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.ps1',
+  ];
+  for (const ps1 of candidates) {
+    if (fs.existsSync(ps1)) return ps1;
+  }
+  const where = spawnSync('where.exe', ['gcloud'], { encoding: 'utf8' });
+  if (where.status === 0) {
+    for (const line of where.stdout.trim().split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed.toLowerCase().endsWith('gcloud.ps1') && fs.existsSync(trimmed)) return trimmed;
+      const ps1 = path.join(path.dirname(trimmed), 'gcloud.ps1');
+      if (fs.existsSync(ps1)) return ps1;
+    }
+  }
+  throw new Error('gcloud.ps1 not found. Install Google Cloud SDK or set CLOUDSDK_ROOT_DIR.');
+}
+
 function spawnGcloud(args, stdio = 'pipe') {
-  return spawnSync('gcloud', args, {
-    encoding: 'utf8',
-    stdio,
-    shell: process.platform === 'win32',
-  });
+  const spawnOpts = { encoding: 'utf8', stdio, shell: false };
+  if (process.platform === 'win32') {
+    return spawnSync(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolveGcloudPs1(), ...args],
+      spawnOpts,
+    );
+  }
+  return spawnSync('gcloud', args, spawnOpts);
 }
 
 /**
@@ -96,18 +126,26 @@ function runNodeScript(scriptName, args) {
 }
 
 /**
+ * Infra-only GCS exports contain only INFRA_COLLECTION_IDS. Omit --collection-ids on
+ * import: Node spawn with shell:true on Windows mangles comma-separated flags and
+ * Firestore returns "kinds/namespaces are not available".
+ *
+ * @param {ReturnType<typeof parseResetProductionArgs>} opts
+ * @returns {string[]}
+ */
+function buildFirestoreImportArgs(opts) {
+  return [
+    'firestore', 'import', opts.gcsImportUri,
+    `--project=${FIRESTORE_PROJECT}`,
+    '--database', FIRESTORE_DATABASE,
+  ];
+}
+
+/**
  * @param {ReturnType<typeof parseResetProductionArgs>} opts
  */
 function runInfraImport(opts) {
-  const result = spawnGcloud(
-    [
-      'firestore', 'import', opts.gcsImportUri,
-      `--project=${FIRESTORE_PROJECT}`,
-      `--database=${FIRESTORE_DATABASE}`,
-      `--collection-ids=${opts.collectionIds}`,
-    ],
-    'inherit',
-  );
+  const result = spawnGcloud(buildFirestoreImportArgs(opts), 'inherit');
   if (result.status !== 0) {
     throw new Error(`gcloud firestore import failed with exit code ${result.status}`);
   }
@@ -146,9 +184,11 @@ module.exports = {
   DEFAULT_GOLDEN_INFRA_BACKUP,
   GCS_BUCKET,
   FIRESTORE_PROJECT,
+  FIRESTORE_DATABASE,
   INFRA_COLLECTION_IDS,
   MANUAL_CHECKLIST,
   parseResetProductionArgs,
+  buildFirestoreImportArgs,
   verifyInfraBackupExists,
   runNodeScript,
   runInfraImport,
