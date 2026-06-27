@@ -125,7 +125,48 @@ function scoreStemTypo(a, b) {
   if (typoTolerantWordMatch(x, y)) return 78;
   const maxDist = maxTypoDistance(x, y);
   if (maxDist && levenshtein(x, y) <= maxDist) return 76;
-  return 0;
+  return scoreSharedSuffixTypo(a, b);
+}
+
+/**
+ * TTS often garbles the prefix but keeps the dish suffix (cheeseburger → chisburger).
+ * Compare edit distance on the prefix when both strings share a long suffix.
+ */
+function scoreSharedSuffixTypo(a, b, minSuffix = 4) {
+  const x = collapsedStem(a);
+  const y = collapsedStem(b);
+  if (!x || !y || x.length < minSuffix + 2 || y.length < minSuffix + 2) return 0;
+
+  let suffixLen = 0;
+  while (
+    suffixLen < x.length
+    && suffixLen < y.length
+    && x[x.length - 1 - suffixLen] === y[y.length - 1 - suffixLen]
+  ) {
+    suffixLen += 1;
+  }
+  if (suffixLen < minSuffix) return 0;
+
+  const xPrefix = x.slice(0, -suffixLen);
+  const yPrefix = y.slice(0, -suffixLen);
+  if (!xPrefix.length || !yPrefix.length) return 100;
+  if (xPrefix === yPrefix) return 100;
+
+  const maxPrefix = Math.max(xPrefix.length, yPrefix.length);
+  const maxDist = suffixLen >= 5 ? 3 : maxPrefix <= 4 ? 1 : 2;
+  const dist = levenshtein(xPrefix, yPrefix);
+  if (dist > maxDist) return 0;
+  // TTS keeps suffix + often first syllable (chisburger ↔ cheeseburger, not hamburger).
+  let prefixCommon = 0;
+  while (
+    prefixCommon < xPrefix.length
+    && prefixCommon < yPrefix.length
+    && xPrefix[prefixCommon] === yPrefix[prefixCommon]
+  ) {
+    prefixCommon += 1;
+  }
+  if (maxDist >= 3 && prefixCommon < 2) return 0;
+  return Math.max(MIN_FUZZY_SYNONYM_SCORE, 76 - dist);
 }
 
 function tokensForFuzzyExpand(normPhrase) {

@@ -144,6 +144,19 @@ const ENES_PIZZA_MENU = [
   { id: 'm3', name: 'Pizza Spinachi (33cm)', price: 13.9, available: true },
 ];
 
+const BURGER_MENU = [
+  { id: 'b1', name: 'Cheeseburger XXXL mit Pommes', price: 12.9, available: true },
+  { id: 'b2', name: 'Hamburger XXXL', price: 10.9, available: true },
+];
+
+describe('classifyMenuMatch — burger TTS typos', () => {
+  test('chisburger matches Cheeseburger not Hamburger', () => {
+    const result = classifyMenuMatch('chisburger', BURGER_MENU);
+    expect(result.type).toBe('unique');
+    expect(result.item.name).toBe('Cheeseburger XXXL mit Pommes');
+  });
+});
+
 describe('classifyMenuMatch — Enes spinaci / spinachi typos', () => {
   test('spinaci matches Pizza Spinachi (33cm)', () => {
     const result = classifyMenuMatch('spinaci', ENES_PIZZA_MENU);
