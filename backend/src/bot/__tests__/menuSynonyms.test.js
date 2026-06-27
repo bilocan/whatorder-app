@@ -39,6 +39,11 @@ describe('expandNeedle', () => {
     expect(scoreStemTypo('xyz', 'doner')).toBeLessThan(MIN_FUZZY_SYNONYM_SCORE);
     expect(expandNeedle('xyz')).toEqual(['xyz']);
   });
+
+  test('shared suffix typo scores TTS near-miss (chisburger ↔ cheeseburger)', () => {
+    expect(scoreStemTypo('chisburger', 'cheeseburger')).toBeGreaterThanOrEqual(MIN_FUZZY_SYNONYM_SCORE);
+    expect(scoreStemTypo('chisburger', 'hamburger')).toBeLessThan(MIN_FUZZY_SYNONYM_SCORE);
+  });
 });
 
 describe('classifyMenuMatch with synonyms', () => {

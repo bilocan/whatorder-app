@@ -1,6 +1,6 @@
 // Pure menu matching helpers (no Firestore). Used by menuService and intentMatcher.
 
-const { expandNeedle, wordMatchesInText, splitCompoundDish, nameTokens, typoTolerantWordMatch } = require('./menuSynonyms');
+const { expandNeedle, wordMatchesInText, splitCompoundDish, nameTokens, typoTolerantWordMatch, scoreStemTypo, MIN_FUZZY_SYNONYM_SCORE } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
 const { trySmartDefault } = require('./smartDefaults');
 const { tryCategorySubmenu, isCategorySubmenuQuery } = require('./menuCategory');
@@ -25,7 +25,16 @@ function scoreMatch(needle, candidate) {
   if (wordRe.test(needle)) return 80;
   if (candidate.startsWith(needle) || needle.startsWith(candidate)) return 50;
   if (candidate.includes(needle) || needle.includes(candidate)) return 10;
-  if (!needle.includes(' ') && nameTokens(candidate).some(t => typoTolerantWordMatch(needle, t))) return 75;
+  if (!needle.includes(' ')) {
+    const fullStem = scoreStemTypo(needle, candidate);
+    if (fullStem >= MIN_FUZZY_SYNONYM_SCORE) return fullStem;
+    let bestToken = 0;
+    for (const token of nameTokens(candidate)) {
+      bestToken = Math.max(bestToken, scoreStemTypo(needle, token));
+    }
+    if (bestToken >= MIN_FUZZY_SYNONYM_SCORE) return bestToken;
+    if (nameTokens(candidate).some(t => typoTolerantWordMatch(needle, t))) return 75;
+  }
   return 0;
 }
 
