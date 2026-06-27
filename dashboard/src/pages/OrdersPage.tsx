@@ -7,6 +7,8 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Order, OrderStatus } from '../types';
 import { toDate } from '../types';
 import { paymentBadge } from '../lib/paymentBadge';
+import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
+import { getActivePhoneNumberId } from '../lib/activePhoneNumberId';
 
 const TERMINAL_STATUSES = new Set<OrderStatus>(['delivered', 'picked_up', 'rejected', 'cancelled', 'completed']);
 
@@ -27,6 +29,7 @@ export default function OrdersPage() {
   const { t } = useTranslation();
   const { businessId } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
+  const activePhoneNumberId = getActivePhoneNumberId();
   const [filter, setFilter] = useState<'active' | 'completed-2w' | 'completed-custom'>('active');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
@@ -42,9 +45,9 @@ export default function OrdersPage() {
       // Firestore's orderBy sorts by type before value, so legacy string `createdAt`
       // values don't interleave correctly with Timestamp values — re-sort client-side.
       docs.sort((a, b) => toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime());
-      setOrders(docs);
+      setOrders(filterOrdersByPhoneRouting(docs, activePhoneNumberId));
     });
-  }, [businessId]);
+  }, [businessId, activePhoneNumberId]);
 
   let visibleOrders: Order[];
   if (filter === 'active') {
@@ -68,6 +71,9 @@ export default function OrdersPage() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
         <h2>{t('orders.title')}</h2>
+        {activePhoneNumberId && (
+          <p style={{ margin: 0, fontSize: '0.78rem', color: '#666', flexBasis: '100%' }}>{t('orders.phoneLineScope')}</p>
+        )}
         <div style={{ position: 'relative', display: 'inline-block' }}>
           <select
             value={filter}

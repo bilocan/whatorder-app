@@ -45,6 +45,8 @@ export interface Order {
   settlementEligibleAt?: string;
   /** Set once the weekly payout batch job ships — always absent today. */
   paidAt?: string;
+  /** Meta phone_number_id the customer used to place the order (phoneRouting scope). */
+  whatsappPhoneNumberId?: string;
 }
 
 export interface MenuOption {

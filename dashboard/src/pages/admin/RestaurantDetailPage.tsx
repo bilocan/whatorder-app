@@ -12,6 +12,7 @@ import OptionGroupsEditor from '../../components/OptionGroupsEditor';
 import { draftGroupsFromMenu, customizationSummary, buildMenuPayload } from '../../lib/optionGroups';
 import type { DraftOptionGroup } from '../../lib/optionGroups';
 import { useConfirm } from '../../components/ConfirmDialog';
+import { useAdminPhoneLine } from '../../contexts/AdminPhoneLineContext';
 import type { Business, MenuItem, Owner } from '../../types';
 
 const PencilIcon = () => (
@@ -92,7 +93,7 @@ export default function RestaurantDetailPage() {
   const { t } = useTranslation();
   const confirmDialog = useConfirm();
   const { id } = useParams<{ id: string }>();
-  const phoneNumberId = import.meta.env.VITE_WHATSAPP_PHONE_NUMBER_ID as string | undefined;
+  const { phoneNumberId } = useAdminPhoneLine();
 
   const [business, setBusiness] = useState<Business | null>(null);
   const [tab, setTab] = useState<Tab>('details');

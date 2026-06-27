@@ -9,6 +9,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useConfirm } from '../components/ConfirmDialog';
 import type { Customer, Order } from '../types';
 import { toDate } from '../types';
+import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
+import { getActivePhoneNumberId } from '../lib/activePhoneNumberId';
 
 const PencilIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -153,7 +155,10 @@ export default function CustomersPage() {
           orderBy('createdAt', 'desc'),
         ),
       );
-      setHistoryOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
+      setHistoryOrders(filterOrdersByPhoneRouting(
+        snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)),
+        getActivePhoneNumberId(),
+      ));
     } catch (err) {
       console.error('Failed to load order history', err);
       setHistoryError(true);

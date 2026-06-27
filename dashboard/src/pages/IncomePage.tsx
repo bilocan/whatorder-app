@@ -6,19 +6,23 @@ import { useAuth } from '../contexts/AuthContext';
 import { useFeeConfig, calcFee } from '../hooks/useFeeConfig';
 import type { Order } from '../types';
 import { toDate } from '../types';
+import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
+import { getActivePhoneNumberId } from '../lib/activePhoneNumberId';
 
 export default function IncomePage() {
   const { t } = useTranslation();
   const { businessId } = useAuth();
   const feeConfig = useFeeConfig();
   const [orders, setOrders] = useState<Order[]>([]);
+  const activePhoneNumberId = getActivePhoneNumberId();
 
   useEffect(() => {
     if (!businessId) return;
     getDocs(collection(db, 'businesses', businessId, 'orders')).then((snap) => {
-      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) } as Order)));
+      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) } as Order));
+      setOrders(filterOrdersByPhoneRouting(docs, activePhoneNumberId));
     });
-  }, [businessId]);
+  }, [businessId, activePhoneNumberId]);
 
   const [period, setPeriod] = useState<'today' | 'week'>('today');
 
