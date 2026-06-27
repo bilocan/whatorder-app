@@ -62,6 +62,13 @@ service cloud.firestore {
       }
     }
 
+    // Collection-group queries (Admin → Erlöse) require a recursive match.
+    // Nested businesses/{id}/orders rules alone do not authorize collectionGroup('orders').
+    match /{path=**}/orders/{orderId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // Phone-number-ID → businessId routing. Admin panel only.
     match /phoneRouting/{phoneId} {
       allow read, write: if isAdmin();

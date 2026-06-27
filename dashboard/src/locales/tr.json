@@ -359,6 +359,7 @@
       },
       "allOrders": "Tüm Siparişler",
       "loading": "Yükleniyor…",
+      "loadError": "Siparişler yüklenemedi. Kalıcıysa: firebase deploy --only firestore:rules",
       "noOrders": "Henüz sipariş yok.",
       "col": {
         "restaurant": "Restoran",
@@ -366,7 +367,15 @@
         "customer": "Müşteri",
         "orderTotal": "Sipariş Toplamı",
         "fee": "WhatOrder Ücreti",
-        "status": "Durum"
+        "status": "Durum",
+        "settlement": "Ödeme"
+      },
+      "settlementStatus": {
+        "pending": "Bekliyor",
+        "paid_out": "Ödendi",
+        "refunded": "İade",
+        "included_in_payout": "Grupta",
+        "none": "—"
       },
       "settlement": {
         "title": "Ödeme Durumu",
@@ -390,6 +399,20 @@
         "allInHold": "Bekleyen tüm siparişler hâlâ bekleme süresinde.",
         "noPending": "Bekleyen kart ödemesi bulunamadı.",
         "failed": "Ödeme grubu başarısız"
+      },
+      "payoutHistory": {
+        "title": "Ödeme geçmişi",
+        "empty": "Henüz ödeme yok — yalnızca gerçek çalıştırmalar (dry run değil) kaydedilir.",
+        "col": {
+          "date": "Tarih",
+          "restaurant": "Restoran",
+          "amount": "Net",
+          "orders": "Siparişler",
+          "mode": "Mod",
+          "transferId": "Transfer ID"
+        },
+        "modeMock": "Mock",
+        "modeLive": "Canlı"
       }
     },
     "restaurants": {
