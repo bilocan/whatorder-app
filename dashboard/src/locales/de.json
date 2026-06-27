@@ -57,8 +57,6 @@
     "payment": {
       "cash": "Bar",
       "paid": "Bezahlt",
-      "paidPending": "Bezahlt · Auszahlung ausstehend",
-      "paidOut": "Bezahlt · ausgezahlt",
       "pending": "Offen",
       "failed": "Fehlgeschlagen"
     },
