@@ -3,7 +3,7 @@ const { sendButtonMessage, sendText, sendImage } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHelpers');
 const { getMenu, resolvePhotoUrl } = require('./menuService');
-const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext } = require('./intentParser');
+const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext, rulesParseQuality, isFreshStartCommand } = require('./intentParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
 const { rememberValidatedLlmIntent } = require('./intentLearning');
 const { matchIntentToMenu, mergeIntoBasket, mergePendingItems, hydratePendingItems } = require('./intentMatcher');
@@ -107,6 +107,7 @@ async function sendIntentProposal({ from, session, lang, businessId, basket, mat
 
 async function tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm }) {
   if (!looksLikeOrderText(text, norm)) return false;
+  if (isFreshStartCommand(norm)) return false;
 
   let intent = await parseIntentAsync(text, { phone: from, businessId });
   intent = applyJeweilsBasketContext(intent, basket);
@@ -116,9 +117,10 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   let menu = await getMenu(businessId);
   let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu);
 
-  // Zero menu hits — retry with LLM when rules parse missed (skip if LLM already failed this turn)
+  // Zero menu hits — retry with LLM only when rules likely missed structure (not high-quality parse)
   if (!matched.length && intent.parsedBy !== 'llm' && intent.parsedBy !== 'learned'
-    && !intent.llmFailed && canCallLlm(from)) {
+    && !intent.llmFailed && canCallLlm(from)
+    && rulesParseQuality(text) !== 'high') {
     const llm = await parseOrderIntentWithLlm(text, { phone: from });
     if (llm && llm.confidence >= 0.6 && llm.items.length) {
       intent = {

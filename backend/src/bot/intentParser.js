@@ -9,9 +9,12 @@ const MIT_ALLEM_RE = 'mit\\s+(?:allem|allen)';
 
 const GREETINGS = new Set([
   'hi', 'hello', 'hey', 'hallo', 'merhaba', 'selam', 'guten tag', 'guten morgen',
-  'moin', 'servus', 'gruss gott', 'grüß gott', 'nasilsin', 'naber', 'start', 'menu',
+  'moin', 'servus', 'gruss gott', 'grüß gott', 'nasilsin', 'naber', 'menu',
   'menü', 'menüyü', 'bestellen', 'order', 'siparis', 'sipariş',
 ]);
+
+/** Restart ordering — same UX as English "start", not a menu item or greeting. */
+const FRESH_START_COMMANDS = new Set(['start', 'starten']);
 
 const PARTY_SIZE_RE = [
   /\bfor\s+(\d+)\s*(?:people|persons|person|p)?\b/i,
@@ -382,9 +385,26 @@ function isGreetingOnly(norm) {
   return GREETINGS.has(cleaned);
 }
 
+function isFreshStartCommand(norm) {
+  const cleaned = (norm ?? '').replace(/[!?.]+/g, '').trim();
+  return FRESH_START_COMMANDS.has(cleaned);
+}
+
+/** "Lahmacun cola" → food + drink without conjunction or LLM. */
+function parseFoodDrinkPair(text) {
+  const trimmed = stripPoliteSuffix((text ?? '').trim());
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (parts.length !== 2) return null;
+  const [food, drink] = parts;
+  if (/^\d+\s*x?$/i.test(food) || GERMAN_QTY_WORD_RE.test(food)) return null;
+  if (isDrinkStem(food) || !isDrinkStem(drink)) return null;
+  if (isNoiseFragment(food) || isNoiseFragment(drink)) return null;
+  return [{ qty: 1, rawName: food }, { qty: 1, rawName: drink }];
+}
+
 function looksLikeOrderText(text, norm) {
   if (!text || text.length < 2) return false;
-  if (isGreetingOnly(norm)) return false;
+  if (isGreetingOnly(norm) || isFreshStartCommand(norm)) return false;
   if (parseOrderText(text).length) return true;
   if (parseTurkishQtyItems(text).length) return true;
   if (/^(?:noch\s+)?jeweils\b/i.test(text.trim())) return true;
@@ -422,6 +442,7 @@ function parseIntent(text) {
   }
   if (!items?.length) items = parseGermanQtyItems(stripped);
   if (!items?.length) items = parseTurkishQtyItems(stripped);
+  if (!items?.length) items = parseFoodDrinkPair(stripped);
   if (!items?.length) items = parseSpaceSeparatedQtyItems(stripped) ?? parseOrderText(stripped);
 
   if (jeweils?.drink && items?.length && jeweils.main) {
@@ -432,6 +453,7 @@ function parseIntent(text) {
   const usedSingleBlobFallback = !items.length
     && stripped.length >= 2
     && !isGreetingOnly(stripped.toLowerCase())
+    && !isFreshStartCommand(stripped.toLowerCase())
     && !jeweils?.drink;
 
   if (usedSingleBlobFallback) {
@@ -488,6 +510,7 @@ function rulesParseQuality(text) {
 
   let items = splitOneWithoutModifier(stripped);
   if (!items?.length) items = parseGermanQtyItems(stripped);
+  if (!items?.length) items = parseFoodDrinkPair(stripped);
   if (jeweils?.drink && items?.length && jeweils.main) {
     const perMeal = foodQtySum(items.filter(i => !isDrinkStem(stripPoliteSuffix(i.rawName ?? ''))));
     items = [...items, { qty: perMeal || items.length, rawName: jeweils.drink }];
@@ -505,6 +528,7 @@ function rulesParseQuality(text) {
     return 'high';
   }
   if (parseTurkishQtyItems(stripped).length >= 2) return 'high';
+  if (parseFoodDrinkPair(stripped)?.length >= 2) return 'high';
   if (parseSpaceSeparatedQtyItems(stripped)?.length >= 2) return 'high';
 
   const parsed = parseOrderText(stripped);
@@ -585,6 +609,7 @@ module.exports = {
   parseIntentAsync,
   looksLikeOrderText,
   isGreetingOnly,
+  isFreshStartCommand,
   extractPartySize,
   rulesParseQuality,
   shouldTryLlm,

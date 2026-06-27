@@ -1,4 +1,4 @@
-const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext } = require('./intentParser');
+const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext, rulesParseQuality } = require('./intentParser');
 const { matchIntentToMenu, mergePendingItems } = require('./intentMatcher');
 const { enrichPendingWithModifier } = require('./intentModifiers');
 const { collectSpicySpecialNote } = require('./intentNotes');
@@ -74,7 +74,8 @@ async function evaluateIntent(text, options = {}) {
 
   const llmAllowed = llm && canCallLlm(phone);
   if (!matched.length && intent.parsedBy !== 'llm' && intent.parsedBy !== 'learned'
-    && !intent.llmFailed && llmAllowed) {
+    && !intent.llmFailed && llmAllowed
+    && rulesParseQuality(trimmed) !== 'high') {
     const llmResult = await parseOrderIntentWithLlm(trimmed, { phone });
     if (llmResult && llmResult.confidence >= 0.6 && llmResult.items.length) {
       intent = {
