@@ -1,4 +1,4 @@
-const { expandNeedle } = require('../menuSynonyms');
+const { expandNeedle, scoreStemTypo, MIN_FUZZY_SYNONYM_SCORE } = require('../menuSynonyms');
 const { classifyMenuMatch, matchMenuItem } = require('../menuMatch');
 
 const KEBAP_MENU = [
@@ -27,6 +27,17 @@ describe('expandNeedle', () => {
     const pizza = expandNeedle('pizza');
     expect(pizza).not.toContain('lahmacun');
     expect(pizza).toContain('pizza');
+  });
+
+  test('fuzzy typo expands near-miss stems into synonym group (dner → döner/kebap)', () => {
+    expect(scoreStemTypo('dner', 'doner')).toBeGreaterThanOrEqual(MIN_FUZZY_SYNONYM_SCORE);
+    const expanded = expandNeedle('dner');
+    expect(expanded).toEqual(expect.arrayContaining(['doner', 'kebap', 'kebab']));
+  });
+
+  test('fuzzy expansion does not match unrelated short tokens', () => {
+    expect(scoreStemTypo('xyz', 'doner')).toBeLessThan(MIN_FUZZY_SYNONYM_SCORE);
+    expect(expandNeedle('xyz')).toEqual(['xyz']);
   });
 });
 

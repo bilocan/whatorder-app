@@ -1,4 +1,4 @@
-const { containsWord, splitCompoundDish, wordMatchesInText } = require('./menuSynonyms');
+const { containsWord, splitCompoundDish, wordMatchesInText, expandNeedle } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
 
 function norm(str) {
@@ -22,11 +22,17 @@ function isDrinkStem(word) {
   return DRINK_STEMS.some(stem => containsWord(w, stem) || w === stem);
 }
 
+function queryExpandsToStem(query, stems) {
+  const expanded = new Set(expandNeedle(query));
+  return stems.some(stem => expanded.has(norm(stem)));
+}
+
 function isKebabQuery(rawName) {
   const dish = norm(extractDishNameForMatch(rawName) || rawName);
   if (dish.includes('pizza')) return false;
   if (splitCompoundDish(dish)) return true;
-  return KEBAB_STEMS.some(stem => containsWord(dish, stem) || dish === stem);
+  if (KEBAB_STEMS.some(stem => containsWord(dish, stem) || dish === stem)) return true;
+  return queryExpandsToStem(dish, KEBAB_STEMS);
 }
 
 const EXPLICIT_SIZE_RE = /\b(0[,.]33\s*l?|0[,.]5\s*l?|1[,.]?0?\s*l|33\s*cl|50\s*cl|330\s*ml|500\s*ml|0[,.]25\s*l?|liter|litre|gross|groß|large|xl|pint)\b/i;
@@ -40,6 +46,7 @@ function hasExplicitDrinkSize(text) {
 function isDrinkQuery(rawName, candidates) {
   const dish = norm(extractDishNameForMatch(rawName) || rawName);
   if (DRINK_STEMS.some(stem => containsWord(dish, stem) || dish === stem)) return true;
+  if (queryExpandsToStem(dish, DRINK_STEMS)) return true;
   if (!candidates?.length) return false;
   return candidates.every(c => {
     const cat = norm(c.category ?? '');

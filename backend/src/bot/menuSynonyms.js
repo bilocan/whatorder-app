@@ -14,6 +14,9 @@ const SYNONYM_GROUPS = [
   ['pide'],
 ];
 
+/** Min scoreStemTypo() to expand a token into a synonym group (typo / TTS near-miss). */
+const MIN_FUZZY_SYNONYM_SCORE = 60;
+
 function norm(str) {
   return str
     .toLowerCase()
@@ -109,6 +112,45 @@ function wordMatchesInText(word, textNorm) {
   return false;
 }
 
+function collapsedStem(str) {
+  return norm(str).replace(/\s+/g, '');
+}
+
+/** Score a customer token against a known synonym stem (0–100). */
+function scoreStemTypo(a, b) {
+  const x = collapsedStem(a);
+  const y = collapsedStem(b);
+  if (!x || !y) return 0;
+  if (x === y) return 100;
+  if (typoTolerantWordMatch(x, y)) return 78;
+  const maxDist = maxTypoDistance(x, y);
+  if (maxDist && levenshtein(x, y) <= maxDist) return 76;
+  return 0;
+}
+
+function tokensForFuzzyExpand(normPhrase) {
+  return normPhrase.split(/\s+/).filter(w => w.length >= 3 && !/^\d+$/.test(w));
+}
+
+function tokenHasExactSynonymCoverage(token, expanded) {
+  const t = norm(token);
+  for (const group of SYNONYM_GROUPS) {
+    const normalized = group.map(norm);
+    if (!normalized.includes(t)) continue;
+    if (normalized.some(term => expanded.has(term))) return true;
+  }
+  return false;
+}
+
+function fuzzyExpandSynonymGroups(token, expanded, minScore = MIN_FUZZY_SYNONYM_SCORE) {
+  if (tokenHasExactSynonymCoverage(token, expanded)) return;
+  for (const group of SYNONYM_GROUPS) {
+    const normalized = group.map(norm);
+    const best = normalized.reduce((max, term) => Math.max(max, scoreStemTypo(token, term)), 0);
+    if (best >= minScore) normalized.forEach(term => expanded.add(term));
+  }
+}
+
 function expandNeedle(rawName) {
   const n = norm(rawName);
   if (!n) return [];
@@ -121,16 +163,21 @@ function expandNeedle(rawName) {
       normalized.forEach(term => expanded.add(term));
     }
   }
+  for (const token of tokensForFuzzyExpand(n)) {
+    fuzzyExpandSynonymGroups(token, expanded);
+  }
   return [...expanded];
 }
 
 module.exports = {
   SYNONYM_GROUPS,
+  MIN_FUZZY_SYNONYM_SCORE,
   expandNeedle,
   wordMatchesInText,
   containsWord,
   splitCompoundDish,
   typoTolerantWordMatch,
+  scoreStemTypo,
   nameTokens,
   levenshtein,
   maxTypoDistance,
