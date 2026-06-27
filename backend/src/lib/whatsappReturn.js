@@ -63,14 +63,26 @@ function paymentReturnCopy(variant, lang) {
   };
 }
 
-function buildPaymentReturnHtml({ variant = 'success', lang = 'en', waUrl, waDigits }) {
+function buildPaymentReturnHtml({
+  variant = 'success',
+  lang = 'en',
+  waUrl,
+  waDigits,
+  title,
+  body,
+  button,
+}) {
   const resolvedLang = resolvePaymentLang(lang);
   const copy = paymentReturnCopy(variant, resolvedLang);
+  const pageTitle = title ?? copy.title;
+  const bodyText = body ?? copy.redirecting;
+  const buttonText = button ?? copy.button;
   const digits = waDigits || (waUrl?.match(/wa\.me\/(\d+)/)?.[1] ?? null);
   const webUrl = waUrl || waMeUrl(digits);
 
   if (!webUrl) {
-    return `<!DOCTYPE html><html lang="${resolvedLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${copy.title}</title></head><body style="font-family:system-ui,sans-serif;text-align:center;padding:2rem"><h1>${copy.title}</h1><p>${copy.noLinkBody}</p></body></html>`;
+    const noLinkBody = body ?? copy.noLinkBody;
+    return `<!DOCTYPE html><html lang="${resolvedLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${pageTitle}</title></head><body style="font-family:system-ui,sans-serif;text-align:center;padding:2rem"><h1>${pageTitle}</h1><p>${noLinkBody}</p></body></html>`;
   }
 
   const deepUrl = waDeepLinkUrl(digits);
@@ -78,11 +90,11 @@ function buildPaymentReturnHtml({ variant = 'success', lang = 'en', waUrl, waDig
   const safeDeep = deepUrl.replace(/"/g, '&quot;');
   const safeWeb = webUrl.replace(/"/g, '&quot;');
   const redirectScript = `<script>(function(){var deep=${JSON.stringify(deepUrl)};var web=${JSON.stringify(webUrl)};var intent=${JSON.stringify(androidIntent)};var isAndroid=/Android/i.test(navigator.userAgent);var target=isAndroid&&intent?intent:deep;if(target){window.location.replace(target);setTimeout(function(){window.location.replace(web);},800);setTimeout(function(){try{window.close();}catch(e){}},2000);}})();</script>`;
-  const action = `<p>${copy.redirecting}</p>`
-    + `<p><a href="${safeDeep}" style="display:inline-block;margin:1rem 0;padding:0.85rem 1.5rem;background:#25D366;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">${copy.button}</a></p>`
+  const action = `<p>${bodyText}</p>`
+    + `<p><a href="${safeDeep}" style="display:inline-block;margin:1rem 0;padding:0.85rem 1.5rem;background:#25D366;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">${buttonText}</a></p>`
     + `<p style="font-size:0.9rem;color:#666"><a href="${safeWeb}">${copy.fallbackLink}</a> ${copy.closeHint}</p>`;
 
-  return `<!DOCTYPE html><html lang="${resolvedLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${copy.title}</title>${redirectScript}</head><body style="font-family:system-ui,sans-serif;text-align:center;padding:2rem"><h1>${copy.title}</h1>${action}</body></html>`;
+  return `<!DOCTYPE html><html lang="${resolvedLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${pageTitle}</title>${redirectScript}</head><body style="font-family:system-ui,sans-serif;text-align:center;padding:2rem"><h1>${pageTitle}</h1>${action}</body></html>`;
 }
 
 module.exports = {
