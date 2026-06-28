@@ -3,6 +3,7 @@ jest.mock('../menuService');
 jest.mock('../../lib/whatsapp');
 jest.mock('../intentLearning', () => ({
   lookupLearnedIntent: jest.fn().mockResolvedValue(null),
+  rememberValidatedIntent: jest.fn(),
   rememberValidatedLlmIntent: jest.fn(),
 }));
 jest.mock('../../lib/llm', () => ({
@@ -11,7 +12,7 @@ jest.mock('../../lib/llm', () => ({
 }));
 
 const { setSession } = require('../sessionStore');
-const { getMenu, resolvePhotoUrl } = require('../menuService');
+const { getMenuContext, resolvePhotoUrl } = require('../menuService');
 const { sendButtonMessage, sendImage } = require('../../lib/whatsapp');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../../lib/llm');
 const { tryTextIntentOrder } = require('../intentOrder');
@@ -23,7 +24,7 @@ const MENU = [
 
 beforeEach(() => {
   jest.clearAllMocks();
-  getMenu.mockResolvedValue(MENU);
+  getMenuContext.mockResolvedValue({ menu: MENU, menuMatch: null, menuTokenIndex: null });
   sendButtonMessage.mockResolvedValue('msg_1');
   sendImage.mockResolvedValue('msg_img');
   setSession.mockResolvedValue();
@@ -43,7 +44,7 @@ describe('tryTextIntentOrder', () => {
     });
 
     expect(handled).toBe(true);
-    expect(getMenu).toHaveBeenCalled();
+    expect(getMenuContext).toHaveBeenCalled();
     expect(sendButtonMessage).toHaveBeenCalled();
   });
 
@@ -91,10 +92,14 @@ describe('tryTextIntentOrder', () => {
   });
 
   test('sends a photo for matched items that have one', async () => {
-    getMenu.mockResolvedValue([
-      { id: 'item_1', name: 'Döner', price: 8.50, photoUrl: 'https://cdn.example.com/doner.jpg' },
-      { id: 'item_2', name: 'Ayran', price: 2.00 },
-    ]);
+    getMenuContext.mockResolvedValue({
+      menu: [
+        { id: 'item_1', name: 'Döner', price: 8.50, photoUrl: 'https://cdn.example.com/doner.jpg' },
+        { id: 'item_2', name: 'Ayran', price: 2.00 },
+      ],
+      menuMatch: null,
+      menuTokenIndex: null,
+    });
 
     const handled = await tryTextIntentOrder({
       from: '+43699000001',

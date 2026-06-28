@@ -2,10 +2,10 @@ const { patchSession, getSession } = require('./sessionStore');
 const { sendButtonMessage, sendText, sendImage } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHelpers');
-const { getMenu, getMenuMatch, resolvePhotoUrl } = require('./menuService');
+const { getMenu, getMenuContext, resolvePhotoUrl } = require('./menuService');
 const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext, rulesParseQuality, isFreshStartCommand } = require('./intentParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
-const { rememberValidatedLlmIntent } = require('./intentLearning');
+const { rememberValidatedIntent } = require('./intentLearning');
 const {
   matchIntentToMenu, mergeIntoBasket, mergePendingItems, hydratePendingItems, expandPerUnitSpicyMatched,
 } = require('./intentMatcher');
@@ -118,9 +118,8 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   if (!intent.items.length) return false;
   if (intent.confidence != null && intent.confidence < 0.6) return false;
 
-  let menu = await getMenu(businessId);
-  const menuMatch = await getMenuMatch(businessId, menu);
-  let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch);
+  let { menu, menuMatch, menuTokenIndex } = await getMenuContext(businessId);
+  let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch, menuTokenIndex);
 
   // Zero menu hits — retry with LLM only when rules likely missed structure (not high-quality parse)
   if (!matched.length && intent.parsedBy !== 'llm' && intent.parsedBy !== 'learned'
@@ -135,7 +134,7 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
         parsedBy: 'llm',
         confidence: llm.confidence,
       };
-      ({ matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch));
+      ({ matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch, menuTokenIndex));
     }
   }
 
@@ -154,9 +153,13 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   await sendIntentProposal({
     from, session, lang, businessId, basket, matched, unmatched, rawText: intent.rawText,
   });
-  if (intent.parsedBy === 'llm') {
-    rememberValidatedLlmIntent(businessId, text, intent);
-  }
+  const expanded = expandPerUnitSpicyMatched(matched, intent.rawText ?? text);
+  rememberValidatedIntent(
+    businessId,
+    text,
+    intent,
+    mergePendingItems(expanded.map(enrichPendingWithModifier)),
+  );
   return true;
 }
 
