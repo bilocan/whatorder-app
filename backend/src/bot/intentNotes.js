@@ -49,17 +49,38 @@ function spicyResolvedInItem(item) {
   return false;
 }
 
-/** When spicy is requested but no menu insert covers it — prefill checkout notes. */
-function collectSpicySpecialNote(rawText, matchedItems, lang = 'de') {
-  if (!hasExplicitSpicyInText(rawText)) return null;
-  if ((matchedItems ?? []).some(spicyResolvedInItem)) return null;
+function lineWantsSpicy(rawIntentName) {
+  const raw = rawIntentName ?? '';
+  if (textHasSpicyExclusion(raw)) return false;
+  return /\b(?:und\s+|mit\s+|extra\s+)?(scharf|scharfe|scharfer|spicy|hot|chili|chilli|acili|aci|sharf)\b/i.test(raw)
+    || /\bund\s+schaf\b/i.test(raw);
+}
+
+function countSpicyLines(matchedItems) {
+  return (matchedItems ?? []).filter(i => lineWantsSpicy(i.rawIntentName)).length;
+}
+
+function resolveLineSpicyNote(item, lang = 'de') {
+  if (!lineWantsSpicy(item?.rawIntentName) || spicyResolvedInItem(item)) return null;
   return SPICY_NOTE_BY_LANG[lang] ?? SPICY_NOTE_BY_LANG.de;
 }
 
-function tagLinesWithNote(items, note) {
+/** When spicy is requested but no menu insert covers it — prefill checkout notes. */
+function collectSpicySpecialNote(rawText, matchedItems, lang = 'de') {
+  const items = matchedItems ?? [];
+  const spicyLines = countSpicyLines(items);
+  if (spicyLines > 0 && spicyLines < items.length) return null;
+
+  if (!hasExplicitSpicyInText(rawText)) return null;
+  if (items.some(spicyResolvedInItem)) return null;
+  return SPICY_NOTE_BY_LANG[lang] ?? SPICY_NOTE_BY_LANG.de;
+}
+
+function tagLinesWithNote(items, note, lang = 'de') {
   return (items ?? []).map(i => {
     const line = { name: i.name, qty: i.qty, price: i.price };
-    const lineNote = combineLineNotes(i, note);
+    const perLine = resolveLineSpicyNote(i, lang) ?? ((note ?? '').trim() || null);
+    const lineNote = combineLineNotes(i, perLine);
     if (lineNote) line.note = lineNote;
     return line;
   });
@@ -83,6 +104,8 @@ function appendSpecialRequest(existing, addition) {
 
 module.exports = {
   hasExplicitSpicyInText,
+  lineWantsSpicy,
+  resolveLineSpicyNote,
   spicyResolvedInItem,
   collectSpicySpecialNote,
   appendSpecialRequest,

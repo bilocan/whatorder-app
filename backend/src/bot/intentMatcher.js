@@ -1,7 +1,43 @@
 const { matchMenuItem, classifyMenuMatch } = require('./menuMatch');
+const { buildMenuTokenIndex } = require('./menuTokenIndex');
 const {
-  extractModifierKey, normalizeIntentItemName, isModifierOnlyToken, extractDishNameForMatch,
+  extractModifierKey, normalizeIntentItemName, isModifierOnlyToken,
 } = require('./intentModifiers');
+const { extractBeideMitAllemSpicyDish, textLooksLikeBeideMitAllemOneSpicy } = require('./intentParser');
+
+/** Un-collapse 2x same dish when customer said beide mit allem, eine extra scharf. */
+function expandPerUnitSpicyMatched(matched, rawText) {
+  if (matched.length !== 1) return matched;
+
+  const line = matched[0];
+  const qty = line.qty ?? 1;
+  if (qty < 2) return matched;
+
+  const source = rawText ?? line.rawIntentName ?? '';
+  if (!textLooksLikeBeideMitAllemOneSpicy(source)) return matched;
+
+  const dish = extractBeideMitAllemSpicyDish(source);
+  if (!dish) return matched;
+
+  const plainName = `${dish} mit allen ohne scharf`;
+  const spicyName = `${dish} mit allen und scharf`;
+  const { prefilledSelections, ...base } = line;
+
+  return [
+    {
+      ...base,
+      qty: qty - 1,
+      rawIntentName: plainName,
+      modifierKey: extractModifierKey(plainName),
+    },
+    {
+      ...base,
+      qty: 1,
+      rawIntentName: spicyName,
+      modifierKey: extractModifierKey(spicyName),
+    },
+  ];
+}
 
 function normIng(str) {
   return String(str ?? '')
@@ -127,15 +163,25 @@ function toPendingItem(item, qty, { rawIntentName } = {}) {
   };
 }
 
-function matchIntentToMenu(intent, menuItems, menuMatch = null) {
+function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex = null) {
+  const tokenIndex = menuTokenIndex ?? buildMenuTokenIndex(menuItems);
   let matched = [];
   const unmatched = [];
   let disambiguation = null;
 
   for (let i = 0; i < intent.items.length; i++) {
-    const { name, qty } = intent.items[i];
+    const { name, qty, menuItemId } = intent.items[i];
+
+    if (menuItemId) {
+      const byId = menuItems.find(m => m.id === menuItemId && m.available !== false);
+      if (byId) {
+        matched = mergePendingLine(matched, toPendingItem(byId, qty, { rawIntentName: name }));
+        continue;
+      }
+    }
+
     const matchName = normalizeIntentItemName(name);
-    const result = classifyMenuMatch(matchName, menuItems, menuMatch);
+    const result = classifyMenuMatch(matchName, menuItems, menuMatch, tokenIndex);
 
     if (result.type === 'none') {
       if (!isModifierOnlyToken(name)) unmatched.push(name);
@@ -202,4 +248,5 @@ module.exports = {
   toPendingItem,
   basketMergeKey,
   hydratePendingItems,
+  expandPerUnitSpicyMatched,
 };

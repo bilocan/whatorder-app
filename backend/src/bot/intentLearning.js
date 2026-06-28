@@ -1,39 +1,16 @@
 const crypto = require('crypto');
 const { admin } = require('../lib/firebase');
 const { intentLearningRef } = require('../lib/collections');
+const { intentLearnKey, intentLearnKeyVariants } = require('./intentNormalize');
+const { levenshtein, maxTypoDistance } = require('./menuSynonyms');
 
 /** In-process L1: businessId → Map(textKey → intent payload). */
 const memoryByBusiness = new Map();
+/** businessId → whether all Firestore keys were loaded for fuzzy scan. */
+const fuzzyIndexLoaded = new Set();
 
-function norm(str) {
-  return String(str ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/ı/g, 'i')
-    .trim();
-}
-
-/** Same normalization as parseIntent input — keys repeat utterances reliably. */
-function intentLearnKey(text) {
-  let s = (text ?? '').trim();
-  s = s.replace(/\bfor\s+\d+\s*(?:people|persons|person|p)?\b/gi, ' ');
-  s = s.replace(/\bfür\s+\d+\s*(?:personen|leute|p)?\b/gi, ' ');
-  s = s.replace(/^\s*(zum mitnehmen|zum essen|takeaway|to go|abholen)\s*,?\s*/i, '');
-  s = s.replace(
-    /^\s*ich\s+(?:hätte|hatte|möchte|moechte|will|würde|wuerde)\s+(?:gerne\s+)?/i,
-    '',
-  );
-  s = s.replace(/^\s*hätte\s+gerne\s+/i, '');
-  s = s.replace(/^\s*(?:was\s+)?für\s+mich\s+/i, '');
-  s = s.replace(/^\s*noch\s+(?:ein|eine|einen|einer|dazu)\s+/i, '');
-  s = s.replace(/^\s*(?:auch|nochmal)\s+(?:ein|eine|einen|einer)\s+/i, '');
-  return norm(s.replace(/\s+/g, ' ').trim());
-}
-
-function docIdForKey(textKey) {
-  return crypto.createHash('sha256').update(textKey).digest('hex').slice(0, 40);
-}
+const FUZZY_KEY_MAX_DIST = 3;
+const FUZZY_MIN_KEY_LEN = 8;
 
 function memoryGet(businessId, textKey) {
   return memoryByBusiness.get(businessId)?.get(textKey) ?? null;
@@ -46,26 +23,87 @@ function memorySet(businessId, textKey, payload) {
   memoryByBusiness.get(businessId).set(textKey, payload);
 }
 
+function memoryKeys(businessId) {
+  return [...(memoryByBusiness.get(businessId)?.keys() ?? [])];
+}
+
+function docIdForKey(textKey) {
+  return crypto.createHash('sha256').update(textKey).digest('hex').slice(0, 40);
+}
+
+function keysAreFuzzyMatch(a, b) {
+  if (!a || !b || a === b) return a === b;
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen < FUZZY_MIN_KEY_LEN) return false;
+  const maxDist = Math.min(FUZZY_KEY_MAX_DIST, maxTypoDistance(a, b) + 1);
+  return levenshtein(a, b) <= maxDist;
+}
+
+function findFuzzyMemoryHit(businessId, textKey) {
+  for (const cachedKey of memoryKeys(businessId)) {
+    if (keysAreFuzzyMatch(textKey, cachedKey)) {
+      return memoryGet(businessId, cachedKey);
+    }
+  }
+  return null;
+}
+
+async function loadFuzzyIndexFromFirestore(businessId) {
+  if (fuzzyIndexLoaded.has(businessId)) return;
+  fuzzyIndexLoaded.add(businessId);
+  try {
+    const snap = await intentLearningRef(businessId, '_').parent.get();
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const key = data?.textKey;
+      const items = sanitizeItems(data?.items);
+      if (!key || !items.length) continue;
+      if (!memoryGet(businessId, key)) {
+        memorySet(businessId, key, {
+          items,
+          partySize: data.partySize ?? null,
+        });
+      }
+    }
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(`[intent-learning] fuzzy index load failed: ${err.message}`);
+    }
+  }
+}
+
 function sanitizeItems(items) {
   return (items ?? [])
     .filter(i => i && typeof (i.name ?? i.rawName) === 'string')
-    .map(i => ({
-      name: String(i.name ?? i.rawName).trim(),
-      qty: Math.min(99, Math.max(1, Number(i.qty) || 1)),
-    }))
+    .map(i => {
+      const out = {
+        name: String(i.name ?? i.rawName).trim(),
+        qty: Math.min(99, Math.max(1, Number(i.qty) || 1)),
+      };
+      if (i.menuItemId) out.menuItemId = String(i.menuItemId);
+      if (i.modifierKey) out.modifierKey = String(i.modifierKey);
+      return out;
+    })
     .filter(i => i.name);
 }
 
-/**
- * Tier B → Tier A: return a prior LLM parse validated by menu match.
- * @returns {{ items: { name: string, qty: number }[], partySize: number|null }|null}
- */
-async function lookupLearnedIntent(businessId, rawText) {
-  if (!businessId || !rawText?.trim()) return null;
+function itemsFromMatched(matched, intentItems) {
+  if (matched?.length) {
+    return matched.map(line => {
+      const out = {
+        name: line.name,
+        qty: Math.min(99, Math.max(1, Number(line.qty) || 1)),
+      };
+      if (line.menuItemId) out.menuItemId = line.menuItemId;
+      if (line.modifierKey) out.modifierKey = line.modifierKey;
+      if (line.rawIntentName) out.rawName = line.rawIntentName;
+      return out;
+    });
+  }
+  return sanitizeItems(intentItems);
+}
 
-  const textKey = intentLearnKey(rawText);
-  if (!textKey) return null;
-
+async function loadExactKey(businessId, textKey) {
   const cached = memoryGet(businessId, textKey);
   if (cached) return cached;
 
@@ -92,18 +130,41 @@ async function lookupLearnedIntent(businessId, rawText) {
 }
 
 /**
- * Persist when LLM structured an order and menu matching succeeded.
+ * Tier B → Tier A: return a prior validated parse (exact, legacy key, or fuzzy).
+ * @returns {Promise<{ items: object[], partySize: number|null }|null>}
+ */
+async function lookupLearnedIntent(businessId, rawText) {
+  if (!businessId || !rawText?.trim()) return null;
+
+  const variants = intentLearnKeyVariants(rawText);
+  for (const textKey of variants) {
+    const hit = await loadExactKey(businessId, textKey);
+    if (hit) return hit;
+  }
+
+  const canonical = intentLearnKey(rawText);
+  const fuzzyMem = findFuzzyMemoryHit(businessId, canonical);
+  if (fuzzyMem) return fuzzyMem;
+
+  await loadFuzzyIndexFromFirestore(businessId);
+  return findFuzzyMemoryHit(businessId, canonical);
+}
+
+/**
+ * Persist when a proposal was validated by menu match (rules or LLM).
  * Fire-and-forget; never blocks the customer path.
  */
-function rememberValidatedLlmIntent(businessId, rawText, intent) {
-  if (!businessId || !rawText?.trim() || intent?.parsedBy !== 'llm') return;
+function rememberValidatedIntent(businessId, rawText, intent, matched = null) {
+  if (!businessId || !rawText?.trim() || !intent) return;
+  if (intent.parsedBy === 'learned') return;
 
-  const items = sanitizeItems(intent.items);
+  const items = itemsFromMatched(matched, intent.items);
   if (!items.length) return;
 
   const textKey = intentLearnKey(rawText);
   if (!textKey) return;
 
+  const source = intent.parsedBy === 'llm' ? 'llm' : 'rules';
   const payload = {
     items,
     partySize: intent.partySize ?? null,
@@ -115,7 +176,7 @@ function rememberValidatedLlmIntent(businessId, rawText, intent) {
     textKey,
     items,
     partySize: intent.partySize ?? null,
-    source: 'llm',
+    source,
     hitCount: admin.firestore.FieldValue.increment(1),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -126,14 +187,23 @@ function rememberValidatedLlmIntent(businessId, rawText, intent) {
   });
 }
 
+/** @deprecated use rememberValidatedIntent */
+function rememberValidatedLlmIntent(businessId, rawText, intent) {
+  if (intent?.parsedBy !== 'llm') return;
+  rememberValidatedIntent(businessId, rawText, intent);
+}
+
 /** Test helper */
 function _resetIntentLearningMemory() {
   memoryByBusiness.clear();
+  fuzzyIndexLoaded.clear();
 }
 
 module.exports = {
   intentLearnKey,
+  intentLearnKeyVariants,
   lookupLearnedIntent,
+  rememberValidatedIntent,
   rememberValidatedLlmIntent,
   _resetIntentLearningMemory,
 };

@@ -2,6 +2,7 @@ const {
   hasExplicitSpicyInText,
   spicyResolvedInItem,
   collectSpicySpecialNote,
+  resolveLineSpicyNote,
   appendSpecialRequest,
   tagLinesWithNote,
   toBasketLine,
@@ -56,6 +57,20 @@ describe('collectSpicySpecialNote', () => {
       rawIntentName: 'döner mit allem ohne scharf',
     });
     expect(collectSpicySpecialNote('döner mit allem ohne scharf', [item], 'de')).toBeNull();
+  });
+
+  test('returns null for mixed spicy lines (per-line notes instead)', () => {
+    const plain = enrichPendingWithModifier({
+      ...KEBAB_ITEM,
+      rawIntentName: 'doner mit allen ohne scharf',
+    });
+    const spicy = enrichPendingWithModifier({
+      ...KEBAB_ITEM,
+      rawIntentName: 'doner mit allen und scharf',
+    });
+    expect(collectSpicySpecialNote('zwei doner beide mit allen eine extra scharf', [plain, spicy], 'de')).toBeNull();
+    expect(resolveLineSpicyNote(spicy, 'de')).toBe('extra scharf');
+    expect(resolveLineSpicyNote(plain, 'de')).toBeNull();
   });
 
   test('returns null when spicy insert already selected', () => {

@@ -66,4 +66,17 @@ describe('classifyMenuMatch with smart defaults', () => {
     expect(result.type).toBe('unique');
     expect(result.item.name).toBe('Coca Cola 0.33L');
   });
+
+  test('explicit Coca Cola 0.33L SKU resolves without disambiguation', () => {
+    const menu = [
+      { id: 'c1', name: 'Coca Cola 0.33L', price: 2.9, available: true },
+      { id: 'c2', name: 'Coca Cola 0.5L', price: 3.5, available: true },
+      { id: 'c3', name: 'Coca Cola 1.5L', price: 5.5, available: true },
+      { id: 'c4', name: 'Coca Cola Light 0.33L', price: 2.9, available: true },
+    ];
+    expect(trySmartDefault('Coca Cola 0.33L', menu)?.id).toBe('c1');
+    const result = classifyMenuMatch('Coca Cola 0.33L', menu);
+    expect(result.type).toBe('unique');
+    expect(result.item.id).toBe('c1');
+  });
 });

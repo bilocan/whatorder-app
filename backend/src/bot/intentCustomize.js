@@ -480,7 +480,7 @@ async function applyPerUnitModifiersFromText({ from, session, lang, businessId, 
 }
 
 async function startIntentCustomization({ from, session, lang, businessId, basket, simpleItems, customizeItems }) {
-  const linesToAdd = tagLinesWithNote(simpleItems, session.pendingIntentNote);
+  const linesToAdd = tagLinesWithNote(simpleItems, session.pendingIntentNote, lang);
   const readyBasket = mergeIntoBasket(basket, linesToAdd);
   await startNextItem(from, session, lang, businessId, customizeItems, readyBasket);
 }

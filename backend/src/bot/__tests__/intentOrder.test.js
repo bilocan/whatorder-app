@@ -3,6 +3,7 @@ jest.mock('../menuService');
 jest.mock('../../lib/whatsapp');
 jest.mock('../intentLearning', () => ({
   lookupLearnedIntent: jest.fn().mockResolvedValue(null),
+  rememberValidatedIntent: jest.fn(),
   rememberValidatedLlmIntent: jest.fn(),
 }));
 jest.mock('../../lib/llm', () => ({
@@ -11,7 +12,7 @@ jest.mock('../../lib/llm', () => ({
 }));
 
 const { setSession } = require('../sessionStore');
-const { getMenu, resolvePhotoUrl } = require('../menuService');
+const { getMenuContext, resolvePhotoUrl } = require('../menuService');
 const { sendButtonMessage, sendImage } = require('../../lib/whatsapp');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../../lib/llm');
 const { tryTextIntentOrder } = require('../intentOrder');
@@ -23,7 +24,7 @@ const MENU = [
 
 beforeEach(() => {
   jest.clearAllMocks();
-  getMenu.mockResolvedValue(MENU);
+  getMenuContext.mockResolvedValue({ menu: MENU, menuMatch: null, menuTokenIndex: null });
   sendButtonMessage.mockResolvedValue('msg_1');
   sendImage.mockResolvedValue('msg_img');
   setSession.mockResolvedValue();
@@ -43,7 +44,7 @@ describe('tryTextIntentOrder', () => {
     });
 
     expect(handled).toBe(true);
-    expect(getMenu).toHaveBeenCalled();
+    expect(getMenuContext).toHaveBeenCalled();
     expect(sendButtonMessage).toHaveBeenCalled();
   });
 
@@ -62,6 +63,43 @@ describe('tryTextIntentOrder', () => {
     const body = sendButtonMessage.mock.calls[0][1].body;
     expect(body).toMatch(/2x Döner/);
     expect(body).toMatch(/1x Ayran/);
+  });
+
+  test('retries with LLM when partial blob matches only drink (kola + döner utterance)', async () => {
+    canCallLlm.mockReturnValue(true);
+    parseOrderIntentWithLlm.mockResolvedValue({
+      items: [
+        { name: 'kola', qty: 1, menuItemId: 'c1' },
+        { name: 'Döner', qty: 1, menuItemId: 'd1' },
+      ],
+      partySize: null,
+      confidence: 0.9,
+      menuConstrained: true,
+    });
+    getMenuContext.mockResolvedValue({
+      menu: [
+        { id: 'c1', name: 'Coca Cola 0.33L', price: 2.9 },
+        { id: 'd1', name: 'Döner', price: 8.5 },
+      ],
+      menuMatch: null,
+      menuTokenIndex: null,
+    });
+
+    const handled = await tryTextIntentOrder({
+      from: '+43699000003',
+      session: { state: 'browsing', language: 'tr', basket: [] },
+      lang: 'tr',
+      businessId: 'biz_test',
+      basket: [],
+      text: 'a kola un döner bitti',
+      norm: 'a kola un döner bitti',
+    });
+
+    expect(handled).toBe(true);
+    expect(parseOrderIntentWithLlm).toHaveBeenCalledTimes(1);
+    const body = sendButtonMessage.mock.calls[0][1].body;
+    expect(body).toMatch(/Cola/i);
+    expect(body).toMatch(/Döner/i);
   });
 
   test('retries with LLM when rules parse misses menu and LLM resolves match', async () => {
@@ -84,17 +122,21 @@ describe('tryTextIntentOrder', () => {
 
     expect(handled).toBe(true);
     expect(parseOrderIntentWithLlm).toHaveBeenCalledTimes(1);
-    expect(parseOrderIntentWithLlm).toHaveBeenCalledWith('schnitzel', { phone: '+43699000002' });
+    expect(parseOrderIntentWithLlm).toHaveBeenCalledWith('schnitzel', { phone: '+43699000002', menu: MENU });
     expect(sendButtonMessage).toHaveBeenCalled();
     const body = sendButtonMessage.mock.calls[0][1].body;
     expect(body).toMatch(/1x Döner/);
   });
 
   test('sends a photo for matched items that have one', async () => {
-    getMenu.mockResolvedValue([
-      { id: 'item_1', name: 'Döner', price: 8.50, photoUrl: 'https://cdn.example.com/doner.jpg' },
-      { id: 'item_2', name: 'Ayran', price: 2.00 },
-    ]);
+    getMenuContext.mockResolvedValue({
+      menu: [
+        { id: 'item_1', name: 'Döner', price: 8.50, photoUrl: 'https://cdn.example.com/doner.jpg' },
+        { id: 'item_2', name: 'Ayran', price: 2.00 },
+      ],
+      menuMatch: null,
+      menuTokenIndex: null,
+    });
 
     const handled = await tryTextIntentOrder({
       from: '+43699000001',

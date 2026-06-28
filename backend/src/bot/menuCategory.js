@@ -1,7 +1,9 @@
 // Match customer text to menu categories and return category item lists (submenus).
 
 const { extractDishNameForMatch } = require('./intentModifiers');
-const { scoreCategoryMatch, groupMenuByCategory } = require('./menuMapper');
+const {
+  scoreCategoryMatch, groupMenuByCategory, tokensOf, collapsedMenuLabel,
+} = require('./menuMapper');
 
 const MIN_CATEGORY_SCORE = 70;
 const MAX_SUBMENU_ITEMS = 8;
@@ -50,6 +52,20 @@ function findCategorySubmenuItems(query, menuItems, menuMatch = null) {
   return items;
 }
 
+/**
+ * True when the customer typed the category label itself (e.g. "Kebap", "Familienpizza"),
+ * not a dish synonym that merely overlaps the category (e.g. "Döner", "Döner Kebab").
+ */
+function isBareCategoryLabel(query, categoryName, menuMatch = null) {
+  const dishName = extractDishNameForMatch(query) || (query ?? '').trim();
+  if (!dishName || !categoryName) return false;
+  if (scoreCategoryMatch(dishName, categoryName, menuMatch) >= 100) return true;
+  const qTokens = tokensOf(dishName);
+  const cTokens = tokensOf(categoryName);
+  if (qTokens.length && qTokens.join(' ') === cTokens.join(' ')) return true;
+  return collapsedMenuLabel(dishName) === collapsedMenuLabel(categoryName);
+}
+
 /** True when query names a category, not a specific item SKU. */
 function isCategorySubmenuQuery(query, candidates, menuMatch = null) {
   const dishName = extractDishNameForMatch(query) || (query ?? '').trim();
@@ -60,6 +76,7 @@ function isCategorySubmenuQuery(query, candidates, menuMatch = null) {
   if (cats.length !== 1) return false;
 
   if (scoreCategoryMatch(dishName, cats[0], menuMatch) < MIN_CATEGORY_SCORE) return false;
+  if (!isBareCategoryLabel(dishName, cats[0], menuMatch)) return false;
   return !list.some(i => norm(i.name) === norm(dishName));
 }
 
@@ -79,6 +96,7 @@ module.exports = {
   scoreCategoryQuery,
   findCategorySubmenuItems,
   isCategorySubmenuQuery,
+  isBareCategoryLabel,
   tryCategorySubmenu,
   groupMenuByCategory,
 };

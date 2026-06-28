@@ -32,6 +32,7 @@ Options:
 Interactive commands:
   :q / :quit            Exit
   :menu                 List loaded menu items
+  :llm on|off           Toggle LLM retry (or start with --llm)
   :help                 Show this help
 `.trim();
 
@@ -156,6 +157,12 @@ async function runInteractive(ctx) {
         prompt();
         return;
       }
+      if (trimmed === ':llm on' || trimmed === ':llm off') {
+        ctx.opts.llm = trimmed.endsWith('on');
+        console.log(llmStatus(ctx.opts));
+        prompt();
+        return;
+      }
 
       try {
         await runPhrase(trimmed, ctx);
@@ -175,8 +182,8 @@ async function runInteractive(ctx) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
-  const { menu, source } = await resolveMenu(opts);
-  const ctx = { menu, source, opts };
+  const { menu, menuMatch, source } = await resolveMenu(opts);
+  const ctx = { menu, menuMatch, source, opts };
 
   if (opts.llm) {
     const status = llmStatus(opts);

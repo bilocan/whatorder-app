@@ -5,7 +5,8 @@ const {
   stripIntentModifiers, wantsAllIncluded, parseExclusions, isModifierOnlyToken,
 } = require('./intentModifiers');
 
-const MIT_ALLEM_RE = 'mit\\s+(?:allem|allen)';
+const MIT_ALLEM_RE = 'mit\\s+(?:allem|allen|alles)';
+const GERMAN_QTY_WORD_BY_NUM = { 2: 'zwei', 3: 'drei', 4: 'vier', 5: 'funf', 6: 'sechs' };
 
 const GREETINGS = new Set([
   'hi', 'hello', 'hey', 'hallo', 'merhaba', 'selam', 'guten tag', 'guten morgen',
@@ -36,11 +37,12 @@ function stripOrderTypePrefix(text) {
     .trim();
 }
 
-/** "ich hätte gerne zwei döner" → "zwei döner" */
+/** "ich hätte gerne zwei döner" / "hallo wir hatten gerne zwei doner" → order core */
 function stripPolitePrefix(text) {
   return (text ?? '')
+    .replace(/^\s*hallo\s+/i, '')
     .replace(
-      /^\s*ich\s+(?:hätte|hatte|möchte|moechte|will|würde|wuerde)\s+(?:gerne\s+)?/i,
+      /^\s*(?:ich|wir)\s+(?:hätte|hatte|hätten|hatten|möchte|moechte|möchten|moechten|will|wollen|würde|wuerde|würden|wuerden)\s+(?:gerne\s+)?/i,
       '',
     )
     .replace(/^\s*hätte\s+gerne\s+/i, '')
@@ -144,8 +146,19 @@ function splitEmbeddedDrinkInChunk(chunk) {
   return [...foodItems, { qty: 1, rawName: stripPoliteSuffix(drinkName) }];
 }
 
+/** Sandbox copy-paste / logging artifacts: leading >, wrapping or trailing quotes. */
+function sanitizeIntentText(text) {
+  let s = (text ?? '').trim();
+  s = s.replace(/^\s*>\s*/, '');
+  s = s.replace(/^["'„«»`]+/, '').replace(/["'«»„`]+$/g, '').trim();
+  return s;
+}
+
 function stripPoliteSuffix(name) {
-  return (name ?? '').replace(/\s+bitte\s*$/i, '').trim();
+  return (name ?? '')
+    .replace(/\s+bitte\b[\s"'«»„!.?]*$/i, '')
+    .replace(/[\s"'«»„!.?]+$/g, '')
+    .trim();
 }
 
 /** Keep "pide mit Eier und gouda" on one line; still split "Pizza und eine Cola". */
@@ -223,6 +236,69 @@ function parseGermanQtyItems(text) {
     if (part.length >= 2) items.push({ qty: 1, rawName: stripPoliteSuffix(part) });
   }
   return items.length >= 2 ? items.map(i => ({ ...i, rawName: stripPoliteSuffix(i.rawName) })) : null;
+}
+
+function extractBeideMitAllemSpicyDish(text) {
+  let stripped = stripPolitePrefix(stripOrderTypePrefix(stripPoliteSuffix((text ?? '').trim())));
+  const withoutQty = stripped.replace(
+    /^(?:ein|eine|eins|einen|einer|zwei|drei|vier|funf|fünf|sechs|\d+)\s+/i,
+    '',
+  );
+  return parseBeideMitAllemSpicyCore(withoutQty) ?? parseBeideMitAllemSpicyCore(stripped);
+}
+
+function textLooksLikeBeideMitAllemOneSpicy(text) {
+  return !!extractBeideMitAllemSpicyDish(text);
+}
+
+function beideMitAllemSpicyLines(dishBase, totalQty) {
+  return [
+    { qty: totalQty - 1, rawName: `${dishBase} mit allen ohne scharf` },
+    { qty: 1, rawName: `${dishBase} mit allen und scharf` },
+  ];
+}
+
+/** "doner beide mit allen eine extra scharf" → dish base or null. */
+function parseBeideMitAllemSpicyCore(text) {
+  const trimmed = stripPoliteSuffix((text ?? '').trim());
+  const m = trimmed.match(
+    /^(.+?)\s+beide\s+mit\s+(?:allem|allen|alles)\s+(?:(?:eine|einer|eins|ein)\s+)?(?:extra\s+)?(?:und\s+)?scharf(?:e)?\s*$/i,
+  );
+  if (!m) return null;
+  const dishBase = m[1].trim();
+  if (/\b(einer|eine|eins|ein|beide)\b/i.test(dishBase)) return null;
+  return dishBase;
+}
+
+/**
+ * "zwei döner beide mit allen eine extra scharf" → one mit allen + one mit allen und scharf.
+ */
+function splitBeideMitAllemOneSpicy(text) {
+  const trimmed = stripPoliteSuffix((text ?? '').trim());
+  const qty = '(zwei|drei|vier|funf|fünf|sechs|\\d+)';
+  const m = trimmed.match(new RegExp(`^${qty}\\s+(.+)$`, 'i'));
+  if (!m) return null;
+
+  const totalQty = GERMAN_NUMBERS[m[1].toLowerCase()] ?? parseInt(m[1], 10);
+  if (!totalQty || totalQty < 2) return null;
+
+  const dishBase = parseBeideMitAllemSpicyCore(m[2]);
+  if (!dishBase) return null;
+  return beideMitAllemSpicyLines(dishBase, totalQty);
+}
+
+/** Recover split when leading-qty parse collapsed "2x doner beide mit … eine scharf". */
+function normalizeBeideMitAllemSpicyItems(items) {
+  if (items?.length !== 1 || (items[0].qty ?? 1) < 2) return items;
+
+  const item = items[0];
+  const qty = item.qty ?? 1;
+  const raw = stripPoliteSuffix(item.rawName ?? item.name ?? '');
+  const dishBase = parseBeideMitAllemSpicyCore(raw);
+  if (dishBase) return beideMitAllemSpicyLines(dishBase, qty);
+
+  const qtyWord = GERMAN_QTY_WORD_BY_NUM[qty] ?? String(qty);
+  return splitBeideMitAllemOneSpicy(`${qtyWord} ${raw}`) ?? items;
 }
 
 /**
@@ -416,7 +492,11 @@ function looksLikeOrderText(text, norm) {
 
 function toIntentResult(items, partySize, rawText, parsedBy, confidence) {
   const result = {
-    items: items.map(i => ({ name: i.rawName ?? i.name, qty: i.qty ?? 1 })),
+    items: items.map(i => ({
+      name: i.rawName ?? i.name,
+      qty: i.qty ?? 1,
+      ...(i.menuItemId ? { menuItemId: i.menuItemId } : {}),
+    })),
     partySize,
     rawText,
     parsedBy,
@@ -426,7 +506,7 @@ function toIntentResult(items, partySize, rawText, parsedBy, confidence) {
 }
 
 function parseIntent(text) {
-  const rawText = (text ?? '').trim();
+  const rawText = sanitizeIntentText(text);
   const partySize = extractPartySize(rawText);
   let stripped = stripPartySizePhrases(rawText);
   stripped = stripOrderTypePrefix(stripped);
@@ -437,6 +517,7 @@ function parseIntent(text) {
   if (jeweils) stripped = jeweils.main;
 
   let items = splitOneWithoutModifier(stripped);
+  if (!items?.length) items = splitBeideMitAllemOneSpicy(stripped);
   if (!items?.length && jeweils?.drink && !jeweils.main) {
     items = [{ qty: 1, rawName: jeweils.drink }];
   }
@@ -468,6 +549,7 @@ function parseIntent(text) {
   }
 
   items = mergeOrphanModifierFragments(items);
+  items = normalizeBeideMitAllemSpicyItems(items);
 
   return toIntentResult(items, partySize, rawText, 'rules');
 }
@@ -509,6 +591,7 @@ function rulesParseQuality(text) {
   if (jeweils) stripped = jeweils.main;
 
   let items = splitOneWithoutModifier(stripped);
+  if (!items?.length) items = splitBeideMitAllemOneSpicy(stripped);
   if (!items?.length) items = parseGermanQtyItems(stripped);
   if (!items?.length) items = parseFoodDrinkPair(stripped);
   if (jeweils?.drink && items?.length && jeweils.main) {
@@ -517,6 +600,7 @@ function rulesParseQuality(text) {
   }
 
   if (splitOneWithoutModifier(stripped)?.length >= 2) return 'high';
+  if (splitBeideMitAllemOneSpicy(stripped)?.length >= 2) return 'high';
   const germanQtyItems = parseGermanQtyItems(stripped);
   if (germanQtyItems?.length >= 2) {
     return rulesItemsLookSuspicious(germanQtyItems) ? 'low' : 'high';
@@ -563,6 +647,7 @@ function mergeLlmIntent(llm, rawText, rulesIntent) {
   let items = llm.items.map(i => ({
     rawName: i.name,
     qty: i.qty ?? (partySize ? 1 : 1),
+    ...(i.menuItemId ? { menuItemId: i.menuItemId } : {}),
   }));
 
   if (partySize && items.length && items.every(i => i.qty === 1)) {
@@ -572,14 +657,14 @@ function mergeLlmIntent(llm, rawText, rulesIntent) {
   return toIntentResult(items, partySize, rawText, 'llm', llm.confidence);
 }
 
-async function parseIntentAsync(text, { phone, businessId, rulesOnly = false } = {}) {
+async function parseIntentAsync(text, { phone, businessId, menu, rulesOnly = false } = {}) {
   const rawText = (text ?? '').trim();
 
   if (businessId) {
     const learned = await lookupLearnedIntent(businessId, rawText);
     if (learned?.items?.length) {
       return toIntentResult(
-        learned.items.map(i => ({ rawName: i.name, qty: i.qty })),
+        learned.items.map(i => ({ rawName: i.rawName ?? i.name, qty: i.qty })),
         learned.partySize,
         rawText,
         'learned',
@@ -592,7 +677,7 @@ async function parseIntentAsync(text, { phone, businessId, rulesOnly = false } =
 
   if (rulesOnly || !shouldTryLlm(text, rulesIntent, phone)) return rulesIntent;
 
-  const llm = await parseOrderIntentWithLlm(text, { phone });
+  const llm = await parseOrderIntentWithLlm(text, { phone, menu });
   if (!llm || llm.confidence < 0.6 || !llm.items.length) {
     return { ...rulesIntent, llmAttempted: true, llmFailed: true };
   }
@@ -615,4 +700,7 @@ module.exports = {
   shouldTryLlm,
   applyJeweilsBasketContext,
   basketMealQty,
+  extractBeideMitAllemSpicyDish,
+  textLooksLikeBeideMitAllemOneSpicy,
+  sanitizeIntentText,
 };
