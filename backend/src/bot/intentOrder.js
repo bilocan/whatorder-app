@@ -113,19 +113,19 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   if (!looksLikeOrderText(text, norm)) return false;
   if (isFreshStartCommand(norm)) return false;
 
-  let intent = await parseIntentAsync(text, { phone: from, businessId });
+  let { menu, menuMatch, menuTokenIndex } = await getMenuContext(businessId);
+  let intent = await parseIntentAsync(text, { phone: from, businessId, menu });
   intent = applyJeweilsBasketContext(intent, basket);
   if (!intent.items.length) return false;
   if (intent.confidence != null && intent.confidence < 0.6) return false;
 
-  let { menu, menuMatch, menuTokenIndex } = await getMenuContext(businessId);
   let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch, menuTokenIndex);
 
-  // Zero menu hits — retry with LLM only when rules likely missed structure (not high-quality parse)
+  // Zero menu hits — retry with menu-constrained LLM when rules likely missed structure
   if (!matched.length && intent.parsedBy !== 'llm' && intent.parsedBy !== 'learned'
     && !intent.llmFailed && canCallLlm(from)
     && rulesParseQuality(text) !== 'high') {
-    const llm = await parseOrderIntentWithLlm(text, { phone: from });
+    const llm = await parseOrderIntentWithLlm(text, { phone: from, menu });
     if (llm && llm.confidence >= 0.6 && llm.items.length) {
       intent = {
         items: llm.items.map(i => ({ name: i.name, qty: i.qty ?? 1 })),

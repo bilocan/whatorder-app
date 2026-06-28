@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { buildMenuLlmIndex, resolveMenuLlmItems } = require('../bot/menuLlmIndex');
 
 const OPENAI_INTENT_SCHEMA = {
   type: 'object',
@@ -51,6 +52,61 @@ Return JSON only. Rules:
 - Split combined orders: "chicken döner with extra sauce and a cola" → separate items.
 - Austria pizza: standard size is ~33 cm but customers never say that; large = Familienpizza. Map typos (Margarita→Margherita, spinati→Spinaci).
 - German "Eine Pizza X und eine Y" → two separate items with qty 1 each.`;
+
+const MENU_CONSTRAINED_SYSTEM_PROMPT = `You extract food/drink order intent from WhatsApp messages (English, German, Turkish).
+The customer orders ONLY from the restaurant menu provided. Return JSON only.
+
+Rules:
+- items[].menuItemId: MUST be an id from the menu list — never invent ids or items.
+- items[].lineText: optional customer phrasing for that line (modifiers: mit allem, ohne zwiebel, scharf). Use when spoken text differs from the menu name.
+- items[].qty: per-line quantity when explicit; null if not stated for that line.
+- partySize: from "for 2", "2 personen", "iki kişi", etc.; null if absent.
+- confidence: 0.0–1.0. Use <0.6 for greetings, recommendations, or unclear requests.
+- Split combined orders into separate items.
+- Map voice typos to the closest menu item (Eiern→Ayran if on menu, Margarita→Margherita).
+- Austria pizza: large size is Familienpizza when on menu.`;
+
+const OPENAI_MENU_INTENT_SCHEMA = {
+  type: 'object',
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          menuItemId: { type: 'string' },
+          qty: { type: ['number', 'null'] },
+          lineText: { type: ['string', 'null'] },
+        },
+        required: ['menuItemId'],
+      },
+    },
+    partySize: { type: ['number', 'null'] },
+    confidence: { type: 'number' },
+  },
+  required: ['items', 'confidence'],
+};
+
+const GEMINI_MENU_INTENT_SCHEMA = {
+  type: 'object',
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          menuItemId: { type: 'string' },
+          qty: { type: 'integer', nullable: true },
+          lineText: { type: 'string', nullable: true },
+        },
+        required: ['menuItemId'],
+      },
+    },
+    partySize: { type: 'integer', nullable: true },
+    confidence: { type: 'number' },
+  },
+  required: ['items', 'confidence'],
+};
 
 const EDIT_SYSTEM_PROMPT = `You interpret WhatsApp messages that EDIT an existing food order proposal (not a new order).
 Return JSON only. The user message includes the current proposed order lines and the customer's edit text.
@@ -206,6 +262,39 @@ function validateIntentPayload(data) {
   }
 
   return { items, partySize, confidence: Math.max(0, Math.min(1, confidence)) };
+}
+
+function validateMenuIntentPayload(data, menuIndex) {
+  if (!data || typeof data !== 'object' || !menuIndex?.byId) return null;
+  const confidence = Number(data.confidence);
+  if (!Number.isFinite(confidence)) return null;
+
+  const rawItems = (data.items ?? [])
+    .filter(i => i && typeof i.menuItemId === 'string' && i.menuItemId.trim());
+
+  const items = resolveMenuLlmItems(rawItems, menuIndex);
+  if (!items.length) return null;
+
+  let partySize = null;
+  if (data.partySize != null) {
+    const n = parseInt(data.partySize, 10);
+    if (n > 0 && n <= 99) partySize = n;
+  }
+
+  return {
+    items,
+    partySize,
+    confidence: Math.max(0, Math.min(1, confidence)),
+    menuConstrained: true,
+  };
+}
+
+function buildMenuConstrainedUserText(userText, menuIndex) {
+  let block = `Restaurant menu (${menuIndex.count} items):\n${menuIndex.promptBlock}`;
+  if (menuIndex.truncated) {
+    block += '\n(note: menu truncated for length)';
+  }
+  return `${block}\n\nCustomer message:\n${userText}`;
 }
 
 function validateEditPayload(data) {
@@ -364,9 +453,13 @@ async function parseProposalEditWithLlm(text, pendingItems, { phone } = {}) {
   }
 }
 
-async function callOpenAi(userText) {
+async function callOpenAi(userText, { menuIndex = null } = {}) {
   const model = process.env.LLM_MODEL || 'gpt-4o-mini';
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
+  const constrained = !!menuIndex?.byId?.size;
+  const systemPrompt = constrained ? MENU_CONSTRAINED_SYSTEM_PROMPT : SYSTEM_PROMPT;
+  const schema = constrained ? OPENAI_MENU_INTENT_SCHEMA : OPENAI_INTENT_SCHEMA;
+  const promptText = constrained ? buildMenuConstrainedUserText(userText, menuIndex) : userText;
 
   const res = await axios.post(
     'https://api.openai.com/v1/chat/completions',
@@ -376,14 +469,14 @@ async function callOpenAi(userText) {
       response_format: {
         type: 'json_schema',
         json_schema: {
-          name: 'order_intent',
+          name: constrained ? 'menu_order_intent' : 'order_intent',
           strict: true,
-          schema: OPENAI_INTENT_SCHEMA,
+          schema,
         },
       },
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userText },
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: promptText },
       ],
     },
     {
@@ -396,18 +489,25 @@ async function callOpenAi(userText) {
   );
 
   const content = res.data?.choices?.[0]?.message?.content;
-  return validateIntentPayload(parseJsonContent(content));
+  const parsed = parseJsonContent(content);
+  return constrained
+    ? validateMenuIntentPayload(parsed, menuIndex)
+    : validateIntentPayload(parsed);
 }
 
-async function callGemini(userText) {
+async function callGemini(userText, { menuIndex = null } = {}) {
   const model = process.env.LLM_MODEL || 'gemini-2.5-flash-lite';
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const key = process.env.GEMINI_API_KEY;
+  const constrained = !!menuIndex?.byId?.size;
+  const systemPrompt = constrained ? MENU_CONSTRAINED_SYSTEM_PROMPT : SYSTEM_PROMPT;
+  const responseSchema = constrained ? GEMINI_MENU_INTENT_SCHEMA : GEMINI_INTENT_SCHEMA;
+  const promptText = constrained ? buildMenuConstrainedUserText(userText, menuIndex) : userText;
 
   const baseBody = {
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-    contents: [{ role: 'user', parts: [{ text: userText }] }],
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    contents: [{ role: 'user', parts: [{ text: promptText }] }],
     generationConfig: { temperature: 0 },
   };
 
@@ -416,7 +516,7 @@ async function callGemini(userText) {
     generationConfig: {
       ...baseBody.generationConfig,
       responseMimeType: 'application/json',
-      responseSchema: GEMINI_INTENT_SCHEMA,
+      responseSchema,
     },
   };
 
@@ -427,8 +527,10 @@ async function callGemini(userText) {
       timeout,
     }));
     const content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    const parsed = validateIntentPayload(parseJsonContent(content));
-    if (parsed) return parsed;
+    const parsed = parseJsonContent(content);
+    return constrained
+      ? validateMenuIntentPayload(parsed, menuIndex)
+      : validateIntentPayload(parsed);
   } catch (err) {
     const status = err.response?.status;
     if (status === 400) {
@@ -446,16 +548,16 @@ async function callGemini(userText) {
           timeout,
         }));
         const content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        const parsed = validateIntentPayload(parseJsonContent(content));
-        if (parsed) return parsed;
+        const parsed = parseJsonContent(content);
+        return constrained
+          ? validateMenuIntentPayload(parsed, menuIndex)
+          : validateIntentPayload(parsed);
       } catch (retryErr) {
         throw retryErr;
       }
     }
     throw err;
   }
-
-  return null;
 }
 
 function logLlmFailure(err, apiMsg) {
@@ -471,21 +573,23 @@ function logLlmFailure(err, apiMsg) {
   }
 }
 
-async function parseOrderIntentWithLlm(userText, { phone } = {}) {
+async function parseOrderIntentWithLlm(userText, { phone, menu } = {}) {
   if (!canCallLlm(phone)) return null;
 
+  const menuIndex = (menu?.length) ? buildMenuLlmIndex(menu) : null;
   const provider = (process.env.LLM_PROVIDER || 'google').toLowerCase();
   const started = Date.now();
 
   try {
     const result = provider === 'openai'
-      ? await callOpenAi(userText)
-      : await callGemini(userText);
+      ? await callOpenAi(userText, { menuIndex })
+      : await callGemini(userText, { menuIndex });
 
     if (result) {
       recordCall(phone);
       if (process.env.LOG_LEVEL === 'debug') {
-        console.log(`[llm] intent parsed in ${Date.now() - started}ms confidence=${result.confidence}`);
+        const mode = result.menuConstrained ? 'menu' : 'free';
+        console.log(`[llm] intent parsed (${mode}) in ${Date.now() - started}ms confidence=${result.confidence}`);
       }
     }
     return result;
@@ -508,6 +612,7 @@ module.exports = {
   parseOrderIntentWithLlm,
   parseProposalEditWithLlm,
   validateIntentPayload,
+  validateMenuIntentPayload,
   validateEditPayload,
   _resetLlmState,
 };
