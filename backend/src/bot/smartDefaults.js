@@ -37,7 +37,7 @@ function isKebabQuery(rawName) {
 
 const EXPLICIT_SIZE_RE = /\b(0[,.]33\s*l?|0[,.]5\s*l?|1[,.]?0?\s*l|33\s*cl|50\s*cl|330\s*ml|500\s*ml|0[,.]25\s*l?|liter|litre|gross|groß|large|xl|pint)\b/i;
 
-const STANDARD_DRINK_SIZE_RE = /\b(0[,.]33|33\s*cl|330\s*ml)\b/i;
+const STANDARD_DRINK_SIZE_RE = /\b(0[,.]33\s*l?|0[,.]5\s*l?|33\s*cl|330\s*ml)/i;
 
 function hasExplicitDrinkSize(text) {
   return EXPLICIT_SIZE_RE.test(norm(text ?? ''));

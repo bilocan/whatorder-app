@@ -20,6 +20,24 @@ describe('matchIntentToMenu', () => {
     { id: 'a1', name: 'Ayran', price: 2 },
   ];
 
+  test('menuItemId on intent line resolves directly', () => {
+    const colaMenu = [
+      { id: 'c1', name: 'Coca Cola 0.33L', price: 2.9, available: true },
+      { id: 'c2', name: 'Coca Cola 0.5L', price: 3.5, available: true },
+      { id: 'd1', name: 'Döner', price: 8.5, available: true },
+    ];
+    const intent = {
+      items: [
+        { name: 'a kola', qty: 1, menuItemId: 'c1' },
+        { name: 'döner', qty: 1, menuItemId: 'd1' },
+      ],
+    };
+    const { matched, disambiguation } = matchIntentToMenu(intent, colaMenu);
+    expect(disambiguation).toBeNull();
+    expect(matched).toHaveLength(2);
+    expect(matched.map(m => m.menuItemId)).toEqual(['c1', 'd1']);
+  });
+
   test('merges duplicate unique matches across intent lines', () => {
     const intent = {
       items: [

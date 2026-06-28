@@ -170,7 +170,16 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex =
   let disambiguation = null;
 
   for (let i = 0; i < intent.items.length; i++) {
-    const { name, qty } = intent.items[i];
+    const { name, qty, menuItemId } = intent.items[i];
+
+    if (menuItemId) {
+      const byId = menuItems.find(m => m.id === menuItemId && m.available !== false);
+      if (byId) {
+        matched = mergePendingLine(matched, toPendingItem(byId, qty, { rawIntentName: name }));
+        continue;
+      }
+    }
+
     const matchName = normalizeIntentItemName(name);
     const result = classifyMenuMatch(matchName, menuItems, menuMatch, tokenIndex);
 
