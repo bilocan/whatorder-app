@@ -1,7 +1,42 @@
 const { matchMenuItem, classifyMenuMatch } = require('./menuMatch');
 const {
-  extractModifierKey, normalizeIntentItemName, isModifierOnlyToken, extractDishNameForMatch,
+  extractModifierKey, normalizeIntentItemName, isModifierOnlyToken,
 } = require('./intentModifiers');
+const { extractBeideMitAllemSpicyDish, textLooksLikeBeideMitAllemOneSpicy } = require('./intentParser');
+
+/** Un-collapse 2x same dish when customer said beide mit allem, eine extra scharf. */
+function expandPerUnitSpicyMatched(matched, rawText) {
+  if (matched.length !== 1) return matched;
+
+  const line = matched[0];
+  const qty = line.qty ?? 1;
+  if (qty < 2) return matched;
+
+  const source = rawText ?? line.rawIntentName ?? '';
+  if (!textLooksLikeBeideMitAllemOneSpicy(source)) return matched;
+
+  const dish = extractBeideMitAllemSpicyDish(source);
+  if (!dish) return matched;
+
+  const plainName = `${dish} mit allen ohne scharf`;
+  const spicyName = `${dish} mit allen und scharf`;
+  const { prefilledSelections, ...base } = line;
+
+  return [
+    {
+      ...base,
+      qty: qty - 1,
+      rawIntentName: plainName,
+      modifierKey: extractModifierKey(plainName),
+    },
+    {
+      ...base,
+      qty: 1,
+      rawIntentName: spicyName,
+      modifierKey: extractModifierKey(spicyName),
+    },
+  ];
+}
 
 function normIng(str) {
   return String(str ?? '')
@@ -202,4 +237,5 @@ module.exports = {
   toPendingItem,
   basketMergeKey,
   hydratePendingItems,
+  expandPerUnitSpicyMatched,
 };

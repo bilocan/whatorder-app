@@ -94,7 +94,9 @@ function extractModifierKey(rawIntentName) {
   const exclusions = parseExclusions(rawIntentName);
   if (exclusions.length) return `ohne:${[...exclusions].sort().join(',')}`;
 
-  if (ALL_PHRASES.test(rawIntentName)) return 'mit:allem';
+  if (ALL_PHRASES.test(rawIntentName)) {
+    return wantsSpicyIncluded(rawIntentName) ? 'mit:allem+scharf' : 'mit:allem';
+  }
   if (wantsSpicyIncluded(rawIntentName)) return 'mit:scharf';
 
   const mit = n.match(/\bmit\s+([\wäöüß-]+(?:\s+[\wäöüß-]+)?)/);
@@ -202,13 +204,15 @@ function isModifierOnlyToken(token) {
 }
 
 function stripPoliteSuffix(name) {
-  return (name ?? '').replace(/\s+bitte\s*$/i, '').trim();
+  return (name ?? '')
+    .replace(/\s+bitte\b[\s"'«»„!.?]*$/i, '')
+    .replace(/[\s"'«»„!.?]+$/g, '')
+    .trim();
 }
 
-/** Explicit spicy inclusion: "mit scharf", "und scharf", TTS "und schaf", typo "sharf". */
+/** Explicit spicy inclusion: "mit scharf", "und scharf", "mit allem und scharf", TTS "und schaf". */
 function wantsSpicyIncluded(rawIntentName) {
   const raw = rawIntentName ?? '';
-  if (wantsAllIncluded(raw)) return false;
   if (textHasSpicyExclusion(raw)) return false;
   return /\b(?:und\s+|mit\s+|extra\s+)?(scharf|scharfe|scharfer|spicy|hot|chili|chilli|acili|aci|sharf)\b/i.test(raw)
     || /\bund\s+schaf\b/i.test(raw);

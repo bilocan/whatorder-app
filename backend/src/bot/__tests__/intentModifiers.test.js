@@ -32,6 +32,12 @@ describe('extractModifierKey', () => {
   test('distinguishes mit allem vs ohne zwiebel', () => {
     expect(extractModifierKey('Döner mit allem')).not.toBe(extractModifierKey('Döner ohne zwiebel'));
   });
+
+  test('distinguishes mit allen vs mit allen und scharf', () => {
+    expect(extractModifierKey('doner mit allen')).toBe('mit:allem');
+    expect(extractModifierKey('doner mit allen und scharf')).toBe('mit:allem+scharf');
+    expect(extractModifierKey('doner mit allen')).not.toBe(extractModifierKey('doner mit allen und scharf'));
+  });
 });
 
 describe('resolveModifierSelections', () => {

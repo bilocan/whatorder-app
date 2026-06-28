@@ -1,4 +1,6 @@
-const { mergePendingItems, matchIntentToMenu, mergeIntoBasket, hydratePendingItems } = require('../intentMatcher');
+const {
+  mergePendingItems, matchIntentToMenu, mergeIntoBasket, hydratePendingItems, expandPerUnitSpicyMatched,
+} = require('../intentMatcher');
 
 describe('mergePendingItems', () => {
   test('combines duplicate menuItemId with same modifier', () => {
@@ -105,5 +107,25 @@ describe('mergeIntoBasket', () => {
       { name: 'Kebap — Sauce', qty: 5, price: 7.5 },
       { name: 'Kebap — Sauce', qty: 1, price: 7.5, note: 'extra scharf' },
     ]);
+  });
+});
+
+describe('expandPerUnitSpicyMatched', () => {
+  const line = {
+    menuItemId: 'k1',
+    name: 'Kebap Sandwich Huhn',
+    qty: 2,
+    price: 7.5,
+    optionGroups: [],
+    rawIntentName: 'doner beide mit alles eine extra scharf bitte',
+    modifierKey: 'doner beide mit alles eine extra scharf bitte',
+  };
+
+  test('splits collapsed 2x line when text says beide mit allem, eine scharf', () => {
+    const raw = 'hallo wir hatten gerne zwei doner beide mit allen eine extra scharf bitte';
+    const expanded = expandPerUnitSpicyMatched([line], raw);
+    expect(expanded).toHaveLength(2);
+    expect(expanded[0]).toMatchObject({ qty: 1, rawIntentName: 'doner mit allen ohne scharf', modifierKey: 'ohne:scharf' });
+    expect(expanded[1]).toMatchObject({ qty: 1, rawIntentName: 'doner mit allen und scharf', modifierKey: 'mit:allem+scharf' });
   });
 });
