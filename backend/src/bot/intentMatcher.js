@@ -1,4 +1,5 @@
 const { matchMenuItem, classifyMenuMatch } = require('./menuMatch');
+const { buildMenuTokenIndex } = require('./menuTokenIndex');
 const {
   extractModifierKey, normalizeIntentItemName, isModifierOnlyToken,
 } = require('./intentModifiers');
@@ -162,7 +163,8 @@ function toPendingItem(item, qty, { rawIntentName } = {}) {
   };
 }
 
-function matchIntentToMenu(intent, menuItems, menuMatch = null) {
+function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex = null) {
+  const tokenIndex = menuTokenIndex ?? buildMenuTokenIndex(menuItems);
   let matched = [];
   const unmatched = [];
   let disambiguation = null;
@@ -170,7 +172,7 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null) {
   for (let i = 0; i < intent.items.length; i++) {
     const { name, qty } = intent.items[i];
     const matchName = normalizeIntentItemName(name);
-    const result = classifyMenuMatch(matchName, menuItems, menuMatch);
+    const result = classifyMenuMatch(matchName, menuItems, menuMatch, tokenIndex);
 
     if (result.type === 'none') {
       if (!isModifierOnlyToken(name)) unmatched.push(name);

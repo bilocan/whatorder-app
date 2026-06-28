@@ -2,6 +2,7 @@ const { menuRef, businessRef } = require('../lib/collections');
 const { t } = require('./templates');
 const { matchMenuItem } = require('./menuMatch');
 const { buildMenuMatchIndex } = require('./menuMapper');
+const { buildMenuTokenIndex } = require('./menuTokenIndex');
 
 async function getMenu(businessId) {
   const snap = await menuRef(businessId).where('available', '==', true).get();
@@ -19,7 +20,8 @@ async function getMenuMatch(businessId, menuItems = null) {
 async function getMenuContext(businessId) {
   const menu = await getMenu(businessId);
   const menuMatch = await getMenuMatch(businessId, menu);
-  return { menu, menuMatch };
+  const menuTokenIndex = buildMenuTokenIndex(menu);
+  return { menu, menuMatch, menuTokenIndex };
 }
 
 async function getBusinessInfo(businessId) {
