@@ -504,8 +504,20 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
 
   // Text: fresh start or greeting with empty basket — offer reorder before order entry
   if (type === 'text' && text?.trim() && (isGreetingOnly(norm) || isFreshStartCommand(norm)) && !basket.length) {
-    if (await tryOfferReorder({ from, session, lang, businessId, basket })) return;
+    const { name: businessName } = await getBusinessInfo(businessId);
+    if (await tryOfferReorder({ from, session, lang, businessId, basket, businessName })) return;
     await sendOrderEntryPrompt({ from, session, lang, businessId, basket });
+    return;
+  }
+
+  // Text: explicit fresh-start command ("start"/"starten") always resets, even with items
+  // already in the basket — a plain greeting mid-order is handled below (basket preserved).
+  if (type === 'text' && text?.trim() && isFreshStartCommand(norm) && basket.length) {
+    await patchSession(from, BASKET_CLEAR_PATCH, session);
+    const freshSession = { ...session, ...BASKET_CLEAR_PATCH };
+    const { name: businessName } = await getBusinessInfo(businessId);
+    if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName })) return;
+    await sendOrderEntryPrompt({ from, session: freshSession, lang, businessId, basket: [] });
     return;
   }
 
