@@ -133,6 +133,7 @@ module.exports = {
   deliveryNewAddr:          () => '✏️ Enter new address',
   deliveryShareLoc:         () => '📡 Share location',
 
+  multiWelcomeBody: () => '👋 Welcome to WhatOrder!',
   locationRequestBody: () => '📍 Share your location and we\'ll show the nearest restaurants first.\n\nOr just reply with anything to see all restaurants.',
   restaurantPickerBody: () => 'Which restaurant would you like to order from?',
   restaurantPickerButton: () => 'See restaurants',

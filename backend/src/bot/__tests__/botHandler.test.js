@@ -2832,6 +2832,25 @@ describe('Layer 0: reorder-first for returning customers', () => {
     }));
   });
 
+  test('greeting mid-conversation (already browsing, empty basket) shows reorder prompt with restaurant name, not "undefined"', async () => {
+    getLastOrderForCustomer.mockResolvedValue(LAST_ORDER);
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'browsing',
+      businessId: BIZ,
+      basket: [],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Hallo' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining(BIZ_INFO.name),
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('undefined'),
+    }));
+  });
+
   test('btn_reorder_confirm loads last order into basket', async () => {
     getSession.mockResolvedValue({
       language: 'de',
@@ -3113,5 +3132,53 @@ describe('Known-name skip: awaiting_name bypassed for returning customers', () =
       customerName: 'Bilal',
       deliveryAddress: 'Naschmarkt 5, 1040 Wien',
     }));
+  });
+});
+
+// ─── Fresh start clears stale basket (P1-W4 regression) ──────────────────────
+
+describe('"start" fully clears the basket instead of letting stale items survive', () => {
+  test('browsing state: basket added before "start" must not merge with basket added after', async () => {
+    let liveSession = {
+      language: 'en', state: 'selecting', businessId: BIZ, basket: [],
+      pendingItem: { name: 'Ayran', price: 2.00 },
+    };
+    getSession.mockImplementation(() => Promise.resolve({ ...liveSession }));
+    setSession.mockImplementation(async (_phone, data) => { liveSession = { ...data }; });
+
+    // Add 2x Ayran — lands back in 'browsing' with the item in the basket.
+    await handleMessage(ROUTING, msg({ text: '2' }));
+    expect(liveSession.basket).toEqual([{ name: 'Ayran', qty: 2, price: 2.00 }]);
+    expect(liveSession.state).toBe('browsing');
+
+    // Customer abandons and sends "start" while the old item is still in the basket.
+    await handleMessage(ROUTING, msg({ text: 'start' }));
+    expect(liveSession.basket).toEqual([]);
+
+    // Re-enter selecting (as if picking Ayran again from the menu) and add 1 more.
+    liveSession = { ...liveSession, state: 'selecting', pendingItem: { name: 'Ayran', price: 2.00 } };
+    await handleMessage(ROUTING, msg({ text: '1' }));
+
+    // Without the fix, the stale qty:2 line survives "start" and the merge logic in
+    // handleSelecting adds the new qty onto it, producing qty:3 instead of qty:1.
+    expect(liveSession.basket).toEqual([{ name: 'Ayran', qty: 1, price: 2.00 }]);
+  });
+
+  test('checkout state (confirming): existing fresh-start reset path keeps clearing correctly', async () => {
+    let liveSession = {
+      language: 'en', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Ayran', qty: 2, price: 2.00 }],
+    };
+    getSession.mockImplementation(() => Promise.resolve({ ...liveSession }));
+    setSession.mockImplementation(async (_phone, data) => { liveSession = { ...data }; });
+
+    await handleMessage(ROUTING, msg({ text: 'start' }));
+    expect(liveSession.basket).toEqual([]);
+    expect(liveSession.state).toBe('browsing');
+
+    liveSession = { ...liveSession, state: 'selecting', pendingItem: { name: 'Ayran', price: 2.00 } };
+    await handleMessage(ROUTING, msg({ text: '1' }));
+
+    expect(liveSession.basket).toEqual([{ name: 'Ayran', qty: 1, price: 2.00 }]);
   });
 });
