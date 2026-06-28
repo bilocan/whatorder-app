@@ -81,6 +81,30 @@ describe('parseIntent', () => {
     ]);
   });
 
+  test('German hallo wir hatten gerne zwei doner beide mit allen eine extra scharf', () => {
+    const r = parseIntent('hallo wir hatten gerne zwei doner beide mit allen eine extra scharf bitte');
+    expect(r.items).toEqual([
+      { name: 'doner mit allen ohne scharf', qty: 1 },
+      { name: 'doner mit allen und scharf', qty: 1 },
+    ]);
+  });
+
+  test('German zwei doner beide mit alles eine extra scharf recovers from leading-qty collapse', () => {
+    const r = parseIntent('zwei doner beide mit alles eine extra scharf bitte');
+    expect(r.items).toEqual([
+      { name: 'doner mit allen ohne scharf', qty: 1 },
+      { name: 'doner mit allen und scharf', qty: 1 },
+    ]);
+  });
+
+  test('trailing quote after bitte does not collapse beide mit allen split', () => {
+    const r = parseIntent('hallo wir hatten gerne zwei doner beide mit allen eine extra scharf bitte"');
+    expect(r.items).toEqual([
+      { name: 'doner mit allen ohne scharf', qty: 1 },
+      { name: 'doner mit allen und scharf', qty: 1 },
+    ]);
+  });
+
   test('German eine X und eine Y splits into two pizzas', () => {
     const r = parseIntent('Eine Pizza Margarita und eine spinati');
     expect(r.items).toEqual([

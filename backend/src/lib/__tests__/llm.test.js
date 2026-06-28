@@ -1,10 +1,12 @@
 const axios = require('axios');
 const {
   validateIntentPayload,
+  validateMenuIntentPayload,
   parseOrderIntentWithLlm,
   isAiIntentEnabled,
   _resetLlmState,
 } = require('../llm');
+const { buildMenuLlmIndex } = require('../../bot/menuLlmIndex');
 
 jest.mock('axios');
 
@@ -123,6 +125,55 @@ describe('parseOrderIntentWithLlm', () => {
     const r = await parseOrderIntentWithLlm('pizza', { phone: '+435' });
     expect(r.confidence).toBe(0.9);
     expect(axios.post).toHaveBeenCalledTimes(2);
+  });
+
+  test('menu-constrained mode resolves menuItemId to intent items', async () => {
+    process.env.AI_INTENT_ENABLED = 'true';
+    process.env.LLM_PROVIDER = 'google';
+    process.env.GEMINI_API_KEY = 'test-key';
+
+    const menu = [
+      { id: 'a1', name: 'Ayran', price: 2, available: true },
+      { id: 'd1', name: 'Döner', price: 8, available: true },
+    ];
+
+    axios.post.mockResolvedValue({
+      data: {
+        candidates: [{
+          content: {
+            parts: [{
+              text: JSON.stringify({
+                items: [
+                  { menuItemId: 'a1', qty: 2, lineText: 'zwei eiern' },
+                  { menuItemId: 'd1', qty: 1, lineText: null },
+                ],
+                partySize: null,
+                confidence: 0.92,
+              }),
+            }],
+          },
+        }],
+      },
+    });
+
+    const r = await parseOrderIntentWithLlm('Zwei Eiern und ein Döner', { phone: '+439', menu });
+    expect(r.menuConstrained).toBe(true);
+    expect(r.items).toEqual([
+      { name: 'zwei eiern', qty: 2, menuItemId: 'a1' },
+      { name: 'Döner', qty: 1, menuItemId: 'd1' },
+    ]);
+    const body = axios.post.mock.calls[0][1];
+    expect(body.systemInstruction.parts[0].text).toContain('menuItemId');
+    expect(body.contents[0].parts[0].text).toContain('id=a1');
+  });
+
+  test('validateMenuIntentPayload rejects unknown ids', () => {
+    const menuIndex = buildMenuLlmIndex([{ id: 'c1', name: 'Cola', available: true }]);
+    const r = validateMenuIntentPayload({
+      items: [{ menuItemId: 'missing', qty: 1 }],
+      confidence: 0.9,
+    }, menuIndex);
+    expect(r).toBeNull();
   });
 
   test('rate limits repeat calls from same phone', async () => {

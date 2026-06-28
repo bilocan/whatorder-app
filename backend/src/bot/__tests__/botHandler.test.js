@@ -1,6 +1,7 @@
 jest.mock('../../lib/firebase', () => ({ db: {}, admin: {} }));
 jest.mock('../intentLearning', () => ({
   lookupLearnedIntent: jest.fn().mockResolvedValue(null),
+  rememberValidatedIntent: jest.fn(),
   rememberValidatedLlmIntent: jest.fn(),
 }));
 jest.mock('../../lib/llm', () => ({
@@ -40,7 +41,7 @@ jest.mock('../../lib/collections', () => ({
 
 const { handleMessage } = require('../botHandler');
 const { getSession, setSession, patchSession } = require('../sessionStore');
-const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
+const { getMenu, getMenuContext, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { createOrder, getLastOrderForCustomer } = require('../orderService');
 const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage, sendCtaUrlMessage } = require('../../lib/whatsapp');
 const { reverseGeocode } = require('../../lib/geocode');
@@ -121,6 +122,11 @@ beforeEach(() => {
   jest.clearAllMocks();
   process.env.WHATSAPP_FLOW_ID = 'flow_test_id';
   getMenu.mockResolvedValue(MENU);
+  getMenuContext.mockImplementation(async () => ({
+    menu: await getMenu(),
+    menuMatch: null,
+    menuTokenIndex: null,
+  }));
   getBusinessInfo.mockResolvedValue(BIZ_INFO);
   createOrder.mockResolvedValue('order_abc123');
   getLastOrderForCustomer.mockResolvedValue(null);

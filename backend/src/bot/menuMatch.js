@@ -2,8 +2,10 @@
 
 const { expandNeedle, wordMatchesInText, splitCompoundDish, nameTokens, typoTolerantWordMatch, scoreStemTypo, MIN_FUZZY_SYNONYM_SCORE } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
-const { trySmartDefault } = require('./smartDefaults');
+const { trySmartDefault, hasExplicitDrinkSize } = require('./smartDefaults');
 const { tryCategorySubmenu, isCategorySubmenuQuery } = require('./menuCategory');
+const { findTokenIndexMatches } = require('./menuTokenIndex');
+const { tokensOf } = require('./menuMapper');
 
 const FAMILIEN_MARKER_RE = /\b(familien|family)\b/i;
 const GROSSE_MARKER_RE = /\b(gro[sß]e|large|xl)\b/i;
@@ -65,6 +67,24 @@ const MAX_AMBIGUOUS_RESULTS = 8;
 
 function itemMatchLabels(item) {
   return [...new Set([item.name, ...(item.aliases ?? [])].filter(Boolean))];
+}
+
+/** Exact SKU when the customer named a specific item, not a bare stem like "döner" or "cola". */
+function shouldPreferExactSkuMatch(dishName) {
+  const words = String(dishName ?? '').split(/\s+/).filter(w => w.length >= 2);
+  return words.length >= 2 || hasExplicitDrinkSize(dishName);
+}
+function findExactMenuItem(dishName, menuItems) {
+  const target = norm(dishName);
+  if (!target) return null;
+  for (const item of menuItems ?? []) {
+    if (item.available === false) continue;
+    if (norm(item.name) === target) return item;
+    for (const alias of item.aliases ?? []) {
+      if (norm(alias) === target) return item;
+    }
+  }
+  return null;
 }
 
 function labelStemMatchesNeedle(needle, label) {
@@ -167,12 +187,30 @@ function scoreItemForNeedle(item, needles) {
 }
 
 /** Returns unique match, ambiguous list (≤8), or none — for Layer 1 disambiguation. */
-function classifyMenuMatch(rawName, menuItems, menuMatch = null) {
+function classifyMenuMatch(rawName, menuItems, menuMatch = null, menuTokenIndex = null) {
   const dishName = extractDishNameForMatch(rawName) || (rawName ?? '').trim();
   const needles = expandNeedle(dishName);
   if (!needles.length) return { type: 'none' };
 
   const available = menuItems.filter(i => i.available !== false);
+
+  if (shouldPreferExactSkuMatch(dishName)) {
+    const exact = findExactMenuItem(dishName, available);
+    if (exact) return { type: 'unique', item: exact };
+  }
+
+  const queryTokens = tokensOf(dishName).filter(t => t.length >= 2);
+  const tokenHits = queryTokens.length >= 2
+    ? findTokenIndexMatches(rawName, menuTokenIndex, available)
+    : [];
+  if (tokenHits.length === 1) {
+    return { type: 'unique', item: tokenHits[0].item };
+  }
+  if (tokenHits.length > 1 && !isCategorySubmenuQuery(rawName, tokenHits.map(h => h.item), menuMatch)) {
+    const gap = tokenHits.length > 1 ? tokenHits[0].score - tokenHits[1].score : 999;
+    if (gap >= 6) return { type: 'unique', item: tokenHits[0].item };
+    return finishAmbiguous(rawName, tokenHits.map(h => h.item), menuMatch);
+  }
   let dishWords = dishName.split(/\s+/).filter(w => w.length > 2).map(w => norm(w));
   if (dishWords.length < 2) {
     const compound = splitCompoundDish(dishWords[0] ?? dishName);
@@ -244,6 +282,7 @@ module.exports = {
   norm,
   matchMenuItem,
   classifyMenuMatch,
+  findExactMenuItem,
   scoreMatch,
   scoreItemForNeedle,
   isFamilienMenuItem,
