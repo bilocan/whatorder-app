@@ -492,7 +492,11 @@ function looksLikeOrderText(text, norm) {
 
 function toIntentResult(items, partySize, rawText, parsedBy, confidence) {
   const result = {
-    items: items.map(i => ({ name: i.rawName ?? i.name, qty: i.qty ?? 1 })),
+    items: items.map(i => ({
+      name: i.rawName ?? i.name,
+      qty: i.qty ?? 1,
+      ...(i.menuItemId ? { menuItemId: i.menuItemId } : {}),
+    })),
     partySize,
     rawText,
     parsedBy,
@@ -643,6 +647,7 @@ function mergeLlmIntent(llm, rawText, rulesIntent) {
   let items = llm.items.map(i => ({
     rawName: i.name,
     qty: i.qty ?? (partySize ? 1 : 1),
+    ...(i.menuItemId ? { menuItemId: i.menuItemId } : {}),
   }));
 
   if (partySize && items.length && items.every(i => i.qty === 1)) {

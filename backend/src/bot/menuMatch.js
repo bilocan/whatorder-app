@@ -2,7 +2,7 @@
 
 const { expandNeedle, wordMatchesInText, splitCompoundDish, nameTokens, typoTolerantWordMatch, scoreStemTypo, MIN_FUZZY_SYNONYM_SCORE } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
-const { trySmartDefault } = require('./smartDefaults');
+const { trySmartDefault, hasExplicitDrinkSize } = require('./smartDefaults');
 const { tryCategorySubmenu, isCategorySubmenuQuery } = require('./menuCategory');
 const { findTokenIndexMatches } = require('./menuTokenIndex');
 const { tokensOf } = require('./menuMapper');
@@ -67,6 +67,24 @@ const MAX_AMBIGUOUS_RESULTS = 8;
 
 function itemMatchLabels(item) {
   return [...new Set([item.name, ...(item.aliases ?? [])].filter(Boolean))];
+}
+
+/** Exact SKU when the customer named a specific item, not a bare stem like "döner" or "cola". */
+function shouldPreferExactSkuMatch(dishName) {
+  const words = String(dishName ?? '').split(/\s+/).filter(w => w.length >= 2);
+  return words.length >= 2 || hasExplicitDrinkSize(dishName);
+}
+function findExactMenuItem(dishName, menuItems) {
+  const target = norm(dishName);
+  if (!target) return null;
+  for (const item of menuItems ?? []) {
+    if (item.available === false) continue;
+    if (norm(item.name) === target) return item;
+    for (const alias of item.aliases ?? []) {
+      if (norm(alias) === target) return item;
+    }
+  }
+  return null;
 }
 
 function labelStemMatchesNeedle(needle, label) {
@@ -176,6 +194,11 @@ function classifyMenuMatch(rawName, menuItems, menuMatch = null, menuTokenIndex 
 
   const available = menuItems.filter(i => i.available !== false);
 
+  if (shouldPreferExactSkuMatch(dishName)) {
+    const exact = findExactMenuItem(dishName, available);
+    if (exact) return { type: 'unique', item: exact };
+  }
+
   const queryTokens = tokensOf(dishName).filter(t => t.length >= 2);
   const tokenHits = queryTokens.length >= 2
     ? findTokenIndexMatches(rawName, menuTokenIndex, available)
@@ -259,6 +282,7 @@ module.exports = {
   norm,
   matchMenuItem,
   classifyMenuMatch,
+  findExactMenuItem,
   scoreMatch,
   scoreItemForNeedle,
   isFamilienMenuItem,

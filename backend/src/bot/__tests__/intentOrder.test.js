@@ -65,6 +65,43 @@ describe('tryTextIntentOrder', () => {
     expect(body).toMatch(/1x Ayran/);
   });
 
+  test('retries with LLM when partial blob matches only drink (kola + döner utterance)', async () => {
+    canCallLlm.mockReturnValue(true);
+    parseOrderIntentWithLlm.mockResolvedValue({
+      items: [
+        { name: 'kola', qty: 1, menuItemId: 'c1' },
+        { name: 'Döner', qty: 1, menuItemId: 'd1' },
+      ],
+      partySize: null,
+      confidence: 0.9,
+      menuConstrained: true,
+    });
+    getMenuContext.mockResolvedValue({
+      menu: [
+        { id: 'c1', name: 'Coca Cola 0.33L', price: 2.9 },
+        { id: 'd1', name: 'Döner', price: 8.5 },
+      ],
+      menuMatch: null,
+      menuTokenIndex: null,
+    });
+
+    const handled = await tryTextIntentOrder({
+      from: '+43699000003',
+      session: { state: 'browsing', language: 'tr', basket: [] },
+      lang: 'tr',
+      businessId: 'biz_test',
+      basket: [],
+      text: 'a kola un döner bitti',
+      norm: 'a kola un döner bitti',
+    });
+
+    expect(handled).toBe(true);
+    expect(parseOrderIntentWithLlm).toHaveBeenCalledTimes(1);
+    const body = sendButtonMessage.mock.calls[0][1].body;
+    expect(body).toMatch(/Cola/i);
+    expect(body).toMatch(/Döner/i);
+  });
+
   test('retries with LLM when rules parse misses menu and LLM resolves match', async () => {
     canCallLlm.mockReturnValue(true);
     parseOrderIntentWithLlm.mockResolvedValue({

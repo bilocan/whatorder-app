@@ -1,10 +1,12 @@
-const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext, rulesParseQuality, sanitizeIntentText } = require('./intentParser');
+const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext, sanitizeIntentText } = require('./intentParser');
 const { matchIntentToMenu, mergePendingItems, expandPerUnitSpicyMatched } = require('./intentMatcher');
 const { enrichPendingWithModifier } = require('./intentModifiers');
 const { collectSpicySpecialNote } = require('./intentNotes');
 const { buildIntentConfirmBody } = require('./intentOrder');
 const { buildOptionLabel } = require('./intentCustomize');
-const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
+const { canCallLlm } = require('../lib/llm');
+const { canRetryWithLlm, retryIntentWithMenuLlm } = require('./intentLlmRetry');
+const { isPartialBlobTrap } = require('./intentPartialMatch');
 const { norm } = require('./menuMatch');
 const { buildMenuMatchIndex } = require('./menuMapper');
 const { t } = require('./templates');
@@ -35,6 +37,14 @@ const BUILTIN_MENU = [
   { id: 'p1', name: 'Pide mit Gouda und Eiern', price: 9.9, available: true },
 ];
 
+let sandboxPhoneSeq = 0;
+
+/** Avoid LLM_RATE_LIMIT_MS blocking every REPL line on shared phone `sandbox`. */
+function sandboxPhoneForLlm() {
+  sandboxPhoneSeq += 1;
+  return `sandbox-${sandboxPhoneSeq}`;
+}
+
 /**
  * Run parse → match → reply preview without webhook, session, or WhatsApp.
  * Mirrors tryTextIntentOrder in intentOrder.js (read-only).
@@ -45,10 +55,10 @@ async function evaluateIntent(text, options = {}) {
     menuMatch: menuMatchOpt,
     lang = 'de',
     basket = [],
-    phone = 'sandbox',
     businessId = null,
     llm = false,
   } = options;
+  const phone = options.phone ?? (llm ? sandboxPhoneForLlm() : 'sandbox');
 
   const menuMatch = menuMatchOpt ?? buildMenuMatchIndex(menu);
 
@@ -78,19 +88,16 @@ async function evaluateIntent(text, options = {}) {
   let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch);
 
   const llmAllowed = llm && canCallLlm(phone);
-  if (!matched.length && intent.parsedBy !== 'llm' && intent.parsedBy !== 'learned'
-    && !intent.llmFailed && llmAllowed
-    && rulesParseQuality(trimmed) !== 'high') {
-    const llmResult = await parseOrderIntentWithLlm(trimmed, { phone, menu });
-    if (llmResult && llmResult.confidence >= 0.6 && llmResult.items.length) {
-      intent = {
-        items: llmResult.items.map(i => ({ name: i.name, qty: i.qty ?? 1 })),
-        partySize: llmResult.partySize ?? intent.partySize ?? null,
-        rawText: trimmed,
-        parsedBy: 'llm',
-        confidence: llmResult.confidence,
-      };
-      ({ matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch));
+  const sandboxLlm = { llmEnabled: llm, llmAllowed };
+  if (llmAllowed && !intent.llmFailed && canRetryWithLlm(trimmed, intent, matched, unmatched)) {
+    const retried = await retryIntentWithMenuLlm(trimmed, intent, {
+      phone, menu, menuMatch, menuTokenIndex: null,
+    });
+    if (retried) {
+      intent = retried.intent;
+      ({ matched, unmatched, disambiguation } = retried);
+    } else {
+      intent = { ...intent, llmAttempted: true, llmFailed: true };
     }
   }
 
@@ -100,6 +107,7 @@ async function evaluateIntent(text, options = {}) {
     );
     return {
       ...base,
+      ...sandboxLlm,
       outcome: 'disambiguation',
       intent,
       matched,
@@ -115,9 +123,21 @@ async function evaluateIntent(text, options = {}) {
     const outcome = (intent.llmFailed || llmAllowed) ? 'llm_failed' : 'no_match';
     return {
       ...emptyResult(base, outcome),
+      ...sandboxLlm,
       intent,
       unmatched,
       botReply: outcome === 'llm_failed' ? t('intentParseFailed', lang) : null,
+    };
+  }
+
+  if (intent.llmFailed && llmAllowed
+    && (unmatched.length || isPartialBlobTrap(trimmed, intent, matched))) {
+    return {
+      ...emptyResult(base, 'llm_failed'),
+      ...sandboxLlm,
+      intent,
+      unmatched,
+      botReply: t('intentParseFailed', lang),
     };
   }
 
@@ -126,6 +146,7 @@ async function evaluateIntent(text, options = {}) {
   const pendingIntentNote = collectSpicySpecialNote(trimmed, merged, lang);
   return {
     ...base,
+    ...sandboxLlm,
     outcome: 'proposal',
     intent,
     matched: merged,
@@ -164,6 +185,12 @@ function formatSandboxResult(result) {
     if (result.intent.llmFailed) lines.push('llmFailed: true');
     if (result.intent.partySize != null) lines.push(`partySize: ${result.intent.partySize}`);
     lines.push(`intent items: ${JSON.stringify(result.intent.items)}`);
+  }
+
+  if (result.llmEnabled === false) {
+    lines.push('llm: off (start with --llm or type :llm on)');
+  } else if (result.llmEnabled && result.llmAllowed === false && result.intent?.parsedBy !== 'llm') {
+    lines.push('llm: blocked (rate limit on this phone)');
   }
 
   lines.push(`outcome: ${result.outcome}`);

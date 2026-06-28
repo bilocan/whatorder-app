@@ -3,9 +3,11 @@ const { sendButtonMessage, sendText, sendImage } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHelpers');
 const { getMenu, getMenuContext, resolvePhotoUrl } = require('./menuService');
-const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext, rulesParseQuality, isFreshStartCommand } = require('./intentParser');
-const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
+const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext, isFreshStartCommand } = require('./intentParser');
+const { canCallLlm } = require('../lib/llm');
 const { rememberValidatedIntent } = require('./intentLearning');
+const { canRetryWithLlm, retryIntentWithMenuLlm } = require('./intentLlmRetry');
+const { isPartialBlobTrap } = require('./intentPartialMatch');
 const {
   matchIntentToMenu, mergeIntoBasket, mergePendingItems, hydratePendingItems, expandPerUnitSpicyMatched,
 } = require('./intentMatcher');
@@ -121,20 +123,16 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
 
   let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch, menuTokenIndex);
 
-  // Zero menu hits — retry with menu-constrained LLM when rules likely missed structure
-  if (!matched.length && intent.parsedBy !== 'llm' && intent.parsedBy !== 'learned'
-    && !intent.llmFailed && canCallLlm(from)
-    && rulesParseQuality(text) !== 'high') {
-    const llm = await parseOrderIntentWithLlm(text, { phone: from, menu });
-    if (llm && llm.confidence >= 0.6 && llm.items.length) {
-      intent = {
-        items: llm.items.map(i => ({ name: i.name, qty: i.qty ?? 1 })),
-        partySize: llm.partySize ?? intent.partySize ?? null,
-        rawText: text,
-        parsedBy: 'llm',
-        confidence: llm.confidence,
-      };
-      ({ matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch, menuTokenIndex));
+  if (canCallLlm(from) && !intent.llmFailed
+    && canRetryWithLlm(text, intent, matched, unmatched)) {
+    const retried = await retryIntentWithMenuLlm(text, intent, {
+      phone: from, menu, menuMatch, menuTokenIndex,
+    });
+    if (retried) {
+      intent = retried.intent;
+      ({ matched, unmatched, disambiguation } = retried);
+    } else {
+      intent = { ...intent, llmAttempted: true, llmFailed: true };
     }
   }
 
@@ -148,6 +146,10 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   if (!matched.length) {
     if (intent.llmFailed || canCallLlm(from)) return 'llm_failed';
     return false;
+  }
+
+  if (intent.llmFailed && (unmatched.length || isPartialBlobTrap(text, intent, matched))) {
+    return 'llm_failed';
   }
 
   await sendIntentProposal({
