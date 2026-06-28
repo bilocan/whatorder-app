@@ -22,6 +22,50 @@ describe('evaluateIntent', () => {
     expect(result.matched.some(m => /kebap/i.test(m.name))).toBe(true);
   });
 
+  test('beide mit allen eine extra scharf splits into two kebabs with per-line spicy', async () => {
+    const result = await evaluateIntent(
+      'hallo wir hatten gerne zwei doner beide mit allen eine extra scharf bitte',
+      { menu: BUILTIN_MENU, lang: 'de', llm: false },
+    );
+    expect(result.outcome).toBe('proposal');
+    expect(result.intent.parsedBy).toBe('rules');
+    expect(result.intent.items).toEqual([
+      { name: 'doner mit allen ohne scharf', qty: 1 },
+      { name: 'doner mit allen und scharf', qty: 1 },
+    ]);
+    expect(result.matched).toHaveLength(2);
+    expect(result.matched.reduce((s, m) => s + m.qty, 0)).toBe(2);
+    expect(result.botReply).toMatch(/Scharfe Sauce|extra scharf/i);
+    expect((result.botReply.match(/extra scharf/gi) ?? []).length
+      + (result.botReply.match(/Scharfe Sauce/g) ?? []).length).toBe(1);
+    expect(result.botReply).toMatch(/€15\.00/);
+  });
+
+  test('beide mit alles recovers when parser collapsed to 2x one line', async () => {
+    const result = await evaluateIntent(
+      'zwei doner beide mit alles eine extra scharf bitte',
+      { menu: BUILTIN_MENU, lang: 'de', llm: false },
+    );
+    expect(result.matched).toHaveLength(2);
+    expect(result.botReply).not.toMatch(/2x Kebap Sandwich Huhn.*extra scharf.*€15/i);
+    expect(result.botReply).toMatch(/€15\.00/);
+  });
+
+  test('trailing quote after bitte still splits zwei doner beide mit allen', async () => {
+    const result = await evaluateIntent(
+      'hallo wir hatten gerne zwei doner beide mit allen eine extra scharf bitte"',
+      { menu: BUILTIN_MENU, lang: 'de', llm: false },
+    );
+    expect(result.intent.items).toEqual([
+      { name: 'doner mit allen ohne scharf', qty: 1 },
+      { name: 'doner mit allen und scharf', qty: 1 },
+    ]);
+    expect(result.matched).toHaveLength(2);
+    expect(result.botReply).not.toMatch(/2x Kebap Sandwich Huhn/);
+    expect((result.botReply.match(/extra scharf/gi) ?? []).length
+      + (result.botReply.match(/Scharfe Sauce/g) ?? []).length).toBe(1);
+  });
+
   test('greeting is not treated as order', async () => {
     const result = await evaluateIntent('hallo', {
       menu: BUILTIN_MENU,

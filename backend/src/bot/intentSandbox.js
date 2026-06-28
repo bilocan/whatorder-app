@@ -1,5 +1,5 @@
-const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext, rulesParseQuality } = require('./intentParser');
-const { matchIntentToMenu, mergePendingItems } = require('./intentMatcher');
+const { parseIntentAsync, looksLikeOrderText, applyJeweilsBasketContext, rulesParseQuality, sanitizeIntentText } = require('./intentParser');
+const { matchIntentToMenu, mergePendingItems, expandPerUnitSpicyMatched } = require('./intentMatcher');
 const { enrichPendingWithModifier } = require('./intentModifiers');
 const { collectSpicySpecialNote } = require('./intentNotes');
 const { buildIntentConfirmBody } = require('./intentOrder');
@@ -52,7 +52,7 @@ async function evaluateIntent(text, options = {}) {
 
   const menuMatch = menuMatchOpt ?? buildMenuMatchIndex(menu);
 
-  const trimmed = (text ?? '').trim();
+  const trimmed = sanitizeIntentText(text);
   const normalized = norm(trimmed);
   const base = { text: trimmed, orderLike: looksLikeOrderText(trimmed, normalized) };
 
@@ -120,7 +120,8 @@ async function evaluateIntent(text, options = {}) {
     };
   }
 
-  const merged = mergePendingItems(matched.map(enrichPendingWithModifier));
+  const expanded = expandPerUnitSpicyMatched(matched, trimmed);
+  const merged = mergePendingItems(expanded.map(enrichPendingWithModifier));
   const pendingIntentNote = collectSpicySpecialNote(trimmed, merged, lang);
   return {
     ...base,
