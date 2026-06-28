@@ -63,6 +63,7 @@ async function evaluateIntent(text, options = {}) {
   let intent = await parseIntentAsync(trimmed, {
     phone,
     businessId: businessId || undefined,
+    menu,
     rulesOnly: !llm,
   });
   intent = applyJeweilsBasketContext(intent, basket);
@@ -80,7 +81,7 @@ async function evaluateIntent(text, options = {}) {
   if (!matched.length && intent.parsedBy !== 'llm' && intent.parsedBy !== 'learned'
     && !intent.llmFailed && llmAllowed
     && rulesParseQuality(trimmed) !== 'high') {
-    const llmResult = await parseOrderIntentWithLlm(trimmed, { phone });
+    const llmResult = await parseOrderIntentWithLlm(trimmed, { phone, menu });
     if (llmResult && llmResult.confidence >= 0.6 && llmResult.items.length) {
       intent = {
         items: llmResult.items.map(i => ({ name: i.name, qty: i.qty ?? 1 })),

@@ -85,7 +85,7 @@ describe('tryTextIntentOrder', () => {
 
     expect(handled).toBe(true);
     expect(parseOrderIntentWithLlm).toHaveBeenCalledTimes(1);
-    expect(parseOrderIntentWithLlm).toHaveBeenCalledWith('schnitzel', { phone: '+43699000002' });
+    expect(parseOrderIntentWithLlm).toHaveBeenCalledWith('schnitzel', { phone: '+43699000002', menu: MENU });
     expect(sendButtonMessage).toHaveBeenCalled();
     const body = sendButtonMessage.mock.calls[0][1].body;
     expect(body).toMatch(/1x Döner/);

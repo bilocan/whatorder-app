@@ -652,14 +652,14 @@ function mergeLlmIntent(llm, rawText, rulesIntent) {
   return toIntentResult(items, partySize, rawText, 'llm', llm.confidence);
 }
 
-async function parseIntentAsync(text, { phone, businessId, rulesOnly = false } = {}) {
+async function parseIntentAsync(text, { phone, businessId, menu, rulesOnly = false } = {}) {
   const rawText = (text ?? '').trim();
 
   if (businessId) {
     const learned = await lookupLearnedIntent(businessId, rawText);
     if (learned?.items?.length) {
       return toIntentResult(
-        learned.items.map(i => ({ rawName: i.name, qty: i.qty })),
+        learned.items.map(i => ({ rawName: i.rawName ?? i.name, qty: i.qty })),
         learned.partySize,
         rawText,
         'learned',
@@ -672,7 +672,7 @@ async function parseIntentAsync(text, { phone, businessId, rulesOnly = false } =
 
   if (rulesOnly || !shouldTryLlm(text, rulesIntent, phone)) return rulesIntent;
 
-  const llm = await parseOrderIntentWithLlm(text, { phone });
+  const llm = await parseOrderIntentWithLlm(text, { phone, menu });
   if (!llm || llm.confidence < 0.6 || !llm.items.length) {
     return { ...rulesIntent, llmAttempted: true, llmFailed: true };
   }
