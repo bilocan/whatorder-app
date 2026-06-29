@@ -20,9 +20,11 @@ const {
   recordIntentCase,
   runCase,
 } = require('../src/bot/intentEval');
+const { buildMenuMatchIndex } = require('../src/bot/menuMapper');
 const {
   corpusFilePath,
   isRestaurantTarget,
+  restaurantMenuMatchPath,
   restaurantMenuPath,
 } = require('../src/bot/corpusLayout');
 
@@ -129,6 +131,13 @@ function loadMenuFromFile(filePath) {
   return data;
 }
 
+function loadMenuMatchForRestaurant(slug) {
+  const matchPath = restaurantMenuMatchPath(slug);
+  if (!fs.existsSync(matchPath)) return null;
+  const stored = JSON.parse(fs.readFileSync(matchPath, 'utf8'));
+  return stored && typeof stored === 'object' ? stored : null;
+}
+
 async function resolveMenu(opts) {
   if (opts.menuPath) {
     return { menu: loadMenuFromFile(opts.menuPath), menuRef: path.basename(opts.menuPath) };
@@ -136,7 +145,10 @@ async function resolveMenu(opts) {
   if (isRestaurantTarget(opts.target)) {
     const slug = opts.target === 'enes' ? 'enes' : opts.target;
     const menuPath = restaurantMenuPath(slug);
-    return { menu: loadMenuFromFile(menuPath), menuRef: 'menu.json', restaurantSlug: slug };
+    const menu = loadMenuFromFile(menuPath);
+    const storedMatch = loadMenuMatchForRestaurant(slug);
+    const menuMatch = storedMatch ? buildMenuMatchIndex(menu, storedMatch) : null;
+    return { menu, menuMatch, menuRef: 'menu.json', restaurantSlug: slug };
   }
   if (opts.businessId) {
     const menu = await getMenu(opts.businessId);
@@ -153,6 +165,7 @@ function suiteMetaForTarget(target) {
 async function recordPhrase(text, ctx) {
   const { result, caseDef } = await recordIntentCase(text, {
     menu: ctx.menu,
+    menuMatch: ctx.menuMatch ?? undefined,
     lang: ctx.opts.lang,
     businessId: ctx.opts.businessId,
     llm: ctx.opts.llm,
@@ -211,8 +224,8 @@ async function recordPhrase(text, ctx) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
-  const { menu, menuRef } = await resolveMenu(opts);
-  const ctx = { menu, menuRef, opts };
+  const { menu, menuMatch, menuRef } = await resolveMenu(opts);
+  const ctx = { menu, menuMatch, menuRef, opts };
 
   for (const phrase of opts.phrases) {
     await recordPhrase(phrase, ctx);
