@@ -62,6 +62,60 @@ describe('intentPhrases routes', () => {
     expect(res.status).toBe(400);
   });
 
+  test('POST preview applies remove draft when operation is remove', async () => {
+    evaluateIntent.mockResolvedValue({
+      outcome: 'proposal',
+      operation: 'add',
+      orderLike: true,
+      intent: { parsedBy: 'rules', operation: 'add' },
+      matched: [],
+      unmatched: [],
+    });
+
+    const res = await request(app)
+      .post('/api/businesses/biz_test/intent-phrases/preview')
+      .send({
+        text: 'ayrani cikar',
+        operation: 'remove',
+        sampleItems: [{ menuItemId: 'a1', qty: 2 }],
+        items: [{ menuItemId: 'a1', qty: 1 }],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.operation).toBe('remove');
+    expect(res.body.outcome).toBe('remove');
+    expect(res.body.matched[0].menuItemId).toBe('a1');
+  });
+
+  test('POST preview returns 500 when evaluation fails', async () => {
+    evaluateIntent.mockRejectedValue(new Error('boom'));
+    const res = await request(app)
+      .post('/api/businesses/biz_test/intent-phrases/preview')
+      .send({ text: 'ayran bitte' });
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Preview failed');
+  });
+
+  test('POST save requires items', async () => {
+    const res = await request(app)
+      .post('/api/businesses/biz_test/intent-phrases')
+      .send({ text: 'ayrani cikar' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('items are required');
+  });
+
+  test('POST save returns 400 for validation errors', async () => {
+    saveManualIntentLearning.mockRejectedValue(new Error('text is required'));
+    const res = await request(app)
+      .post('/api/businesses/biz_test/intent-phrases')
+      .send({
+        text: 'ayrani cikar',
+        items: [{ menuItemId: 'a1', name: 'Ayran', qty: 1 }],
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('text is required');
+  });
+
   test('POST save creates manual learning', async () => {
     saveManualIntentLearning.mockResolvedValue({
       id: 'hash1',
