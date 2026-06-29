@@ -15,6 +15,7 @@
     "customers": "Kunden",
     "income": "Einnahmen",
     "menu": "Speisekarte",
+    "learnedPhrases": "Phrasen",
     "settings": "Einstellungen",
     "admin": "Admin",
     "adminMap": "Karte",
@@ -154,6 +155,86 @@
     "loading": "Lade…",
     "noOrders": "Noch keine Bestellungen.",
     "historyError": "Bestellverlauf konnte nicht geladen werden."
+  },
+  "learnedPhrases": {
+    "title": "Gelernte Phrasen",
+    "description": "Formulierungen, die Kunden getippt haben und der Bot nach bestätigter Bestellung gespeichert hat. Löschen entfernt nur die Wiederholungs-Abkürzung. Beworbene Phrasen stehen zusätzlich in Menü-Aliassen — dort im Menü bearbeiten.",
+    "searchPlaceholder": "Phrase oder Artikel suchen…",
+    "empty": "Noch keine gelernten Phrasen. Sie erscheinen nach bestätigten Bestellungen.",
+    "loadError": "Phrasen konnten nicht aus Firestore geladen werden. Falls die Seite neu ist: firestore.rules deployen.",
+    "col": {
+      "phrase": "Kundenphrase",
+      "operation": "Aktion",
+      "items": "Zugeordnete Artikel",
+      "hits": "Bestätigt",
+      "source": "Quelle",
+      "status": "Status",
+      "updated": "Aktualisiert",
+      "actions": "Aktionen"
+    },
+    "source": {
+      "llm": "KI",
+      "rules": "Regeln",
+      "manual": "Manuell"
+    },
+    "status": {
+      "promoted": "In Menü-Aliassen",
+      "cacheOnly": "Nur Cache"
+    },
+    "time": {
+      "justNow": "Gerade eben",
+      "minutesAgo": "vor {{count}} Min.",
+      "hoursAgo": "vor {{count}} Std."
+    },
+    "delete": {
+      "title": "Gelernte Phrase löschen?",
+      "message": "„{{phrase}}“ entfernen? Beim nächsten Mal kann KI oder Regeln wieder greifen.",
+      "messagePromoted": "„{{phrase}}“ aus dem Cache entfernen? Menü-Aliasse bleiben — im Menü bearbeiten, um die Formulierung zu entfernen.",
+      "confirm": "Löschen"
+    },
+    "rowTest": "Testen",
+    "operation": {
+      "add": "Zur Bestellung hinzufügen",
+      "remove": "Aus Bestellung entfernen"
+    },
+    "add": {
+      "title": "Phrase hinzufügen & testen",
+      "hint": "Kundenformulierung eingeben, gegen Live-Speisekarte testen, dann speichern.",
+      "operationLabel": "Was soll diese Phrase tun?",
+      "removeHint": "Bei Entfernen: Artikel ankreuzen, Menge wählen (oder „alle Zeilen“), dann testen. Der Test simuliert einen Warenkorb mit einer Extra-Einheit.",
+      "removeQty": "Menge für {{item}}",
+      "removeAll": "Alle Zeilen",
+      "phraseLabel": "Kundenphrase",
+      "phrasePlaceholder": "z.B. ayrani cikar",
+      "itemsLabel": "Zugeordnete Artikel",
+      "itemsLabelRemove": "Diese Artikel entfernen",
+      "noMenu": "Keine verfügbaren Menüartikel.",
+      "useLlm": "KI nutzen wenn Regeln scheitern (Gemini-Kontingent)",
+      "test": "Phrase testen",
+      "testing": "Teste…",
+      "save": "Phrase speichern",
+      "saving": "Speichere…",
+      "saved": "Gespeichert als „{{key}}“",
+      "saveError": "Phrase konnte nicht gespeichert werden"
+    },
+    "test": {
+      "result": "Testergebnis:",
+      "parsedBy": "geparst von {{source}}",
+      "matched": "Treffer",
+      "wouldRemove": "Würde entfernen",
+      "unmatched": "Kein Treffer",
+      "error": "Test fehlgeschlagen — läuft das Backend?",
+      "outcome": {
+        "proposal": "Würde Bestellung vorschlagen",
+        "disambiguation": "Artikelauswahl nötig",
+        "no_match": "Kein Treffer",
+        "llm_failed": "KI konnte nicht parsen",
+        "not_order": "Kein Bestelltext",
+        "low_confidence": "Geringe Konfidenz",
+        "remove": "Würde aus Warenkorb/Vorschlag entfernen",
+        "remove_failed": "Entfernen fehlgeschlagen (Artikel nicht im Warenkorb)"
+      }
+    }
   },
   "menu": {
     "title": "Speisekarte",

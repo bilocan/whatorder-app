@@ -3,6 +3,7 @@ const { admin } = require('../lib/firebase');
 const { intentLearningRef } = require('../lib/collections');
 const { intentLearnKey, intentLearnKeyVariants } = require('./intentNormalize');
 const { levenshtein, maxTypoDistance } = require('./menuSynonyms');
+const { scheduleAliasPromotion } = require('./intentLearningPromote');
 
 /** In-process L1: businessId → Map(textKey → intent payload). */
 const memoryByBusiness = new Map();
@@ -11,6 +12,16 @@ const fuzzyIndexLoaded = new Set();
 
 const FUZZY_KEY_MAX_DIST = 3;
 const FUZZY_MIN_KEY_LEN = 8;
+const LEARNED_OPERATIONS = new Set(['add', 'remove']);
+
+function normalizeOperation(operation) {
+  const op = String(operation ?? 'add').toLowerCase();
+  return LEARNED_OPERATIONS.has(op) ? op : 'add';
+}
+
+function shouldPromoteAliases(operation) {
+  return normalizeOperation(operation) === 'add';
+}
 
 function memoryGet(businessId, textKey) {
   return memoryByBusiness.get(businessId)?.get(textKey) ?? null;
@@ -60,8 +71,9 @@ async function loadFuzzyIndexFromFirestore(businessId) {
       if (!key || !items.length) continue;
       if (!memoryGet(businessId, key)) {
         memorySet(businessId, key, {
-          items,
+          items: sanitizeItems(data?.items),
           partySize: data.partySize ?? null,
+          operation: normalizeOperation(data.operation),
         });
       }
     }
@@ -82,6 +94,8 @@ function sanitizeItems(items) {
       };
       if (i.menuItemId) out.menuItemId = String(i.menuItemId);
       if (i.modifierKey) out.modifierKey = String(i.modifierKey);
+      if (i.rawName) out.rawName = String(i.rawName).trim();
+      if (i.removeAll) out.removeAll = true;
       return out;
     })
     .filter(i => i.name);
@@ -116,8 +130,9 @@ async function loadExactKey(businessId, textKey) {
     if (!items.length) return null;
 
     const payload = {
-      items,
+      items: sanitizeItems(data?.items),
       partySize: data.partySize ?? null,
+      operation: normalizeOperation(data.operation),
     };
     memorySet(businessId, textKey, payload);
     return payload;
@@ -131,7 +146,7 @@ async function loadExactKey(businessId, textKey) {
 
 /**
  * Tier B → Tier A: return a prior validated parse (exact, legacy key, or fuzzy).
- * @returns {Promise<{ items: object[], partySize: number|null }|null>}
+ * @returns {Promise<{ items: object[], partySize: number|null, operation: string }|null>}
  */
 async function lookupLearnedIntent(businessId, rawText) {
   if (!businessId || !rawText?.trim()) return null;
@@ -151,12 +166,55 @@ async function lookupLearnedIntent(businessId, rawText) {
 }
 
 /**
+ * Bump usage count when a prior learn replayed successfully (rules/LLM path skipped).
+ * Fire-and-forget; drives auto-promote threshold.
+ */
+function recordLearnedIntentHit(businessId, rawText) {
+  if (!businessId || !rawText?.trim()) return;
+
+  const textKey = intentLearnKey(rawText);
+  if (!textKey) return;
+
+  const docId = docIdForKey(textKey);
+  const ref = intentLearningRef(businessId, docId);
+  void ref.set({
+    hitCount: admin.firestore.FieldValue.increment(1),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true }).then(async () => {
+    const cached = memoryGet(businessId, textKey);
+    if (cached?.items?.length && shouldPromoteAliases(cached.operation)) {
+      scheduleAliasPromotion(businessId, docId, textKey, cached.items);
+      return;
+    }
+    try {
+      const snap = await ref.get();
+      const data = snap.data();
+      const items = sanitizeItems(data?.items);
+      if (items.length && shouldPromoteAliases(data?.operation)) {
+        scheduleAliasPromotion(businessId, docId, textKey, items);
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(`[intent-learning] learned hit bump failed: ${err.message}`);
+      }
+    }
+  }).catch(err => {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(`[intent-learning] learned hit save failed: ${err.message}`);
+    }
+  });
+}
+
+/**
  * Persist when a proposal was validated by menu match (rules or LLM).
  * Fire-and-forget; never blocks the customer path.
  */
 function rememberValidatedIntent(businessId, rawText, intent, matched = null) {
   if (!businessId || !rawText?.trim() || !intent) return;
-  if (intent.parsedBy === 'learned') return;
+  if (intent.parsedBy === 'learned') {
+    recordLearnedIntentHit(businessId, rawText);
+    return;
+  }
 
   const items = itemsFromMatched(matched, intent.items);
   if (!items.length) return;
@@ -164,27 +222,70 @@ function rememberValidatedIntent(businessId, rawText, intent, matched = null) {
   const textKey = intentLearnKey(rawText);
   if (!textKey) return;
 
+  const operation = normalizeOperation(intent.operation);
   const source = intent.parsedBy === 'llm' ? 'llm' : 'rules';
   const payload = {
     items,
     partySize: intent.partySize ?? null,
+    operation,
   };
   memorySet(businessId, textKey, payload);
 
-  const ref = intentLearningRef(businessId, docIdForKey(textKey));
+  const docId = docIdForKey(textKey);
+  const ref = intentLearningRef(businessId, docId);
   void ref.set({
     textKey,
     items,
     partySize: intent.partySize ?? null,
+    operation,
     source,
     hitCount: admin.firestore.FieldValue.increment(1),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true }).catch(err => {
+  }, { merge: true }).then(() => {
+    if (shouldPromoteAliases(operation)) {
+      scheduleAliasPromotion(businessId, docId, textKey, items);
+    }
+  }).catch(err => {
     if (process.env.NODE_ENV !== 'test') {
       console.warn(`[intent-learning] save failed: ${err.message}`);
     }
   });
+}
+
+/** Owner dashboard: seed a phrase → items mapping (rules test or manual pick). */
+async function saveManualIntentLearning(businessId, rawText, items, { operation = 'add' } = {}) {
+  if (!businessId || !rawText?.trim()) {
+    throw new Error('businessId and text are required');
+  }
+  const sanitized = sanitizeItems(items);
+  if (!sanitized.length) throw new Error('At least one menu item is required');
+
+  const textKey = intentLearnKey(rawText);
+  if (!textKey) throw new Error('Phrase is empty after normalization');
+
+  const op = normalizeOperation(operation);
+  const docId = docIdForKey(textKey);
+  const ref = intentLearningRef(businessId, docId);
+  const payload = {
+    items: sanitized,
+    partySize: null,
+    operation: op,
+  };
+  memorySet(businessId, textKey, payload);
+
+  await ref.set({
+    textKey,
+    items: sanitized,
+    partySize: null,
+    operation: op,
+    source: 'manual',
+    hitCount: 1,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  return { id: docId, textKey, items: sanitized, operation: op };
 }
 
 /** @deprecated use rememberValidatedIntent */
@@ -205,5 +306,8 @@ module.exports = {
   lookupLearnedIntent,
   rememberValidatedIntent,
   rememberValidatedLlmIntent,
+  recordLearnedIntentHit,
+  saveManualIntentLearning,
+  normalizeOperation,
   _resetIntentLearningMemory,
 };

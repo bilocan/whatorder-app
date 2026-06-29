@@ -13,6 +13,10 @@ const mockGet = jest.fn();
 const mockSet = jest.fn().mockResolvedValue(undefined);
 const mockCollectionGet = jest.fn().mockResolvedValue({ docs: [] });
 
+jest.mock('../intentLearningPromote', () => ({
+  scheduleAliasPromotion: jest.fn(),
+}));
+
 jest.mock('../../lib/collections', () => ({
   intentLearningRef: jest.fn(() => ({
     get: mockGet,
@@ -65,7 +69,20 @@ describe('lookupLearnedIntent', () => {
     }, [{ menuItemId: 'c1', name: 'Cola', qty: 2 }]);
     const hit = await lookupLearnedIntent('biz1', 'zwei cola');
     expect(hit.items).toEqual([{ name: 'Cola', qty: 2, menuItemId: 'c1' }]);
+    expect(hit.operation).toBe('add');
     expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  test('stores and replays remove operation', async () => {
+    rememberValidatedIntent('biz1', 'ayrani cikar', {
+      parsedBy: 'rules',
+      operation: 'remove',
+      items: [{ name: 'ayran', qty: 1 }],
+      partySize: null,
+    }, [{ menuItemId: 'a1', name: 'Mis Ayran 0.25L', qty: 1, rawName: 'ayran' }]);
+    const hit = await lookupLearnedIntent('biz1', 'ayrani cikar');
+    expect(hit.operation).toBe('remove');
+    expect(hit.items[0].menuItemId).toBe('a1');
   });
 
   test('cache hit across "was für mich" vs "für mich" wording', async () => {
@@ -132,12 +149,15 @@ describe('rememberValidatedIntent', () => {
     expect(payload.items[0].menuItemId).toBe('c1');
   });
 
-  test('ignores learned replay', () => {
+  test('ignores learned replay for full save but bumps hitCount', () => {
     rememberValidatedIntent('biz1', 'pizza', {
       parsedBy: 'learned',
       items: [{ name: 'pizza', qty: 1 }],
     });
-    expect(mockSet).not.toHaveBeenCalled();
+    expect(mockSet).toHaveBeenCalledTimes(1);
+    const payload = mockSet.mock.calls[0][0];
+    expect(payload.hitCount).toEqual({ _increment: 1 });
+    expect(payload.textKey).toBeUndefined();
   });
 
   test('rememberValidatedLlmIntent delegates to llm-only path', () => {
