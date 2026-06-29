@@ -47,6 +47,11 @@ describe('expandNeedle', () => {
     expect(expandNeedle('xyz')).toEqual(['xyz']);
   });
 
+  test('thunfisch expands to tonno (DE customer term for Italian menu name)', () => {
+    const expanded = expandNeedle('pizza thunfisch');
+    expect(expanded).toEqual(expect.arrayContaining(['thunfisch', 'tonno', 'tuna']));
+  });
+
   test('shared suffix typo scores TTS near-miss (chisburger ↔ cheeseburger)', () => {
     expect(scoreStemTypo('chisburger', 'cheeseburger')).toBeGreaterThanOrEqual(MIN_FUZZY_SYNONYM_SCORE);
     expect(scoreStemTypo('chisburger', 'hamburger')).toBeLessThan(MIN_FUZZY_SYNONYM_SCORE);
