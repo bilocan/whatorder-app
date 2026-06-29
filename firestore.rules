@@ -60,6 +60,12 @@ service cloud.firestore {
         allow create: if false;
         allow update, delete: if isOwnerOf(businessId) || isAdmin();
       }
+
+      // Bot-learned order phrases (backend writes; owner may review and delete).
+      match /intentLearnings/{keyHash} {
+        allow read, delete: if isOwnerOf(businessId) || isAdmin();
+        allow create, update: if false;
+      }
     }
 
     // Collection-group queries (Admin → Erlöse) require a recursive match.

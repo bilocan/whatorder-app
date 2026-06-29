@@ -18,6 +18,7 @@ import RestaurantDetailPage from './pages/admin/RestaurantDetailPage';
 import AdminRestaurantMapPage from './pages/admin/AdminRestaurantMapPage';
 import EarningsPage from './pages/admin/EarningsPage';
 import SelectRestaurantPage from './pages/SelectRestaurantPage';
+import LearnedPhrasesPage from './pages/LearnedPhrasesPage';
 
 const PUBLIC_MAP_ORIGIN = 'https://whatorder.at';
 
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="customers" element={<CustomersPage />} />
               <Route path="income" element={<IncomePage />} />
               <Route path="menu" element={<MenuPage />} />
+              <Route path="learned-phrases" element={<LearnedPhrasesPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="admin" element={<AdminGuard><RestaurantsPage /></AdminGuard>} />
               <Route path="admin/map" element={<AdminGuard><AdminRestaurantMapPage /></AdminGuard>} />

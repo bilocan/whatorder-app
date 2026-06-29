@@ -1,6 +1,7 @@
 const { parseOrderText, parseSpaceSeparatedQtyItems } = require('./orderParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
-const { lookupLearnedIntent } = require('./intentLearning');
+const { lookupLearnedIntent, normalizeOperation } = require('./intentLearning');
+const { detectRemovePhrase } = require('./intentRemoveDetect');
 const {
   stripIntentModifiers, wantsAllIncluded, parseExclusions, isModifierOnlyToken,
 } = require('./intentModifiers');
@@ -490,7 +491,7 @@ function looksLikeOrderText(text, norm) {
   return false;
 }
 
-function toIntentResult(items, partySize, rawText, parsedBy, confidence) {
+function toIntentResult(items, partySize, rawText, parsedBy, confidence, operation) {
   const result = {
     items: items.map(i => ({
       name: i.rawName ?? i.name,
@@ -502,6 +503,8 @@ function toIntentResult(items, partySize, rawText, parsedBy, confidence) {
     parsedBy,
   };
   if (confidence != null) result.confidence = confidence;
+  const op = operation ? String(operation).toLowerCase() : 'add';
+  if (op !== 'add') result.operation = op;
   return result;
 }
 
@@ -660,16 +663,31 @@ function mergeLlmIntent(llm, rawText, rulesIntent) {
 async function parseIntentAsync(text, { phone, businessId, menu, rulesOnly = false } = {}) {
   const rawText = (text ?? '').trim();
 
+  let learned = null;
   if (businessId) {
-    const learned = await lookupLearnedIntent(businessId, rawText);
-    if (learned?.items?.length) {
-      return toIntentResult(
-        learned.items.map(i => ({ rawName: i.rawName ?? i.name, qty: i.qty })),
-        learned.partySize,
-        rawText,
-        'learned',
-        1,
-      );
+    learned = await lookupLearnedIntent(businessId, rawText);
+  }
+
+  const structural = detectRemovePhrase(rawText);
+  const skipBadAddLearned = structural
+    && learned?.items?.length
+    && normalizeOperation(learned.operation) === 'add';
+
+  if (learned?.items?.length && !skipBadAddLearned) {
+    return toIntentResult(
+      learned.items.map(i => ({ rawName: i.rawName ?? i.name, qty: i.qty, menuItemId: i.menuItemId })),
+      learned.partySize,
+      rawText,
+      'learned',
+      1,
+      learned.operation,
+    );
+  }
+
+  if (structural?.rawName) {
+    const inner = parseIntent(structural.rawName);
+    if (inner.items.length) {
+      return toIntentResult(inner.items, inner.partySize, rawText, 'rules', 1, 'remove');
     }
   }
 

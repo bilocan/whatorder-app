@@ -10,6 +10,7 @@ const { isPartialBlobTrap } = require('./intentPartialMatch');
 const { norm } = require('./menuMatch');
 const { buildMenuMatchIndex } = require('./menuMapper');
 const { t } = require('./templates');
+const { previewLearnedRemove } = require('./intentLearnedRemove');
 
 /** Beilagen group so offline sandbox resolves mit allem / ohne scharf like pilot menus. */
 const SANDBOX_BEILAGEN = {
@@ -57,6 +58,8 @@ async function evaluateIntent(text, options = {}) {
     basket = [],
     businessId = null,
     llm = false,
+    menuTokenIndex = null,
+    pendingItems = [],
   } = options;
   const phone = options.phone ?? (llm ? sandboxPhoneForLlm() : 'sandbox');
 
@@ -85,13 +88,65 @@ async function evaluateIntent(text, options = {}) {
     return { ...emptyResult(base, 'low_confidence'), intent };
   }
 
-  let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch);
-
   const llmAllowed = llm && canCallLlm(phone);
   const sandboxLlm = { llmEnabled: llm, llmAllowed };
+
+  if (intent.operation === 'remove') {
+    let removeBasket = basket;
+    let removePending = pendingItems;
+    let removeIntent = intent;
+    if (!removeBasket.length && !removePending.length) {
+      const { matched } = matchIntentToMenu(intent, menu, menuMatch, menuTokenIndex);
+      if (matched.length) {
+        removeBasket = matched.map((m) => {
+          const targetQty = intent.items[0]?.qty ?? 1;
+          const demoQty = intent.items[0]?.removeAll
+            ? Math.max(2, targetQty)
+            : Math.max(2, targetQty + 1);
+          return {
+            name: m.name,
+            qty: demoQty,
+            price: m.price ?? 0,
+            menuItemId: m.menuItemId,
+            optionGroups: m.optionGroups ?? [],
+          };
+        });
+        removeIntent = {
+          ...intent,
+          items: matched.map((m) => ({
+            name: m.name,
+            qty: m.qty ?? 1,
+            menuItemId: m.menuItemId,
+            rawName: intent.items[0]?.name ?? m.name,
+          })),
+        };
+      }
+    }
+    const removePreview = previewLearnedRemove(removeIntent, {
+      basket: removeBasket,
+      pendingItems: removePending,
+    });
+    return {
+      ...base,
+      ...sandboxLlm,
+      outcome: removePreview.outcome,
+      operation: 'remove',
+      intent: removeIntent,
+      matched: removePreview.matched,
+      unmatched: [],
+      disambiguation: null,
+      botReply: removePreview.botReply,
+      buttons: removePreview.outcome === 'remove' ? [t('intentConfirmBtn', lang)] : null,
+    };
+  }
+
+  let { matched, unmatched, disambiguation } = matchIntentToMenu(
+    intent, menu, menuMatch, menuTokenIndex,
+  );
+
   if (llmAllowed && !intent.llmFailed && canRetryWithLlm(trimmed, intent, matched, unmatched)) {
     const retried = await retryIntentWithMenuLlm(trimmed, intent, {
-      phone, menu, menuMatch, menuTokenIndex: null,
+      phone, menu, menuMatch, menuTokenIndex,
     });
     if (retried) {
       intent = retried.intent;
