@@ -1,0 +1,440 @@
+{
+  "version": 1,
+  "name": "enes-pilot-phrases",
+  "description": "Enes Kebap pilot phrases on enes-menu.json fixture. After menu export: npm run intent:refresh-corpus -- --enes",
+  "businessId": "biz_enes_kebap_9450w",
+  "menu": "enes-menu.json",
+  "menuMatch": "enes-menuMatch.json",
+  "cases": [
+    {
+      "id": "enes-qty-2-doner-1-ayran",
+      "text": "2 Döner 1 ayran",
+      "tags": [
+        "combo",
+        "wave_b",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "Döner",
+            "qty": 2
+          },
+          {
+            "name": "ayran",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Kebap Sandwich Huhn",
+          "Mis Ayran 0.25L"
+        ],
+        "matchedCount": 2,
+        "matchedQtySum": 3
+      }
+    },
+    {
+      "id": "enes-tts-eiern",
+      "text": "Zwei Eiern noch dazu bitte",
+      "tags": [
+        "tts_typo",
+        "wave_c",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "Eiern noch dazu bitte",
+            "qty": 2
+          }
+        ],
+        "matchedNames": [
+          "Mis Ayran 0.25L"
+        ],
+        "matchedCount": 1,
+        "matchedQtySum": 2
+      }
+    },
+    {
+      "id": "enes-mod-split-doner",
+      "text": "zwei döner einer mit allem einer ohne zwiebel",
+      "tags": [
+        "modifier",
+        "wave_c",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "döner mit allem",
+            "qty": 1
+          },
+          {
+            "name": "döner ohne zwiebel",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Kebap Sandwich Huhn",
+          "Kebap Sandwich Huhn"
+        ],
+        "matchedCount": 2
+      }
+    },
+    {
+      "id": "enes-jeweils-kebab-ayran",
+      "text": "zwei Hühner Kebab und jeweils einer ayran bitte",
+      "tags": [
+        "jeweils",
+        "wave_b",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "Hühner Kebab",
+            "qty": 2
+          },
+          {
+            "name": "ayran",
+            "qty": 2
+          }
+        ],
+        "matchedNames": [
+          "Kebap Sandwich Huhn",
+          "Mis Ayran 0.25L"
+        ],
+        "matchedCount": 2,
+        "matchedQtySum": 4
+      }
+    },
+    {
+      "id": "enes-combo-kebab-cola-ayran",
+      "text": "Zwei Hühner Kebab ein Cola und ein ayran bitte",
+      "tags": [
+        "combo",
+        "wave_b",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "Hühner Kebab",
+            "qty": 2
+          },
+          {
+            "name": "Cola",
+            "qty": 1
+          },
+          {
+            "name": "ayran",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Kebap Sandwich Huhn",
+          "Coca Cola 0.33L",
+          "Mis Ayran 0.25L"
+        ],
+        "matchedCount": 3,
+        "matchedQtySum": 4
+      }
+    },
+    {
+      "id": "enes-familienpizza",
+      "text": "Familienpizza",
+      "tags": [
+        "category",
+        "wave_a",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "disambiguation",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "Familienpizza",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "enes-2-doner-disambig",
+      "text": "2 döner",
+      "tags": [
+        "disambiguation",
+        "wave_c",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "döner",
+            "qty": 2
+          }
+        ],
+        "matchedNames": [
+          "Kebap Sandwich Huhn"
+        ],
+        "matchedCount": 1,
+        "matchedQtySum": 2
+      }
+    },
+    {
+      "id": "enes-doner-disambig",
+      "text": "döner",
+      "tags": [
+        "disambiguation",
+        "wave_c",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "döner",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Kebap Sandwich Huhn"
+        ],
+        "matchedCount": 1
+      }
+    },
+    {
+      "id": "enes-remove-ayrani",
+      "text": "ayrani cikar",
+      "tags": [
+        "remove",
+        "wave_c",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "remove",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Mis Ayran 0.25L"
+        ],
+        "matchedCount": 1
+      }
+    },
+    {
+      "id": "enes-pizza-typos-jeweils",
+      "text": "Eine Margarete und eine spinati und jeweils einer bitte ayram bitte",
+      "tags": [
+        "tts_typo",
+        "jeweils",
+        "wave_c",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "disambiguation",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "Margarete",
+            "qty": 1
+          },
+          {
+            "name": "spinati",
+            "qty": 1
+          },
+          {
+            "name": "ayram",
+            "qty": 2
+          }
+        ],
+        "matchedNames": [
+          "Pizza Margherita (33cm)"
+        ],
+        "matchedCount": 1
+      }
+    },
+    {
+      "id": "enes-spinaci",
+      "text": "eine spinaci noch bitte",
+      "tags": [
+        "tts_typo",
+        "wave_a",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "disambiguation",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "spinaci noch bitte",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "enes-takeaway-huhner-sandwich",
+      "text": "Zum Mitnehmen zwei Hühner kebap Sandwich mit allem einer ohne zwiebel",
+      "tags": [
+        "modifier",
+        "wave_b",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "Hühner kebap Sandwich mit allem",
+            "qty": 1
+          },
+          {
+            "name": "Hühner kebap Sandwich ohne zwiebel",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Kebap Sandwich Huhn",
+          "Kebap Sandwich Huhn"
+        ],
+        "matchedCount": 2
+      }
+    },
+    {
+      "id": "enes-lahmacun-cola",
+      "text": "lahmacun cola",
+      "tags": [
+        "combo",
+        "wave_b",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "lahmacun",
+            "qty": 1
+          },
+          {
+            "name": "cola",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Lahmacun (1 Stueck)",
+          "Coca Cola 0.33L"
+        ],
+        "matchedCount": 2
+      }
+    },
+    {
+      "id": "enes-familienpizza-margherita",
+      "text": "Familienpizza Margherita",
+      "tags": [
+        "category",
+        "wave_a",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "Familienpizza Margherita",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Pizza Margherita (Familien-Pizza 50cm)"
+        ],
+        "matchedCount": 1
+      }
+    },
+    {
+      "id": "enes-pide-eier",
+      "text": "Eine pide mit Eier und gouda",
+      "tags": [
+        "wave_a",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "pide mit Eier und gouda",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Pide mit Gouda und Eiern"
+        ],
+        "matchedCount": 1
+      }
+    },
+    {
+      "id": "ich-esse-doner-mit-tomaten-salad-und-cola",
+      "text": "ich esse doner mit tomaten salad und cola",
+      "tags": [
+        "enes_pilot"
+      ],
+      "menu": "enes-menu.json",
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "doner mit tomaten salad",
+            "qty": 1
+          },
+          {
+            "name": "cola",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Kebap Sandwich Huhn",
+          "Coca Cola 0.33L"
+        ],
+        "matchedCount": 2
+      },
+      "notes": "Cloud Logging 2026-06-29",
+      "recordedFrom": "enes-menu.json"
+    }
+  ]
+}

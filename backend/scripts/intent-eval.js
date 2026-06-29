@@ -17,6 +17,7 @@ Options:
   --file <name>     Corpus file under fixtures/intent-corpus/ (default: all shipped cases)
   --candidate       Run candidate.json only (harvest queue; failures expected)
   --ci              Run builtin.json only (same as CI Jest gate)
+  --enes            Run enes-pilot.json on enes-menu.json fixture
   --tag <name>      Run only cases with this tag
   --llm             Enable LLM paths (needs API keys; not for CI)
   --verbose, -v     Print each case or extra failure detail
@@ -33,6 +34,7 @@ function parseArgs(argv) {
     json: false,
     candidate: false,
     ci: false,
+    enes: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -45,6 +47,8 @@ function parseArgs(argv) {
       opts.candidate = true;
     } else if (arg === '--ci') {
       opts.ci = true;
+    } else if (arg === '--enes') {
+      opts.enes = true;
     } else if (arg === '--llm') {
       opts.llm = true;
     } else if (arg === '--verbose' || arg === '-v') {
@@ -67,6 +71,7 @@ async function main() {
   const opts = parseArgs(process.argv.slice(2));
   let mode = 'shipped';
   if (opts.ci) mode = 'ci';
+  else if (opts.enes) mode = 'enes';
   else if (opts.candidate) mode = 'candidate';
 
   const report = await runCorpusEval({
@@ -75,6 +80,8 @@ async function main() {
     llm: opts.llm,
     mode,
   });
+
+  const label = opts.enes ? 'enes-pilot' : (opts.ci ? 'builtin' : null);
 
   if (opts.json) {
     console.log(JSON.stringify({
@@ -90,7 +97,7 @@ async function main() {
       })),
     }, null, 2));
   } else {
-    console.log(formatEvalReport(report, { verbose: opts.verbose }));
+    console.log(formatEvalReport(report, { verbose: opts.verbose, label }));
   }
 
   process.exit(report.failed > 0 ? 1 : 0);

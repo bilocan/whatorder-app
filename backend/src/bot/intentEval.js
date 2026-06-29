@@ -1,9 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const { BUILTIN_MENU, evaluateIntent } = require('./intentSandbox');
+const { buildMenuMatchIndex } = require('./menuMapper');
+const { buildMenuTokenIndex } = require('./menuTokenIndex');
 
 const DEFAULT_CORPUS_DIR = path.join(__dirname, '../../fixtures/intent-corpus');
 const CI_CORPUS_FILE = 'builtin.json';
+const ENES_PILOT_CORPUS_FILE = 'enes-pilot.json';
 const CANDIDATE_CORPUS_FILE = 'candidate.json';
 
 function listCorpusFiles(corpusDir = DEFAULT_CORPUS_DIR) {
@@ -29,12 +32,18 @@ function filterCasesByMode(cases, mode) {
 
 function loadCorpusFile(filePath) {
   const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  const suiteMeta = {
+    menu: raw.menu ?? null,
+    menuMatch: raw.menuMatch ?? null,
+    businessId: raw.businessId ?? null,
+  };
   const cases = (raw.cases ?? []).map((c) => ({
     ...c,
     _source: path.basename(filePath),
     _suite: raw.name ?? path.basename(filePath, '.json'),
+    _suiteMeta: suiteMeta,
   }));
-  return { meta: raw, cases, filePath };
+  return { meta: raw, suiteMeta, cases, filePath };
 }
 
 function loadAllCases(options = {}) {
@@ -46,6 +55,8 @@ function loadAllCases(options = {}) {
     fileFilter = [path.join(corpusDir, options.file)];
   } else if (mode === 'ci') {
     fileFilter = [path.join(corpusDir, CI_CORPUS_FILE)];
+  } else if (mode === 'enes') {
+    fileFilter = [path.join(corpusDir, ENES_PILOT_CORPUS_FILE)];
   } else if (mode === 'candidate') {
     fileFilter = [path.join(corpusDir, CANDIDATE_CORPUS_FILE)];
   } else {
@@ -66,17 +77,37 @@ function loadAllCases(options = {}) {
   return { suites, cases };
 }
 
+function resolveFixturePath(ref, corpusDir = DEFAULT_CORPUS_DIR) {
+  if (!ref || ref === 'builtin') return null;
+  return path.isAbsolute(ref) ? ref : path.join(corpusDir, ref);
+}
+
+function loadFixtureJson(ref, corpusDir = DEFAULT_CORPUS_DIR) {
+  const fixturePath = resolveFixturePath(ref, corpusDir);
+  if (!fixturePath) return null;
+  return JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+}
+
 function resolveMenu(caseDef, corpusDir = DEFAULT_CORPUS_DIR) {
-  const menuRef = caseDef.menu ?? 'builtin';
+  const suiteMenu = caseDef._suiteMeta?.menu;
+  const menuRef = caseDef.menu ?? suiteMenu ?? 'builtin';
   if (menuRef === 'builtin') return BUILTIN_MENU;
-  const menuPath = path.isAbsolute(menuRef)
-    ? menuRef
-    : path.join(corpusDir, menuRef);
-  const items = JSON.parse(fs.readFileSync(menuPath, 'utf8'));
+  const items = loadFixtureJson(menuRef, corpusDir);
   if (!Array.isArray(items)) {
-    throw new Error(`Menu file must be a JSON array: ${menuPath}`);
+    throw new Error(`Menu file must be a JSON array: ${resolveFixturePath(menuRef, corpusDir)}`);
   }
   return items;
+}
+
+function resolveMenuMatch(caseDef, menu, corpusDir = DEFAULT_CORPUS_DIR) {
+  const suiteMatch = caseDef._suiteMeta?.menuMatch;
+  const matchRef = caseDef.menuMatch ?? suiteMatch;
+  if (!matchRef) return buildMenuMatchIndex(menu);
+  const stored = loadFixtureJson(matchRef, corpusDir);
+  if (!stored || typeof stored !== 'object') {
+    throw new Error(`menuMatch file must be a JSON object: ${resolveFixturePath(matchRef, corpusDir)}`);
+  }
+  return buildMenuMatchIndex(menu, stored);
 }
 
 function matchedNames(result) {
@@ -194,12 +225,17 @@ async function runCase(caseDef, options = {}) {
   const corpusDir = options.corpusDir ?? DEFAULT_CORPUS_DIR;
   const llmDefault = options.llm ?? false;
   const menu = resolveMenu(caseDef, corpusDir);
+  const menuMatch = resolveMenuMatch(caseDef, menu, corpusDir);
+  const menuTokenIndex = buildMenuTokenIndex(menu);
+  const businessId = caseDef.businessId ?? null;
   const result = await evaluateIntent(caseDef.text, {
     menu,
+    menuMatch,
+    menuTokenIndex,
     lang: caseDef.lang ?? 'de',
     basket: caseDef.basket ?? [],
     llm: caseDef.llm ?? llmDefault,
-    businessId: caseDef.businessId ?? null,
+    businessId,
   });
   const failures = assertExpectations(result, caseDef.expect ?? {});
   return {
@@ -229,9 +265,10 @@ async function runCorpusEval(options = {}) {
   };
 }
 
-function formatEvalReport(report, { verbose = false } = {}) {
+function formatEvalReport(report, { verbose = false, label = null } = {}) {
   const lines = [];
-  lines.push(`Intent corpus: ${report.passed}/${report.total} passed`);
+  const prefix = label ? `${label}: ` : '';
+  lines.push(`${prefix}Intent corpus: ${report.passed}/${report.total} passed`);
   if (report.failed > 0) {
     lines.push('');
     for (const run of report.failures) {
@@ -271,6 +308,42 @@ function slugifyCaseId(text, existingIds = new Set()) {
 }
 
 /** Snapshot evaluateIntent output into an expect block (current behavior, not desired). */
+/**
+ * Re-snapshot expect blocks for every case in a corpus file (e.g. after menu re-export).
+ * Preserves case id, text, tags, and suite metadata; only updates expect from current parser output.
+ */
+async function refreshCorpusExpects(corpusFile, options = {}) {
+  const corpusDir = options.corpusDir ?? DEFAULT_CORPUS_DIR;
+  const filePath = path.isAbsolute(corpusFile)
+    ? corpusFile
+    : path.join(corpusDir, corpusFile);
+  const doc = readCorpusDocument(filePath);
+  const suiteMeta = {
+    menu: doc.menu ?? null,
+    menuMatch: doc.menuMatch ?? null,
+    businessId: doc.businessId ?? null,
+  };
+
+  const refreshed = [];
+  for (const c of doc.cases) {
+    const caseDef = {
+      ...c,
+      _suiteMeta: suiteMeta,
+      _source: path.basename(filePath),
+      _suite: doc.name ?? path.basename(filePath, '.json'),
+    };
+    const run = await runCase(caseDef, { corpusDir, llm: options.llm ?? false });
+    c.expect = recordExpectFromResult(run.result);
+    refreshed.push({ id: c.id, outcome: run.result.outcome, pass: run.pass });
+  }
+
+  if (!options.dryRun) {
+    writeCorpusDocument(filePath, doc);
+  }
+
+  return { filePath, doc, refreshed };
+}
+
 function recordExpectFromResult(result) {
   const expect = {
     orderLike: result.orderLike,
@@ -353,7 +426,9 @@ function writeCorpusDocument(filePath, doc) {
 }
 
 function corpusFilePath(target, corpusDir = DEFAULT_CORPUS_DIR) {
-  const file = target === 'builtin' ? CI_CORPUS_FILE : CANDIDATE_CORPUS_FILE;
+  let file = CANDIDATE_CORPUS_FILE;
+  if (target === 'builtin') file = CI_CORPUS_FILE;
+  else if (target === 'enes') file = ENES_PILOT_CORPUS_FILE;
   return path.join(corpusDir, file);
 }
 
@@ -621,6 +696,7 @@ async function promoteAllCases(options = {}) {
 
 module.exports = {
   CI_CORPUS_FILE,
+  ENES_PILOT_CORPUS_FILE,
   CANDIDATE_CORPUS_FILE,
   DEFAULT_CORPUS_DIR,
   appendCaseToCorpus,
@@ -633,11 +709,16 @@ module.exports = {
   isCandidateCase,
   loadAllCases,
   loadCorpusFile,
+  loadFixtureJson,
   promoteAllCases,
   promoteCase,
   readCorpusDocument,
+  refreshCorpusExpects,
   recordExpectFromResult,
   recordIntentCase,
+  resolveFixturePath,
+  resolveMenu,
+  resolveMenuMatch,
   runCase,
   runCorpusEval,
   sanitizeCaseForShipped,
