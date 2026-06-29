@@ -69,7 +69,20 @@ describe('lookupLearnedIntent', () => {
     }, [{ menuItemId: 'c1', name: 'Cola', qty: 2 }]);
     const hit = await lookupLearnedIntent('biz1', 'zwei cola');
     expect(hit.items).toEqual([{ name: 'Cola', qty: 2, menuItemId: 'c1' }]);
+    expect(hit.operation).toBe('add');
     expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  test('stores and replays remove operation', async () => {
+    rememberValidatedIntent('biz1', 'ayrani cikar', {
+      parsedBy: 'rules',
+      operation: 'remove',
+      items: [{ name: 'ayran', qty: 1 }],
+      partySize: null,
+    }, [{ menuItemId: 'a1', name: 'Mis Ayran 0.25L', qty: 1, rawName: 'ayran' }]);
+    const hit = await lookupLearnedIntent('biz1', 'ayrani cikar');
+    expect(hit.operation).toBe('remove');
+    expect(hit.items[0].menuItemId).toBe('a1');
   });
 
   test('cache hit across "was für mich" vs "für mich" wording', async () => {

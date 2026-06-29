@@ -8,6 +8,7 @@ const { canCallLlm } = require('../lib/llm');
 const { rememberValidatedIntent } = require('./intentLearning');
 const { canRetryWithLlm, retryIntentWithMenuLlm } = require('./intentLlmRetry');
 const { isPartialBlobTrap } = require('./intentPartialMatch');
+const { tryLearnedRemoveIntent } = require('./intentLearnedRemove');
 const {
   matchIntentToMenu, mergeIntoBasket, mergePendingItems, hydratePendingItems, expandPerUnitSpicyMatched,
 } = require('./intentMatcher');
@@ -120,6 +121,12 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   intent = applyJeweilsBasketContext(intent, basket);
   if (!intent.items.length) return false;
   if (intent.confidence != null && intent.confidence < 0.6) return false;
+
+  if (intent.operation === 'remove') {
+    return tryLearnedRemoveIntent({
+      from, session, lang, businessId, basket, text, intent,
+    });
+  }
 
   let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch, menuTokenIndex);
 

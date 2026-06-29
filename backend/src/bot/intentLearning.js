@@ -12,6 +12,16 @@ const fuzzyIndexLoaded = new Set();
 
 const FUZZY_KEY_MAX_DIST = 3;
 const FUZZY_MIN_KEY_LEN = 8;
+const LEARNED_OPERATIONS = new Set(['add', 'remove']);
+
+function normalizeOperation(operation) {
+  const op = String(operation ?? 'add').toLowerCase();
+  return LEARNED_OPERATIONS.has(op) ? op : 'add';
+}
+
+function shouldPromoteAliases(operation) {
+  return normalizeOperation(operation) === 'add';
+}
 
 function memoryGet(businessId, textKey) {
   return memoryByBusiness.get(businessId)?.get(textKey) ?? null;
@@ -61,8 +71,9 @@ async function loadFuzzyIndexFromFirestore(businessId) {
       if (!key || !items.length) continue;
       if (!memoryGet(businessId, key)) {
         memorySet(businessId, key, {
-          items,
+          items: sanitizeItems(data?.items),
           partySize: data.partySize ?? null,
+          operation: normalizeOperation(data.operation),
         });
       }
     }
@@ -83,6 +94,8 @@ function sanitizeItems(items) {
       };
       if (i.menuItemId) out.menuItemId = String(i.menuItemId);
       if (i.modifierKey) out.modifierKey = String(i.modifierKey);
+      if (i.rawName) out.rawName = String(i.rawName).trim();
+      if (i.removeAll) out.removeAll = true;
       return out;
     })
     .filter(i => i.name);
@@ -117,8 +130,9 @@ async function loadExactKey(businessId, textKey) {
     if (!items.length) return null;
 
     const payload = {
-      items,
+      items: sanitizeItems(data?.items),
       partySize: data.partySize ?? null,
+      operation: normalizeOperation(data.operation),
     };
     memorySet(businessId, textKey, payload);
     return payload;
@@ -132,7 +146,7 @@ async function loadExactKey(businessId, textKey) {
 
 /**
  * Tier B → Tier A: return a prior validated parse (exact, legacy key, or fuzzy).
- * @returns {Promise<{ items: object[], partySize: number|null }|null>}
+ * @returns {Promise<{ items: object[], partySize: number|null, operation: string }|null>}
  */
 async function lookupLearnedIntent(businessId, rawText) {
   if (!businessId || !rawText?.trim()) return null;
@@ -168,14 +182,17 @@ function recordLearnedIntentHit(businessId, rawText) {
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true }).then(async () => {
     const cached = memoryGet(businessId, textKey);
-    if (cached?.items?.length) {
+    if (cached?.items?.length && shouldPromoteAliases(cached.operation)) {
       scheduleAliasPromotion(businessId, docId, textKey, cached.items);
       return;
     }
     try {
       const snap = await ref.get();
-      const items = sanitizeItems(snap.data()?.items);
-      if (items.length) scheduleAliasPromotion(businessId, docId, textKey, items);
+      const data = snap.data();
+      const items = sanitizeItems(data?.items);
+      if (items.length && shouldPromoteAliases(data?.operation)) {
+        scheduleAliasPromotion(businessId, docId, textKey, items);
+      }
     } catch (err) {
       if (process.env.NODE_ENV !== 'test') {
         console.warn(`[intent-learning] learned hit bump failed: ${err.message}`);
@@ -205,10 +222,12 @@ function rememberValidatedIntent(businessId, rawText, intent, matched = null) {
   const textKey = intentLearnKey(rawText);
   if (!textKey) return;
 
+  const operation = normalizeOperation(intent.operation);
   const source = intent.parsedBy === 'llm' ? 'llm' : 'rules';
   const payload = {
     items,
     partySize: intent.partySize ?? null,
+    operation,
   };
   memorySet(businessId, textKey, payload);
 
@@ -218,17 +237,55 @@ function rememberValidatedIntent(businessId, rawText, intent, matched = null) {
     textKey,
     items,
     partySize: intent.partySize ?? null,
+    operation,
     source,
     hitCount: admin.firestore.FieldValue.increment(1),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true }).then(() => {
-    scheduleAliasPromotion(businessId, docId, textKey, items);
+    if (shouldPromoteAliases(operation)) {
+      scheduleAliasPromotion(businessId, docId, textKey, items);
+    }
   }).catch(err => {
     if (process.env.NODE_ENV !== 'test') {
       console.warn(`[intent-learning] save failed: ${err.message}`);
     }
   });
+}
+
+/** Owner dashboard: seed a phrase → items mapping (rules test or manual pick). */
+async function saveManualIntentLearning(businessId, rawText, items, { operation = 'add' } = {}) {
+  if (!businessId || !rawText?.trim()) {
+    throw new Error('businessId and text are required');
+  }
+  const sanitized = sanitizeItems(items);
+  if (!sanitized.length) throw new Error('At least one menu item is required');
+
+  const textKey = intentLearnKey(rawText);
+  if (!textKey) throw new Error('Phrase is empty after normalization');
+
+  const op = normalizeOperation(operation);
+  const docId = docIdForKey(textKey);
+  const ref = intentLearningRef(businessId, docId);
+  const payload = {
+    items: sanitized,
+    partySize: null,
+    operation: op,
+  };
+  memorySet(businessId, textKey, payload);
+
+  await ref.set({
+    textKey,
+    items: sanitized,
+    partySize: null,
+    operation: op,
+    source: 'manual',
+    hitCount: 1,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  return { id: docId, textKey, items: sanitized, operation: op };
 }
 
 /** @deprecated use rememberValidatedIntent */
@@ -250,5 +307,7 @@ module.exports = {
   rememberValidatedIntent,
   rememberValidatedLlmIntent,
   recordLearnedIntentHit,
+  saveManualIntentLearning,
+  normalizeOperation,
   _resetIntentLearningMemory,
 };

@@ -15,6 +15,7 @@
     "customers": "Customers",
     "income": "Income",
     "menu": "Menu",
+    "learnedPhrases": "Phrases",
     "settings": "Settings",
     "admin": "Admin",
     "adminMap": "Map",
@@ -154,6 +155,86 @@
     "loading": "Loading…",
     "noOrders": "No orders yet.",
     "historyError": "Couldn't load order history."
+  },
+  "learnedPhrases": {
+    "title": "Learned phrases",
+    "description": "Phrases your customers typed that the bot remembered after a confirmed order. Deleting removes the repeat-order shortcut only. Promoted phrases also live on menu item aliases until you edit the menu.",
+    "searchPlaceholder": "Search phrase or item…",
+    "empty": "No learned phrases yet. They appear after customers confirm orders the bot understood.",
+    "loadError": "Could not load phrases from Firestore. If you just added this page, ask an admin to deploy firestore.rules.",
+    "col": {
+      "phrase": "Customer phrase",
+      "operation": "Action",
+      "items": "Matched items",
+      "hits": "Confirms",
+      "source": "Source",
+      "status": "Status",
+      "updated": "Updated",
+      "actions": "Actions"
+    },
+    "source": {
+      "llm": "AI",
+      "rules": "Rules",
+      "manual": "Manual"
+    },
+    "status": {
+      "promoted": "On menu aliases",
+      "cacheOnly": "Cache only"
+    },
+    "time": {
+      "justNow": "Just now",
+      "minutesAgo": "{{count}} min ago",
+      "hoursAgo": "{{count}} h ago"
+    },
+    "delete": {
+      "title": "Delete learned phrase?",
+      "message": "Remove “{{phrase}}” from learned phrases? The bot may ask AI or rules again next time.",
+      "messagePromoted": "Remove “{{phrase}}” from learned phrases? Menu aliases are unchanged — edit the menu to remove promoted wording.",
+      "confirm": "Delete"
+    },
+    "rowTest": "Test",
+    "operation": {
+      "add": "Add to order",
+      "remove": "Remove from order"
+    },
+    "add": {
+      "title": "Add & test phrase",
+      "hint": "Type how customers order, test against your live menu, then save. Saved phrases work like WhatsApp learnings.",
+      "operationLabel": "What should this phrase do?",
+      "removeHint": "For remove phrases: check item(s), set how many to remove (or “all lines”), then test. Test simulates a basket with one extra unit so you can see partial remove.",
+      "removeQty": "Qty for {{item}}",
+      "removeAll": "All lines",
+      "phraseLabel": "Customer phrase",
+      "phrasePlaceholder": "e.g. ayrani cikar",
+      "itemsLabel": "Maps to menu items",
+      "itemsLabelRemove": "Remove these items",
+      "noMenu": "No available menu items.",
+      "useLlm": "Use AI if rules fail (uses Gemini quota)",
+      "test": "Test phrase",
+      "testing": "Testing…",
+      "save": "Save phrase",
+      "saving": "Saving…",
+      "saved": "Saved as “{{key}}”",
+      "saveError": "Could not save phrase"
+    },
+    "test": {
+      "result": "Test result:",
+      "parsedBy": "parsed by {{source}}",
+      "matched": "Matched",
+      "wouldRemove": "Would remove",
+      "unmatched": "Unmatched",
+      "error": "Test failed — is the backend running?",
+      "outcome": {
+        "proposal": "Would propose order",
+        "disambiguation": "Needs item pick",
+        "no_match": "No match",
+        "llm_failed": "AI could not parse",
+        "not_order": "Not order text",
+        "low_confidence": "Low confidence",
+        "remove": "Would remove from basket/proposal",
+        "remove_failed": "Remove failed (item not in basket)"
+      }
+    }
   },
   "menu": {
     "title": "Menu",

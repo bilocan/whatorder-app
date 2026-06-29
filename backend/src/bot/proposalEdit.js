@@ -1,6 +1,7 @@
 const { norm } = require('./menuMatch');
 const { parseIntent, parseIntentAsync, looksLikeOrderText } = require('./intentParser');
 const { parseOrderText } = require('./orderParser');
+const { detectRemovePhrase, REMOVE_SUFFIX_RE } = require('./intentRemoveDetect');
 
 const ORDER_SIGNAL_RE = /(\d+\s*x\b|\bx\s*\d+|\d+\s+\w|\+\s*\w|,\s*\w|\bund\b|\band\b|\bve\b|\bmit\b|\bwith\b)/i;
 
@@ -10,13 +11,17 @@ const CHAT_ONLY = new Set([
 ]);
 const { matchIntentToMenu, mergePendingItems } = require('./intentMatcher');
 const { sendDisambiguationList } = require('./intentDisambiguate');
-const { sendIntentProposal } = require('./intentOrder');
 const { patchSession } = require('./sessionStore');
 const { sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { sendOrderEntryPrompt } = require('./orderEntry');
 const { getMenu, getMenuMatch } = require('./menuService');
 const { canCallLlm, parseProposalEditWithLlm } = require('../lib/llm');
+const { rememberValidatedIntent } = require('./intentLearning');
+
+function sendIntentProposal(args) {
+  return require('./intentOrder').sendIntentProposal(args);
+}
 
 const CANCEL_PHRASES = new Set([
   'cancel', 'start over', 'start again', 'never mind', 'nevermind', 'forget it',
@@ -27,7 +32,6 @@ const CANCEL_PHRASES = new Set([
 const REMOVE_VERBS =
   'remove|delete|without|no|kein|keine|ohne|entfernen|löschen|loschen|streichen|sil|cikar|çıkar|kaldir|kaldır|weg|raus';
 const REMOVE_RE = new RegExp(`^(${REMOVE_VERBS})\\s+(.+)$`, 'i');
-const REMOVE_SUFFIX_RE = new RegExp(`^(.+?)\\s+(${REMOVE_VERBS})$`, 'i');
 const EDIT_SIGNAL_RE = new RegExp(`\\b(${REMOVE_VERBS}|add|plus|und|ve|sadece|only|nur|actually|instead|ersetzen|yerine|stattdessen)\\b`, 'i');
 const ADD_RE = /^(add|and|plus|und|ve|\+)\s+(.+)$/i;
 const SET_QTY_RE = /^(make it|just|only|nur|sadece|stattdessen)\s+(.+)$/i;
@@ -63,8 +67,8 @@ function parseProposalEdit(text, normText) {
   const removeMatch = trimmed.match(REMOVE_RE);
   if (removeMatch) return { type: 'remove', rawName: removeMatch[2].trim() };
 
-  const removeSuffix = trimmed.match(REMOVE_SUFFIX_RE);
-  if (removeSuffix) return { type: 'remove', rawName: removeSuffix[1].trim() };
+  const detected = detectRemovePhrase(trimmed);
+  if (detected) return { type: 'remove', rawName: detected.rawName };
 
   const addMatch = trimmed.match(ADD_RE);
   if (addMatch) return { type: 'add', fragment: addMatch[2].trim() };
@@ -181,12 +185,42 @@ async function tryProposalEdit({ from, session, lang, businessId, basket, text, 
       return true;
     }
     if (!next.length) {
+      const removedItems = pending.map((p) => ({
+        name: p.name,
+        qty: p.qty ?? 1,
+        menuItemId: p.menuItemId,
+        rawName: edit.rawName,
+      }));
+      if (removedItems.length) {
+        rememberValidatedIntent(
+          businessId,
+          text,
+          { parsedBy: 'rules', rawText: text, operation: 'remove', partySize: null },
+          removedItems,
+        );
+      }
       await patchSession(from, { pendingIntentItems: undefined, unmatchedIntentItems: undefined }, session);
       await sendOrderEntryPrompt({
         from, session, lang, businessId, basket,
         bodyOverride: t('proposalEditEmpty', lang),
       });
       return true;
+    }
+    const removedItems = pending
+      .filter((p) => !next.some((n) => n.menuItemId === p.menuItemId && n.name === p.name))
+      .map((p) => ({
+        name: p.name,
+        qty: p.qty ?? 1,
+        menuItemId: p.menuItemId,
+        rawName: edit.rawName,
+      }));
+    if (removedItems.length) {
+      rememberValidatedIntent(
+        businessId,
+        text,
+        { parsedBy: 'rules', rawText: text, operation: 'remove', partySize: null },
+        removedItems,
+      );
     }
     await sendIntentProposal({ from, session, lang, businessId, basket, matched: next, unmatched });
     return true;
@@ -273,6 +307,7 @@ module.exports = {
   parseProposalEdit,
   findProposalItemIndex,
   removeProposalItem,
+  proposalItemMatchesName,
   tryProposalEdit,
   looksLikeProposalEdit,
   resolveProposalEdit,
