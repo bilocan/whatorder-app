@@ -1,0 +1,8 @@
+# Enes owner / log phrases — one per line (# = comment)
+# Run: npm run intent:harvest -- --enes --verbose
+# Interactive: npm run intent:harvest -- --enes -i
+# Record passes: npm run intent:harvest -- --enes --record --eval
+
+2 Döner 1 ayran
+ein Cola
+Zum Mitnehmen zwei Kebap mit allem

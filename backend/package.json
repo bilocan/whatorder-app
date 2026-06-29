@@ -20,6 +20,7 @@
     "intent:export-menu": "node src/scripts/exportIntentMenuFixture.js",
     "intent:init-restaurant": "node src/scripts/initRestaurantCorpus.js",
     "intent:refresh-corpus": "node scripts/intent-refresh-corpus.js",
+    "intent:harvest": "node scripts/intent-harvest.js",
     "generate:flow": "node src/scripts/generateFlow.js"
   },
   "dependencies": {

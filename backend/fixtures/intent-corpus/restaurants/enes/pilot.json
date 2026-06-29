@@ -336,8 +336,10 @@
       "tags": [
         "combo",
         "wave_b",
-        "enes_pilot"
+        "enes_pilot",
+        "owner_pattern"
       ],
+      "notes": "Owner top order",
       "expect": {
         "orderLike": true,
         "outcome": "proposal",

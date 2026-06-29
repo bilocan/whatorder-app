@@ -8,6 +8,8 @@
  *   npm run intent:eval -- --tag modifier
  *   npm run intent:eval -- --file builtin.json
  */
+require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
+
 const { formatEvalReport, runCorpusEval } = require('../src/bot/intentEval');
 
 const HELP = `

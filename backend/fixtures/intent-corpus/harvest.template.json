@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "name": "{slug}-harvest",
+  "description": "Copy to restaurants/{slug}/harvest.json. Fill phrases[], run npm run intent:harvest -- --restaurant {slug}",
+  "businessId": null,
+  "restaurant": "{slug}",
+  "phrases": [
+    {
+      "id": "owner-01",
+      "text": "",
+      "source": "owner",
+      "tags": ["owner_pattern"],
+      "notes": "Top order #1",
+      "status": "pending"
+    },
+    {
+      "id": "owner-02",
+      "text": "",
+      "source": "owner",
+      "tags": ["owner_pattern", "combo"],
+      "notes": "Meal + drink",
+      "status": "pending"
+    },
+    {
+      "id": "owner-03",
+      "text": "",
+      "source": "owner",
+      "tags": ["owner_pattern", "modifier"],
+      "notes": "Modifier-heavy line",
+      "status": "pending"
+    },
+    {
+      "id": "tts-01",
+      "text": "",
+      "source": "tts",
+      "tags": ["tts_typo"],
+      "notes": "Voice-to-text garble",
+      "status": "pending"
+    },
+    {
+      "id": "log-01",
+      "text": "",
+      "source": "cloud_log",
+      "tags": ["cloud_log"],
+      "notes": "Production miss from logs",
+      "status": "pending"
+    }
+  ]
+}
