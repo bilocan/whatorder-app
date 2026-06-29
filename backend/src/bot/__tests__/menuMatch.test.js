@@ -143,6 +143,7 @@ const ENES_PIZZA_MENU = [
   { id: 'm1', name: 'Pizza Marinara (33cm)', price: 9.9, available: true },
   { id: 'm2', name: 'Pizza Margherita (33cm)', price: 12.9, available: true },
   { id: 'm3', name: 'Pizza Spinachi (33cm)', price: 13.9, available: true },
+  { id: 'm4', name: 'Pizza Tonno (33cm)', price: 14.9, available: true },
 ];
 
 const BURGER_MENU = [
@@ -216,5 +217,16 @@ describe('classifyMenuMatch — Enes spinaci / spinachi typos', () => {
     expect(unmatched).toEqual([]);
     expect(matched).toHaveLength(1);
     expect(matched[0].name).toBe('Pizza Spinachi (33cm)');
+  });
+
+  test('pizza thunfisch matches Pizza Tonno (33cm) not generic pizza list', () => {
+    const { parseIntent } = require('../intentParser');
+    const { matchIntentToMenu } = require('../intentMatcher');
+    const intent = parseIntent('pizza thunfisch');
+    const { matched, disambiguation, unmatched } = matchIntentToMenu(intent, ENES_PIZZA_MENU);
+    expect(disambiguation).toBeNull();
+    expect(unmatched).toEqual([]);
+    expect(matched).toHaveLength(1);
+    expect(matched[0].name).toBe('Pizza Tonno (33cm)');
   });
 });

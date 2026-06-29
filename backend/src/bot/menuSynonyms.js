@@ -9,6 +9,7 @@ const SYNONYM_GROUPS = [
   ['pizza'],
   ['margherita', 'margarita', 'margarete', 'margareta'],
   ['spinaci', 'spinati', 'spinachi'],
+  ['tonno', 'thunfisch', 'tuna'],
   ['familienpizza', 'familien pizza', 'grosse pizza', 'große pizza', 'family pizza'],
   ['ayran', 'ayram', 'jogurt', 'joghurt'],
   ['lahmacun', 'turkish pizza', 'turkische pizza', 'turk pizzasi', 'turk pizzası'],
