@@ -127,6 +127,15 @@ describe('assertExpectations', () => {
       expect(report.total).toBeGreaterThanOrEqual(25);
     });
 
+    test('restaurants/enes/pilot.json passes on menu fixture without LLM', async () => {
+      const report = await runCorpusEval({ mode: 'enes', llm: false });
+      if (report.failed > 0) {
+        console.error(formatEvalReport(report, { verbose: true, label: 'enes-pilot' }));
+      }
+      expect(report.failed).toBe(0);
+      expect(report.total).toBeGreaterThanOrEqual(10);
+    });
+
     test('modifier-tagged cases pass', async () => {
       const report = await runCorpusEval({ file: 'builtin.json', tag: 'modifier', llm: false });
       expect(report.failed).toBe(0);

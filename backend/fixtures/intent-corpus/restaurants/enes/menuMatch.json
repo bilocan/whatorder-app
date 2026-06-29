@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "categories": {
+    "Beilagen": {
+      "normalized": "beilagen",
+      "collapsed": "beilagen",
+      "aliases": [
+        "beilagen"
+      ],
+      "itemCount": 1
+    },
+    "Burger": {
+      "normalized": "burger",
+      "collapsed": "burger",
+      "aliases": [
+        "burger"
+      ],
+      "itemCount": 2
+    },
+    "Desserts": {
+      "normalized": "desserts",
+      "collapsed": "desserts",
+      "aliases": [
+        "desserts"
+      ],
+      "itemCount": 5
+    },
+    "Getraenke": {
+      "normalized": "getraenke",
+      "collapsed": "getraenke",
+      "aliases": [
+        "getraenke"
+      ],
+      "itemCount": 27
+    },
+    "Kebap": {
+      "normalized": "kebap",
+      "collapsed": "kebap",
+      "aliases": [
+        "doner",
+        "durum",
+        "kabap",
+        "kebab",
+        "kebap"
+      ],
+      "itemCount": 11
+    },
+    "Pide": {
+      "normalized": "pide",
+      "collapsed": "pide",
+      "aliases": [
+        "pide"
+      ],
+      "itemCount": 5
+    },
+    "Pizza 33cm": {
+      "normalized": "pizza",
+      "collapsed": "pizza",
+      "aliases": [
+        "pizza"
+      ],
+      "itemCount": 19
+    },
+    "Familien-Pizza 50cm": {
+      "normalized": "familien pizza",
+      "collapsed": "familienpizza",
+      "aliases": [
+        "familien",
+        "familien pizza",
+        "familienpizza",
+        "family pizza",
+        "grosse pizza",
+        "große pizza",
+        "pizza"
+      ],
+      "itemCount": 19
+    },
+    "Salate": {
+      "normalized": "salate",
+      "collapsed": "salate",
+      "aliases": [
+        "salate"
+      ],
+      "itemCount": 3
+    },
+    "Schnitzel": {
+      "normalized": "schnitzel",
+      "collapsed": "schnitzel",
+      "aliases": [
+        "schnitzel"
+      ],
+      "itemCount": 5
+    },
+    "Suppen": {
+      "normalized": "suppen",
+      "collapsed": "suppen",
+      "aliases": [
+        "suppen",
+        "wasser",
+        "water"
+      ],
+      "itemCount": 1
+    },
+    "Wraps": {
+      "normalized": "wraps",
+      "collapsed": "wraps",
+      "aliases": [
+        "wraps"
+      ],
+      "itemCount": 3
+    }
+  }
+}

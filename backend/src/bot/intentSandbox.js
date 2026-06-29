@@ -230,6 +230,17 @@ function emptyResult(base, outcome) {
   };
 }
 
+function formatMatchedLineLabel(m) {
+  const enriched = enrichPendingWithModifier(m);
+  if (enriched.prefilledSelections) {
+    return buildOptionLabel(enriched, enriched.prefilledSelections);
+  }
+  if (m.rawIntentName && m.rawIntentName !== m.name) {
+    return `${m.name} (${m.rawIntentName})`;
+  }
+  return m.name;
+}
+
 function formatSandboxResult(result) {
   const lines = ['---'];
   lines.push(`orderLike: ${result.orderLike}`);
@@ -253,14 +264,7 @@ function formatSandboxResult(result) {
   if (result.matched?.length) {
     lines.push('matched:');
     for (const m of result.matched) {
-      const enriched = enrichPendingWithModifier(m);
-      let label = m.name;
-      if (enriched.prefilledSelections) {
-        label = buildOptionLabel(enriched, enriched.prefilledSelections);
-      } else if (m.rawIntentName && m.rawIntentName !== m.name) {
-        label = `${m.name} (${m.rawIntentName})`;
-      }
-      lines.push(`  • ${m.qty}x ${label}`);
+      lines.push(`  • ${m.qty}x ${formatMatchedLineLabel(m)}`);
     }
   }
   if (result.unmatched?.length) {
@@ -287,5 +291,6 @@ function formatSandboxResult(result) {
 module.exports = {
   BUILTIN_MENU,
   evaluateIntent,
+  formatMatchedLineLabel,
   formatSandboxResult,
 };

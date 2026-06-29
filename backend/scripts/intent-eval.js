@@ -8,6 +8,8 @@
  *   npm run intent:eval -- --tag modifier
  *   npm run intent:eval -- --file builtin.json
  */
+require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
+
 const { formatEvalReport, runCorpusEval } = require('../src/bot/intentEval');
 
 const HELP = `
@@ -17,6 +19,8 @@ Options:
   --file <name>     Corpus file under fixtures/intent-corpus/ (default: all shipped cases)
   --candidate       Run candidate.json only (harvest queue; failures expected)
   --ci              Run builtin.json only (same as CI Jest gate)
+  --enes            Run restaurants/enes/pilot.json (alias for --restaurant enes)
+  --restaurant <slug>  Run restaurants/<slug>/pilot.json on that tenant's menu fixture
   --tag <name>      Run only cases with this tag
   --llm             Enable LLM paths (needs API keys; not for CI)
   --verbose, -v     Print each case or extra failure detail
@@ -33,6 +37,8 @@ function parseArgs(argv) {
     json: false,
     candidate: false,
     ci: false,
+    enes: false,
+    restaurant: null,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -45,6 +51,11 @@ function parseArgs(argv) {
       opts.candidate = true;
     } else if (arg === '--ci') {
       opts.ci = true;
+    } else if (arg === '--enes') {
+      opts.enes = true;
+      opts.restaurant = 'enes';
+    } else if (arg === '--restaurant') {
+      opts.restaurant = argv[++i];
     } else if (arg === '--llm') {
       opts.llm = true;
     } else if (arg === '--verbose' || arg === '-v') {
@@ -67,6 +78,7 @@ async function main() {
   const opts = parseArgs(process.argv.slice(2));
   let mode = 'shipped';
   if (opts.ci) mode = 'ci';
+  else if (opts.restaurant || opts.enes) mode = 'enes';
   else if (opts.candidate) mode = 'candidate';
 
   const report = await runCorpusEval({
@@ -74,7 +86,12 @@ async function main() {
     tag: opts.tag,
     llm: opts.llm,
     mode,
+    restaurant: opts.restaurant ?? undefined,
   });
+
+  const label = opts.restaurant
+    ? `restaurants/${opts.restaurant}/pilot`
+    : (opts.enes ? 'enes-pilot' : (opts.ci ? 'builtin' : null));
 
   if (opts.json) {
     console.log(JSON.stringify({
@@ -90,7 +107,7 @@ async function main() {
       })),
     }, null, 2));
   } else {
-    console.log(formatEvalReport(report, { verbose: opts.verbose }));
+    console.log(formatEvalReport(report, { verbose: opts.verbose, label }));
   }
 
   process.exit(report.failed > 0 ? 1 : 0);
