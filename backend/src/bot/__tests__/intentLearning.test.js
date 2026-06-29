@@ -13,6 +13,10 @@ const mockGet = jest.fn();
 const mockSet = jest.fn().mockResolvedValue(undefined);
 const mockCollectionGet = jest.fn().mockResolvedValue({ docs: [] });
 
+jest.mock('../intentLearningPromote', () => ({
+  scheduleAliasPromotion: jest.fn(),
+}));
+
 jest.mock('../../lib/collections', () => ({
   intentLearningRef: jest.fn(() => ({
     get: mockGet,
@@ -132,12 +136,15 @@ describe('rememberValidatedIntent', () => {
     expect(payload.items[0].menuItemId).toBe('c1');
   });
 
-  test('ignores learned replay', () => {
+  test('ignores learned replay for full save but bumps hitCount', () => {
     rememberValidatedIntent('biz1', 'pizza', {
       parsedBy: 'learned',
       items: [{ name: 'pizza', qty: 1 }],
     });
-    expect(mockSet).not.toHaveBeenCalled();
+    expect(mockSet).toHaveBeenCalledTimes(1);
+    const payload = mockSet.mock.calls[0][0];
+    expect(payload.hitCount).toEqual({ _increment: 1 });
+    expect(payload.textKey).toBeUndefined();
   });
 
   test('rememberValidatedLlmIntent delegates to llm-only path', () => {

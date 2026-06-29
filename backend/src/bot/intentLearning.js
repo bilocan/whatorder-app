@@ -3,6 +3,7 @@ const { admin } = require('../lib/firebase');
 const { intentLearningRef } = require('../lib/collections');
 const { intentLearnKey, intentLearnKeyVariants } = require('./intentNormalize');
 const { levenshtein, maxTypoDistance } = require('./menuSynonyms');
+const { scheduleAliasPromotion } = require('./intentLearningPromote');
 
 /** In-process L1: businessId → Map(textKey → intent payload). */
 const memoryByBusiness = new Map();
@@ -151,12 +152,52 @@ async function lookupLearnedIntent(businessId, rawText) {
 }
 
 /**
+ * Bump usage count when a prior learn replayed successfully (rules/LLM path skipped).
+ * Fire-and-forget; drives auto-promote threshold.
+ */
+function recordLearnedIntentHit(businessId, rawText) {
+  if (!businessId || !rawText?.trim()) return;
+
+  const textKey = intentLearnKey(rawText);
+  if (!textKey) return;
+
+  const docId = docIdForKey(textKey);
+  const ref = intentLearningRef(businessId, docId);
+  void ref.set({
+    hitCount: admin.firestore.FieldValue.increment(1),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true }).then(async () => {
+    const cached = memoryGet(businessId, textKey);
+    if (cached?.items?.length) {
+      scheduleAliasPromotion(businessId, docId, textKey, cached.items);
+      return;
+    }
+    try {
+      const snap = await ref.get();
+      const items = sanitizeItems(snap.data()?.items);
+      if (items.length) scheduleAliasPromotion(businessId, docId, textKey, items);
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(`[intent-learning] learned hit bump failed: ${err.message}`);
+      }
+    }
+  }).catch(err => {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(`[intent-learning] learned hit save failed: ${err.message}`);
+    }
+  });
+}
+
+/**
  * Persist when a proposal was validated by menu match (rules or LLM).
  * Fire-and-forget; never blocks the customer path.
  */
 function rememberValidatedIntent(businessId, rawText, intent, matched = null) {
   if (!businessId || !rawText?.trim() || !intent) return;
-  if (intent.parsedBy === 'learned') return;
+  if (intent.parsedBy === 'learned') {
+    recordLearnedIntentHit(businessId, rawText);
+    return;
+  }
 
   const items = itemsFromMatched(matched, intent.items);
   if (!items.length) return;
@@ -171,7 +212,8 @@ function rememberValidatedIntent(businessId, rawText, intent, matched = null) {
   };
   memorySet(businessId, textKey, payload);
 
-  const ref = intentLearningRef(businessId, docIdForKey(textKey));
+  const docId = docIdForKey(textKey);
+  const ref = intentLearningRef(businessId, docId);
   void ref.set({
     textKey,
     items,
@@ -180,7 +222,9 @@ function rememberValidatedIntent(businessId, rawText, intent, matched = null) {
     hitCount: admin.firestore.FieldValue.increment(1),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true }).catch(err => {
+  }, { merge: true }).then(() => {
+    scheduleAliasPromotion(businessId, docId, textKey, items);
+  }).catch(err => {
     if (process.env.NODE_ENV !== 'test') {
       console.warn(`[intent-learning] save failed: ${err.message}`);
     }
@@ -205,5 +249,6 @@ module.exports = {
   lookupLearnedIntent,
   rememberValidatedIntent,
   rememberValidatedLlmIntent,
+  recordLearnedIntentHit,
   _resetIntentLearningMemory,
 };
