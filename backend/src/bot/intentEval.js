@@ -3,11 +3,15 @@ const path = require('path');
 const { BUILTIN_MENU, evaluateIntent } = require('./intentSandbox');
 const { buildMenuMatchIndex } = require('./menuMapper');
 const { buildMenuTokenIndex } = require('./menuTokenIndex');
-
-const DEFAULT_CORPUS_DIR = path.join(__dirname, '../../fixtures/intent-corpus');
-const CI_CORPUS_FILE = 'builtin.json';
-const ENES_PILOT_CORPUS_FILE = 'enes-pilot.json';
-const CANDIDATE_CORPUS_FILE = 'candidate.json';
+const {
+  CANDIDATE_CORPUS_FILE,
+  CI_CORPUS_FILE,
+  DEFAULT_CORPUS_DIR,
+  ENES_PILOT_CORPUS_FILE,
+  corpusFilePath,
+  resolveCorpusFileRef,
+  restaurantPilotPath,
+} = require('./corpusLayout');
 
 function listCorpusFiles(corpusDir = DEFAULT_CORPUS_DIR) {
   if (!fs.existsSync(corpusDir)) return [];
@@ -37,11 +41,13 @@ function loadCorpusFile(filePath) {
     menuMatch: raw.menuMatch ?? null,
     businessId: raw.businessId ?? null,
   };
+  const corpusBaseDir = path.dirname(filePath);
   const cases = (raw.cases ?? []).map((c) => ({
     ...c,
     _source: path.basename(filePath),
     _suite: raw.name ?? path.basename(filePath, '.json'),
     _suiteMeta: suiteMeta,
+    _corpusBaseDir: corpusBaseDir,
   }));
   return { meta: raw, suiteMeta, cases, filePath };
 }
@@ -52,11 +58,13 @@ function loadAllCases(options = {}) {
   let fileFilter;
 
   if (options.file) {
-    fileFilter = [path.join(corpusDir, options.file)];
+    fileFilter = [resolveCorpusFileRef(options.file, corpusDir)];
+  } else if (options.restaurant) {
+    fileFilter = [restaurantPilotPath(options.restaurant, corpusDir)];
   } else if (mode === 'ci') {
     fileFilter = [path.join(corpusDir, CI_CORPUS_FILE)];
   } else if (mode === 'enes') {
-    fileFilter = [path.join(corpusDir, ENES_PILOT_CORPUS_FILE)];
+    fileFilter = [restaurantPilotPath('enes', corpusDir)];
   } else if (mode === 'candidate') {
     fileFilter = [path.join(corpusDir, CANDIDATE_CORPUS_FILE)];
   } else {
@@ -77,35 +85,42 @@ function loadAllCases(options = {}) {
   return { suites, cases };
 }
 
-function resolveFixturePath(ref, corpusDir = DEFAULT_CORPUS_DIR) {
+function resolveFixturePath(ref, corpusDir = DEFAULT_CORPUS_DIR, baseDir = null) {
   if (!ref || ref === 'builtin') return null;
-  return path.isAbsolute(ref) ? ref : path.join(corpusDir, ref);
+  if (path.isAbsolute(ref)) return ref;
+  if (baseDir) {
+    const local = path.join(baseDir, ref);
+    if (fs.existsSync(local)) return local;
+  }
+  return path.join(corpusDir, ref);
 }
 
-function loadFixtureJson(ref, corpusDir = DEFAULT_CORPUS_DIR) {
-  const fixturePath = resolveFixturePath(ref, corpusDir);
+function loadFixtureJson(ref, corpusDir = DEFAULT_CORPUS_DIR, baseDir = null) {
+  const fixturePath = resolveFixturePath(ref, corpusDir, baseDir);
   if (!fixturePath) return null;
   return JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 }
 
 function resolveMenu(caseDef, corpusDir = DEFAULT_CORPUS_DIR) {
+  const baseDir = caseDef._corpusBaseDir ?? null;
   const suiteMenu = caseDef._suiteMeta?.menu;
   const menuRef = caseDef.menu ?? suiteMenu ?? 'builtin';
   if (menuRef === 'builtin') return BUILTIN_MENU;
-  const items = loadFixtureJson(menuRef, corpusDir);
+  const items = loadFixtureJson(menuRef, corpusDir, baseDir);
   if (!Array.isArray(items)) {
-    throw new Error(`Menu file must be a JSON array: ${resolveFixturePath(menuRef, corpusDir)}`);
+    throw new Error(`Menu file must be a JSON array: ${resolveFixturePath(menuRef, corpusDir, baseDir)}`);
   }
   return items;
 }
 
 function resolveMenuMatch(caseDef, menu, corpusDir = DEFAULT_CORPUS_DIR) {
+  const baseDir = caseDef._corpusBaseDir ?? null;
   const suiteMatch = caseDef._suiteMeta?.menuMatch;
   const matchRef = caseDef.menuMatch ?? suiteMatch;
   if (!matchRef) return buildMenuMatchIndex(menu);
-  const stored = loadFixtureJson(matchRef, corpusDir);
+  const stored = loadFixtureJson(matchRef, corpusDir, baseDir);
   if (!stored || typeof stored !== 'object') {
-    throw new Error(`menuMatch file must be a JSON object: ${resolveFixturePath(matchRef, corpusDir)}`);
+    throw new Error(`menuMatch file must be a JSON object: ${resolveFixturePath(matchRef, corpusDir, baseDir)}`);
   }
   return buildMenuMatchIndex(menu, stored);
 }
@@ -314,10 +329,9 @@ function slugifyCaseId(text, existingIds = new Set()) {
  */
 async function refreshCorpusExpects(corpusFile, options = {}) {
   const corpusDir = options.corpusDir ?? DEFAULT_CORPUS_DIR;
-  const filePath = path.isAbsolute(corpusFile)
-    ? corpusFile
-    : path.join(corpusDir, corpusFile);
+  const filePath = resolveCorpusFileRef(corpusFile, corpusDir);
   const doc = readCorpusDocument(filePath);
+  const corpusBaseDir = path.dirname(filePath);
   const suiteMeta = {
     menu: doc.menu ?? null,
     menuMatch: doc.menuMatch ?? null,
@@ -329,6 +343,7 @@ async function refreshCorpusExpects(corpusFile, options = {}) {
     const caseDef = {
       ...c,
       _suiteMeta: suiteMeta,
+      _corpusBaseDir: corpusBaseDir,
       _source: path.basename(filePath),
       _suite: doc.name ?? path.basename(filePath, '.json'),
     };
@@ -423,13 +438,6 @@ function readCorpusDocument(filePath) {
 function writeCorpusDocument(filePath, doc) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
-}
-
-function corpusFilePath(target, corpusDir = DEFAULT_CORPUS_DIR) {
-  let file = CANDIDATE_CORPUS_FILE;
-  if (target === 'builtin') file = CI_CORPUS_FILE;
-  else if (target === 'enes') file = ENES_PILOT_CORPUS_FILE;
-  return path.join(corpusDir, file);
 }
 
 function appendCaseToCorpus(caseDef, options = {}) {

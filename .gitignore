@@ -49,7 +49,7 @@ Thumbs.db
 !firebase.json
 !firestore.indexes.json
 !dashboard/src/locales/*.json
-!backend/fixtures/intent-corpus/*.json
+!backend/fixtures/intent-corpus/**/*.json
 
 # Firebase
 .firebase/

@@ -127,7 +127,7 @@ describe('assertExpectations', () => {
       expect(report.total).toBeGreaterThanOrEqual(25);
     });
 
-    test('enes-pilot.json passes on enes-menu fixture without LLM', async () => {
+    test('restaurants/enes/pilot.json passes on menu fixture without LLM', async () => {
       const report = await runCorpusEval({ mode: 'enes', llm: false });
       if (report.failed > 0) {
         console.error(formatEvalReport(report, { verbose: true, label: 'enes-pilot' }));

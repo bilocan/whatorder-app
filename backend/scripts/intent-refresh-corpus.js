@@ -3,16 +3,19 @@
  * Refresh expect blocks in a corpus file from current parser + menu fixture output.
  *
  * Usage:
- *   npm run intent:refresh-corpus -- enes-pilot.json
  *   npm run intent:refresh-corpus -- --enes
+ *   npm run intent:refresh-corpus -- --restaurant enes
+ *   npm run intent:refresh-corpus -- restaurants/enes/pilot.json
  */
-const { ENES_PILOT_CORPUS_FILE, refreshCorpusExpects } = require('../src/bot/intentEval');
+const path = require('path');
+const { refreshCorpusExpects } = require('../src/bot/intentEval');
 
 const HELP = `
 Refresh corpus expect blocks after menu re-export.
 
 Options:
-  --enes            Refresh enes-pilot.json (default when no file given)
+  --enes            Refresh restaurants/enes/pilot.json (alias)
+  --restaurant <slug>  Refresh restaurants/<slug>/pilot.json
   --dry-run         Print summary without writing
   --help, -h        Show this help
 `.trim();
@@ -22,7 +25,9 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--enes') {
-      opts.file = ENES_PILOT_CORPUS_FILE;
+      opts.file = 'enes';
+    } else if (arg === '--restaurant') {
+      opts.file = argv[++i];
     } else if (arg === '--dry-run') {
       opts.dryRun = true;
     } else if (arg === '--help' || arg === '-h') {
@@ -36,7 +41,7 @@ function parseArgs(argv) {
       process.exit(1);
     }
   }
-  if (!opts.file) opts.file = ENES_PILOT_CORPUS_FILE;
+  if (!opts.file) opts.file = 'enes';
   return opts;
 }
 
@@ -48,7 +53,8 @@ async function main() {
     console.log(`${row.id}: ${row.outcome}`);
   }
   console.log(`\n${opts.dryRun ? 'Would refresh' : 'Refreshed'} ${refreshed.length} cases → ${filePath}`);
-  console.log('Run: npm run intent:eval -- --enes --verbose');
+  const slug = path.basename(path.dirname(filePath));
+  console.log(`Run: npm run intent:eval -- --restaurant ${slug} --verbose`);
 }
 
 main().catch((err) => {

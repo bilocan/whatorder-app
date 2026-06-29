@@ -1,10 +1,10 @@
 {
   "version": 1,
   "name": "enes-pilot-phrases",
-  "description": "Enes Kebap pilot phrases on enes-menu.json fixture. After menu export: npm run intent:refresh-corpus -- --enes",
+  "description": "Enes Kebap pilot phrases on restaurants/enes/menu.json. After menu export: npm run intent:refresh-corpus -- --enes",
   "businessId": "biz_enes_kebap_9450w",
-  "menu": "enes-menu.json",
-  "menuMatch": "enes-menuMatch.json",
+  "menu": "menu.json",
+  "menuMatch": "menuMatch.json",
   "cases": [
     {
       "id": "enes-qty-2-doner-1-ayran",
@@ -412,7 +412,7 @@
       "tags": [
         "enes_pilot"
       ],
-      "menu": "enes-menu.json",
+      "menu": "menu.json",
       "expect": {
         "orderLike": true,
         "outcome": "proposal",
@@ -434,7 +434,7 @@
         "matchedCount": 2
       },
       "notes": "Cloud Logging 2026-06-29",
-      "recordedFrom": "enes-menu.json"
+      "recordedFrom": "menu.json"
     }
   ]
 }
