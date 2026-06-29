@@ -63,6 +63,14 @@ describe('parseIntent', () => {
     ]);
   });
 
+  test('ich esse doner mit toppings und cola strips conversational prefix', () => {
+    const r = parseIntent('ich esse doner mit tomaten salad und cola');
+    expect(r.items).toEqual([
+      { name: 'doner mit tomaten salad', qty: 1 },
+      { name: 'cola', qty: 1 },
+    ]);
+  });
+
   test('German zwei hühnerkebab eine mit allen eine ohne Sauce und Zwiebel', () => {
     const r = parseIntent(
       'Ich hätte gerne zwei hühnerkebab eine mit allen eine ohne Sauce und Zwiebel',

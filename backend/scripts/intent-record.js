@@ -30,7 +30,7 @@ The expect block snapshots CURRENT behavior — edit it to state desired behavio
 Options:
   --id <slug>           Case id (default: slug from phrase)
   --tag <name>          Tag (repeatable)
-  --target candidate|builtin   Corpus file (default: candidate)
+  --target candidate|builtin|enes   Corpus file (default: candidate; enes → enes-pilot.json)
   --append              Write to corpus file (default when not --stdout)
   --stdout              Print case JSON only, do not write file
   --notes <text>        Free-form note on the case
@@ -108,8 +108,8 @@ function parseArgs(argv) {
     console.log(HELP);
     process.exit(1);
   }
-  if (opts.target !== 'candidate' && opts.target !== 'builtin') {
-    console.error('--target must be candidate or builtin');
+  if (!['candidate', 'builtin', 'enes'].includes(opts.target)) {
+    console.error('--target must be candidate, builtin, or enes');
     process.exit(1);
   }
   return opts;
@@ -124,15 +124,27 @@ function loadMenuFromFile(filePath) {
   return data;
 }
 
+const ENES_MENU_FIXTURE = path.join(__dirname, '../fixtures/intent-corpus/enes-menu.json');
+
 async function resolveMenu(opts) {
   if (opts.menuPath) {
     return { menu: loadMenuFromFile(opts.menuPath), menuRef: path.basename(opts.menuPath) };
+  }
+  if (opts.target === 'enes') {
+    return { menu: loadMenuFromFile(ENES_MENU_FIXTURE), menuRef: 'enes-menu.json' };
   }
   if (opts.businessId) {
     const menu = await getMenu(opts.businessId);
     return { menu, menuRef: `firestore:${opts.businessId}` };
   }
   return { menu: BUILTIN_MENU, menuRef: 'builtin' };
+}
+
+function suiteMetaForCase(caseDef) {
+  if (caseDef.menu === 'enes-menu.json') {
+    return { menu: 'enes-menu.json', menuMatch: 'enes-menuMatch.json' };
+  }
+  return null;
 }
 
 async function recordPhrase(text, ctx) {
@@ -144,7 +156,7 @@ async function recordPhrase(text, ctx) {
   }, {
     id: ctx.opts.id,
     tags: ctx.opts.tags,
-    status: ctx.opts.target === 'builtin' ? 'shipped' : 'candidate',
+    status: ctx.opts.target === 'candidate' ? 'candidate' : 'shipped',
     menu: ctx.menuRef === 'builtin' ? 'builtin' : ctx.menuRef,
     lang: ctx.opts.lang,
     notes: ctx.opts.notes,
@@ -163,11 +175,17 @@ async function recordPhrase(text, ctx) {
     console.log(`  outcome: ${result.outcome}, parsedBy: ${result.intent?.parsedBy ?? '—'}`);
     if (caseDef.status === 'candidate') {
       console.log('  Edit expect in candidate.json if current behavior is wrong, then fix parser.');
+    } else if (ctx.opts.target === 'enes') {
+      console.log('  Run: npm run intent:eval:enes');
     }
   }
 
   if (ctx.opts.verify) {
-    const run = await runCase(caseDef, { llm: ctx.opts.llm });
+    const suiteMeta = suiteMetaForCase(caseDef);
+    const run = await runCase(
+      suiteMeta ? { ...caseDef, _suiteMeta: suiteMeta } : caseDef,
+      { llm: ctx.opts.llm },
+    );
     if (!run.pass) {
       console.error(formatEvalReport({
         total: 1,
