@@ -25,6 +25,11 @@ describe('suggestItemAliases', () => {
     expect(aliases).toEqual(expect.arrayContaining(['pizza margarita', 'pizza margarete']));
   });
 
+  test('generates thunfisch alias for Pizza Tonno', () => {
+    const aliases = suggestItemAliases('Pizza Tonno (33cm)');
+    expect(aliases).toEqual(expect.arrayContaining(['pizza thunfisch', 'pizza tuna']));
+  });
+
   test('does not alias the canonical name', () => {
     const aliases = suggestItemAliases('Cola 0.33L');
     expect(aliases).not.toContain('Cola 0.33L');

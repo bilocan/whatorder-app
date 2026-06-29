@@ -62,7 +62,7 @@ function stripPolitePrefix(text) {
   return (text ?? '')
     .replace(/^\s*hallo\s+/i, '')
     .replace(
-      /^\s*(?:ich|wir)\s+(?:hätte|hatte|hätten|hatten|möchte|moechte|möchten|moechten|will|wollen|würde|wuerde|würden|wuerden)\s+(?:gerne\s+)?/i,
+      /^\s*(?:ich|wir)\s+(?:hätte|hatte|hätten|hatten|möchte|moechte|möchten|moechten|will|wollen|würde|wuerde|würden|wuerden|esse|essen|nehme|nehmen)\s+(?:gerne\s+)?/i,
       '',
     )
     .replace(/^\s*hätte\s+gerne\s+/i, '')

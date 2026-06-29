@@ -1,0 +1,1232 @@
+[
+  {
+    "id": "enes-beilage-pommes",
+    "name": "Pommes Frites",
+    "price": 4.5,
+    "available": true,
+    "category": "Beilagen",
+    "description": "Knusprige Pommes Frites",
+    "aliases": [
+      "fries frites",
+      "friesfrites",
+      "patates frites",
+      "patatesfrites"
+    ]
+  },
+  {
+    "id": "enes-burger-cheeseburger-xxxl",
+    "name": "Cheeseburger XXXL mit Pommes",
+    "price": 12.9,
+    "available": true,
+    "category": "Burger",
+    "description": "Rindfleisch, frische Tomaten, Zwiebel, Salat, Gurken, Ketchup, Cheddar und Cocktailsauce",
+    "aliases": [
+      "cheese burger mit pommes",
+      "cheese burgermitpommes",
+      "cheeseburger mit fries",
+      "cheeseburger mit patates",
+      "cheeseburgermitfries",
+      "cheeseburgermitpatates",
+      "kasarli burger mit pommes",
+      "kasarli burgermitpommes"
+    ]
+  },
+  {
+    "id": "enes-burger-hamburger-xxxl",
+    "name": "Hamburger XXXL",
+    "price": 10.9,
+    "available": true,
+    "category": "Burger",
+    "description": "Rindfleisch, frische Tomaten, Zwiebel, Salat, Gurken, Ketchup",
+    "aliases": [
+      "ham burger"
+    ]
+  },
+  {
+    "id": "enes-dessert-baklava",
+    "name": "Baklava (2 Stueck)",
+    "price": 4,
+    "available": true,
+    "category": "Desserts",
+    "description": "Zwei Stueck traditionelles Baklava"
+  },
+  {
+    "id": "enes-dessert-marmeladepalatschinken",
+    "name": "Marmeladepalatschinken (2 Stueck)",
+    "price": 4.9,
+    "available": true,
+    "category": "Desserts",
+    "description": "Zwei Palatschinken mit Marmelade"
+  },
+  {
+    "id": "enes-dessert-milchreis",
+    "name": "Milchreis",
+    "price": 4.9,
+    "available": true,
+    "category": "Desserts",
+    "description": "Hausgemachter Milchreis"
+  },
+  {
+    "id": "enes-dessert-mohr-im-hemd",
+    "name": "Mohr im Hemd",
+    "price": 4.5,
+    "available": true,
+    "category": "Desserts",
+    "description": "Oesterreichisches Schokoladendessert"
+  },
+  {
+    "id": "enes-dessert-schokopalatschinken",
+    "name": "Schokoladenpalatschinken (2 Stueck)",
+    "price": 5.5,
+    "available": true,
+    "category": "Desserts",
+    "description": "Zwei Palatschinken mit Schokolade"
+  },
+  {
+    "id": "enes-getr-almdudler-05",
+    "name": "Almdudler 0.5L",
+    "price": 3.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Oesterreichische Kraeuterlimonade"
+  },
+  {
+    "id": "enes-getr-ayran-025",
+    "name": "Mis Ayran 0.25L",
+    "price": 2.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Tuerkisches Joghurtgetraenk"
+  },
+  {
+    "id": "enes-getr-bravo-05",
+    "name": "Bravo Multi 0.5L",
+    "price": 3.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Fruchtgetraenk"
+  },
+  {
+    "id": "enes-getr-cola-033",
+    "name": "Coca Cola 0.33L",
+    "price": 2.9,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Erfrischungsgetraenk",
+    "aliases": [
+      "coca coke",
+      "coca kola",
+      "cocacoke",
+      "cocakola"
+    ]
+  },
+  {
+    "id": "enes-getr-cola-05",
+    "name": "Coca Cola 0.5L",
+    "price": 3.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Erfrischungsgetraenk",
+    "aliases": [
+      "coca coke",
+      "coca kola",
+      "cocacoke",
+      "cocakola"
+    ]
+  },
+  {
+    "id": "enes-getr-cola-15",
+    "name": "Coca Cola 1.5L",
+    "price": 5.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Erfrischungsgetraenk",
+    "aliases": [
+      "coca coke 5l",
+      "coca kola 5l",
+      "cocacoke5l",
+      "cocakola5l"
+    ]
+  },
+  {
+    "id": "enes-getr-cola-light-033",
+    "name": "Coca Cola Light 0.33L",
+    "price": 2.9,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Kalorienarmes Erfrischungsgetraenk",
+    "aliases": [
+      "coca coke light",
+      "coca kola light",
+      "cocacokelight",
+      "cocakolalight"
+    ]
+  },
+  {
+    "id": "enes-getr-cola-light-05",
+    "name": "Coca Cola Light 0.5L",
+    "price": 3.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Kalorienarmes Erfrischungsgetraenk",
+    "aliases": [
+      "coca coke light",
+      "coca kola light",
+      "cocacokelight",
+      "cocakolalight"
+    ]
+  },
+  {
+    "id": "enes-getr-cola-zero-05",
+    "name": "Coca Cola Zero 0.5L",
+    "price": 3.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Zuckerfreies Erfrischungsgetraenk",
+    "aliases": [
+      "coca coke zero",
+      "coca kola zero",
+      "cocacokezero",
+      "cocakolazero"
+    ]
+  },
+  {
+    "id": "enes-getr-eistee-pfirsich-033",
+    "name": "Eistee Pfirsich 0.33L",
+    "price": 2.9,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Eistee mit Pfirsichgeschmack",
+    "aliases": [
+      "buzlu cay pfirsich",
+      "buzlu caypfirsich",
+      "eis tee pfirsich",
+      "eis teepfirsich",
+      "eistee peach",
+      "eistee seftali",
+      "eisteepeach",
+      "eisteeseftali",
+      "ice tea pfirsich",
+      "ice teapfirsich",
+      "ice-tea pfirsich",
+      "ice-teapfirsich",
+      "icetea pfirsich",
+      "iceteapfirsich",
+      "soguk cay pfirsich",
+      "soguk caypfirsich"
+    ]
+  },
+  {
+    "id": "enes-getr-eistee-pfirsich-05",
+    "name": "Eistee Pfirsich 0.5L",
+    "price": 3.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Eistee mit Pfirsichgeschmack",
+    "aliases": [
+      "buzlu cay pfirsich",
+      "buzlu caypfirsich",
+      "eis tee pfirsich",
+      "eis teepfirsich",
+      "eistee peach",
+      "eistee seftali",
+      "eisteepeach",
+      "eisteeseftali",
+      "ice tea pfirsich",
+      "ice teapfirsich",
+      "ice-tea pfirsich",
+      "ice-teapfirsich",
+      "icetea pfirsich",
+      "iceteapfirsich",
+      "soguk cay pfirsich",
+      "soguk caypfirsich"
+    ]
+  },
+  {
+    "id": "enes-getr-eistee-zitrone-033",
+    "name": "Eistee Zitrone 0.33L",
+    "price": 2.9,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Eistee mit Zitronengeschmack",
+    "aliases": [
+      "buzlu cay zitrone",
+      "buzlu cayzitrone",
+      "eis tee zitrone",
+      "eis teezitrone",
+      "eistee lemon",
+      "eistee limon",
+      "eisteelemon",
+      "eisteelimon",
+      "ice tea zitrone",
+      "ice teazitrone",
+      "ice-tea zitrone",
+      "ice-teazitrone",
+      "icetea zitrone",
+      "iceteazitrone",
+      "soguk cay zitrone",
+      "soguk cayzitrone"
+    ]
+  },
+  {
+    "id": "enes-getr-eistee-zitrone-05",
+    "name": "Eistee Zitrone 0.5L",
+    "price": 3.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Eistee mit Zitronengeschmack",
+    "aliases": [
+      "buzlu cay zitrone",
+      "buzlu cayzitrone",
+      "eis tee zitrone",
+      "eis teezitrone",
+      "eistee lemon",
+      "eistee limon",
+      "eisteelemon",
+      "eisteelimon",
+      "ice tea zitrone",
+      "ice teazitrone",
+      "ice-tea zitrone",
+      "ice-teazitrone",
+      "icetea zitrone",
+      "iceteazitrone",
+      "soguk cay zitrone",
+      "soguk cayzitrone"
+    ]
+  },
+  {
+    "id": "enes-getr-fanta-033",
+    "name": "Fanta 0.33L",
+    "price": 2.9,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Orangenlimonade"
+  },
+  {
+    "id": "enes-getr-fanta-05",
+    "name": "Fanta 0.5L",
+    "price": 3.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Orangenlimonade"
+  },
+  {
+    "id": "enes-getr-fanta-15",
+    "name": "Fanta 1.5L",
+    "price": 5.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Orangenlimonade"
+  },
+  {
+    "id": "enes-getr-pepsi-033",
+    "name": "Pepsi 0.33L",
+    "price": 2.9,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Erfrischungsgetraenk"
+  },
+  {
+    "id": "enes-getr-redbull-025",
+    "name": "Red Bull 0.25L",
+    "price": 3.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Energy Drink"
+  },
+  {
+    "id": "enes-getr-sprite-05",
+    "name": "Sprite 0.5L",
+    "price": 3.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Zitronenlimonade"
+  },
+  {
+    "id": "enes-getr-tamek-kirsche-033",
+    "name": "Tamek Kirsche 0.33L",
+    "price": 2.9,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Kirsche Fruchtsaft"
+  },
+  {
+    "id": "enes-getr-tamek-mango-033",
+    "name": "Tamek Mango 0.33L",
+    "price": 2.9,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Mango Fruchtsaft"
+  },
+  {
+    "id": "enes-getr-tamek-pfirsich-033",
+    "name": "Tamek Pfirsich 0.33L",
+    "price": 2.9,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Pfirsich Fruchtsaft",
+    "aliases": [
+      "tamek peach",
+      "tamek seftali",
+      "tamekpeach",
+      "tamekseftali"
+    ]
+  },
+  {
+    "id": "enes-getr-uludag-033",
+    "name": "Uludag Gazoz 0.33L",
+    "price": 2.9,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Tuerkische Limonade"
+  },
+  {
+    "id": "enes-getr-uludag-05",
+    "name": "Uludag Gazoz 0.5L",
+    "price": 3.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Tuerkische Limonade"
+  },
+  {
+    "id": "enes-getr-voslauer-sparkling-05",
+    "name": "Voslauer Mineral mit Kohlensaeure 0.5L",
+    "price": 2.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Mineralwasser mit Kohlensaeure"
+  },
+  {
+    "id": "enes-getr-voslauer-still-05",
+    "name": "Voslauer Mineral ohne Kohlensaeure 0.5L",
+    "price": 2.5,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Stilles Mineralwasser"
+  },
+  {
+    "id": "enes-getr-wilddragon-025",
+    "name": "Wild Dragon 0.25L",
+    "price": 3,
+    "available": true,
+    "category": "Getraenke",
+    "description": "Energy Drink"
+  },
+  {
+    "id": "enes-kebap-box-gross",
+    "name": "Kebap Box Huhn (Gross)",
+    "price": 8.9,
+    "available": true,
+    "category": "Kebap",
+    "description": "Mit Beilagensalat und Reis oder Pommes frites",
+    "aliases": [
+      "doner box huhn",
+      "donerboxhuhn",
+      "durum box huhn",
+      "durumboxhuhn",
+      "kabap box huhn",
+      "kabapboxhuhn",
+      "kebab box huhn",
+      "kebabboxhuhn",
+      "kebap box chicken",
+      "kebap box hahnchen",
+      "kebap box huhner",
+      "kebap box tavuk",
+      "kebapboxchicken",
+      "kebapboxhahnchen",
+      "kebapboxhuhner",
+      "kebapboxtavuk"
+    ]
+  },
+  {
+    "id": "enes-kebap-box-klein",
+    "name": "Kebap Box Huhn (Klein)",
+    "price": 6.9,
+    "available": true,
+    "category": "Kebap",
+    "description": "Mit Beilagensalat und Reis oder Pommes frites",
+    "aliases": [
+      "doner box huhn",
+      "donerboxhuhn",
+      "durum box huhn",
+      "durumboxhuhn",
+      "kabap box huhn",
+      "kabapboxhuhn",
+      "kebab box huhn",
+      "kebabboxhuhn",
+      "kebap box chicken",
+      "kebap box hahnchen",
+      "kebap box huhner",
+      "kebap box tavuk",
+      "kebapboxchicken",
+      "kebapboxhahnchen",
+      "kebapboxhuhner",
+      "kebapboxtavuk"
+    ]
+  },
+  {
+    "id": "enes-kebap-duerum-huhn",
+    "name": "Dürüm Huhn",
+    "price": 8.5,
+    "available": true,
+    "category": "Kebap",
+    "description": "Hühnerkebap im Dürüm mit Salat, Tomaten und Sauce",
+    "aliases": [
+      "doner huhn",
+      "donerhuhn",
+      "durum chicken",
+      "durum hahnchen",
+      "durum huhner",
+      "durum tavuk",
+      "durumchicken",
+      "durumhahnchen",
+      "durumhuhner",
+      "durumtavuk",
+      "kabap huhn",
+      "kabaphuhn",
+      "kebab huhn",
+      "kebabhuhn",
+      "kebap huhn",
+      "kebaphuhn"
+    ]
+  },
+  {
+    "id": "enes-kebap-falafel-box",
+    "name": "Falafel Box",
+    "price": 6.9,
+    "available": true,
+    "category": "Kebap",
+    "description": "Mit Beilagensalat und Reis oder Pommes frites"
+  },
+  {
+    "id": "enes-kebap-falafel-duerum",
+    "name": "Falafel Dürüm",
+    "price": 7,
+    "available": true,
+    "category": "Kebap",
+    "description": "Falafel im Dürüm mit Salat, Tomaten und Sauce",
+    "aliases": [
+      "falafel doner",
+      "falafel kabap",
+      "falafel kebab",
+      "falafel kebap",
+      "falafeldoner",
+      "falafelkabap",
+      "falafelkebab",
+      "falafelkebap"
+    ]
+  },
+  {
+    "id": "enes-kebap-falafel-sandwich",
+    "name": "Falafel Sandwich",
+    "price": 6.5,
+    "available": true,
+    "category": "Kebap",
+    "description": "Falafel im Fladenbrot mit Salat, Tomaten und Sauce",
+    "aliases": [
+      "falafel sandvic",
+      "falafelsandvic"
+    ]
+  },
+  {
+    "id": "enes-kebap-sandwich-huhn",
+    "name": "Kebap Sandwich Huhn",
+    "price": 7.5,
+    "available": true,
+    "category": "Kebap",
+    "description": "Hühnerkebap im Fladenbrot mit Salat, Tomaten und Sauce",
+    "aliases": [
+      "doner sandwich huhn",
+      "donersandwichhuhn",
+      "durum sandwich huhn",
+      "durumsandwichhuhn",
+      "kabap sandwich huhn",
+      "kabapsandwichhuhn",
+      "kebab sandwich huhn",
+      "kebabsandwichhuhn",
+      "kebap sandvic huhn",
+      "kebap sandwich chicken",
+      "kebap sandwich hahnchen",
+      "kebap sandwich huhner",
+      "kebap sandwich tavuk",
+      "kebapsandvichuhn",
+      "kebapsandwichchicken",
+      "kebapsandwichhahnchen",
+      "kebapsandwichhuhner",
+      "kebapsandwichtavuk"
+    ],
+    "optionGroups": [
+      {
+        "id": "beilagen",
+        "label": "Beilagen",
+        "type": "multi",
+        "required": false,
+        "options": [
+          {
+            "id": "tomaten",
+            "label": "Tomaten"
+          },
+          {
+            "id": "salad",
+            "label": "Salad"
+          },
+          {
+            "id": "zwiebel",
+            "label": "Zwiebel"
+          },
+          {
+            "id": "sauce",
+            "label": "Sauce"
+          }
+        ],
+        "multiDefault": "all"
+      }
+    ]
+  },
+  {
+    "id": "enes-kebap-special-duerum",
+    "name": "Enes Kebap Special Dürüm Huhn",
+    "price": 6.9,
+    "available": true,
+    "category": "Kebap",
+    "description": "Mit Salat, Zwiebel, Tomaten, Pommes, Gurken, Specialsauce, Käse und Ketchup",
+    "aliases": [
+      "enes doner special durum huhn",
+      "enes durum special durum huhn",
+      "enes kabap special durum huhn",
+      "enes kebab special durum huhn",
+      "enes kebap special doner huhn",
+      "enes kebap special durum chicken",
+      "enes kebap special durum hahnchen",
+      "enes kebap special durum huhner",
+      "enes kebap special durum tavuk",
+      "enes kebap special kabap huhn",
+      "enes kebap special kebab huhn",
+      "enes kebap special kebap huhn",
+      "enesdonerspecialdurumhuhn",
+      "enesdurumspecialdurumhuhn",
+      "eneskabapspecialdurumhuhn",
+      "eneskebabspecialdurumhuhn",
+      "eneskebapspecialdonerhuhn",
+      "eneskebapspecialdurumchicken",
+      "eneskebapspecialdurumhahnchen",
+      "eneskebapspecialdurumhuhner",
+      "eneskebapspecialdurumtavuk",
+      "eneskebapspecialkabaphuhn",
+      "eneskebapspecialkebabhuhn",
+      "eneskebapspecialkebaphuhn"
+    ]
+  },
+  {
+    "id": "enes-kebap-special-sandwich",
+    "name": "Enes Kebap Special Sandwich Huhn",
+    "price": 8.5,
+    "available": true,
+    "category": "Kebap",
+    "description": "Mit Salat, Zwiebel, Tomaten, Pommes, Gurken, Specialsauce, Käse und Ketchup",
+    "aliases": [
+      "enes doner special sandwich huhn",
+      "enes durum special sandwich huhn",
+      "enes kabap special sandwich huhn",
+      "enes kebab special sandwich huhn",
+      "enes kebap special sandvic huhn",
+      "enes kebap special sandwich chicken",
+      "enes kebap special sandwich hahnchen",
+      "enes kebap special sandwich huhner",
+      "enes kebap special sandwich tavuk",
+      "enesdonerspecialsandwichhuhn",
+      "enesdurumspecialsandwichhuhn",
+      "eneskabapspecialsandwichhuhn",
+      "eneskebabspecialsandwichhuhn",
+      "eneskebapspecialsandvichuhn",
+      "eneskebapspecialsandwichchicken",
+      "eneskebapspecialsandwichhahnchen",
+      "eneskebapspecialsandwichhuhner",
+      "eneskebapspecialsandwichtavuk"
+    ]
+  },
+  {
+    "id": "enes-kebap-teller-huhn",
+    "name": "Kebap Teller Huhn",
+    "price": 13.9,
+    "available": true,
+    "category": "Kebap",
+    "description": "Hühnerkebap mit Reis oder Pommes frites",
+    "aliases": [
+      "doner teller huhn",
+      "donertellerhuhn",
+      "durum teller huhn",
+      "durumtellerhuhn",
+      "kabap teller huhn",
+      "kabaptellerhuhn",
+      "kebab teller huhn",
+      "kebabtellerhuhn",
+      "kebap teller chicken",
+      "kebap teller hahnchen",
+      "kebap teller huhner",
+      "kebap teller tavuk",
+      "kebaptellerchicken",
+      "kebaptellerhahnchen",
+      "kebaptellerhuhner",
+      "kebaptellertavuk"
+    ]
+  },
+  {
+    "id": "enes-kebap-vegetarisch",
+    "name": "Vegetarisches Sandwich",
+    "price": 5.5,
+    "available": true,
+    "category": "Kebap",
+    "description": "Mit Schafskäse, Salat, Tomaten und Sauce",
+    "aliases": [
+      "vegetarisches sandvic",
+      "vegetarischessandvic"
+    ]
+  },
+  {
+    "id": "enes-pide-gouda",
+    "name": "Pide mit Gouda und Eiern",
+    "price": 9.9,
+    "available": true,
+    "category": "Pide",
+    "description": "Türkisches Fladenbrot mit Gouda und Eiern"
+  },
+  {
+    "id": "enes-pide-lahmacun",
+    "name": "Lahmacun (1 Stueck)",
+    "price": 6.5,
+    "available": true,
+    "category": "Pide",
+    "description": "Mit Salat, Tomaten, Zwiebel und Zitrone",
+    "aliases": [
+      "turk pizzasi stueck",
+      "turk pizzasistueck",
+      "turkische pizza stueck",
+      "turkische pizzastueck",
+      "turkish pizza stueck",
+      "turkish pizzastueck"
+    ]
+  },
+  {
+    "id": "enes-pide-pastirma",
+    "name": "Pide mit Pastirma",
+    "price": 12.9,
+    "available": true,
+    "category": "Pide",
+    "description": "Türkisches Fladenbrot mit Speck"
+  },
+  {
+    "id": "enes-pide-spinat",
+    "name": "Pide Spinat",
+    "price": 10.9,
+    "available": true,
+    "category": "Pide",
+    "description": "Mit Spinat, Schafskäse und Eiern"
+  },
+  {
+    "id": "enes-pide-sucuk",
+    "name": "Pide mit Sucuk",
+    "price": 11.9,
+    "available": true,
+    "category": "Pide",
+    "description": "Türkisches Fladenbrot mit türkischer Wurst"
+  },
+  {
+    "id": "enes-pizza33-capone",
+    "name": "Pizza al Capone (33cm)",
+    "price": 14.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Schinken, Champignons, Zwiebeln und Salami"
+  },
+  {
+    "id": "enes-pizza33-cardinale",
+    "name": "Pizza Cardinale (33cm)",
+    "price": 13.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Schinken"
+  },
+  {
+    "id": "enes-pizza33-cipolla",
+    "name": "Pizza Cipolla (33cm)",
+    "price": 11.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Tomatensauce, Käse und Zwiebeln"
+  },
+  {
+    "id": "enes-pizza33-della-casa",
+    "name": "Pizza della Casa (33cm)",
+    "price": 14.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Schinken und Salami"
+  },
+  {
+    "id": "enes-pizza33-funghi",
+    "name": "Pizza al Funghi (33cm)",
+    "price": 13.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Tomatensauce, Käse und Champignons"
+  },
+  {
+    "id": "enes-pizza33-hawaii",
+    "name": "Pizza Hawaii (33cm)",
+    "price": 14.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Schinken und Ananas"
+  },
+  {
+    "id": "enes-pizza33-kebap-huhn",
+    "name": "Pizza Kebap Huhn (33cm)",
+    "price": 15.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Hühner Kebap",
+    "aliases": [
+      "pizza doner huhn",
+      "pizza durum huhn",
+      "pizza kabap huhn",
+      "pizza kebab huhn",
+      "pizza kebap chicken",
+      "pizza kebap hahnchen",
+      "pizza kebap huhner",
+      "pizza kebap tavuk",
+      "pizzadonerhuhn",
+      "pizzadurumhuhn",
+      "pizzakabaphuhn",
+      "pizzakebabhuhn",
+      "pizzakebapchicken",
+      "pizzakebaphahnchen",
+      "pizzakebaphuhner",
+      "pizzakebaptavuk"
+    ]
+  },
+  {
+    "id": "enes-pizza33-margherita",
+    "name": "Pizza Margherita (33cm)",
+    "price": 12.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Tomatensauce und Käse",
+    "aliases": [
+      "pizza margareta",
+      "pizza margarete",
+      "pizza margarita",
+      "pizzamargareta",
+      "pizzamargarete",
+      "pizzamargarita"
+    ]
+  },
+  {
+    "id": "enes-pizza33-marinara",
+    "name": "Pizza Marinara (33cm)",
+    "price": 9.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Tomatensauce"
+  },
+  {
+    "id": "enes-pizza33-melanzani",
+    "name": "Pizza Melanzani (33cm)",
+    "price": 13.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Melanzani, Schafskäse und Paprika"
+  },
+  {
+    "id": "enes-pizza33-provencale",
+    "name": "Pizza Provencale (33cm)",
+    "price": 14.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Rinderspeck-Schinken, Mais und milder Pfefferoni"
+  },
+  {
+    "id": "enes-pizza33-quattro-formaggi",
+    "name": "Pizza Quattro Formaggi (33cm)",
+    "price": 15.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Gorgonzola und Mozzarella"
+  },
+  {
+    "id": "enes-pizza33-quattro-stagioni",
+    "name": "Pizza Quattro Stagioni (33cm)",
+    "price": 14.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Schinken, Champignons und Artischocken"
+  },
+  {
+    "id": "enes-pizza33-salami",
+    "name": "Pizza Salami (33cm)",
+    "price": 14.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Salami"
+  },
+  {
+    "id": "enes-pizza33-special",
+    "name": "Enes Kebap Pizza Special (33cm)",
+    "price": 15.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Salami, Thunfisch, Schinken, Mais, Champignons und Zwiebel",
+    "aliases": [
+      "enes doner pizza special",
+      "enes durum pizza special",
+      "enes kabap pizza special",
+      "enes kebab pizza special",
+      "enesdonerpizzaspecial",
+      "enesdurumpizzaspecial",
+      "eneskabappizzaspecial",
+      "eneskebabpizzaspecial"
+    ]
+  },
+  {
+    "id": "enes-pizza33-spinachi",
+    "name": "Pizza Spinachi (33cm)",
+    "price": 13.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Spinat und Schafskäse",
+    "aliases": [
+      "pizza spinaci",
+      "pizza spinati",
+      "pizzaspinaci",
+      "pizzaspinati"
+    ]
+  },
+  {
+    "id": "enes-pizza33-tonno",
+    "name": "Pizza al Tonno (33cm)",
+    "price": 13.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Thunfisch und Zwiebeln"
+  },
+  {
+    "id": "enes-pizza33-toscana",
+    "name": "Pizza Toscana (33cm)",
+    "price": 14.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit Schinken, Champignons und milder Pfefferoni"
+  },
+  {
+    "id": "enes-pizza33-vegetariana",
+    "name": "Pizza Vegetariana (33cm)",
+    "price": 13.9,
+    "available": true,
+    "category": "Pizza 33cm",
+    "description": "Mit frischem Gemüse"
+  },
+  {
+    "id": "enes-pizza50-capone",
+    "name": "Pizza al Capone (Familien-Pizza 50cm)",
+    "price": 18.5,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Schinken, Champignons, Zwiebeln und Salami"
+  },
+  {
+    "id": "enes-pizza50-cardinale",
+    "name": "Pizza Cardinale (Familien-Pizza 50cm)",
+    "price": 18.9,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Schinken"
+  },
+  {
+    "id": "enes-pizza50-cipolla",
+    "name": "Pizza Cipolla (Familien-Pizza 50cm)",
+    "price": 14,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Tomatensauce, Käse und Zwiebeln"
+  },
+  {
+    "id": "enes-pizza50-della-casa",
+    "name": "Pizza della Casa (Familien-Pizza 50cm)",
+    "price": 19.5,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Schinken und Salami"
+  },
+  {
+    "id": "enes-pizza50-funghi",
+    "name": "Pizza al Funghi (Familien-Pizza 50cm)",
+    "price": 17,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Tomatensauce, Käse und Champignons"
+  },
+  {
+    "id": "enes-pizza50-hawaii",
+    "name": "Pizza Hawaii (Familien-Pizza 50cm)",
+    "price": 19,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Schinken und Ananas"
+  },
+  {
+    "id": "enes-pizza50-kebap-huhn",
+    "name": "Kebap Pizza Huhn (Familien-Pizza 50cm)",
+    "price": 21.9,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Hühner-Kebap",
+    "aliases": [
+      "doner pizza huhn familien pizza",
+      "donerpizzahuhnfamilienpizza",
+      "durum pizza huhn familien pizza",
+      "durumpizzahuhnfamilienpizza",
+      "kabap pizza huhn familien pizza",
+      "kabappizzahuhnfamilienpizza",
+      "kebab pizza huhn familien pizza",
+      "kebabpizzahuhnfamilienpizza",
+      "kebap pizza chicken familien pizza",
+      "kebap pizza hahnchen familien pizza",
+      "kebap pizza huhner familien pizza",
+      "kebap pizza tavuk familien pizza",
+      "kebappizzachickenfamilienpizza",
+      "kebappizzahahnchenfamilienpizza",
+      "kebappizzahuhnerfamilienpizza",
+      "kebappizzatavukfamilienpizza"
+    ]
+  },
+  {
+    "id": "enes-pizza50-margherita",
+    "name": "Pizza Margherita (Familien-Pizza 50cm)",
+    "price": 16.9,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Tomatensauce und Käse",
+    "aliases": [
+      "pizza margareta familien pizza",
+      "pizza margarete familien pizza",
+      "pizza margarita familien pizza",
+      "pizzamargaretafamilienpizza",
+      "pizzamargaretefamilienpizza",
+      "pizzamargaritafamilienpizza"
+    ]
+  },
+  {
+    "id": "enes-pizza50-marinara",
+    "name": "Pizza Marinara (Familien-Pizza 50cm)",
+    "price": 10.9,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Tomatensauce"
+  },
+  {
+    "id": "enes-pizza50-melanzani",
+    "name": "Pizza Melanzani (Familien-Pizza 50cm)",
+    "price": 19.5,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Melanzani, Schafskäse und Paprika"
+  },
+  {
+    "id": "enes-pizza50-provencale",
+    "name": "Pizza Provencale (Familien-Pizza 50cm)",
+    "price": 19.5,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Rinderspeck-Schinken, Mais und milder Pfefferoni"
+  },
+  {
+    "id": "enes-pizza50-quattro-formaggi",
+    "name": "Pizza Quattro Formaggi (Familien-Pizza 50cm)",
+    "price": 19.9,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Schafskäse, Gorgonzola und Mozzarella"
+  },
+  {
+    "id": "enes-pizza50-quattro-stagioni",
+    "name": "Pizza Quattro Stagioni (Familien-Pizza 50cm)",
+    "price": 19.5,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Schinken, Champignons und Artischocken"
+  },
+  {
+    "id": "enes-pizza50-salami",
+    "name": "Pizza Salami (Familien-Pizza 50cm)",
+    "price": 18.9,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Salami"
+  },
+  {
+    "id": "enes-pizza50-special",
+    "name": "Enes Kebap Pizza Special (Familien-Pizza 50cm)",
+    "price": 18,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Salami, Thunfisch, Schinken, Mais, Champignons und Zwiebel",
+    "aliases": [
+      "enes doner pizza special familien pizza",
+      "enes durum pizza special familien pizza",
+      "enes kabap pizza special familien pizza",
+      "enes kebab pizza special familien pizza",
+      "enesdonerpizzaspecialfamilienpizza",
+      "enesdurumpizzaspecialfamilienpizza",
+      "eneskabappizzaspecialfamilienpizza",
+      "eneskebabpizzaspecialfamilienpizza"
+    ]
+  },
+  {
+    "id": "enes-pizza50-spinachi",
+    "name": "Pizza Spinachi (Familien-Pizza 50cm)",
+    "price": 18.5,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Spinat und Schafskäse",
+    "aliases": [
+      "pizza spinaci familien pizza",
+      "pizza spinati familien pizza",
+      "pizzaspinacifamilienpizza",
+      "pizzaspinatifamilienpizza"
+    ]
+  },
+  {
+    "id": "enes-pizza50-tonno",
+    "name": "Pizza al Tonno (Familien-Pizza 50cm)",
+    "price": 19.5,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Thunfisch und Zwiebeln"
+  },
+  {
+    "id": "enes-pizza50-toscana",
+    "name": "Pizza Toscana (Familien-Pizza 50cm)",
+    "price": 19,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit Champignons und milder Pfefferoni"
+  },
+  {
+    "id": "enes-pizza50-vegetariana",
+    "name": "Pizza Vegetariana (Familien-Pizza 50cm)",
+    "price": 17,
+    "available": true,
+    "category": "Familien-Pizza 50cm",
+    "description": "Mit frischem Gemüse"
+  },
+  {
+    "id": "enes-salat-bauer",
+    "name": "Bauernsalat",
+    "price": 5.9,
+    "available": true,
+    "category": "Salate",
+    "description": "Grüner Salat mit Tomaten und Schafskäse"
+  },
+  {
+    "id": "enes-salat-gemischt",
+    "name": "Gemischter Salat",
+    "price": 5.9,
+    "available": true,
+    "category": "Salate",
+    "description": "Grüner Salat mit Rotkraut und Mais"
+  },
+  {
+    "id": "enes-salat-thunfisch",
+    "name": "Thunfischsalat",
+    "price": 5.9,
+    "available": true,
+    "category": "Salate",
+    "description": "Grüner Salat mit Zwiebeln und Thunfisch"
+  },
+  {
+    "id": "enes-schnitzel-box-gross",
+    "name": "Schnitzel Box (Gross)",
+    "price": 9.9,
+    "available": true,
+    "category": "Schnitzel",
+    "description": "Mit Beilagensalat, Zwiebeln, Tomaten und Reis oder Pommes frites"
+  },
+  {
+    "id": "enes-schnitzel-box-klein",
+    "name": "Schnitzel Box (Klein)",
+    "price": 7.9,
+    "available": true,
+    "category": "Schnitzel",
+    "description": "Mit Beilagensalat, Zwiebeln, Tomaten und Reis oder Pommes frites"
+  },
+  {
+    "id": "enes-schnitzel-duerum",
+    "name": "Schnitzel Dürüm",
+    "price": 8.5,
+    "available": true,
+    "category": "Schnitzel",
+    "description": "Mit Salat, Zwiebeln, Tomaten, Ketchup und Mayonnaise",
+    "aliases": [
+      "schnitzel doner",
+      "schnitzel kabap",
+      "schnitzel kebab",
+      "schnitzel kebap",
+      "schnitzeldoner",
+      "schnitzelkabap",
+      "schnitzelkebab",
+      "schnitzelkebap"
+    ]
+  },
+  {
+    "id": "enes-schnitzel-sandwich",
+    "name": "Schnitzel Sandwich",
+    "price": 7.5,
+    "available": true,
+    "category": "Schnitzel",
+    "description": "Mit Salat, Zwiebeln, Tomaten, Ketchup und Mayonnaise",
+    "aliases": [
+      "schnitzel sandvic",
+      "schnitzelsandvic"
+    ]
+  },
+  {
+    "id": "enes-schnitzel-teller",
+    "name": "Schnitzel Teller",
+    "price": 13.9,
+    "available": true,
+    "category": "Schnitzel",
+    "description": "Mit Beilagensalat, Zwiebeln, Tomaten und Reis oder Pommes frites"
+  },
+  {
+    "id": "enes-suppe-linse",
+    "name": "Linsensuppe",
+    "price": 5,
+    "available": true,
+    "category": "Suppen",
+    "description": "Türkische Linsensuppe"
+  },
+  {
+    "id": "enes-wrap-schafskase",
+    "name": "Wrap mit Schafskäse",
+    "price": 5.5,
+    "available": true,
+    "category": "Wraps",
+    "description": "Mit Salat, Tomaten, Zwiebeln und Joghurtsauce"
+  },
+  {
+    "id": "enes-wrap-schinken",
+    "name": "Wrap mit Schinken",
+    "price": 5.5,
+    "available": true,
+    "category": "Wraps",
+    "description": "Mit Salat, Tomaten, Zwiebeln und Joghurtsauce"
+  },
+  {
+    "id": "enes-wrap-thunfisch",
+    "name": "Wrap mit Thunfisch",
+    "price": 5.5,
+    "available": true,
+    "category": "Wraps",
+    "description": "Mit Salat, Tomaten, Zwiebeln und Joghurtsauce"
+  }
+]

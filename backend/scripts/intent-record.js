@@ -20,6 +20,13 @@ const {
   recordIntentCase,
   runCase,
 } = require('../src/bot/intentEval');
+const { buildMenuMatchIndex } = require('../src/bot/menuMapper');
+const {
+  corpusFilePath,
+  isRestaurantTarget,
+  restaurantMenuMatchPath,
+  restaurantMenuPath,
+} = require('../src/bot/corpusLayout');
 
 const HELP = `
 Intent record — run phrase through sandbox and draft a corpus case.
@@ -30,7 +37,7 @@ The expect block snapshots CURRENT behavior — edit it to state desired behavio
 Options:
   --id <slug>           Case id (default: slug from phrase)
   --tag <name>          Tag (repeatable)
-  --target candidate|builtin   Corpus file (default: candidate)
+  --target candidate|builtin|enes|<slug>   Corpus file (default: candidate; slug → restaurants/<slug>/pilot.json)
   --append              Write to corpus file (default when not --stdout)
   --stdout              Print case JSON only, do not write file
   --notes <text>        Free-form note on the case
@@ -108,8 +115,8 @@ function parseArgs(argv) {
     console.log(HELP);
     process.exit(1);
   }
-  if (opts.target !== 'candidate' && opts.target !== 'builtin') {
-    console.error('--target must be candidate or builtin');
+  if (!['candidate', 'builtin'].includes(opts.target) && !isRestaurantTarget(opts.target)) {
+    console.error('--target must be candidate, builtin, or a restaurant slug (e.g. enes)');
     process.exit(1);
   }
   return opts;
@@ -124,9 +131,24 @@ function loadMenuFromFile(filePath) {
   return data;
 }
 
+function loadMenuMatchForRestaurant(slug) {
+  const matchPath = restaurantMenuMatchPath(slug);
+  if (!fs.existsSync(matchPath)) return null;
+  const stored = JSON.parse(fs.readFileSync(matchPath, 'utf8'));
+  return stored && typeof stored === 'object' ? stored : null;
+}
+
 async function resolveMenu(opts) {
   if (opts.menuPath) {
     return { menu: loadMenuFromFile(opts.menuPath), menuRef: path.basename(opts.menuPath) };
+  }
+  if (isRestaurantTarget(opts.target)) {
+    const slug = opts.target === 'enes' ? 'enes' : opts.target;
+    const menuPath = restaurantMenuPath(slug);
+    const menu = loadMenuFromFile(menuPath);
+    const storedMatch = loadMenuMatchForRestaurant(slug);
+    const menuMatch = storedMatch ? buildMenuMatchIndex(menu, storedMatch) : null;
+    return { menu, menuMatch, menuRef: 'menu.json', restaurantSlug: slug };
   }
   if (opts.businessId) {
     const menu = await getMenu(opts.businessId);
@@ -135,16 +157,22 @@ async function resolveMenu(opts) {
   return { menu: BUILTIN_MENU, menuRef: 'builtin' };
 }
 
+function suiteMetaForTarget(target) {
+  if (!isRestaurantTarget(target)) return null;
+  return { menu: 'menu.json', menuMatch: 'menuMatch.json' };
+}
+
 async function recordPhrase(text, ctx) {
   const { result, caseDef } = await recordIntentCase(text, {
     menu: ctx.menu,
+    menuMatch: ctx.menuMatch ?? undefined,
     lang: ctx.opts.lang,
     businessId: ctx.opts.businessId,
     llm: ctx.opts.llm,
   }, {
     id: ctx.opts.id,
     tags: ctx.opts.tags,
-    status: ctx.opts.target === 'builtin' ? 'shipped' : 'candidate',
+    status: ctx.opts.target === 'candidate' ? 'candidate' : 'shipped',
     menu: ctx.menuRef === 'builtin' ? 'builtin' : ctx.menuRef,
     lang: ctx.opts.lang,
     notes: ctx.opts.notes,
@@ -163,11 +191,22 @@ async function recordPhrase(text, ctx) {
     console.log(`  outcome: ${result.outcome}, parsedBy: ${result.intent?.parsedBy ?? '—'}`);
     if (caseDef.status === 'candidate') {
       console.log('  Edit expect in candidate.json if current behavior is wrong, then fix parser.');
+    } else if (isRestaurantTarget(ctx.opts.target)) {
+      console.log(`  Run: npm run intent:eval -- --restaurant ${ctx.opts.target === 'enes' ? 'enes' : ctx.opts.target}`);
     }
   }
 
   if (ctx.opts.verify) {
-    const run = await runCase(caseDef, { llm: ctx.opts.llm });
+    const suiteMeta = suiteMetaForTarget(ctx.opts.target);
+    const corpusBaseDir = isRestaurantTarget(ctx.opts.target)
+      ? path.dirname(corpusFilePath(ctx.opts.target))
+      : null;
+    const run = await runCase(
+      suiteMeta
+        ? { ...caseDef, _suiteMeta: suiteMeta, _corpusBaseDir: corpusBaseDir }
+        : caseDef,
+      { llm: ctx.opts.llm },
+    );
     if (!run.pass) {
       console.error(formatEvalReport({
         total: 1,
@@ -185,8 +224,8 @@ async function recordPhrase(text, ctx) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
-  const { menu, menuRef } = await resolveMenu(opts);
-  const ctx = { menu, menuRef, opts };
+  const { menu, menuMatch, menuRef } = await resolveMenu(opts);
+  const ctx = { menu, menuMatch, menuRef, opts };
 
   for (const phrase of opts.phrases) {
     await recordPhrase(phrase, ctx);
