@@ -27,6 +27,17 @@ function restaurantPilotPath(slug, corpusDir = DEFAULT_CORPUS_DIR) {
   return path.join(restaurantDir(slug, corpusDir), 'pilot.json');
 }
 
+const HARVEST_MANIFEST_FILE = 'harvest.json';
+const PHRASES_LIST_FILE = 'phrases.txt';
+
+function restaurantHarvestPath(slug, corpusDir = DEFAULT_CORPUS_DIR) {
+  return path.join(restaurantDir(slug, corpusDir), HARVEST_MANIFEST_FILE);
+}
+
+function restaurantPhrasesPath(slug, corpusDir = DEFAULT_CORPUS_DIR) {
+  return path.join(restaurantDir(slug, corpusDir), PHRASES_LIST_FILE);
+}
+
 const LEGACY_CORPUS_FILES = {
   'enes-pilot.json': (corpusDir) => restaurantPilotPath('enes', corpusDir),
 };
@@ -82,14 +93,18 @@ module.exports = {
   DEFAULT_CORPUS_DIR,
   ENES_PILOT_CORPUS_FILE,
   GLOBAL_DIR,
+  HARVEST_MANIFEST_FILE,
+  PHRASES_LIST_FILE,
   RESTAURANTS_DIR,
   corpusFilePath,
   isRestaurantTarget,
   listRestaurantSlugs,
   resolveCorpusFileRef,
   restaurantDir,
+  restaurantHarvestPath,
   restaurantMenuMatchPath,
   restaurantMenuPath,
+  restaurantPhrasesPath,
   restaurantPilotPath,
   slugFromBusinessId,
 };

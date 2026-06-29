@@ -18,7 +18,8 @@
     "intent:refresh-corpus": "npm run intent:refresh-corpus --prefix backend --",
     "intent:record": "npm run intent:record --prefix backend --",
     "intent:promote": "npm run intent:promote --prefix backend --",
-    "intent:ship": "npm run intent:ship --prefix backend --"
+    "intent:ship": "npm run intent:ship --prefix backend --",
+    "intent:harvest": "npm run intent:harvest --prefix backend --"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

@@ -21,6 +21,7 @@ const {
   exportRestaurantMenuFixture,
   recordPhrasesToPilot,
 } = require('../bot/restaurantCorpus');
+const { ensurePhrasesTxtScaffold } = require('../bot/intentHarvest');
 
 const HELP = `
 Initialize offline intent corpus for a restaurant tenant.
@@ -110,6 +111,7 @@ function parseArgs(argv) {
 
 function printNextSteps(slug) {
   console.log('\nNext steps:');
+  console.log(`  Fill restaurants/${slug}/phrases.txt → npm run intent:harvest -- --restaurant ${slug} --verbose`);
   console.log(`  npm run intent:record -- --target ${slug} --tag ${slug}_pilot "phrase from seed list"`);
   console.log(`  npm run intent:eval -- --restaurant ${slug} --verbose`);
   console.log('  After menu re-import: npm run intent:export-menu -- <businessId> ' + slug);
@@ -154,6 +156,13 @@ async function main() {
     console.log(`Created pilot scaffold → ${pilotResult.path}`);
   } else {
     console.log(`Pilot corpus already exists → ${pilotResult.path} (${pilotResult.doc.cases?.length ?? 0} cases)`);
+  }
+
+  const harvestResult = ensurePhrasesTxtScaffold(slug, { corpusDir: undefined });
+  if (harvestResult.created) {
+    console.log(`Created phrases worksheet → ${harvestResult.path}`);
+  } else {
+    console.log(`Phrases worksheet already exists → ${harvestResult.path}`);
   }
 
   const phrasesToRecord = [
