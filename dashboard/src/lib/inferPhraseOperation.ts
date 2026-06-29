@@ -1,0 +1,12 @@
+import type { IntentLearningOperation } from '../types';
+
+const REMOVE_SUFFIX_RE = /\s+(remove|removes|delete|ohne|entfernen|entferne|entfernt|löschen|lösche|lösch|loschen|streichen|sil|cikar|çıkar|kaldir|kaldır|weg|raus)$/i;
+const REMOVE_PREFIX_RE = /^(remove|removes|delete|ohne|entfernen|entferne|entfernt|löschen|lösche|lösch|loschen|sil)\s+/i;
+
+/** Heuristic: phrase looks like a remove command (matches backend intentRemoveDetect). */
+export function inferPhraseOperation(text: string): IntentLearningOperation {
+  const trimmed = text.trim();
+  if (!trimmed) return 'add';
+  if (REMOVE_SUFFIX_RE.test(trimmed) || REMOVE_PREFIX_RE.test(trimmed)) return 'remove';
+  return 'add';
+}

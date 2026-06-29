@@ -4,6 +4,7 @@ const mockLookupLearnedIntent = jest.fn().mockResolvedValue(null);
 
 jest.mock('../intentLearning', () => ({
   lookupLearnedIntent: (...args) => mockLookupLearnedIntent(...args),
+  normalizeOperation: (op) => (op === 'remove' ? 'remove' : 'add'),
   rememberValidatedIntent: jest.fn(),
   rememberValidatedLlmIntent: jest.fn(),
   _resetIntentLearningMemory: jest.fn(),
@@ -146,6 +147,37 @@ describe('parseIntentAsync', () => {
     expect(r.parsedBy).toBe('rules');
     expect(r.items).toEqual([{ name: 'döner mit allem ohne scharf', qty: 1 }]);
     expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
+  });
+
+  test('ayrani cikar is structural remove not add', async () => {
+    const r = await parseIntentAsync('ayrani cikar', { phone: '+442', businessId: 'biz1' });
+    expect(r.operation).toBe('remove');
+    expect(r.parsedBy).toBe('rules');
+    expect(r.items).toEqual([{ name: 'ayrani', qty: 1 }]);
+    expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
+  });
+
+  test('entferne ayran is structural remove', async () => {
+    const r = await parseIntentAsync('entferne ayran', { phone: '+444', businessId: 'biz1' });
+    expect(r.operation).toBe('remove');
+    expect(r.items).toEqual([{ name: 'ayran', qty: 1 }]);
+  });
+
+  test('entferne 1 ayran keeps qty on remove', async () => {
+    const r = await parseIntentAsync('entferne 1 ayran', { phone: '+445' });
+    expect(r.operation).toBe('remove');
+    expect(r.items).toEqual([{ name: 'ayran', qty: 1 }]);
+  });
+
+  test('skips wrong add learning when phrase is structural remove', async () => {
+    mockLookupLearnedIntent.mockResolvedValue({
+      items: [{ name: 'Mis Ayran 0.25L', qty: 1, menuItemId: 'a1' }],
+      partySize: null,
+      operation: 'add',
+    });
+    const r = await parseIntentAsync('ayrani cikar', { phone: '+443', businessId: 'biz1' });
+    expect(r.operation).toBe('remove');
+    expect(r.parsedBy).toBe('rules');
   });
 });
 

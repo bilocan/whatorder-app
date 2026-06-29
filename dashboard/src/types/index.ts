@@ -154,6 +154,32 @@ export interface Customer {
   savedAddresses?: string[];
 }
 
+export type IntentLearningOperation = 'add' | 'remove';
+
+export interface IntentLearningItem {
+  name: string;
+  qty: number;
+  menuItemId?: string;
+  modifierKey?: string;
+  rawName?: string;
+  removeAll?: boolean;
+}
+
+/** Validated customer phrase cached for repeat orders — businesses/{bid}/intentLearnings */
+export interface IntentLearning {
+  id: string;
+  textKey: string;
+  items: IntentLearningItem[];
+  operation?: IntentLearningOperation;
+  hitCount?: number;
+  source?: 'llm' | 'rules' | 'manual';
+  partySize?: number | null;
+  aliasesPromotedAt?: Timestamp | string | null;
+  promotedAliases?: string[];
+  updatedAt?: Timestamp | string | null;
+  createdAt?: Timestamp | string | null;
+}
+
 export function toDate(v: Timestamp | string | null | undefined): Date {
   if (!v) return new Date(0);
   if (typeof v === 'string') return new Date(v);

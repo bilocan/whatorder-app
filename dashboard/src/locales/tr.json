@@ -15,6 +15,7 @@
     "customers": "Müşteriler",
     "income": "Gelir",
     "menu": "Menü",
+    "learnedPhrases": "İfadeler",
     "settings": "Ayarlar",
     "admin": "Admin",
     "adminMap": "Harita",
@@ -154,6 +155,86 @@
     "loading": "Yükleniyor…",
     "noOrders": "Henüz sipariş yok.",
     "historyError": "Sipariş geçmişi yüklenemedi."
+  },
+  "learnedPhrases": {
+    "title": "Öğrenilen ifadeler",
+    "description": "Müşterilerin yazdığı ve onaylanan siparişten sonra botun hatırladığı ifadeler. Silmek yalnızca tekrar kısayolunu kaldırır. Menüye eklenen ifadeler menü takma adlarında kalır.",
+    "searchPlaceholder": "İfade veya ürün ara…",
+    "empty": "Henüz öğrenilen ifade yok. Onaylanan siparişlerden sonra görünür.",
+    "loadError": "İfadeler Firestore'dan yüklenemedi. Sayfa yeniyse firestore.rules deploy edin.",
+    "col": {
+      "phrase": "Müşteri ifadesi",
+      "operation": "İşlem",
+      "items": "Eşleşen ürünler",
+      "hits": "Onay",
+      "source": "Kaynak",
+      "status": "Durum",
+      "updated": "Güncellendi",
+      "actions": "İşlemler"
+    },
+    "source": {
+      "llm": "Yapay zeka",
+      "rules": "Kurallar",
+      "manual": "Manuel"
+    },
+    "status": {
+      "promoted": "Menü takma adında",
+      "cacheOnly": "Yalnızca önbellek"
+    },
+    "time": {
+      "justNow": "Az önce",
+      "minutesAgo": "{{count}} dk önce",
+      "hoursAgo": "{{count}} sa önce"
+    },
+    "delete": {
+      "title": "Öğrenilen ifade silinsin mi?",
+      "message": "“{{phrase}}” kaldırılsın mı? Bir sonraki seferde yapay zeka veya kurallar tekrar devreye girebilir.",
+      "messagePromoted": "“{{phrase}}” önbellekten kaldırılsın mı? Menü takma adları değişmez — menüden düzenleyin.",
+      "confirm": "Sil"
+    },
+    "rowTest": "Test",
+    "operation": {
+      "add": "Siparişe ekle",
+      "remove": "Siparişten çıkar"
+    },
+    "add": {
+      "title": "İfade ekle ve test et",
+      "hint": "Müşteri ifadesini yaz, canlı menüye karşı test et, sonra kaydet.",
+      "operationLabel": "Bu ifade ne yapmalı?",
+      "removeHint": "Çıkarma ifadeleri: ürünü işaretle, miktar veya „tüm satırlar“, sonra test et. Test, kısmi çıkarmayı göstermek için sepette fazladan bir birim simüle eder.",
+      "removeQty": "{{item}} miktarı",
+      "removeAll": "Tüm satırlar",
+      "phraseLabel": "Müşteri ifadesi",
+      "phrasePlaceholder": "örn. ayrani cikar",
+      "itemsLabel": "Menü ürünleri",
+      "itemsLabelRemove": "Bu ürünleri çıkar",
+      "noMenu": "Uygun menü ürünü yok.",
+      "useLlm": "Kurallar yetmezse yapay zeka kullan",
+      "test": "İfadeyi test et",
+      "testing": "Test ediliyor…",
+      "save": "İfadeyi kaydet",
+      "saving": "Kaydediliyor…",
+      "saved": "“{{key}}” olarak kaydedildi",
+      "saveError": "İfade kaydedilemedi"
+    },
+    "test": {
+      "result": "Test sonucu:",
+      "parsedBy": "{{source}} ile ayrıştırıldı",
+      "matched": "Eşleşen",
+      "wouldRemove": "Çıkarılacak",
+      "unmatched": "Eşleşmeyen",
+      "error": "Test başarısız — backend çalışıyor mu?",
+      "outcome": {
+        "proposal": "Sipariş önerilir",
+        "disambiguation": "Ürün seçimi gerekir",
+        "no_match": "Eşleşme yok",
+        "llm_failed": "Yapay zeka ayrıştıramadı",
+        "not_order": "Sipariş metni değil",
+        "low_confidence": "Düşük güven",
+        "remove": "Sepetten/öneriden çıkarır",
+        "remove_failed": "Çıkarma başarısız (ürün sepette yok)"
+      }
+    }
   },
   "menu": {
     "title": "Menü",
