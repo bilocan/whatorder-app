@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   collection, onSnapshot, deleteDoc, doc, query, where,
 } from 'firebase/firestore';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -66,7 +67,7 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
-function formatRelativeTime(d: Date, t: (key: string, opts?: object) => string): string {
+function formatRelativeTime(d: Date, t: TFunction): string {
   const diffMs = Date.now() - d.getTime();
   if (diffMs < 0 || Number.isNaN(d.getTime())) return '—';
   const mins = Math.floor(diffMs / 60000);
@@ -77,7 +78,7 @@ function formatRelativeTime(d: Date, t: (key: string, opts?: object) => string):
   return d.toLocaleDateString();
 }
 
-function outcomeLabel(outcome: string, t: (key: string) => string): string {
+function outcomeLabel(outcome: string, t: TFunction): string {
   const key = `learnedPhrases.test.outcome.${outcome}`;
   const translated = t(key);
   return translated === key ? outcome : translated;
@@ -87,7 +88,7 @@ function PreviewPanel({
   preview, t, operation,
 }: {
   preview: IntentPhrasePreview;
-  t: (key: string, o?: object) => string;
+  t: TFunction;
   operation: IntentLearningOperation;
 }) {
   return (
@@ -316,7 +317,7 @@ export default function LearnedPhrasesPage() {
         ? buildRemoveDraftItems(selectedMenuItems)
         : selectedMenuItems.map((m) => ({ menuItemId: m.id, name: m.name, qty: 1 }));
       const saved = await saveIntentPhrase(businessId, phraseText.trim(), items, operation);
-      const now = new Date();
+      const nowIso = new Date().toISOString();
       setRows((prev) => {
         const row: IntentLearning = {
           id: saved.id,
@@ -327,8 +328,8 @@ export default function LearnedPhrasesPage() {
           source: 'manual',
           partySize: null,
           aliasesPromotedAt: null,
-          updatedAt: now,
-          createdAt: now,
+          updatedAt: nowIso,
+          createdAt: nowIso,
         };
         return [row, ...prev.filter((r) => r.id !== saved.id)];
       });
