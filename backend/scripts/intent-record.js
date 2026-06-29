@@ -20,6 +20,11 @@ const {
   recordIntentCase,
   runCase,
 } = require('../src/bot/intentEval');
+const {
+  corpusFilePath,
+  isRestaurantTarget,
+  restaurantMenuPath,
+} = require('../src/bot/corpusLayout');
 
 const HELP = `
 Intent record — run phrase through sandbox and draft a corpus case.
@@ -30,7 +35,7 @@ The expect block snapshots CURRENT behavior — edit it to state desired behavio
 Options:
   --id <slug>           Case id (default: slug from phrase)
   --tag <name>          Tag (repeatable)
-  --target candidate|builtin|enes   Corpus file (default: candidate; enes → enes-pilot.json)
+  --target candidate|builtin|enes|<slug>   Corpus file (default: candidate; slug → restaurants/<slug>/pilot.json)
   --append              Write to corpus file (default when not --stdout)
   --stdout              Print case JSON only, do not write file
   --notes <text>        Free-form note on the case
@@ -108,8 +113,8 @@ function parseArgs(argv) {
     console.log(HELP);
     process.exit(1);
   }
-  if (!['candidate', 'builtin', 'enes'].includes(opts.target)) {
-    console.error('--target must be candidate, builtin, or enes');
+  if (!['candidate', 'builtin'].includes(opts.target) && !isRestaurantTarget(opts.target)) {
+    console.error('--target must be candidate, builtin, or a restaurant slug (e.g. enes)');
     process.exit(1);
   }
   return opts;
@@ -124,14 +129,14 @@ function loadMenuFromFile(filePath) {
   return data;
 }
 
-const ENES_MENU_FIXTURE = path.join(__dirname, '../fixtures/intent-corpus/enes-menu.json');
-
 async function resolveMenu(opts) {
   if (opts.menuPath) {
     return { menu: loadMenuFromFile(opts.menuPath), menuRef: path.basename(opts.menuPath) };
   }
-  if (opts.target === 'enes') {
-    return { menu: loadMenuFromFile(ENES_MENU_FIXTURE), menuRef: 'enes-menu.json' };
+  if (isRestaurantTarget(opts.target)) {
+    const slug = opts.target === 'enes' ? 'enes' : opts.target;
+    const menuPath = restaurantMenuPath(slug);
+    return { menu: loadMenuFromFile(menuPath), menuRef: 'menu.json', restaurantSlug: slug };
   }
   if (opts.businessId) {
     const menu = await getMenu(opts.businessId);
@@ -140,11 +145,9 @@ async function resolveMenu(opts) {
   return { menu: BUILTIN_MENU, menuRef: 'builtin' };
 }
 
-function suiteMetaForCase(caseDef) {
-  if (caseDef.menu === 'enes-menu.json') {
-    return { menu: 'enes-menu.json', menuMatch: 'enes-menuMatch.json' };
-  }
-  return null;
+function suiteMetaForTarget(target) {
+  if (!isRestaurantTarget(target)) return null;
+  return { menu: 'menu.json', menuMatch: 'menuMatch.json' };
 }
 
 async function recordPhrase(text, ctx) {
@@ -175,15 +178,20 @@ async function recordPhrase(text, ctx) {
     console.log(`  outcome: ${result.outcome}, parsedBy: ${result.intent?.parsedBy ?? '—'}`);
     if (caseDef.status === 'candidate') {
       console.log('  Edit expect in candidate.json if current behavior is wrong, then fix parser.');
-    } else if (ctx.opts.target === 'enes') {
-      console.log('  Run: npm run intent:eval:enes');
+    } else if (isRestaurantTarget(ctx.opts.target)) {
+      console.log(`  Run: npm run intent:eval -- --restaurant ${ctx.opts.target === 'enes' ? 'enes' : ctx.opts.target}`);
     }
   }
 
   if (ctx.opts.verify) {
-    const suiteMeta = suiteMetaForCase(caseDef);
+    const suiteMeta = suiteMetaForTarget(ctx.opts.target);
+    const corpusBaseDir = isRestaurantTarget(ctx.opts.target)
+      ? path.dirname(corpusFilePath(ctx.opts.target))
+      : null;
     const run = await runCase(
-      suiteMeta ? { ...caseDef, _suiteMeta: suiteMeta } : caseDef,
+      suiteMeta
+        ? { ...caseDef, _suiteMeta: suiteMeta, _corpusBaseDir: corpusBaseDir }
+        : caseDef,
       { llm: ctx.opts.llm },
     );
     if (!run.pass) {

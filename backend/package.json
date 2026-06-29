@@ -18,6 +18,7 @@
     "intent:promote": "node scripts/intent-promote.js",
     "intent:ship": "node scripts/intent-ship.js",
     "intent:export-menu": "node src/scripts/exportIntentMenuFixture.js",
+    "intent:init-restaurant": "node src/scripts/initRestaurantCorpus.js",
     "intent:refresh-corpus": "node scripts/intent-refresh-corpus.js",
     "generate:flow": "node src/scripts/generateFlow.js"
   },
