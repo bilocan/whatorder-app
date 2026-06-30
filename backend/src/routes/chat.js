@@ -25,7 +25,7 @@ router.get('/chat', async (req, res) => {
   if (!waUrl) {
     return res.status(503).type('html').send(buildPaymentReturnHtml({
       title: 'WhatsApp nicht verfügbar',
-      body: 'Der Bestell-Bot ist gerade nicht erreichbar. Bitte später erneut versuchen oder info@whatorder.at kontaktieren.',
+      body: 'Der Bestell-Bot ist gerade nicht erreichbar. Bitte später erneut versuchen oder office@whatorder.at kontaktieren.',
       waUrl: null,
     }));
   }
