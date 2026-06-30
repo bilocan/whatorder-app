@@ -79,9 +79,19 @@ function stripIntentModifiers(rawIntentName) {
   return s;
 }
 
+/** Plate/box side choice — "Schnitzel Teller mit Pommes" is not the Pommes SKU. */
+const SIDE_CHOICE_DISH_RE = /\b(teller|box|plate|tava)\b/i;
+const SIDE_CHOICE_MIT_RE = /\bmit\s+(?:pommes(?:\s+frites)?|reis|frites|rice)\s*$/i;
+
+function stripSideChoiceForMatch(s) {
+  if (!SIDE_CHOICE_DISH_RE.test(s)) return s;
+  return s.replace(SIDE_CHOICE_MIT_RE, ' ').replace(/\s+/g, ' ').trim();
+}
+
 /** Dish name for menu matching — no qty prefix, no modifier phrases. */
 function extractDishNameForMatch(rawIntentName) {
   let s = stripIntentModifiers(rawIntentName);
+  s = stripSideChoiceForMatch(s);
   s = s.replace(/^\d+\s*x?\s*/i, '').trim();
   s = s.replace(/^(bir|iki|uc|üç|dort|dört|bes|beş|zwei|drei|vier|funf|fünf|sechs)\s+/i, '').trim();
   return s;
@@ -98,6 +108,11 @@ function extractModifierKey(rawIntentName) {
     return wantsSpicyIncluded(rawIntentName) ? 'mit:allem+scharf' : 'mit:allem';
   }
   if (wantsSpicyIncluded(rawIntentName)) return 'mit:scharf';
+
+  const inclusions = parseMitInclusions(rawIntentName);
+  if (inclusions?.length) {
+    return `mit:${[...inclusions].map(norm).sort().join(',')}`;
+  }
 
   const mit = n.match(/\bmit\s+([\wäöüß-]+(?:\s+[\wäöüß-]+)?)/);
   if (mit) return `mit:${mit[1]}`;
@@ -167,6 +182,55 @@ function optionExcludedByHint(optionLabel, exclusionTokens) {
   return false;
 }
 
+function optionIncludedByHint(optionLabel, inclusionTokens) {
+  const label = norm(optionLabel);
+  for (const raw of inclusionTokens) {
+    if (!raw) continue;
+    const inc = norm(raw);
+    if (label === inc || label.includes(inc) || inc.includes(label)) return true;
+    if ((inc.includes('zwiebel') || inc === 'onion') && (label.includes('zwiebel') || label.includes('onion'))) return true;
+    if ((inc.includes('tomate') || inc === 'tomato') && (label.includes('tomate') || label.includes('tomato'))) return true;
+    if ((inc.includes('salat') || inc === 'salad') && (label.includes('salat') || label.includes('salad'))) return true;
+    if (isRegularSauceExclusion(inc) && label.includes('sauce') && !isSpicyLabel(label)) return true;
+    if (isSpicyExclusion(inc) && isSpicyLabel(label)) return true;
+  }
+  return false;
+}
+
+/** "mit tomaten salad und zwiebel" → ['tomaten', 'salad', 'zwiebel'] */
+function parseMitInclusions(rawIntentName) {
+  if (wantsAllIncluded(rawIntentName)) return null;
+  if (parseExclusions(rawIntentName).length > 0) return null;
+
+  const raw = rawIntentName ?? '';
+  const mitTail = raw.match(/\bmit\s+(.+?)(?:\s+bitte)?\s*$/i);
+  if (!mitTail) return null;
+
+  let tail = mitTail[1].trim();
+  tail = tail.replace(/\s+und\s+(?:scharf|scharfe|schaf|sharf)\s*$/i, '').trim();
+  if (/^(?:allem|allen|alles|scharf|scharfe|spicy|hot)$/i.test(tail)) return null;
+
+  const parts = tail.split(/\s+und\s+|\s*,\s*|\s+and\s+/i).map(s => s.trim()).filter(Boolean);
+  if (!parts.length) return null;
+
+  const tokens = [];
+  for (const part of parts) {
+    const words = part.split(/\s+/).filter(w => w.length >= 2);
+    if (words.length > 1) {
+      for (const word of words) {
+        if (!MODIFIER_ONLY_TOKENS.has(norm(word)) && !SPICY_EXCLUSION_STEMS.includes(norm(word))) {
+          tokens.push(word);
+        }
+      }
+    } else if (part.length >= 2
+      && !MODIFIER_ONLY_TOKENS.has(norm(part))
+      && !SPICY_EXCLUSION_STEMS.includes(norm(part))) {
+      tokens.push(part);
+    }
+  }
+  return tokens.length ? tokens : null;
+}
+
 function parseExclusions(rawIntentName) {
   const tokens = [];
   const raw = rawIntentName ?? '';
@@ -200,7 +264,9 @@ function isModifierOnlyToken(token) {
   const n = normalizeSpicyToken(stripPoliteSuffix(token));
   if (!n) return false;
   if (MODIFIER_ONLY_TOKENS.has(n)) return true;
-  return SPICY_EXCLUSION_STEMS.some(stem => n === stem);
+  if (SPICY_EXCLUSION_STEMS.some(stem => n === stem)) return true;
+  if (isBeilageModifierToken(n)) return true;
+  return false;
 }
 
 function stripPoliteSuffix(name) {
@@ -227,13 +293,30 @@ const MODIFIER_ONLY_TOKENS = new Set([
   'aci', 'acili', 'schaf', 'schaff', 'schaaf', 'sharf',
 ]);
 
+/** Beilage / topping words that can trail "und" after "mit …" (e.g. "mit salad und zwiebel"). */
+const BEILAGE_MODIFIER_STEMS = [
+  'zwiebel', 'zwiebeln', 'onion',
+  'tomate', 'tomaten', 'tomato',
+  'salat', 'salad',
+  'sauce', 'soße', 'sosse', 'sobe',
+  'gurke', 'gurken', 'pickle',
+  'kraut', 'ketchup', 'mayo', 'mayonnaise',
+];
+
+function isBeilageModifierToken(token) {
+  const n = norm(token);
+  if (!n) return false;
+  return BEILAGE_MODIFIER_STEMS.some(stem => n === stem || n.startsWith(stem) || stem.startsWith(n));
+}
+
 function resolveModifierSelections(rawIntentName, optionGroups) {
   if (!rawIntentName?.trim() || !optionGroups?.length) return null;
 
   const exclusions = parseExclusions(rawIntentName);
   const allIncluded = wantsAllIncluded(rawIntentName);
   const spicyWanted = wantsSpicyIncluded(rawIntentName);
-  if (!exclusions.length && !allIncluded && !spicyWanted) return null;
+  const inclusions = parseMitInclusions(rawIntentName);
+  if (!exclusions.length && !allIncluded && !spicyWanted && !inclusions?.length) return null;
 
   const selections = {};
 
@@ -254,6 +337,11 @@ function resolveModifierSelections(rawIntentName, optionGroups) {
         const opt = group.options?.find(o => o.id === id);
         return opt && !optionExcludedByHint(opt.label, exclusions);
       });
+    } else if (inclusions?.length) {
+      ids = allOptionIds(group).filter(id => {
+        const opt = group.options?.find(o => o.id === id);
+        return opt && optionIncludedByHint(opt.label, inclusions);
+      });
     } else if (spicyWanted) {
       ids = [...getDefaultMultiSelection(group)];
       for (const opt of group.options ?? []) {
@@ -263,7 +351,7 @@ function resolveModifierSelections(rawIntentName, optionGroups) {
       ids = getDefaultMultiSelection(group);
     }
 
-    if (ids.length || exclusions.length || allIncluded || spicyWanted) {
+    if (ids.length || exclusions.length || allIncluded || spicyWanted || inclusions?.length) {
       selections[group.id] = ids;
     }
   }
@@ -305,4 +393,5 @@ module.exports = {
   isModifierOnlyToken,
   isSpicyLabel,
   parseExclusions,
+  parseMitInclusions,
 };

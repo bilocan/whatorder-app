@@ -42,8 +42,9 @@ function stripOrderTypePrefix(text) {
 function stripPolitePrefix(text) {
   return (text ?? '')
     .replace(/^\s*hallo\s+/i, '')
+    .replace(/^\s*bitte\s+/i, '')
     .replace(
-      /^\s*(?:ich|wir)\s+(?:hätte|hatte|hätten|hatten|möchte|moechte|möchten|moechten|will|wollen|würde|wuerde|würden|wuerden|esse|essen|nehme|nehmen)\s+(?:gerne\s+)?/i,
+      /^\s*(?:ich|wir)\s+(?:hätte|hatte|hätten|hatten|möchte|moechte|möchten|moechten|will|wollen|würde|wuerde|würden|wuerden|esse|essen|nehme|nehmen|kriege|krieg|kriegen|bekomme|bekommen)\s+(?:gerne\s+)?/i,
       '',
     )
     .replace(/^\s*hätte\s+gerne\s+/i, '')
@@ -87,7 +88,7 @@ function parseGermanLeadingQty(text) {
   if (!m) return null;
   const qty = GERMAN_NUMBERS[m[1].toLowerCase()];
   if (!qty) return null;
-  return [{ qty, rawName: m[2].trim() }];
+  return [{ qty, rawName: stripPoliteSuffix(m[2].trim()) }];
 }
 
 const GERMAN_CONJUNCTION_SPLIT = /\s+und\s+|\s+and\s+|\s*\+\s*|\s*,\s*|\bve\b/i;
@@ -494,7 +495,7 @@ function looksLikeOrderText(text, norm) {
 function toIntentResult(items, partySize, rawText, parsedBy, confidence, operation) {
   const result = {
     items: items.map(i => ({
-      name: i.rawName ?? i.name,
+      name: stripPoliteSuffix(i.rawName ?? i.name),
       qty: i.qty ?? 1,
       ...(i.menuItemId ? { menuItemId: i.menuItemId } : {}),
     })),
