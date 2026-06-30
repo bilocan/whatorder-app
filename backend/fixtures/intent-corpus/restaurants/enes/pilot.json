@@ -50,7 +50,7 @@
         "parsedBy": "rules",
         "intentItems": [
           {
-            "name": "Eiern noch dazu bitte",
+            "name": "Eiern noch dazu",
             "qty": 2
           }
         ],
@@ -295,7 +295,7 @@
         "parsedBy": "rules",
         "intentItems": [
           {
-            "name": "spinaci noch bitte",
+            "name": "spinaci noch",
             "qty": 1
           }
         ]

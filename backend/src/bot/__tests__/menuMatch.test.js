@@ -229,4 +229,15 @@ describe('classifyMenuMatch — Enes spinaci / spinachi typos', () => {
     expect(matched).toHaveLength(1);
     expect(matched[0].name).toBe('Pizza Tonno (33cm)');
   });
+
+  test('schnitzel teller mit pommes matches Schnitzel Teller not Pommes SKUs', () => {
+    const menu = [
+      { id: 'pommes', name: 'Pommes Frites', price: 3.5, available: true },
+      { id: 'burger', name: 'Cheeseburger XXXL mit Pommes', price: 9.9, available: true },
+      { id: 'teller', name: 'Schnitzel Teller', price: 13.9, available: true, category: 'Schnitzel' },
+    ];
+    const result = classifyMenuMatch('schnitzel teller mit pommes', menu);
+    expect(result.type).toBe('unique');
+    expect(result.item.name).toBe('Schnitzel Teller');
+  });
 });
