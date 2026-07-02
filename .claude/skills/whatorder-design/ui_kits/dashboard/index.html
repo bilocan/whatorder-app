@@ -1,0 +1,79 @@
+<!-- @dsCard group="Dashboard" viewport="1240x780" name="Owner Dashboard" subtitle="Login → orders → detail → menu, interactive" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WhatOrder — Owner Dashboard</title>
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; font-family: var(--font-sans); background: var(--surface-app); color: var(--text-body); }
+  #root { height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="data.js"></script>
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="LoginScreen.jsx"></script>
+<script type="text/babel" src="OrdersScreen.jsx"></script>
+<script type="text/babel" src="OrderDetailScreen.jsx"></script>
+<script type="text/babel" src="MenuScreen.jsx"></script>
+<script type="text/babel">
+  const { useState } = React;
+
+  function App() {
+    const [signedIn, setSignedIn] = useState(false);
+    const [page, setPage] = useState('orders');
+    const [openId, setOpenId] = useState(null);
+    const [orders, setOrders] = useState(window.WO_DATA.orders);
+    const [menu, setMenu] = useState(window.WO_DATA.menu);
+
+    if (!signedIn) return <LoginScreen onSignedIn={() => setSignedIn(true)} />;
+
+    const advance = (id, next) => {
+      setOrders((os) => os.map((o) => o.id === id ? { ...o, status: next } : o));
+    };
+    const toggleItem = (name) => setMenu((m) => m.map((it) => it.name === name ? { ...it, available: !it.available } : it));
+
+    let body;
+    if (openId) {
+      const order = orders.find((o) => o.id === openId);
+      body = <OrderDetailScreen order={order} onBack={() => setOpenId(null)} onAdvance={advance} />;
+    } else if (page === 'menu') {
+      body = <MenuScreen menu={menu} onToggle={toggleItem} />;
+    } else if (page === 'orders') {
+      body = <OrdersScreen orders={orders} onOpen={(id) => setOpenId(id)} />;
+    } else {
+      body = <PlaceholderPage name={page} />;
+    }
+
+    return (
+      <div style={{ display: 'flex', height: '100%' }}>
+        <Sidebar active={openId ? 'orders' : page} restaurant={window.WO_DATA.restaurant}
+          onNavigate={(p) => { setOpenId(null); setPage(p); }}
+          onSignOut={() => { setSignedIn(false); setOpenId(null); setPage('orders'); }} />
+        <main style={{ flex: 1, padding: '1.5rem 2rem', overflowY: 'auto', minWidth: 0 }}>{body}</main>
+      </div>
+    );
+  }
+
+  function PlaceholderPage({ name }) {
+    const label = name.charAt(0).toUpperCase() + name.slice(1);
+    return (
+      <div>
+        <h2 style={{ margin: '0 0 0.5rem', fontSize: 'var(--text-xl)', color: 'var(--text-strong)' }}>{label}</h2>
+        <p style={{ color: 'var(--text-quiet)' }}>The {label} screen. Orders and Menu are the interactive views in this kit.</p>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

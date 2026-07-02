@@ -1,0 +1,33 @@
+// Fake data for the WhatOrder dashboard UI kit.
+window.WO_DATA = {
+  restaurant: 'Kebap & Pizza Favoriten',
+  orders: [
+    { id: 'a1b2c3d4', shortId: 'A1B2C3', customerName: 'Mehmet Y.', customerPhone: '+43 660 123 4567',
+      items: [{ qty: 2, name: 'Döner Teller', price: 9.9 }, { qty: 1, name: 'Ayran', price: 1.8 }],
+      total: 21.6, payment: 'paid', status: 'pending', type: 'pickup', time: '18:42', notes: 'Extra scharf bitte' },
+    { id: 'e5f6g7h8', shortId: 'E5F6G7', customerName: 'Anna K.', customerPhone: '+43 664 987 6543',
+      items: [{ qty: 1, name: 'Pizza Margherita', price: 8.5 }, { qty: 1, name: 'Pizza Funghi', price: 9.5 }],
+      total: 20.5, payment: 'cash', status: 'preparing', type: 'delivery', deliveryFee: 2.5,
+      deliveryAddress: 'Quellenstraße 12, 1100 Wien', time: '18:35' },
+    { id: 'i9j0k1l2', shortId: 'I9J0K1', customerName: 'Thomas B.', customerPhone: '+43 699 111 2233',
+      items: [{ qty: 1, name: 'Dürüm Chicken', price: 7.5 }], total: 7.5, payment: 'paid',
+      status: 'ready', type: 'pickup', time: '18:28' },
+    { id: 'm3n4o5p6', shortId: 'M3N4O5', customerName: 'Sara L.', customerPhone: '+43 660 555 4433',
+      items: [{ qty: 3, name: 'Falafel Wrap', price: 6.9 }, { qty: 2, name: 'Cola 0.5l', price: 2.5 }],
+      total: 25.7, payment: 'unpaid', status: 'approved', type: 'delivery', deliveryFee: 2.5,
+      deliveryAddress: 'Favoritenstraße 88, 1100 Wien', time: '18:20' },
+    { id: 'q7r8s9t0', shortId: 'Q7R8S9', customerName: 'David M.', customerPhone: '+43 664 222 1100',
+      items: [{ qty: 1, name: 'Lahmacun', price: 5.5 }, { qty: 1, name: 'Ayran', price: 1.8 }],
+      total: 7.3, payment: 'paid', status: 'delivered', type: 'pickup', time: '17:55' },
+  ],
+  menu: [
+    { name: 'Döner Teller', category: 'Mains', price: 9.9, available: true },
+    { name: 'Dürüm Chicken', category: 'Mains', price: 7.5, available: true },
+    { name: 'Pizza Margherita', category: 'Mains', price: 8.5, available: true },
+    { name: 'Falafel Wrap', category: 'Mains', price: 6.9, available: true },
+    { name: 'Lahmacun', category: 'Mains', price: 5.5, available: false },
+    { name: 'Pommes', category: 'Sides', price: 3.5, available: true },
+    { name: 'Ayran', category: 'Drinks', price: 1.8, available: true },
+    { name: 'Cola 0.5l', category: 'Drinks', price: 2.5, available: true },
+  ],
+};

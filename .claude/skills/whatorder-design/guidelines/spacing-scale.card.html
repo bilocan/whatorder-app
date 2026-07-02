@@ -1,0 +1,28 @@
+<!-- @dsCard group="Spacing" viewport="700x150" name="Spacing scale" subtitle="0.25rem-derived rhythm" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--font-sans); background: var(--surface); padding: 1.5rem 1.75rem; }
+  .row { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+  .u { text-align: center; }
+  .bar { background: var(--green-500); border-radius: 3px; width: 100%; }
+  .tok { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-quiet); margin: 0.4rem 0 0; }
+  .val { font-size: 0.62rem; color: var(--text-tertiary); margin: 0.1rem 0 0; }
+</style>
+</head>
+<body>
+  <div class="row" id="row"></div>
+  <script>
+    const items = [['1','4px'],['2','8px'],['3','12px'],['4','16px'],['5','24px'],['6','32px'],['8','48px'],['10','64px']];
+    document.getElementById('row').innerHTML = items.map(([n,px]) => `
+      <div class="u" style="width:${parseInt(px)+8}px">
+        <div class="bar" style="height:${px}"></div>
+        <p class="tok">space-${n}</p>
+        <p class="val">${px}</p>
+      </div>`).join('');
+  </script>
+</body>
+</html>
