@@ -1,0 +1,132 @@
+<!-- @dsCard group="Marketing" viewport="1280x820" name="Landing page" subtitle="whatorder.at — dark hero, how-it-works, CTA" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WhatOrder — Ordering via WhatsApp</title>
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+  h1, h2, h3, p { margin: 0; }
+  .nav { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 2.5rem; border-bottom: 1px solid var(--border); background: rgba(10,10,10,0.85); backdrop-filter: blur(12px); }
+  .nav-right { display: flex; align-items: center; gap: 1.5rem; }
+  .lang { display: flex; gap: 0.1rem; align-items: center; }
+  .lang button { background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); padding: 0.25rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em; }
+  .lang button.on { color: var(--accent); }
+  .lang .sep { color: #333; font-size: 0.7rem; }
+  .hero { min-height: 88vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6rem 1.5rem 4rem; }
+  .hero h1 { font-size: clamp(2.8rem,7vw,5.5rem); font-weight: 700; line-height: 1.08; letter-spacing: -0.04em; max-width: 820px; margin: 1.5rem 0; }
+  .hero h1 em { font-style: normal; background: linear-gradient(135deg,#22c55e,#059669); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .subtitle { font-size: clamp(1rem,2.5vw,1.2rem); color: var(--text-muted); max-width: 540px; margin-bottom: 2.5rem; font-weight: 300; line-height: 1.6; }
+  .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+  .divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); }
+  .section { max-width: 1100px; margin: 0 auto; padding: 6rem 1.5rem; }
+  .section-title { font-size: clamp(1.8rem,4vw,2.8rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; max-width: 620px; margin: 1rem 0 1.25rem; }
+  .section-desc { color: var(--text-muted); max-width: 520px; font-size: 1.05rem; line-height: 1.7; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 1.25rem; margin-top: 3.5rem; }
+  .who { background: var(--bg-raised); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .who-inner { max-width: 1100px; margin: 0 auto; padding: 6rem 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
+  .tags { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.5rem; }
+  .cta { max-width: 720px; margin: 0 auto; padding: 6rem 1.5rem; text-align: center; }
+  .cta h2 { font-size: clamp(2rem,5vw,3.5rem); font-weight: 700; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 1rem; }
+  .cta p { color: var(--text-muted); font-size: 1.05rem; margin-bottom: 2.5rem; }
+  .form { max-width: 420px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.9rem; text-align: left; }
+  footer { border-top: 1px solid var(--border); padding: 2rem 2.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+  footer p, footer a { font-size: 0.8rem; color: var(--text-muted); text-decoration: none; }
+  .footer-links { display: flex; gap: 1.5rem; }
+  @media (max-width: 720px) { .who-inner { grid-template-columns: 1fr; gap: 2.5rem; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { BrandLogo, Badge, Button, SectionLabel, StepCard, QuoteBlock, Tag, Input } = window.WhatOrderDesignSystem_b54bed;
+
+  const STEPS = [
+    ['Step 01', 'Customer messages you', "A customer sends any message to your restaurant's WhatsApp number. The conversation begins."],
+    ['Step 02', 'Bot handles everything', 'Menu, item selection, quantities, extras — all through natural interactive messages. No typing errors, no missed items.'],
+    ['Step 03', 'You see it in your dashboard', 'New orders appear in your WhatOrder dashboard instantly. Confirm, prepare, mark ready — done.'],
+    ['Step 04', 'Customer is kept in the loop', 'Automatic status updates keep the customer informed, so you can focus on the food — not the phone.'],
+  ];
+
+  function Landing() {
+    return (
+      <div>
+        <nav className="nav">
+          <BrandLogo size="md" variant="dark" />
+          <div className="nav-right">
+            <div className="lang">
+              <button className="on">DE</button><span className="sep">·</span>
+              <button>TR</button><span className="sep">·</span><button>EN</button>
+            </div>
+            <Button variant="ghost" size="sm">Get early access</Button>
+          </div>
+        </nav>
+
+        <section className="hero">
+          <BrandLogo size="lg" variant="dark" glow showWordmark={false} />
+          <div style={{ marginTop: '1.5rem' }}><Badge>Pilot · Vienna, Austria</Badge></div>
+          <h1>Your restaurant,<br/>in <em>every conversation.</em></h1>
+          <p className="subtitle">Customers order through WhatsApp — the app they already have open. No new app for you, no chaos in the chat list.</p>
+          <div className="hero-actions">
+            <Button variant="accent">Get early access</Button>
+            <Button variant="ghost">See how it works</Button>
+          </div>
+        </section>
+
+        <div className="divider"></div>
+
+        <section className="section">
+          <SectionLabel>How it works</SectionLabel>
+          <h2 className="section-title">Ordering should be a conversation, not a chore.</h2>
+          <p className="section-desc">WhatOrder turns your WhatsApp number into a fully automated ordering system — no app for customers to install, no terminal for you to manage.</p>
+          <div className="steps">
+            {STEPS.map(([s, t, d]) => <StepCard key={s} step={s} title={t}>{d}</StepCard>)}
+          </div>
+        </section>
+
+        <div className="who">
+          <div className="who-inner">
+            <div>
+              <SectionLabel>Who it's for</SectionLabel>
+              <h2 className="section-title">For the neighbourhood spot — not corporate IT departments.</h2>
+              <p className="section-desc">Running a döner shop, pizzeria, or café? WhatOrder fits businesses already on WhatsApp — no new platform, no expensive POS.</p>
+              <div className="tags">
+                <Tag>Döner &amp; kebab shops</Tag><Tag>Pizza places</Tag>
+                <Tag>Cafés &amp; bakeries</Tag><Tag>Take-away spots</Tag><Tag>Small restaurants</Tag>
+              </div>
+            </div>
+            <QuoteBlock
+              quote="My customers are already on WhatsApp. Now they order from me directly — no app download. And I didn't have to sign up for another platform."
+              author="— Owner, Vienna (pilot phase)" />
+          </div>
+        </div>
+
+        <section className="cta">
+          <h2>Looking for our first<br/>pilot restaurants in Vienna.</h2>
+          <p>Sign up — we'll review your request and get in touch.</p>
+          <div className="form">
+            <Input surface="dark" label="Restaurant name" placeholder="e.g. Favoriten Kebap House" />
+            <Input surface="dark" label="WhatsApp / phone" placeholder="e.g. +43 660 123 4567" />
+            <Input surface="dark" label="City / district" placeholder="e.g. Vienna, Favoriten" />
+            <Button variant="accent" fullWidth>Send request</Button>
+          </div>
+        </section>
+
+        <footer>
+          <p>© 2026 WhatOrder® · Vienna, Austria · All rights reserved</p>
+          <div className="footer-links"><a>Privacy Policy</a><a>Terms of Service</a><a>Contact</a></div>
+        </footer>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Landing />);
+</script>
+</body>
+</html>

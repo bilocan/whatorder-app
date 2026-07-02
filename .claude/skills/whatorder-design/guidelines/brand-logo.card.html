@@ -1,0 +1,40 @@
+<!-- @dsCard group="Brand" viewport="700x180" name="Logo & mark" subtitle="Rounded green tile + WhatOrder wordmark" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--font-sans); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .cell { padding: 1.75rem; display: flex; align-items: center; gap: 1.25rem; }
+  .light { background: var(--surface); }
+  .dark { background: var(--bg); }
+  .wordmark { display: inline-flex; align-items: center; font-size: 1.35rem; font-weight: 600; letter-spacing: -0.02em; }
+  .wordmark .l { color: var(--slate-ink); }
+  .wordmark .d { color: var(--ink-fg); }
+  .wordmark span.g { color: var(--green-500); }
+  .cap { font-size: 0.64rem; font-family: var(--font-mono); color: var(--text-quiet); margin-top: 0.5rem; }
+  .stack { display: flex; flex-direction: column; }
+  .capd { color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="cell light">
+      <img src="../assets/logo-mark.svg" width="56" height="56" alt="WhatOrder mark" />
+      <div class="stack">
+        <span class="wordmark"><span class="l">What</span><span class="g">Order</span></span>
+        <span class="cap">on light · gradient mark · slate-ink wordmark</span>
+      </div>
+    </div>
+    <div class="cell dark">
+      <img src="../assets/logo-mark.svg" width="56" height="56" alt="WhatOrder mark" style="filter:drop-shadow(var(--glow-accent))" />
+      <div class="stack">
+        <span class="wordmark"><span class="d">What</span><span class="g">Order</span></span>
+        <span class="cap capd">on dark · hero glow · ink-fg wordmark</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
