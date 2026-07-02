@@ -1,0 +1,25 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Brand green" subtitle="The single accent across both surfaces" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--font-sans); background: var(--surface); padding: 1.5rem; }
+  .row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .sw { flex: 1; min-width: 90px; }
+  .chip { height: 60px; border-radius: var(--radius-md); border: 1px solid var(--surface-border); }
+  .name { font-size: var(--text-sm); font-weight: 600; color: var(--text-strong); margin: 0.5rem 0 0.1rem; }
+  .hex { font-size: var(--text-xs); color: var(--text-quiet); font-family: var(--font-mono); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="sw"><div class="chip" style="background:var(--green-500)"></div><p class="name">Green 500</p><p class="hex">#22C55E · accent</p></div>
+    <div class="sw"><div class="chip" style="background:var(--green-600)"></div><p class="name">Green 600</p><p class="hex">#16A34A · hover</p></div>
+    <div class="sw"><div class="chip" style="background:var(--green-700)"></div><p class="name">Green 700</p><p class="hex">#059669 · deep</p></div>
+    <div class="sw"><div class="chip" style="background:linear-gradient(135deg,var(--green-500),var(--green-700))"></div><p class="name">Gradient</p><p class="hex">500 → 700</p></div>
+    <div class="sw"><div class="chip" style="background:var(--green-050)"></div><p class="name">Green 050</p><p class="hex">#DCFCE7 · soft</p></div>
+  </div>
+</body>
+</html>
