@@ -61,6 +61,7 @@ async function evaluateIntent(text, options = {}) {
     llm = false,
     menuTokenIndex = null,
     pendingItems = [],
+    skipLearned = false,
   } = options;
   const phone = options.phone ?? (llm ? sandboxPhoneForLlm() : 'sandbox');
 
@@ -90,6 +91,7 @@ async function evaluateIntent(text, options = {}) {
     businessId: businessId || undefined,
     menu,
     rulesOnly: !llm,
+    skipLearned,
   });
   intent = applyJeweilsBasketContext(intent, basket);
 
@@ -248,6 +250,7 @@ async function evaluateBasketOpsPath(trimmed, options, base) {
     menuMatch,
     menuTokenIndex,
     rulesOnly: !llm,
+    skipLearned: options.skipLearned ?? false,
   });
 
   if (parsed.outcome !== 'ops' || !parsed.ops?.length) return null;

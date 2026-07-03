@@ -289,6 +289,7 @@ async function runCase(caseDef, options = {}) {
     basketOps: useBasketOps,
     llm: caseDef.llm ?? llmDefault,
     businessId,
+    skipLearned: caseDef.useLearned !== true,
   });
   const failures = assertExpectations(result, caseDef.expect ?? {});
   return {

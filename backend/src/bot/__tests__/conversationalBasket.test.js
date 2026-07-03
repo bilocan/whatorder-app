@@ -101,6 +101,29 @@ describe('tryConversationalBasketText', () => {
     expect(patchSession).not.toHaveBeenCalled();
   });
 
+  test('falls through to proposal flow for empty-basket combo order', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const menu = JSON.parse(fs.readFileSync(
+      path.join(__dirname, '../../../fixtures/intent-corpus/restaurants/enes/menu.json'),
+      'utf8',
+    ));
+    const menuMatch = JSON.parse(fs.readFileSync(
+      path.join(__dirname, '../../../fixtures/intent-corpus/restaurants/enes/menuMatch.json'),
+      'utf8',
+    ));
+    getMenuContext.mockResolvedValue({ menu, menuMatch, menuTokenIndex: null });
+    const handled = await tryConversationalBasketText({
+      ...BASE,
+      basket: [],
+      text: '2 Döner 1 ayran',
+      norm: '2 döner 1 ayran',
+      business: { conversationalBasket: true },
+    });
+    expect(handled).toBe(false);
+    expect(patchSession).not.toHaveBeenCalled();
+  });
+
   test('removes line by plain text without Entfernen tap', async () => {
     const handled = await tryConversationalBasketText({
       ...BASE,

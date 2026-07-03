@@ -424,6 +424,7 @@ async function parseBasketOps(text, ctx = {}) {
     menuMatch = null,
     menuTokenIndex = null,
     rulesOnly = false,
+    skipLearned = false,
   } = ctx;
 
   const trimmed = sanitizeIntentText(text);
@@ -440,6 +441,7 @@ async function parseBasketOps(text, ctx = {}) {
     businessId: businessId || undefined,
     menu,
     rulesOnly,
+    skipLearned,
   });
   intent = applyJeweilsBasketContext(intent, basket);
 
@@ -562,6 +564,10 @@ async function parseBasketOps(text, ctx = {}) {
     if (!matched.length) {
       const outcome = (intent.llmFailed || llmAllowed) ? 'llm_failed' : 'no_match';
       return emptyParseResult(outcome, { ...base, intent, unmatched });
+    }
+
+    if (isPartialBlobTrap(trimmed, intent, matched)) {
+      return emptyParseResult('no_match', { ...base, intent, unmatched });
     }
 
     if (intent.llmFailed && llmAllowed
