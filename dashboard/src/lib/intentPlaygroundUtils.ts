@@ -92,8 +92,9 @@ function mergeSelectionsFromLearnedMeta(
   );
   return lines.map((line) => {
     if (line.selections && Object.keys(line.selections).length > 0) return line;
-    const stored = (line.menuItemId && byMenuItemId.get(line.menuItemId))
-      ?? (line.rawIntentName && byRawName.get(line.rawIntentName));
+    const stored =
+      (line.menuItemId ? byMenuItemId.get(line.menuItemId) : undefined)
+      ?? (line.rawIntentName ? byRawName.get(line.rawIntentName) : undefined);
     if (!stored?.selections || !Object.keys(stored.selections).length) return line;
     return { ...line, selections: stored.selections };
   });
