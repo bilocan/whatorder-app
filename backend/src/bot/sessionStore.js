@@ -6,7 +6,7 @@ const MENU_BROWSE_FIELDS = ['textMenuIndex', 'textMenuCategory', 'menuSearchActi
 const INTENT_FIELDS = ['pendingIntentItems', 'unmatchedIntentItems', 'intentCustomize', 'pendingItem', 'pendingIntentNote', 'pendingIntentRawText'];
 const REORDER_FIELDS = ['pendingReorderItems', 'pendingReorderUnmatched'];
 const DISAMBIGUATION_FIELDS = ['disambiguation'];
-const BASKET_EDIT_FIELDS = ['basketRemovePending', 'basketRemoveDisambig'];
+const BASKET_EDIT_FIELDS = ['basketRemovePending', 'basketRemoveDisambig', 'basketUndoSnapshot'];
 
 /** Firestore rejects undefined at any depth — strip before write. */
 function stripUndefinedDeep(value) {

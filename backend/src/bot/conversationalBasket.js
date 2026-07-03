@@ -2,9 +2,9 @@ const { patchSession } = require('./sessionStore');
 const { sendText, sendButtonMessage } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const {
-  buildPostAddBody,
+  buildMutationReceiptBody,
   postAddBasketButtons,
-  formatBasketItemsText,
+  basketTotals,
 } = require('./botHelpers');
 const { getMenuContext } = require('./menuService');
 const { looksLikeOrderText } = require('./intentParser');
@@ -22,6 +22,16 @@ const INTENT_PROPOSAL_CLEAR = {
   disambiguation: undefined,
 };
 
+const UNDO_PHRASES = new Set(['ruckgangig', 'undo', 'geri al']);
+
+function cloneBasket(basket) {
+  return (basket ?? []).map(item => ({ ...item }));
+}
+
+function isBasketUndoPhrase(norm) {
+  return UNDO_PHRASES.has((norm ?? '').trim());
+}
+
 async function sendOpsAmbiguousRemove({ from, session, lang, basket, rejected }) {
   const hit = rejected.find(r => r.reason === 'ambiguous');
   if (!hit?.indices?.length) return false;
@@ -34,18 +44,9 @@ async function sendOpsAmbiguousRemove({ from, session, lang, basket, rejected })
 }
 
 async function sendConversationalBasketReply({ from, lang, newBasket, applyResult }) {
-  const { applied, diff } = applyResult;
-  const hasAdd = applied.some(r => r.kind === 'add');
-
-  if (hasAdd) {
-    await sendButtonMessage(from, {
-      body: buildPostAddBody(lang, newBasket, { addedLines: diff.addedLines }),
-      buttons: postAddBasketButtons(lang),
-    });
-    return;
-  }
-
-  const body = `${t('basketHeader', lang)}\n\n${formatBasketItemsText(newBasket, { numbered: true })}`;
+  const body = buildMutationReceiptBody(lang, newBasket, applyResult.applied, {
+    addedLines: applyResult.diff?.addedLines,
+  });
   await sendButtonMessage(from, {
     body,
     buttons: postAddBasketButtons(lang),
@@ -64,8 +65,12 @@ async function applyConversationalOps({
     return false;
   }
 
+  const undoSnapshot = { basket: cloneBasket(basket) };
+
+  // Mutation receipts persist in chat (clean-chat: basket progress stays visible).
   await patchSession(from, {
     basket: newBasket,
+    basketUndoSnapshot: undoSnapshot,
     ...INTENT_PROPOSAL_CLEAR,
     basketRemovePending: undefined,
     basketRemoveDisambig: undefined,
@@ -85,6 +90,52 @@ async function applyConversationalOps({
   }
 
   await sendConversationalBasketReply({ from, lang, newBasket, applyResult });
+  return true;
+}
+
+/**
+ * Restore basket from last mutation snapshot (rückgängig / undo / geri al).
+ * @returns {Promise<boolean>} true if handled
+ */
+async function tryBasketUndo({
+  from, session, lang, businessId, basket, business, norm,
+}) {
+  if (!isConversationalBasket(business)) return false;
+  if (!isBasketUndoPhrase(norm)) return false;
+
+  const snapshot = session.basketUndoSnapshot;
+  if (!snapshot?.basket) {
+    await sendText(from, t('basketNothingToUndo', lang));
+    return true;
+  }
+
+  const restored = cloneBasket(snapshot.basket);
+  await patchSession(from, {
+    basket: restored,
+    basketUndoSnapshot: undefined,
+    ...INTENT_PROPOSAL_CLEAR,
+    basketRemovePending: undefined,
+    basketRemoveDisambig: undefined,
+    pendingDeleteIds: [],
+  }, session);
+
+  if (!restored.length) {
+    await sendOrderEntryPrompt({
+      from,
+      session: { ...session, basket: [] },
+      lang,
+      businessId,
+      basket: [],
+      bodyOverride: t('basketEmpty', lang),
+    });
+    return true;
+  }
+
+  const { count, total } = basketTotals(restored);
+  await sendButtonMessage(from, {
+    body: t('basketUndone', lang, count, total),
+    buttons: postAddBasketButtons(lang),
+  });
   return true;
 }
 
@@ -139,6 +190,8 @@ async function tryConversationalBasketText({
 }
 
 module.exports = {
+  isBasketUndoPhrase,
+  tryBasketUndo,
   tryConversationalBasketText,
   applyConversationalOps,
 };

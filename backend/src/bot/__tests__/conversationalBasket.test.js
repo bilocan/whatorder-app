@@ -31,7 +31,7 @@ jest.mock('../intentCustomize', () => {
 const { patchSession } = require('../sessionStore');
 const { sendButtonMessage, sendText } = require('../../lib/whatsapp');
 const { getMenuContext } = require('../menuService');
-const { tryConversationalBasketText } = require('../conversationalBasket');
+const { tryConversationalBasketText, tryBasketUndo } = require('../conversationalBasket');
 const { buildMenuMatchIndex } = require('../menuMapper');
 
 const MENU = [
@@ -94,6 +94,12 @@ describe('tryConversationalBasketText', () => {
       BASE.session,
     );
     expect(sendButtonMessage).toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(
+      BASE.from,
+      expect.objectContaining({
+        body: expect.stringMatching(/entfernt/i),
+      }),
+    );
     expect(sendText).not.toHaveBeenCalledWith(BASE.from, expect.stringContaining('Zum Warenkorb hinzufügen'));
   });
 
@@ -113,6 +119,60 @@ describe('tryConversationalBasketText', () => {
         ]),
       }),
       BASE.session,
+    );
+    expect(sendButtonMessage).toHaveBeenCalledWith(
+      BASE.from,
+      expect.objectContaining({
+        body: expect.stringMatching(/→ 2×/),
+      }),
+    );
+  });
+
+  test('stores undo snapshot on mutation', async () => {
+    await tryConversationalBasketText({
+      ...BASE,
+      text: 'cola raus',
+      business: { conversationalBasket: true },
+    });
+    expect(patchSession).toHaveBeenCalledWith(
+      BASE.from,
+      expect.objectContaining({
+        basketUndoSnapshot: { basket: BASKET },
+      }),
+      BASE.session,
+    );
+  });
+
+  test('undo restores prior basket', async () => {
+    const session = {
+      ...BASE.session,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.5 },
+        { name: 'Ayran', qty: 1, price: 2 },
+      ],
+      basketUndoSnapshot: { basket: BASKET },
+    };
+    const handled = await tryBasketUndo({
+      ...BASE,
+      session,
+      basket: session.basket,
+      norm: 'ruckgangig',
+      business: { conversationalBasket: true },
+    });
+    expect(handled).toBe(true);
+    expect(patchSession).toHaveBeenCalledWith(
+      BASE.from,
+      expect.objectContaining({
+        basket: BASKET,
+        basketUndoSnapshot: undefined,
+      }),
+      session,
+    );
+    expect(sendButtonMessage).toHaveBeenCalledWith(
+      BASE.from,
+      expect.objectContaining({
+        body: expect.stringMatching(/Rückgängig/i),
+      }),
     );
   });
 
