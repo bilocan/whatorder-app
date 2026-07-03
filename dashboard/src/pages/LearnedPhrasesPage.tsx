@@ -296,7 +296,7 @@ export default function LearnedPhrasesPage() {
         sampleItems,
         context: 'basket',
         operation: op,
-        draftItems,
+        items: draftItems,
       });
       setPreview(result);
       if (result.operation === 'remove') setOperation('remove');

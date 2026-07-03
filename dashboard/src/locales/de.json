@@ -262,7 +262,16 @@
     "teaching": "Speichern…",
     "teachSuccess": "Bot hat „{{key}}“ gelernt",
     "teachError": "Speichern fehlgeschlagen",
-    "viewPhrases": "Gespeicherte Phrasen"
+    "viewPhrases": "Gespeicherte Phrasen",
+    "alreadyTrained": "Bereits trainiert ({{hits}}× genutzt).",
+    "teachHint": {
+      "needsParse": "Zuerst Analysieren klicken, dann die Korrektur prüfen.",
+      "needsSku": "Wählen Sie für jede Zeile einen Artikel aus der Speisekarte.",
+      "unchanged": "Der Bot hat es schon richtig verstanden. Ändern Sie Artikel, Menge oder Beilagen, um etwas Neues zu speichern.",
+      "alreadySaved": "Diese Korrektur ist bereits gespeichert. Ändern Sie etwas, um sie zu aktualisieren.",
+      "readyMisunderstood": "Der Bot hat die Phrase nicht erkannt. Jetzt speichern, damit er sie beim nächsten Mal versteht.",
+      "readyCorrection": "Korrektur speichern — der Bot merkt sich die Phrase für das nächste Mal."
+    }
   },
   "menu": {
     "title": "Speisekarte",

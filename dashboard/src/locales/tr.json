@@ -16,7 +16,7 @@
     "income": "Gelir",
     "menu": "Menü",
     "learnedPhrases": "İfadeler",
-    "intentPlayground": "Botu öğret",
+    "intentPlayground": "Botu eğit",
     "settings": "Ayarlar",
     "admin": "Admin",
     "adminMap": "Harita",
@@ -239,8 +239,8 @@
     }
   },
   "intentPlayground": {
-    "title": "Botu öğret",
-    "description": "Müşterilerin WhatsApp'ta nasıl sipariş verdiğini yaz. Botun ne anladığını gör, ürün, adet veya malzemeleri düzelt, bir sonraki sefer için botu öğret.",
+    "title": "Botu eğit",
+    "description": "Müşterilerin WhatsApp'ta nasıl sipariş verdiğini yaz. Botun ne anladığını gör, ürün, adet veya malzemeleri düzelt, bir sonraki sefer için botu eğit.",
     "customerSays": "Müşteri der ki",
     "phrasePlaceholder": "ör. 2 Döner 1 ayran",
     "parse": "Ayrıştır",
@@ -258,11 +258,20 @@
     "removeLine": "Satırı kaldır",
     "addLine": "+ Satır ekle",
     "whatsappPreview": "WhatsApp önizlemesi",
-    "teachBot": "Botu öğret",
+    "teachBot": "Botu eğit",
     "teaching": "Kaydediliyor…",
     "teachSuccess": "Bot “{{key}}” öğrendi",
     "teachError": "Kaydedilemedi",
-    "viewPhrases": "Kayıtlı ifadeler"
+    "viewPhrases": "Kayıtlı ifadeler",
+    "alreadyTrained": "Zaten öğretildi ({{hits}}× kullanıldı).",
+    "teachHint": {
+      "needsParse": "Önce Ayrıştır'a tıklayın, sonra düzeltmeyi kontrol edin.",
+      "needsSku": "Her satır için menüden bir ürün seçin.",
+      "unchanged": "Bot bunu zaten doğru anladı. Yeni bir şey kaydetmek için ürün, adet veya malzemeleri değiştirin.",
+      "alreadySaved": "Bu düzeltme zaten kayıtlı. Botun öğrendiğini güncellemek için bir şey değiştirin.",
+      "readyMisunderstood": "Bot bu ifadeyi anlamadı. Bir sonraki sefer için şimdi kaydedin.",
+      "readyCorrection": "Düzeltmeyi kaydedin — bot bu ifadeyi bir sonraki sefer hatırlayacak."
+    }
   },
   "menu": {
     "title": "Menü",
