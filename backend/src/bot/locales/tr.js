@@ -28,6 +28,12 @@ module.exports = {
 
   itemAdded: (qty, name, count, total) => `✅ ${qty}× ${name} eklendi.\n🛒 ${count} ürün · €${total}`,
   itemsAdded: (addedQty, count, total) => `✅ ${addedQty} ürün eklendi.\n🛒 ${count} ürün · €${total}`,
+  itemRemoved: (name, count, total) => `✅ ${name} çıkarıldı.\n🛒 ${count} ürün · €${total}`,
+  itemsRemoved: (removedQty, count, total) => `✅ ${removedQty} ürün çıkarıldı.\n🛒 ${count} ürün · €${total}`,
+  qtyUpdated: (name, qty, count, total) => `✅ ${name} → ${qty}×\n🛒 ${count} ürün · €${total}`,
+  basketMutated: (count, total) => `✅ Sepet güncellendi.\n🛒 ${count} ürün · €${total}`,
+  basketUndone: (count, total) => `✅ Geri alındı.\n🛒 ${count} ürün · €${total}`,
+  basketNothingToUndo: () => 'Geri alınacak bir şey yok.',
   reorderLoaded: (count, total) => `✅ Aynı sipariş yüklendi.\n🛒 ${count} ürün · €${total}`,
   addMoreBtn: () => 'Daha Ekle',
   viewBasketBtn: () => 'Sepeti Gör',

@@ -281,6 +281,40 @@ function buildPostAddBody(lang, basket, { qty, name, addedLines, reorder } = {})
   return t('itemsAdded', lang, qty ?? count, count, total);
 }
 
+/** Tier 2 compact receipt after any basket mutation (add / remove / qty). */
+function buildMutationReceiptBody(lang, basket, applied, { addedLines } = {}) {
+  const { count, total } = basketTotals(basket);
+
+  if (applied?.length === 1) {
+    const result = applied[0];
+    if (result.kind === 'add') {
+      return buildPostAddBody(lang, basket, {
+        addedLines: result.addedLines ?? addedLines,
+      });
+    }
+    if (result.kind === 'remove') {
+      const removed = result.removedLines ?? [];
+      if (removed.length === 1) {
+        return t('itemRemoved', lang, formatBasketItemLabel(removed[0]), count, total);
+      }
+      const removedQty = removed.reduce((s, line) => s + line.qty, 0);
+      return t('itemsRemoved', lang, removedQty, count, total);
+    }
+    if (result.kind === 'setQty') {
+      const label = formatBasketItemLabel(result.after ?? result.before);
+      const qty = result.after?.qty ?? result.qty;
+      return t('qtyUpdated', lang, label, qty, count, total);
+    }
+  }
+
+  const allAdds = applied?.length && applied.every(r => r.kind === 'add');
+  if (allAdds) {
+    return buildPostAddBody(lang, basket, { addedLines });
+  }
+
+  return t('basketMutated', lang, count, total);
+}
+
 function postAddBasketButtons(lang) {
   return [
     { id: 'btn_add_more', title: t('addMoreBtn', lang) },
@@ -532,6 +566,7 @@ module.exports = {
   basketTotals,
   findAddedLines,
   buildPostAddBody,
+  buildMutationReceiptBody,
   postAddBasketButtons,
   basketViewButtons,
   removeBasketAtIndex,
