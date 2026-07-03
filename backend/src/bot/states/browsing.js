@@ -14,7 +14,7 @@ const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
 const { resumeDeliveryCheckout, showDeliveryBasketGate, proceedFromConfirmedBasket } = require('./checkout');
 const { sendPopularBoard } = require('../popularBoard');
-const { tryConversationalBasketText } = require('../conversationalBasket');
+const { tryConversationalBasketText, tryBasketUndo, isBasketUndoPhrase } = require('../conversationalBasket');
 const {
   sendSearchPrompt,
   handleSearchModeText,
@@ -423,19 +423,26 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     }
   }
 
-  // Text: conversational basket mutations (Tier 5 — flag on only)
-  if (type === 'text' && text?.trim() && looksLikeOrderText(text, norm)) {
+  // Text: undo + conversational basket mutations (Tier 5 — flag on only)
+  if (type === 'text' && text?.trim()
+    && (isBasketUndoPhrase(norm) || looksLikeOrderText(text, norm))) {
     const info = await getBusinessInfo(businessId);
-    const convHandled = await tryConversationalBasketText({
-      from, session, lang, businessId, basket, text, norm, business: info,
-    });
-    if (convHandled === true) return;
-    if (convHandled === 'llm_failed') {
-      await sendOrderEntryPrompt({
-        from, session, lang, businessId, basket,
-        bodyOverride: t('intentParseFailed', lang),
+    if (await tryBasketUndo({
+      from, session, lang, businessId, basket, business: info, norm,
+    })) return;
+
+    if (looksLikeOrderText(text, norm)) {
+      const convHandled = await tryConversationalBasketText({
+        from, session, lang, businessId, basket, text, norm, business: info,
       });
-      return;
+      if (convHandled === true) return;
+      if (convHandled === 'llm_failed') {
+        await sendOrderEntryPrompt({
+          from, session, lang, businessId, basket,
+          bodyOverride: t('intentParseFailed', lang),
+        });
+        return;
+      }
     }
   }
 

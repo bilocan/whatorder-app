@@ -18,6 +18,7 @@ const {
   formatBasketItemBlock,
   formatBasketItemsText,
   buildPostAddBody,
+  buildMutationReceiptBody,
   findAddedLines,
   postAddBasketButtons,
   basketViewButtons,
@@ -242,6 +243,28 @@ describe('basket formatting', () => {
     expect(postAddBasketButtons('en').map(b => b.id)).toEqual([
       'btn_add_more', 'btn_view_basket', 'btn_confirm',
     ]);
+  });
+
+  test('buildMutationReceiptBody uses compact remove copy', () => {
+    const basket = [{ name: 'Ayran', qty: 1, price: 2 }];
+    const body = buildMutationReceiptBody('de', basket, [{
+      kind: 'remove',
+      removedLines: [{ name: 'Cola', qty: 1, price: 2.5 }],
+    }]);
+    expect(body).toContain('Cola entfernt');
+    expect(body).toContain('🛒 1 Artikel · €2.00');
+    expect(body).not.toContain('Ihre Bestellung');
+  });
+
+  test('buildMutationReceiptBody uses compact qty copy', () => {
+    const basket = [{ name: 'Döner', qty: 2, price: 8.5 }];
+    const body = buildMutationReceiptBody('de', basket, [{
+      kind: 'setQty',
+      before: { name: 'Döner', qty: 1, price: 8.5 },
+      after: { name: 'Döner', qty: 2, price: 8.5 },
+    }]);
+    expect(body).toContain('Döner → 2×');
+    expect(body).toContain('🛒 2 Artikel · €17.00');
   });
 
   test('basketViewButtons uses remove instead of clear', () => {

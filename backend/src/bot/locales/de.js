@@ -28,6 +28,12 @@ module.exports = {
 
   itemAdded: (qty, name, count, total) => `✅ ${qty}× ${name} hinzugefügt.\n🛒 ${count} Artikel · €${total}`,
   itemsAdded: (addedQty, count, total) => `✅ ${addedQty} Artikel hinzugefügt.\n🛒 ${count} Artikel · €${total}`,
+  itemRemoved: (name, count, total) => `✅ ${name} entfernt.\n🛒 ${count} Artikel · €${total}`,
+  itemsRemoved: (removedQty, count, total) => `✅ ${removedQty} Artikel entfernt.\n🛒 ${count} Artikel · €${total}`,
+  qtyUpdated: (name, qty, count, total) => `✅ ${name} → ${qty}×\n🛒 ${count} Artikel · €${total}`,
+  basketMutated: (count, total) => `✅ Warenkorb aktualisiert.\n🛒 ${count} Artikel · €${total}`,
+  basketUndone: (count, total) => `✅ Rückgängig gemacht.\n🛒 ${count} Artikel · €${total}`,
+  basketNothingToUndo: () => 'Nichts zum Rückgängigmachen.',
   reorderLoaded: (count, total) => `✅ Gleiche Bestellung übernommen.\n🛒 ${count} Artikel · €${total}`,
   addMoreBtn: () => 'Mehr hinzufügen',
   viewBasketBtn: () => 'Warenkorb',
