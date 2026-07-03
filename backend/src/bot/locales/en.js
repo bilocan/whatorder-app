@@ -28,6 +28,12 @@ module.exports = {
 
   itemAdded: (qty, name, count, total) => `✅ ${qty}× ${name} added.\n🛒 ${count} item${count !== 1 ? 's' : ''} · €${total}`,
   itemsAdded: (addedQty, count, total) => `✅ ${addedQty} item${addedQty !== 1 ? 's' : ''} added.\n🛒 ${count} item${count !== 1 ? 's' : ''} · €${total}`,
+  itemRemoved: (name, count, total) => `✅ ${name} removed.\n🛒 ${count} item${count !== 1 ? 's' : ''} · €${total}`,
+  itemsRemoved: (removedQty, count, total) => `✅ ${removedQty} item${removedQty !== 1 ? 's' : ''} removed.\n🛒 ${count} item${count !== 1 ? 's' : ''} · €${total}`,
+  qtyUpdated: (name, qty, count, total) => `✅ ${name} → ${qty}×\n🛒 ${count} item${count !== 1 ? 's' : ''} · €${total}`,
+  basketMutated: (count, total) => `✅ Basket updated.\n🛒 ${count} item${count !== 1 ? 's' : ''} · €${total}`,
+  basketUndone: (count, total) => `✅ Undone.\n🛒 ${count} item${count !== 1 ? 's' : ''} · €${total}`,
+  basketNothingToUndo: () => 'Nothing to undo.',
   reorderLoaded: (count, total) => `✅ Same order loaded.\n🛒 ${count} item${count !== 1 ? 's' : ''} · €${total}`,
   addMoreBtn: () => 'Add more',
   viewBasketBtn: () => 'View basket',

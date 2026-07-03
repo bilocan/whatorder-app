@@ -14,6 +14,7 @@ const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
 const { resumeDeliveryCheckout, showDeliveryBasketGate, proceedFromConfirmedBasket } = require('./checkout');
 const { sendPopularBoard } = require('../popularBoard');
+const { tryConversationalBasketText, tryBasketUndo, isBasketUndoPhrase } = require('../conversationalBasket');
 const {
   sendSearchPrompt,
   handleSearchModeText,
@@ -422,7 +423,30 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     }
   }
 
-  // Text: basket remove mode (line numbers or item names)
+  // Text: undo + conversational basket mutations (Tier 5 — flag on only)
+  if (type === 'text' && text?.trim()
+    && (isBasketUndoPhrase(norm) || looksLikeOrderText(text, norm))) {
+    const info = await getBusinessInfo(businessId);
+    if (await tryBasketUndo({
+      from, session, lang, businessId, basket, business: info, norm,
+    })) return;
+
+    if (looksLikeOrderText(text, norm)) {
+      const convHandled = await tryConversationalBasketText({
+        from, session, lang, businessId, basket, text, norm, business: info,
+      });
+      if (convHandled === true) return;
+      if (convHandled === 'llm_failed') {
+        await sendOrderEntryPrompt({
+          from, session, lang, businessId, basket,
+          bodyOverride: t('intentParseFailed', lang),
+        });
+        return;
+      }
+    }
+  }
+
+  // Text: basket remove mode (line numbers or item names) — optional accelerator when flag on
   if (type === 'text' && text?.trim() && session.basketRemovePending && basket.length) {
     if (await handleBasketRemoveText({ from, session, lang, businessId, basket, text, norm })) return;
   }

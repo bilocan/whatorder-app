@@ -11,6 +11,7 @@ const { norm } = require('./menuMatch');
 const { buildMenuMatchIndex } = require('./menuMapper');
 const { t } = require('./templates');
 const { previewLearnedRemove } = require('./intentLearnedRemove');
+const { parseBasketOps, applyOps } = require('./basketOps');
 
 /** Beilagen group so offline sandbox resolves mit allem / ohne scharf like pilot menus. */
 const SANDBOX_BEILAGEN = {
@@ -71,6 +72,17 @@ async function evaluateIntent(text, options = {}) {
 
   if (!base.orderLike) {
     return emptyResult(base, 'not_order');
+  }
+
+  if (basket.length && options.basketOps) {
+    const opsResult = await evaluateBasketOpsPath(trimmed, {
+      ...options,
+      menu,
+      menuMatch,
+      phone,
+      lang,
+    }, base);
+    if (opsResult) return opsResult;
   }
 
   let intent = await parseIntentAsync(trimmed, {
@@ -216,6 +228,81 @@ async function evaluateIntent(text, options = {}) {
   };
 }
 
+async function evaluateBasketOpsPath(trimmed, options, base) {
+  const {
+    basket = [],
+    menu,
+    menuMatch,
+    businessId = null,
+    llm = false,
+    menuTokenIndex = null,
+    lang = 'de',
+    phone,
+  } = options;
+
+  const parsed = await parseBasketOps(trimmed, {
+    basket,
+    businessId,
+    phone,
+    menu,
+    menuMatch,
+    menuTokenIndex,
+    rulesOnly: !llm,
+  });
+
+  if (parsed.outcome !== 'ops' || !parsed.ops?.length) return null;
+
+  const preview = applyOps(basket, parsed.ops);
+  return {
+    ...base,
+    outcome: 'basket_ops',
+    parsePath: parsed.parsePath,
+    ops: parsed.ops,
+    intent: parsed.intent,
+    matched: parsed.matched ?? [],
+    unmatched: parsed.unmatched ?? [],
+    disambiguation: parsed.disambiguation ?? null,
+    basketBefore: basket,
+    basketAfter: preview.basket,
+    appliedPreview: preview,
+    botReply: formatBasketOpsReply(parsed, preview, lang),
+    llmEnabled: llm,
+    llmAllowed: llm && canCallLlm(phone),
+  };
+}
+
+function formatBasketOpsReply(parsed, preview, lang) {
+  const lines = [`Parse path: ${parsed.parsePath}`, 'Ops:'];
+  for (const op of parsed.ops) {
+    if (op.type === 'add') {
+      lines.push(`  • add ${op.item.qty}× ${op.item.name}`);
+    } else if (op.type === 'remove') {
+      const target = op.target.kind === 'index'
+        ? `line ${op.target.index}`
+        : `"${op.target.fragment}"`;
+      lines.push(`  • remove ${target}`);
+    } else if (op.type === 'setQty') {
+      const target = op.target.kind === 'index'
+        ? `line ${op.target.index}`
+        : `"${op.target.fragment}"`;
+      lines.push(`  • set qty ${op.qty} on ${target}`);
+    } else if (op.type === 'clear') {
+      lines.push('  • clear basket');
+    }
+  }
+  lines.push('');
+  lines.push(`Applied: ${preview.applied.length}, rejected: ${preview.rejected.length}`);
+  if (preview.basket.length) {
+    lines.push('Basket after:');
+    for (const line of preview.basket) {
+      lines.push(`  • ${line.qty}× ${line.name}`);
+    }
+  } else {
+    lines.push(t('basketEmpty', lang));
+  }
+  return lines.join('\n');
+}
+
 function emptyResult(base, outcome) {
   return {
     ...base,
@@ -260,6 +347,16 @@ function formatSandboxResult(result) {
   }
 
   lines.push(`outcome: ${result.outcome}`);
+
+  if (result.parsePath) {
+    lines.push(`parsePath: ${result.parsePath}`);
+  }
+  if (result.ops?.length) {
+    lines.push(`ops: ${JSON.stringify(result.ops)}`);
+  }
+  if (result.appliedPreview) {
+    lines.push(`applied: ${result.appliedPreview.applied.length}, rejected: ${result.appliedPreview.rejected.length}`);
+  }
 
   if (result.matched?.length) {
     lines.push('matched:');

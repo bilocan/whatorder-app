@@ -2060,6 +2060,43 @@ describe('Browsing state: basket remove (chat)', () => {
   });
 });
 
+describe('Browsing state: conversational basket (Tier 5)', () => {
+  test('flag on — ohne ayran removes from committed basket without Entfernen tap', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.50 },
+        { name: 'Ayran', qty: 1, price: 2.00 },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'ohne ayran' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      pendingIntentItems: undefined,
+    }), expect.anything());
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Verstanden'),
+    }));
+  });
+
+  test('flag on — mach 2 döner re-quantifies without confirm tap', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'mach 2 döner' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+    }), expect.anything());
+  });
+});
+
 // ─── awaiting_confirm_note fallback ──────────────────────────────────────────
 
 describe('awaiting_confirm_note: invalid input re-prompts', () => {

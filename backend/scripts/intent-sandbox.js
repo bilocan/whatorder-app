@@ -28,6 +28,8 @@ Options:
   --llm                 Enable LLM paths (needs AI_INTENT_ENABLED + GEMINI_API_KEY)
   --lang <de|en|tr>     Locale for bot reply text (default: de)
   --json                Print raw result JSON instead of formatted text
+  --basket-ops          Parse committed-basket mutation ops (Tier 5 / basketOps.js)
+  --basket <json>       Basket snapshot JSON array, e.g. '[{"name":"Döner","qty":1,"price":8.5}]'
 
 Interactive commands:
   :q / :quit            Exit
@@ -44,6 +46,8 @@ function parseArgs(argv) {
     llm: false,
     lang: 'de',
     json: false,
+    basketOps: false,
+    basket: [],
     phrases: [],
   };
 
@@ -61,6 +65,10 @@ function parseArgs(argv) {
       opts.lang = argv[++i];
     } else if (arg === '--json') {
       opts.json = true;
+    } else if (arg === '--basket-ops') {
+      opts.basketOps = true;
+    } else if (arg === '--basket') {
+      opts.basket = JSON.parse(argv[++i]);
     } else if (arg === '--help' || arg === '-h') {
       console.log(HELP);
       process.exit(0);
@@ -128,6 +136,8 @@ async function runPhrase(text, ctx) {
     lang: ctx.opts.lang,
     businessId: ctx.opts.businessId,
     llm: ctx.opts.llm,
+    basket: ctx.opts.basket ?? [],
+    basketOps: ctx.opts.basketOps,
   });
   printResult(result, ctx.opts);
 }
