@@ -3,6 +3,8 @@ jest.mock('../sessionStore', () => ({
 }));
 jest.mock('../intentLearning', () => ({
   lookupLearnedIntent: jest.fn().mockResolvedValue(null),
+  buildBasketPendingLearning: jest.fn().mockReturnValue(null),
+  commitBasketPendingLearning: jest.fn(),
 }));
 jest.mock('../../lib/llm', () => ({
   canCallLlm: jest.fn().mockReturnValue(false),
@@ -36,6 +38,10 @@ jest.mock('../basketOps', () => {
 });
 
 const { patchSession } = require('../sessionStore');
+const {
+  buildBasketPendingLearning,
+  commitBasketPendingLearning,
+} = require('../intentLearning');
 const { sendButtonMessage, sendText } = require('../../lib/whatsapp');
 const { getMenuContext } = require('../menuService');
 const { sendOrderEntryPrompt } = require('../orderEntry');
@@ -47,6 +53,7 @@ const {
   tryBasketUndo,
   applyConversationalOps,
   isBasketUndoPhrase,
+  flushBasketPendingLearning,
 } = require('../conversationalBasket');
 const { buildMenuMatchIndex } = require('../menuMapper');
 const { BUILTIN_MENU } = require('../intentSandbox');
@@ -287,7 +294,57 @@ describe('applyConversationalOps', () => {
   });
 });
 
+describe('flushBasketPendingLearning', () => {
+  test('commits and clears pending learning', async () => {
+    const pending = {
+      businessId: 'biz_test',
+      text: 'cola raus',
+      intent: { operation: 'remove', parsedBy: 'rules' },
+      matched: [{ name: 'Cola', qty: 1 }],
+    };
+    const session = { ...BASE.session, basketPendingLearning: pending };
+    const next = await flushBasketPendingLearning(BASE.from, session);
+    expect(commitBasketPendingLearning).toHaveBeenCalledWith(pending);
+    expect(patchSession).toHaveBeenCalledWith(
+      BASE.from,
+      { basketPendingLearning: undefined },
+      session,
+    );
+    expect(next.basketPendingLearning).toBeUndefined();
+  });
+});
+
 describe('tryBasketUndo edge cases', () => {
+  test('undo clears basketPendingLearning without committing', async () => {
+    const session = {
+      ...BASE.session,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.5 },
+        { name: 'Ayran', qty: 1, price: 2 },
+      ],
+      basketUndoSnapshot: { basket: BASKET },
+      basketPendingLearning: {
+        businessId: 'biz_test',
+        text: 'cola raus',
+        intent: { operation: 'remove', parsedBy: 'rules' },
+        matched: [{ name: 'Cola', qty: 1 }],
+      },
+    };
+    await tryBasketUndo({
+      ...BASE,
+      session,
+      basket: session.basket,
+      norm: 'undo',
+      business: { conversationalBasket: true },
+    });
+    expect(patchSession).toHaveBeenCalledWith(
+      BASE.from,
+      expect.objectContaining({ basketPendingLearning: undefined }),
+      session,
+    );
+    expect(commitBasketPendingLearning).not.toHaveBeenCalled();
+  });
+
   test('returns false when flag is off', async () => {
     expect(await tryBasketUndo({
       ...BASE, norm: 'undo', business: { name: 'Test' },

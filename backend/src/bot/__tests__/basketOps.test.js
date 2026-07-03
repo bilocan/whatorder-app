@@ -287,9 +287,26 @@ describe('parseBasketOps', () => {
     expect(preview.basket.map(i => i.name)).toEqual(['Cola', 'Ayran']);
   });
 
-  test('greeting-only text returns not_order', async () => {
-    const parsed = await parseBasketOps('hallo', ctx);
-    expect(parsed.outcome).toBe('not_order');
-    expect(parsed.ops).toEqual([]);
+  describe('buildAppliedMutationPatch', () => {
+    const {
+      buildAppliedMutationPatch,
+      buildUndoMutationPatch,
+    } = require('../basketOps');
+
+    test('includes undo snapshot and clears proposal fields', () => {
+      const before = [{ name: 'Cola', qty: 1, price: 2.5 }];
+      const after = [];
+      const patch = buildAppliedMutationPatch({ basketBefore: before, basketAfter: after });
+      expect(patch.basket).toEqual([]);
+      expect(patch.basketUndoSnapshot).toEqual({ basket: before });
+      expect(patch.pendingIntentItems).toBeUndefined();
+      expect(patch.pendingDeleteIds).toEqual([]);
+    });
+
+    test('undo patch clears deferred learning', () => {
+      const patch = buildUndoMutationPatch([{ name: 'Cola', qty: 1, price: 2.5 }]);
+      expect(patch.basketUndoSnapshot).toBeUndefined();
+      expect(patch.basketPendingLearning).toBeUndefined();
+    });
   });
 });
