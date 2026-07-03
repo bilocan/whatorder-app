@@ -27,12 +27,29 @@ jest.mock('../intentCustomize', () => {
     startIntentCustomization: jest.fn().mockResolvedValue(undefined),
   };
 });
+jest.mock('../basketOps', () => {
+  const actual = jest.requireActual('../basketOps');
+  return {
+    ...actual,
+    parseBasketOps: jest.fn((text, ctx) => actual.parseBasketOps(text, ctx)),
+  };
+});
 
 const { patchSession } = require('../sessionStore');
 const { sendButtonMessage, sendText } = require('../../lib/whatsapp');
 const { getMenuContext } = require('../menuService');
-const { tryConversationalBasketText, tryBasketUndo } = require('../conversationalBasket');
+const { sendOrderEntryPrompt } = require('../orderEntry');
+const { sendDisambiguationList } = require('../intentDisambiguate');
+const { startIntentCustomization } = require('../intentCustomize');
+const { parseBasketOps } = require('../basketOps');
+const {
+  tryConversationalBasketText,
+  tryBasketUndo,
+  applyConversationalOps,
+  isBasketUndoPhrase,
+} = require('../conversationalBasket');
 const { buildMenuMatchIndex } = require('../menuMapper');
+const { BUILTIN_MENU } = require('../intentSandbox');
 
 const MENU = [
   { id: 'd1', name: 'Döner', price: 8.5, available: true },
@@ -57,6 +74,8 @@ const BASE = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  const actual = jest.requireActual('../basketOps');
+  parseBasketOps.mockImplementation((text, ctx) => actual.parseBasketOps(text, ctx));
   getMenuContext.mockResolvedValue({
     menu: MENU,
     menuMatch: buildMenuMatchIndex(MENU),
@@ -199,5 +218,159 @@ describe('tryConversationalBasketText', () => {
         body: expect.stringMatching(/Ayran/i),
       }),
     );
+  });
+});
+
+describe('isBasketUndoPhrase', () => {
+  test('matches undo phrases', () => {
+    expect(isBasketUndoPhrase('ruckgangig')).toBe(true);
+    expect(isBasketUndoPhrase('undo')).toBe(true);
+    expect(isBasketUndoPhrase('geri al')).toBe(true);
+    expect(isBasketUndoPhrase('2 döner')).toBe(false);
+  });
+});
+
+describe('applyConversationalOps', () => {
+  test('prompts ambiguous remove when ops rejected', async () => {
+    const dupBasket = [
+      { name: 'Döner — mit allem', qty: 1, price: 8.5 },
+      { name: 'Döner — ohne', qty: 1, price: 8.5 },
+    ];
+    const handled = await applyConversationalOps({
+      ...BASE,
+      basket: dupBasket,
+      applyResult: {
+        basket: dupBasket,
+        applied: [],
+        rejected: [{ reason: 'ambiguous', indices: [1, 2], fragment: 'döner' }],
+        diff: {},
+      },
+    });
+    expect(handled).toBe(true);
+    expect(patchSession).toHaveBeenCalledWith(
+      BASE.from,
+      expect.objectContaining({
+        basketRemoveDisambig: { fragment: 'döner', indices: [1, 2] },
+      }),
+      BASE.session,
+    );
+    expect(sendText).toHaveBeenCalled();
+  });
+
+  test('returns false when nothing applied and not ambiguous', async () => {
+    const handled = await applyConversationalOps({
+      ...BASE,
+      applyResult: {
+        basket: BASKET,
+        applied: [],
+        rejected: [{ reason: 'not_found' }],
+        diff: {},
+      },
+    });
+    expect(handled).toBe(false);
+  });
+
+  test('opens order entry when basket cleared', async () => {
+    const handled = await applyConversationalOps({
+      ...BASE,
+      applyResult: {
+        basket: [],
+        applied: [{ kind: 'clear', removedCount: 3 }],
+        rejected: [],
+        diff: { cleared: true },
+      },
+    });
+    expect(handled).toBe(true);
+    expect(sendOrderEntryPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ basket: [], bodyOverride: expect.stringMatching(/leer/i) }),
+    );
+  });
+});
+
+describe('tryBasketUndo edge cases', () => {
+  test('returns false when flag is off', async () => {
+    expect(await tryBasketUndo({
+      ...BASE, norm: 'undo', business: { name: 'Test' },
+    })).toBe(false);
+  });
+
+  test('replies when nothing to undo', async () => {
+    const handled = await tryBasketUndo({
+      ...BASE,
+      norm: 'undo',
+      business: { conversationalBasket: true },
+    });
+    expect(handled).toBe(true);
+    expect(sendText).toHaveBeenCalledWith(BASE.from, expect.stringMatching(/Rückgängig/i));
+  });
+
+  test('opens order entry when undo restores empty basket', async () => {
+    const session = {
+      ...BASE.session,
+      basketUndoSnapshot: { basket: [] },
+    };
+    const handled = await tryBasketUndo({
+      ...BASE,
+      session,
+      norm: 'undo',
+      business: { conversationalBasket: true },
+    });
+    expect(handled).toBe(true);
+    expect(sendOrderEntryPrompt).toHaveBeenCalled();
+  });
+});
+
+describe('tryConversationalBasketText branches', () => {
+  test('returns llm_failed when parse reports outage', async () => {
+    parseBasketOps.mockResolvedValue({ outcome: 'llm_failed' });
+    const handled = await tryConversationalBasketText({
+      ...BASE,
+      text: '2 döner',
+      norm: '2 döner',
+      business: { conversationalBasket: true },
+    });
+    expect(handled).toBe('llm_failed');
+  });
+
+  test('routes disambiguation to pick-list', async () => {
+    parseBasketOps.mockResolvedValue({
+      outcome: 'disambiguation',
+      disambiguation: { rawName: 'pizza', candidates: [] },
+    });
+    const handled = await tryConversationalBasketText({
+      ...BASE,
+      text: 'pizza',
+      norm: 'pizza',
+      business: { conversationalBasket: true },
+    });
+    expect(handled).toBe(true);
+    expect(sendDisambiguationList).toHaveBeenCalled();
+  });
+
+  test('starts customization wizard when options required', async () => {
+    const menuMatch = buildMenuMatchIndex(BUILTIN_MENU);
+    getMenuContext.mockResolvedValue({
+      menu: BUILTIN_MENU,
+      menuMatch,
+      menuTokenIndex: null,
+    });
+    parseBasketOps.mockResolvedValue({
+      outcome: 'needs_customize',
+      matched: [{
+        menuItemId: 'd1',
+        name: 'Döner',
+        qty: 1,
+        price: 8.5,
+        optionGroups: BUILTIN_MENU.find(i => i.id === 'd1').optionGroups,
+      }],
+    });
+    const handled = await tryConversationalBasketText({
+      ...BASE,
+      text: '1 döner mit allem',
+      norm: '1 döner mit allem',
+      business: { conversationalBasket: true },
+    });
+    expect(handled).toBe(true);
+    expect(startIntentCustomization).toHaveBeenCalled();
   });
 });
