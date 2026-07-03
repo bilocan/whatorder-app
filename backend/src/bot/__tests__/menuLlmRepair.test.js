@@ -58,6 +58,30 @@ describe('menuLlmRepair', () => {
     expect(fixed[1].menuItemId).toBe('enes-getr-cola-033');
   });
 
+  test('repairIntentItems preserves stored Beilagen selections on replay', () => {
+    const index = buildMenuLlmIndex(ENES_MENU);
+    const learned = [
+      {
+        name: 'Kebap Sandwich Huhn',
+        rawName: 'döner sogansız karışık',
+        qty: 1,
+        menuItemId: 'enes-kebap-sandwich-huhn',
+        selections: { beilagen: ['tomato', 'salad', 'sauce'] },
+      },
+      {
+        name: 'Coca Cola 0.33L',
+        rawName: 'bir kola',
+        qty: 1,
+        menuItemId: 'enes-getr-cola-033',
+      },
+    ];
+
+    const fixed = repairIntentItems(learned, index);
+    expect(fixed).toHaveLength(2);
+    expect(fixed[0].selections).toEqual({ beilagen: ['tomato', 'salad', 'sauce'] });
+    expect(fixed[0].rawName).toBe('döner sogansız karışık');
+  });
+
   test('leaves valid multi-item orders unchanged', () => {
     const index = buildMenuLlmIndex(ENES_MENU);
     const ok = [
