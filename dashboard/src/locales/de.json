@@ -16,6 +16,7 @@
     "income": "Einnahmen",
     "menu": "Speisekarte",
     "learnedPhrases": "Phrasen",
+    "intentPlayground": "Bot trainieren",
     "settings": "Einstellungen",
     "admin": "Admin",
     "adminMap": "Karte",
@@ -175,7 +176,8 @@
     "source": {
       "llm": "KI",
       "rules": "Regeln",
-      "manual": "Manuell"
+      "manual": "Manuell",
+      "manual_correction": "Inhaber-Korrektur"
     },
     "status": {
       "promoted": "In Menü-Aliassen",
@@ -235,6 +237,32 @@
         "remove_failed": "Entfernen fehlgeschlagen (Artikel nicht im Warenkorb)"
       }
     }
+  },
+  "intentPlayground": {
+    "title": "Bot trainieren",
+    "description": "Tippe, wie Kunden auf WhatsApp bestellen. Sieh, was der Bot versteht, korrigiere Artikel, Menge oder Beilagen, und trainiere den Bot für das nächste Mal.",
+    "customerSays": "Kunde sagt",
+    "phrasePlaceholder": "z. B. 2 Döner 1 ayran",
+    "parse": "Analysieren",
+    "parsing": "Analysiere…",
+    "parseError": "Analyse fehlgeschlagen — läuft das Backend?",
+    "previewError": "Vorschau fehlgeschlagen",
+    "botUnderstood": "Bot-Verständnis",
+    "yourCorrection": "Ihre Korrektur",
+    "intentLines": "Erkannte Zeilen",
+    "matchedSkus": "Zugeordnete Artikel",
+    "disambiguation": "Artikel wählen",
+    "updating": "aktualisiere…",
+    "qty": "Menge",
+    "pickSku": "Artikel wählen…",
+    "removeLine": "Zeile entfernen",
+    "addLine": "+ Zeile hinzufügen",
+    "whatsappPreview": "WhatsApp-Vorschau",
+    "teachBot": "Bot trainieren",
+    "teaching": "Speichern…",
+    "teachSuccess": "Bot hat „{{key}}“ gelernt",
+    "teachError": "Speichern fehlgeschlagen",
+    "viewPhrases": "Gespeicherte Phrasen"
   },
   "menu": {
     "title": "Speisekarte",

@@ -96,6 +96,16 @@ function sanitizeItems(items) {
       if (i.modifierKey) out.modifierKey = String(i.modifierKey);
       if (i.rawName) out.rawName = String(i.rawName).trim();
       if (i.removeAll) out.removeAll = true;
+      if (i.selections && typeof i.selections === 'object') {
+        const selections = {};
+        for (const [groupId, ids] of Object.entries(i.selections)) {
+          if (!groupId) continue;
+          const list = Array.isArray(ids) ? ids.map(String).filter(Boolean) : [];
+          if (list.length) selections[groupId] = list;
+        }
+        if (Object.keys(selections).length) out.selections = selections;
+      }
+      if (i.modifierKey) out.modifierKey = String(i.modifierKey);
       return out;
     })
     .filter(i => i.name);
@@ -255,6 +265,22 @@ function rememberValidatedIntent(businessId, rawText, intent, matched = null) {
 
 /** Owner dashboard: seed a phrase → items mapping (rules test or manual pick). */
 async function saveManualIntentLearning(businessId, rawText, items, { operation = 'add' } = {}) {
+  return saveOwnerIntentLearning(businessId, rawText, items, { operation });
+}
+
+/**
+ * Owner dashboard / playground: persist phrase mapping, optional correction metadata.
+ */
+async function saveOwnerIntentLearning(
+  businessId,
+  rawText,
+  items,
+  {
+    operation = 'add',
+    correction = null,
+    correctedBy = null,
+  } = {},
+) {
   if (!businessId || !rawText?.trim()) {
     throw new Error('businessId and text are required');
   }
@@ -265,6 +291,8 @@ async function saveManualIntentLearning(businessId, rawText, items, { operation 
   if (!textKey) throw new Error('Phrase is empty after normalization');
 
   const op = normalizeOperation(operation);
+  const hasCorrection = correction && typeof correction === 'object';
+  const source = hasCorrection ? 'manual_correction' : 'manual';
   const docId = docIdForKey(textKey);
   const ref = intentLearningRef(businessId, docId);
   const payload = {
@@ -274,18 +302,32 @@ async function saveManualIntentLearning(businessId, rawText, items, { operation 
   };
   memorySet(businessId, textKey, payload);
 
-  await ref.set({
+  const doc = {
     textKey,
     items: sanitized,
     partySize: null,
     operation: op,
-    source: 'manual',
+    source,
     hitCount: 1,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  };
 
-  return { id: docId, textKey, items: sanitized, operation: op };
+  if (hasCorrection) {
+    doc.correction = {
+      parsedBy: correction.parsedBy ?? null,
+      outcome: correction.outcome ?? null,
+      originalItems: Array.isArray(correction.originalItems) ? correction.originalItems : [],
+      correctedBy: correctedBy ?? correction.correctedBy ?? null,
+      correctedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    doc.aliasesPromotedAt = admin.firestore.FieldValue.delete();
+    doc.promotedAliases = admin.firestore.FieldValue.delete();
+  }
+
+  await ref.set(doc, { merge: true });
+
+  return { id: docId, textKey, items: sanitized, operation: op, source };
 }
 
 /** @deprecated use rememberValidatedIntent */
@@ -308,6 +350,7 @@ module.exports = {
   rememberValidatedLlmIntent,
   recordLearnedIntentHit,
   saveManualIntentLearning,
+  saveOwnerIntentLearning,
   normalizeOperation,
   _resetIntentLearningMemory,
 };

@@ -16,6 +16,7 @@
     "income": "Income",
     "menu": "Menu",
     "learnedPhrases": "Phrases",
+    "intentPlayground": "Teach bot",
     "settings": "Settings",
     "admin": "Admin",
     "adminMap": "Map",
@@ -175,7 +176,8 @@
     "source": {
       "llm": "AI",
       "rules": "Rules",
-      "manual": "Manual"
+      "manual": "Manual",
+      "manual_correction": "Owner correction"
     },
     "status": {
       "promoted": "On menu aliases",
@@ -235,6 +237,32 @@
         "remove_failed": "Remove failed (item not in basket)"
       }
     }
+  },
+  "intentPlayground": {
+    "title": "Teach bot",
+    "description": "Type how customers order on WhatsApp. See what the bot understands, fix SKU, quantity, or toppings, then teach the bot for next time.",
+    "customerSays": "Customer would say",
+    "phrasePlaceholder": "e.g. 2 Döner 1 ayran",
+    "parse": "Parse",
+    "parsing": "Parsing…",
+    "parseError": "Parse failed — is the backend running?",
+    "previewError": "Preview update failed",
+    "botUnderstood": "What the bot understood",
+    "yourCorrection": "Your correction",
+    "intentLines": "Parsed lines",
+    "matchedSkus": "Matched menu items",
+    "disambiguation": "Pick item",
+    "updating": "updating…",
+    "qty": "Quantity",
+    "pickSku": "Choose menu item…",
+    "removeLine": "Remove line",
+    "addLine": "+ Add line",
+    "whatsappPreview": "WhatsApp preview",
+    "teachBot": "Teach bot",
+    "teaching": "Saving…",
+    "teachSuccess": "Bot learned “{{key}}”",
+    "teachError": "Could not save — try again",
+    "viewPhrases": "View saved phrases"
   },
   "menu": {
     "title": "Menu",

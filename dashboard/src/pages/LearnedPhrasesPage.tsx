@@ -364,6 +364,7 @@ export default function LearnedPhrasesPage() {
   function sourceLabel(source: string | undefined) {
     if (source === 'llm') return t('learnedPhrases.source.llm');
     if (source === 'rules') return t('learnedPhrases.source.rules');
+    if (source === 'manual_correction') return t('learnedPhrases.source.manual_correction');
     if (source === 'manual') return t('learnedPhrases.source.manual');
     return '—';
   }

@@ -16,6 +16,7 @@
     "income": "Gelir",
     "menu": "Menü",
     "learnedPhrases": "İfadeler",
+    "intentPlayground": "Botu öğret",
     "settings": "Ayarlar",
     "admin": "Admin",
     "adminMap": "Harita",
@@ -175,7 +176,8 @@
     "source": {
       "llm": "Yapay zeka",
       "rules": "Kurallar",
-      "manual": "Manuel"
+      "manual": "Manuel",
+      "manual_correction": "İşletme düzeltmesi"
     },
     "status": {
       "promoted": "Menü takma adında",
@@ -235,6 +237,32 @@
         "remove_failed": "Çıkarma başarısız (ürün sepette yok)"
       }
     }
+  },
+  "intentPlayground": {
+    "title": "Botu öğret",
+    "description": "Müşterilerin WhatsApp'ta nasıl sipariş verdiğini yaz. Botun ne anladığını gör, ürün, adet veya malzemeleri düzelt, bir sonraki sefer için botu öğret.",
+    "customerSays": "Müşteri der ki",
+    "phrasePlaceholder": "ör. 2 Döner 1 ayran",
+    "parse": "Ayrıştır",
+    "parsing": "Ayrıştırılıyor…",
+    "parseError": "Ayrıştırma başarısız — backend çalışıyor mu?",
+    "previewError": "Önizleme güncellenemedi",
+    "botUnderstood": "Botun anladığı",
+    "yourCorrection": "Düzeltmeniz",
+    "intentLines": "Ayrıştırılan satırlar",
+    "matchedSkus": "Eşleşen ürünler",
+    "disambiguation": "Ürün seç",
+    "updating": "güncelleniyor…",
+    "qty": "Adet",
+    "pickSku": "Menüden seç…",
+    "removeLine": "Satırı kaldır",
+    "addLine": "+ Satır ekle",
+    "whatsappPreview": "WhatsApp önizlemesi",
+    "teachBot": "Botu öğret",
+    "teaching": "Kaydediliyor…",
+    "teachSuccess": "Bot “{{key}}” öğrendi",
+    "teachError": "Kaydedilemedi",
+    "viewPhrases": "Kayıtlı ifadeler"
   },
   "menu": {
     "title": "Menü",

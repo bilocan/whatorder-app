@@ -500,6 +500,7 @@ function toIntentResult(items, partySize, rawText, parsedBy, confidence, operati
       name: stripPoliteSuffix(i.rawName ?? i.name),
       qty: i.qty ?? 1,
       ...(i.menuItemId ? { menuItemId: i.menuItemId } : {}),
+      ...(i.selections ? { selections: i.selections } : {}),
     })),
     partySize,
     rawText,
@@ -681,6 +682,7 @@ async function parseIntentAsync(text, { phone, businessId, menu, rulesOnly = fal
       rawName: i.rawName ?? i.name,
       qty: i.qty,
       menuItemId: i.menuItemId,
+      ...(i.selections ? { selections: i.selections } : {}),
     }));
     if (menu?.length) {
       const menuIndex = buildMenuLlmIndex(menu);
