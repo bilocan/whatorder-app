@@ -105,6 +105,13 @@ function repairMenuLlmRawItems(rawItems, menuIndex) {
 function repairIntentItems(items, menuIndex) {
   if (!items?.length || !menuIndex?.byId) return items;
 
+  const selectionsBySku = new Map();
+  for (const item of items) {
+    if (item.menuItemId && item.selections) {
+      selectionsBySku.set(item.menuItemId, item.selections);
+    }
+  }
+
   const raw = items.map(i => ({
     menuItemId: i.menuItemId,
     qty: i.qty,
@@ -114,11 +121,14 @@ function repairIntentItems(items, menuIndex) {
   const repaired = repairMenuLlmRawItems(raw, menuIndex);
   const { resolveMenuLlmItems } = require('./menuLlmIndex');
 
-  const resolved = resolveMenuLlmItems(repaired, menuIndex).map(line => ({
+  const resolved = resolveMenuLlmItems(repaired, menuIndex).map((line) => ({
     rawName: line.name,
     name: line.name,
     qty: line.qty,
     menuItemId: line.menuItemId,
+    ...(selectionsBySku.has(line.menuItemId)
+      ? { selections: selectionsBySku.get(line.menuItemId) }
+      : {}),
   }));
 
   if (resolved.length && resolved.length === repaired.length) return resolved;

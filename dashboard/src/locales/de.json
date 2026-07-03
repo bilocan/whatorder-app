@@ -273,7 +273,8 @@
       "unchanged": "Der Bot hat es schon richtig verstanden. Ändern Sie Artikel, Menge oder Beilagen, um etwas Neues zu speichern.",
       "alreadySaved": "Diese Korrektur ist bereits gespeichert. Ändern Sie etwas, um sie zu aktualisieren.",
       "readyMisunderstood": "Der Bot hat die Phrase nicht erkannt. Jetzt speichern, damit er sie beim nächsten Mal versteht.",
-      "readyCorrection": "Korrektur speichern — der Bot merkt sich die Phrase für das nächste Mal."
+      "readyCorrection": "Korrektur speichern — der Bot merkt sich die Phrase für das nächste Mal.",
+      "readyLlmCapture": "Die KI hat es richtig verstanden. Speichern, damit der Bot es beim nächsten Mal ohne KI erkennt."
     }
   },
   "menu": {

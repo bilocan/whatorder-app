@@ -273,7 +273,8 @@
       "unchanged": "Bot bunu zaten doğru anladı. Yeni bir şey kaydetmek için ürün, adet veya malzemeleri değiştirin.",
       "alreadySaved": "Bu düzeltme zaten kayıtlı. Botun öğrendiğini güncellemek için bir şey değiştirin.",
       "readyMisunderstood": "Bot bu ifadeyi anlamadı. Bir sonraki sefer için şimdi kaydedin.",
-      "readyCorrection": "Düzeltmeyi kaydedin — bot bu ifadeyi bir sonraki sefer hatırlayacak."
+      "readyCorrection": "Düzeltmeyi kaydedin — bot bu ifadeyi bir sonraki sefer hatırlayacak.",
+      "readyLlmCapture": "Yapay zeka doğru anladı. Bir sonraki sefer yapay zeka olmadan tanıması için kaydedin."
     }
   },
   "menu": {

@@ -273,7 +273,8 @@
       "unchanged": "The bot already got this right. Change item, quantity, or toppings to save something new.",
       "alreadySaved": "This correction is already saved. Change something to update what the bot learned.",
       "readyMisunderstood": "The bot did not understand this phrase. Save now so it learns for next time.",
-      "readyCorrection": "Save your correction — the bot will remember this phrase next time."
+      "readyCorrection": "Save your correction — the bot will remember this phrase next time.",
+      "readyLlmCapture": "AI got it right. Save so the bot recognizes this phrase without AI next time."
     }
   },
   "menu": {
