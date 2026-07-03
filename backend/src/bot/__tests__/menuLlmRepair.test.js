@@ -44,6 +44,20 @@ describe('menuLlmRepair', () => {
     expect(fixed[1].menuItemId).toBe('enes-getr-ayran-025');
   });
 
+  test('repairIntentItems keeps name/qty when menuItemIds are stale and names do not match menu', () => {
+    const index = buildMenuLlmIndex(ENES_MENU);
+    const learned = [
+      { name: 'Lahmacun', qty: 1, menuItemId: 'old-lahmacun-id' },
+      { name: 'Coca Cola 0.33L', qty: 1, menuItemId: 'old-cola-id' },
+    ];
+
+    const fixed = repairIntentItems(learned, index);
+    expect(fixed).toHaveLength(2);
+    expect(fixed[0]).toMatchObject({ name: 'Lahmacun', qty: 1 });
+    expect(fixed[0].menuItemId).toBeUndefined();
+    expect(fixed[1].menuItemId).toBe('enes-getr-cola-033');
+  });
+
   test('leaves valid multi-item orders unchanged', () => {
     const index = buildMenuLlmIndex(ENES_MENU);
     const ok = [

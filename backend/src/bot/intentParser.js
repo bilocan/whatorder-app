@@ -2,7 +2,9 @@ const { parseOrderText, parseSpaceSeparatedQtyItems } = require('./orderParser')
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
 const { buildMenuLlmIndex } = require('./menuLlmIndex');
 const { repairIntentItems } = require('./menuLlmRepair');
-const { lookupLearnedIntent, normalizeOperation } = require('./intentLearning');
+const { lookupLearnedIntent, normalizeOperation, persistReboundLearnedItems } = require('./intentLearning');
+const { learnedItemIdsChanged } = require('./intentLearningRebind');
+const { intentLearnKey } = require('./intentNormalize');
 const { detectRemovePhrase } = require('./intentRemoveDetect');
 const {
   stripIntentModifiers, wantsAllIncluded, parseExclusions, isModifierOnlyToken,
@@ -678,7 +680,8 @@ async function parseIntentAsync(text, { phone, businessId, menu, rulesOnly = fal
     && normalizeOperation(learned.operation) === 'add';
 
   if (learned?.items?.length && !skipBadAddLearned) {
-    let learnedItems = learned.items.map(i => ({
+    const storedItems = learned.items;
+    let learnedItems = storedItems.map(i => ({
       rawName: i.rawName ?? i.name,
       qty: i.qty,
       menuItemId: i.menuItemId,
@@ -687,6 +690,10 @@ async function parseIntentAsync(text, { phone, businessId, menu, rulesOnly = fal
     if (menu?.length) {
       const menuIndex = buildMenuLlmIndex(menu);
       learnedItems = repairIntentItems(learnedItems, menuIndex);
+      if (businessId && learnedItemIdsChanged(storedItems, learnedItems)) {
+        const textKey = intentLearnKey(rawText);
+        void persistReboundLearnedItems(businessId, textKey, learnedItems);
+      }
     }
     return toIntentResult(
       learnedItems,

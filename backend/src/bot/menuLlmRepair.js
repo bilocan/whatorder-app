@@ -114,12 +114,18 @@ function repairIntentItems(items, menuIndex) {
   const repaired = repairMenuLlmRawItems(raw, menuIndex);
   const { resolveMenuLlmItems } = require('./menuLlmIndex');
 
-  return resolveMenuLlmItems(repaired, menuIndex).map(line => ({
+  const resolved = resolveMenuLlmItems(repaired, menuIndex).map(line => ({
     rawName: line.name,
     name: line.name,
     qty: line.qty,
     menuItemId: line.menuItemId,
   }));
+
+  if (resolved.length && resolved.length === repaired.length) return resolved;
+
+  const menu = [...menuIndex.byId.values()];
+  const { rebindLearnedItemsToMenu } = require('./intentLearningRebind');
+  return rebindLearnedItemsToMenu(items, menu);
 }
 
 module.exports = {

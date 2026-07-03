@@ -6,8 +6,10 @@ import {
   getTeachBlockReason,
   canTeachFromReason,
   saveItemsSemanticallyEqual,
+  draftAfterParse,
   type DraftLine,
 } from '../lib/intentPlaygroundUtils';
+import type { IntentPhrasePreview } from '../lib/intentPhrasesApi';
 
 const DONER: MenuItem = {
   id: 'd1',
@@ -28,7 +30,17 @@ const DONER: MenuItem = {
   }],
 };
 
-const menuById = new Map([['d1', DONER]]);
+const AYRAN: MenuItem = {
+  id: 'a1',
+  name: 'Ayran',
+  price: 2,
+  available: true,
+  category: 'drinks',
+  description: '',
+};
+
+const menuById = new Map([['d1', DONER], ['a1', AYRAN]]);
+const menuItems = [DONER, AYRAN];
 
 describe('intentPlaygroundUtils', () => {
   it('hydrates default selections for SKUs with option groups', () => {
@@ -69,6 +81,55 @@ describe('intentPlaygroundUtils', () => {
       'add',
       'add',
     )).toBe(false);
+  });
+
+  it('hydrates draft from learnedMeta when parse has no matched SKUs', () => {
+    const preview: IntentPhrasePreview = {
+      outcome: 'no_match',
+      parsedBy: 'learned',
+      orderLike: true,
+      matched: [],
+      unmatched: [],
+      disambiguation: null,
+      botReply: null,
+      llmEnabled: false,
+      llmAllowed: false,
+      learnedMeta: {
+        id: 'h2',
+        textKey: 'lahmacun cola',
+        hitCount: 1,
+        source: 'manual',
+        operation: 'add',
+        aliasesPromotedAt: null,
+        items: [
+          { menuItemId: 'stale-lahmacun', name: 'Lahmacun', qty: 1 },
+          { menuItemId: 'stale-cola', name: 'Ayran', qty: 1 },
+        ],
+      },
+    };
+    const draft = draftAfterParse(preview, menuById, menuItems);
+    expect(draft).toHaveLength(2);
+    expect(draft[0].menuItemId).toBe('');
+    expect(draft[1].menuItemId).toBe('a1');
+    expect(draft[1].name).toBe('Ayran');
+  });
+
+  it('resolves stale stored menuItemId by name for already-saved check', () => {
+    const meta = {
+      id: 'h3',
+      textKey: 'lahmacun cola',
+      hitCount: 1,
+      source: 'manual',
+      operation: 'add' as const,
+      aliasesPromotedAt: null,
+      items: [{
+        menuItemId: 'stale-ayran',
+        name: 'Ayran',
+        qty: 1,
+      }],
+    };
+    const draftItems = [{ menuItemId: 'a1', name: 'Ayran', qty: 1 }];
+    expect(isIdenticalToStoredLearning(draftItems, 'add', meta, menuById)).toBe(true);
   });
 
   it('returns teach block reasons', () => {

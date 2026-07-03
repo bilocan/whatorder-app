@@ -159,9 +159,12 @@
   },
   "learnedPhrases": {
     "title": "Öğrenilen ifadeler",
-    "description": "Müşterilerin yazdığı ve onaylanan siparişten sonra botun hatırladığı ifadeler. Silmek yalnızca tekrar kısayolunu kaldırır. Menüye eklenen ifadeler menü takma adlarında kalır.",
+    "description": "WhatsApp'ta botun tekrar kullandığı kayıtlı ifadeler — onaylanan siparişler, sahip düzeltmeleri veya manuel öğretimden. Ara, kullanım sayısını incele veya sil. Yeni ifade veya düzeltme için Botu eğit'i kullanın.",
+    "playgroundHint": "Müşteri ifadesini yazın, botun ne anladığını görün, SKU, adet veya ekleri düzeltin, sonra botu eğitin.",
+    "openPlayground": "Botu eğit'i aç",
+    "rowOpenPlayground": "Aç",
     "searchPlaceholder": "İfade veya ürün ara…",
-    "empty": "Henüz öğrenilen ifade yok. Onaylanan siparişlerden sonra görünür.",
+    "empty": "Henüz öğrenilen ifade yok. Botu eğit ile ekleyin veya onaylanan siparişlerden sonra görünür.",
     "loadError": "İfadeler Firestore'dan yüklenemedi. Sayfa yeniyse firestore.rules deploy edin.",
     "col": {
       "phrase": "Müşteri ifadesi",
