@@ -30,6 +30,7 @@ const DRINK_TTS_TYPOS = new Map([
   ['eier', 'ayran'],
   ['eiern', 'ayran'],
   ['einem', 'ayran'], // "ein Ayran" → "ein einem"
+  ['eimer', 'ayran'], // "ein Ayran" → "ein Eimer"
 ]);
 
 const DRINK_TYPO_FILLERS = new Set([

@@ -1,5 +1,7 @@
 const { parseOrderText, parseSpaceSeparatedQtyItems } = require('./orderParser');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../lib/llm');
+const { buildMenuLlmIndex } = require('./menuLlmIndex');
+const { repairIntentItems } = require('./menuLlmRepair');
 const { lookupLearnedIntent, normalizeOperation } = require('./intentLearning');
 const { detectRemovePhrase } = require('./intentRemoveDetect');
 const {
@@ -675,8 +677,17 @@ async function parseIntentAsync(text, { phone, businessId, menu, rulesOnly = fal
     && normalizeOperation(learned.operation) === 'add';
 
   if (learned?.items?.length && !skipBadAddLearned) {
+    let learnedItems = learned.items.map(i => ({
+      rawName: i.rawName ?? i.name,
+      qty: i.qty,
+      menuItemId: i.menuItemId,
+    }));
+    if (menu?.length) {
+      const menuIndex = buildMenuLlmIndex(menu);
+      learnedItems = repairIntentItems(learnedItems, menuIndex);
+    }
     return toIntentResult(
-      learned.items.map(i => ({ rawName: i.rawName ?? i.name, qty: i.qty, menuItemId: i.menuItemId })),
+      learnedItems,
       learned.partySize,
       rawText,
       'learned',
