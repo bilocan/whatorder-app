@@ -148,4 +148,38 @@ describe('IntentPlaygroundPage', () => {
     const teachBtn = screen.getByRole('button', { name: /teach bot|bot trainieren|botu eğit/i });
     expect(teachBtn).toBeDisabled();
   });
+
+  it('enables teach bot when LLM parsed correctly but phrase is not stored yet', async () => {
+    mockPreview.mockResolvedValue({
+      ...PARSE_RESULT,
+      parsedBy: 'llm',
+      matched: [
+        { name: 'Pizza Salami (33cm)', qty: 1, menuItemId: 'p1', rawIntentName: 'pizza salami' },
+        { name: 'Coca Cola 0.33L', qty: 1, menuItemId: 'c1', rawIntentName: 'kola' },
+      ],
+    });
+    mockOnSnapshot.mockImplementation((_ref: unknown, cb: (s: object) => void) => {
+      cb({
+        docs: [
+          { id: 'p1', data: () => ({ id: 'p1', name: 'Pizza Salami (33cm)', price: 14.9, available: true, category: 'mains', description: '' }) },
+          { id: 'c1', data: () => ({ id: 'c1', name: 'Coca Cola 0.33L', price: 2.9, available: true, category: 'drinks', description: '' }) },
+        ],
+      });
+      return vi.fn();
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(
+      screen.getByPlaceholderText(/2 Döner/i),
+      'für mich eine Pizza mit salami und ein Kola',
+    );
+    await user.click(screen.getByRole('button', { name: /parse|analysieren|ayrıştır/i }));
+
+    await waitFor(() => {
+      const teachBtn = screen.getByRole('button', { name: /teach bot|bot trainieren|botu eğit/i });
+      expect(teachBtn).not.toBeDisabled();
+      expect(screen.getByText(/without ai|ohne ki|yapay zeka olmadan/i)).toBeInTheDocument();
+    });
+  });
 });

@@ -3,6 +3,8 @@ jest.mock('../intentLearning', () => ({
   lookupLearnedIntent: jest.fn().mockResolvedValue(null),
   rememberValidatedIntent: jest.fn(),
   rememberValidatedLlmIntent: jest.fn(),
+  buildBasketPendingLearning: jest.fn().mockReturnValue(null),
+  commitBasketPendingLearning: jest.fn(),
 }));
 jest.mock('../../lib/llm', () => ({
   canCallLlm: jest.fn().mockReturnValue(false),

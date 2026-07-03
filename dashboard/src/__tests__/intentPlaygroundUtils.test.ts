@@ -114,6 +114,43 @@ describe('intentPlaygroundUtils', () => {
     expect(draft[1].name).toBe('Ayran');
   });
 
+  it('merges Beilagen selections from learnedMeta when parse replay omits them', () => {
+    const preview: IntentPhrasePreview = {
+      outcome: 'proposal',
+      parsedBy: 'learned',
+      orderLike: true,
+      matched: [{
+        name: 'Döner',
+        qty: 1,
+        menuItemId: 'd1',
+        rawIntentName: 'döner sogansız karışık',
+        selections: null,
+      }],
+      unmatched: [],
+      disambiguation: null,
+      botReply: null,
+      llmEnabled: false,
+      llmAllowed: false,
+      learnedMeta: {
+        id: 'h4',
+        textKey: 'doner kola',
+        hitCount: 2,
+        source: 'manual_correction',
+        operation: 'add',
+        aliasesPromotedAt: null,
+        items: [{
+          menuItemId: 'd1',
+          name: 'Döner',
+          qty: 1,
+          rawName: 'döner sogansız karışık',
+          selections: { toppings: ['salad'] },
+        }],
+      },
+    };
+    const draft = draftAfterParse(preview, menuById, menuItems);
+    expect(draft[0].selections).toEqual({ toppings: ['salad'] });
+  });
+
   it('resolves stale stored menuItemId by name for already-saved check', () => {
     const meta = {
       id: 'h3',
@@ -139,6 +176,7 @@ describe('intentPlaygroundUtils', () => {
     expect(getTeachBlockReason({
       phraseText: '2 doner',
       parseOutcome: 'proposal',
+      parsedBy: 'rules',
       draft,
       initialDraft: draft,
       operation: 'add',
@@ -146,7 +184,19 @@ describe('intentPlaygroundUtils', () => {
       menuById,
     })).toBe('unchanged');
 
+    expect(getTeachBlockReason({
+      phraseText: 'pizza salami cola',
+      parseOutcome: 'proposal',
+      parsedBy: 'llm',
+      draft,
+      initialDraft: draft,
+      operation: 'add',
+      learnedMeta: null,
+      menuById,
+    })).toBe('readyLlmCapture');
+
     expect(canTeachFromReason('readyCorrection')).toBe(true);
+    expect(canTeachFromReason('readyLlmCapture')).toBe(true);
     expect(canTeachFromReason('unchanged')).toBe(false);
   });
 });

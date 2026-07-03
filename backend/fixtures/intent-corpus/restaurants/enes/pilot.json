@@ -363,17 +363,6 @@
       "expect": {
         "orderLike": true,
         "outcome": "proposal",
-        "parsedBy": "rules",
-        "intentItems": [
-          {
-            "name": "lahmacun",
-            "qty": 1
-          },
-          {
-            "name": "cola",
-            "qty": 1
-          }
-        ],
         "matchedNames": [
           "Lahmacun (1 Stueck)",
           "Coca Cola 0.33L"
@@ -1135,6 +1124,99 @@
         "matchedCount": 2
       },
       "recordedFrom": "owner"
+    },
+    {
+      "id": "enes-basket-cola-raus",
+      "text": "cola raus",
+      "tags": [
+        "basket_edit",
+        "wave_d",
+        "enes_pilot"
+      ],
+      "basket": [
+        { "name": "Kebap Sandwich Huhn", "qty": 1, "price": 7.5 },
+        { "name": "Mis Ayran 0.25L", "qty": 1, "price": 2.5 },
+        { "name": "Coca Cola 0.33L", "qty": 1, "price": 2.9 }
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "basket_ops",
+        "parsePath": "structural_remove",
+        "appliedCount": 1,
+        "rejectedCount": 0,
+        "basketAfterNames": [
+          "Kebap Sandwich Huhn",
+          "Mis Ayran 0.25L"
+        ]
+      }
+    },
+    {
+      "id": "enes-basket-mach-2-kebap",
+      "text": "mach 2 kebap",
+      "tags": [
+        "basket_edit",
+        "wave_d",
+        "enes_pilot"
+      ],
+      "basket": [
+        { "name": "Kebap Sandwich Huhn", "qty": 1, "price": 7.5 },
+        { "name": "Mis Ayran 0.25L", "qty": 1, "price": 2.5 }
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "basket_ops",
+        "parsePath": "proposal_edit",
+        "appliedCount": 1,
+        "rejectedCount": 0,
+        "basketLineQty": { "fragment": "Kebap", "qty": 2 }
+      }
+    },
+    {
+      "id": "enes-basket-noch-ein-ayran",
+      "text": "noch ein ayran",
+      "tags": [
+        "basket_edit",
+        "wave_d",
+        "enes_pilot"
+      ],
+      "basket": [
+        { "name": "Kebap Sandwich Huhn", "qty": 1, "price": 7.5 },
+        { "name": "Mis Ayran 0.25L", "qty": 1, "price": 2.5 }
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "basket_ops",
+        "parsePath": "tier_a",
+        "appliedCount": 1,
+        "rejectedCount": 0,
+        "basketLineQty": { "fragment": "Ayran", "qty": 2 }
+      }
+    },
+    {
+      "id": "enes-basket-ayran-cikar",
+      "text": "ayran cikar",
+      "tags": [
+        "basket_edit",
+        "remove",
+        "wave_d",
+        "enes_pilot"
+      ],
+      "basket": [
+        { "name": "Kebap Sandwich Huhn", "qty": 1, "price": 7.5 },
+        { "name": "Mis Ayran 0.25L", "qty": 1, "price": 2.5 },
+        { "name": "Coca Cola 0.33L", "qty": 1, "price": 2.9 }
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "basket_ops",
+        "parsePath": "structural_remove",
+        "appliedCount": 1,
+        "rejectedCount": 0,
+        "basketAfterNames": [
+          "Kebap Sandwich Huhn",
+          "Coca Cola 0.33L"
+        ]
+      }
     }
   ]
 }

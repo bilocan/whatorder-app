@@ -82,14 +82,22 @@ function stripSelfOrderFiller(text) {
     .trim();
 }
 
+/** Colloquial imperative: "mach 4 dürüm" → "4 dürüm". */
+function stripImperativePrefix(text) {
+  return (text ?? '')
+    .replace(/^\s*mach(?:\s+(?:mir|mal))?\s+/i, '')
+    .trim();
+}
+
 /** Prefixes stripped before parse and before intent learning keys. */
-function stripIntentPrefixes(text) {
+function stripIntentPrefixes(text, { keepImperative = false } = {}) {
   let s = (text ?? '').trim();
   s = stripPartySizePhrases(s);
   s = stripOrderTypePrefix(s);
   s = stripPolitePrefix(s);
   s = stripContinuationPrefix(s);
   s = stripSelfOrderFiller(s);
+  if (!keepImperative) s = stripImperativePrefix(s);
   return s.replace(/\s+/g, ' ').trim();
 }
 
@@ -98,19 +106,21 @@ function stripIntentPrefixes(text) {
  * @param {string} text
  * @param {{ legacyQty?: boolean }} [opts] legacyQty=true skips digit normalization (pre-2.0 keys)
  */
-function intentLearnKey(text, { legacyQty = false } = {}) {
-  let s = stripIntentPrefixes(text);
+function intentLearnKey(text, { legacyQty = false, keepImperative = false } = {}) {
+  let s = stripIntentPrefixes(text, { keepImperative });
   s = s.replace(/\s+bitte\s*$/i, '').trim();
   s = norm(s);
   if (!legacyQty) s = normalizeQtyWords(s);
   return s.replace(/\s+/g, ' ').trim();
 }
 
-/** Exact lookup variants: canonical + legacy qty wording. */
+/** Exact lookup variants: canonical + legacy qty wording + pre-mach-strip keys. */
 function intentLearnKeyVariants(text) {
   const canonical = intentLearnKey(text);
   const legacy = intentLearnKey(text, { legacyQty: true });
-  return [...new Set([canonical, legacy].filter(Boolean))];
+  const legacyMach = intentLearnKey(text, { keepImperative: true });
+  const legacyMachQty = intentLearnKey(text, { legacyQty: true, keepImperative: true });
+  return [...new Set([canonical, legacy, legacyMach, legacyMachQty].filter(Boolean))];
 }
 
 /** Shared pre-parse text prep (party size left in body for parseIntent). */
@@ -129,6 +139,7 @@ module.exports = {
   stripOrderTypePrefix,
   stripPolitePrefix,
   stripContinuationPrefix,
+  stripImperativePrefix,
   stripIntentPrefixes,
   intentLearnKey,
   intentLearnKeyVariants,

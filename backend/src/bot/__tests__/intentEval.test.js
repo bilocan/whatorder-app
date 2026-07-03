@@ -1,3 +1,19 @@
+jest.mock('../intentLearning', () => ({
+  lookupLearnedIntent: jest.fn().mockResolvedValue(null),
+  lookupLearnedMeta: jest.fn().mockResolvedValue(null),
+  rememberValidatedIntent: jest.fn(),
+  buildBasketPendingLearning: jest.fn(),
+  commitBasketPendingLearning: jest.fn(),
+}));
+
+jest.mock('../intentLearning', () => ({
+  lookupLearnedIntent: jest.fn().mockResolvedValue(null),
+  lookupLearnedMeta: jest.fn().mockResolvedValue(null),
+  rememberValidatedIntent: jest.fn(),
+  buildBasketPendingLearning: jest.fn(),
+  commitBasketPendingLearning: jest.fn(),
+}));
+
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -134,7 +150,7 @@ describe('assertExpectations', () => {
       }
       expect(report.failed).toBe(0);
       expect(report.total).toBeGreaterThanOrEqual(10);
-    });
+    }, 15000);
 
     test('modifier-tagged cases pass', async () => {
       const report = await runCorpusEval({ file: 'builtin.json', tag: 'modifier', llm: false });

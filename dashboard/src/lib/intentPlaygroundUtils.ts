@@ -75,21 +75,51 @@ function draftFromPreview(preview: IntentPhrasePreview): DraftLine[] {
   return [{ id: newDraftLineId(), menuItemId: '', name: '', qty: 1 }];
 }
 
+function mergeSelectionsFromLearnedMeta(
+  lines: DraftLine[],
+  meta: IntentLearnedMeta | null | undefined,
+): DraftLine[] {
+  if (!meta?.items?.length) return lines;
+  const byMenuItemId = new Map(
+    meta.items
+      .filter((i) => i.menuItemId)
+      .map((i) => [i.menuItemId as string, i]),
+  );
+  const byRawName = new Map(
+    meta.items
+      .filter((i) => i.rawName)
+      .map((i) => [i.rawName as string, i]),
+  );
+  return lines.map((line) => {
+    if (line.selections && Object.keys(line.selections).length > 0) return line;
+    const stored =
+      (line.menuItemId ? byMenuItemId.get(line.menuItemId) : undefined)
+      ?? (line.rawIntentName ? byRawName.get(line.rawIntentName) : undefined);
+    if (!stored?.selections || !Object.keys(stored.selections).length) return line;
+    return { ...line, selections: stored.selections };
+  });
+}
+
 /** Build correction draft after parse — prefer match, else stored learning when SKUs missing. */
 export function draftAfterParse(
   preview: IntentPhrasePreview,
   menuById: Map<string, MenuItem>,
   menuItems: MenuItem[],
 ): DraftLine[] {
-  const fromPreview = hydrateDraftLines(draftFromPreview(preview), menuById);
-  if (fromPreview.some((l) => l.menuItemId)) return fromPreview;
+  const rawDraft = draftFromPreview(preview);
+  if (rawDraft.some((l) => l.menuItemId)) {
+    return hydrateDraftLines(
+      mergeSelectionsFromLearnedMeta(rawDraft, preview.learnedMeta),
+      menuById,
+    );
+  }
   if (preview.learnedMeta?.items?.length) {
     return hydrateDraftLines(
       draftFromLearnedMeta(preview.learnedMeta, menuById, menuItems),
       menuById,
     );
   }
-  return fromPreview;
+  return hydrateDraftLines(rawDraft, menuById);
 }
 
 export function hydrateDraftLines(
@@ -183,11 +213,13 @@ export type TeachBlockReason =
   | 'alreadySaved'
   | 'unchanged'
   | 'readyMisunderstood'
-  | 'readyCorrection';
+  | 'readyCorrection'
+  | 'readyLlmCapture';
 
 export function getTeachBlockReason(params: {
   phraseText: string;
   parseOutcome: string | null | undefined;
+  parsedBy: string | null | undefined;
   draft: DraftLine[];
   initialDraft: DraftLine[];
   operation: IntentLearningOperation;
@@ -195,7 +227,7 @@ export function getTeachBlockReason(params: {
   menuById: Map<string, MenuItem>;
 }): TeachBlockReason {
   const {
-    phraseText, parseOutcome, draft, initialDraft, operation, learnedMeta, menuById,
+    phraseText, parseOutcome, parsedBy, draft, initialDraft, operation, learnedMeta, menuById,
   } = params;
 
   if (!parseOutcome || !phraseText.trim()) return 'needsParse';
@@ -205,6 +237,13 @@ export function getTeachBlockReason(params: {
   if (isIdenticalToStoredLearning(draftItems, operation, learnedMeta, menuById)) {
     return 'alreadySaved';
   }
+  if (
+    parsedBy === 'llm'
+    && draftsEqual(draft, initialDraft)
+    && !BAD_OUTCOMES.has(parseOutcome)
+  ) {
+    return 'readyLlmCapture';
+  }
   if (!BAD_OUTCOMES.has(parseOutcome) && draftsEqual(draft, initialDraft)) {
     return 'unchanged';
   }
@@ -213,7 +252,9 @@ export function getTeachBlockReason(params: {
 }
 
 export function canTeachFromReason(reason: TeachBlockReason): boolean {
-  return reason === 'readyMisunderstood' || reason === 'readyCorrection';
+  return reason === 'readyMisunderstood'
+    || reason === 'readyCorrection'
+    || reason === 'readyLlmCapture';
 }
 
 export function isIdenticalToStoredLearning(
