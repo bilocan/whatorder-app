@@ -1,0 +1,6 @@
+/* WhatOrder — Webfont declaration.
+   The brand uses Inter (weights 300–700), loaded from Google Fonts.
+   Consuming projects that link styles.css inherit this import.
+   NOTE: Inter is the genuine brand font used across both surfaces in source. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');

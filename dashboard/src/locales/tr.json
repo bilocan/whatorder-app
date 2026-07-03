@@ -16,6 +16,7 @@
     "income": "Gelir",
     "menu": "Menü",
     "learnedPhrases": "İfadeler",
+    "intentPlayground": "Botu eğit",
     "settings": "Ayarlar",
     "admin": "Admin",
     "adminMap": "Harita",
@@ -158,9 +159,12 @@
   },
   "learnedPhrases": {
     "title": "Öğrenilen ifadeler",
-    "description": "Müşterilerin yazdığı ve onaylanan siparişten sonra botun hatırladığı ifadeler. Silmek yalnızca tekrar kısayolunu kaldırır. Menüye eklenen ifadeler menü takma adlarında kalır.",
+    "description": "WhatsApp'ta botun tekrar kullandığı kayıtlı ifadeler — onaylanan siparişler, sahip düzeltmeleri veya manuel öğretimden. Ara, kullanım sayısını incele veya sil. Yeni ifade veya düzeltme için Botu eğit'i kullanın.",
+    "playgroundHint": "Müşteri ifadesini yazın, botun ne anladığını görün, SKU, adet veya ekleri düzeltin, sonra botu eğitin.",
+    "openPlayground": "Botu eğit'i aç",
+    "rowOpenPlayground": "Aç",
     "searchPlaceholder": "İfade veya ürün ara…",
-    "empty": "Henüz öğrenilen ifade yok. Onaylanan siparişlerden sonra görünür.",
+    "empty": "Henüz öğrenilen ifade yok. Botu eğit ile ekleyin veya onaylanan siparişlerden sonra görünür.",
     "loadError": "İfadeler Firestore'dan yüklenemedi. Sayfa yeniyse firestore.rules deploy edin.",
     "col": {
       "phrase": "Müşteri ifadesi",
@@ -175,7 +179,8 @@
     "source": {
       "llm": "Yapay zeka",
       "rules": "Kurallar",
-      "manual": "Manuel"
+      "manual": "Manuel",
+      "manual_correction": "İşletme düzeltmesi"
     },
     "status": {
       "promoted": "Menü takma adında",
@@ -234,6 +239,41 @@
         "remove": "Sepetten/öneriden çıkarır",
         "remove_failed": "Çıkarma başarısız (ürün sepette yok)"
       }
+    }
+  },
+  "intentPlayground": {
+    "title": "Botu eğit",
+    "description": "Müşterilerin WhatsApp'ta nasıl sipariş verdiğini yaz. Botun ne anladığını gör, ürün, adet veya malzemeleri düzelt, bir sonraki sefer için botu eğit.",
+    "customerSays": "Müşteri der ki",
+    "phrasePlaceholder": "ör. 2 Döner 1 ayran",
+    "parse": "Ayrıştır",
+    "parsing": "Ayrıştırılıyor…",
+    "parseError": "Ayrıştırma başarısız — backend çalışıyor mu?",
+    "previewError": "Önizleme güncellenemedi",
+    "botUnderstood": "Botun anladığı",
+    "yourCorrection": "Düzeltmeniz",
+    "intentLines": "Ayrıştırılan satırlar",
+    "matchedSkus": "Eşleşen ürünler",
+    "disambiguation": "Ürün seç",
+    "updating": "güncelleniyor…",
+    "qty": "Adet",
+    "pickSku": "Menüden seç…",
+    "removeLine": "Satırı kaldır",
+    "addLine": "+ Satır ekle",
+    "whatsappPreview": "WhatsApp önizlemesi",
+    "teachBot": "Botu eğit",
+    "teaching": "Kaydediliyor…",
+    "teachSuccess": "Bot “{{key}}” öğrendi",
+    "teachError": "Kaydedilemedi",
+    "viewPhrases": "Kayıtlı ifadeler",
+    "alreadyTrained": "Zaten öğretildi ({{hits}}× kullanıldı).",
+    "teachHint": {
+      "needsParse": "Önce Ayrıştır'a tıklayın, sonra düzeltmeyi kontrol edin.",
+      "needsSku": "Her satır için menüden bir ürün seçin.",
+      "unchanged": "Bot bunu zaten doğru anladı. Yeni bir şey kaydetmek için ürün, adet veya malzemeleri değiştirin.",
+      "alreadySaved": "Bu düzeltme zaten kayıtlı. Botun öğrendiğini güncellemek için bir şey değiştirin.",
+      "readyMisunderstood": "Bot bu ifadeyi anlamadı. Bir sonraki sefer için şimdi kaydedin.",
+      "readyCorrection": "Düzeltmeyi kaydedin — bot bu ifadeyi bir sonraki sefer hatırlayacak."
     }
   },
   "menu": {

@@ -1,0 +1,53 @@
+<!-- @dsCard group="Components" viewport="700x230" name="Badges & Tags" subtitle="Order status, payment, marketing pill, category tag" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin: 0; font-family: var(--font-sans); }
+  .light { background: var(--surface); padding: 1.5rem 1.75rem; }
+  .dark { background: var(--bg); padding: 1.5rem 1.75rem; }
+  .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+  .lbl { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-quiet); margin: 0 0 0.6rem; font-weight: 600; }
+  .lbl-d { color: var(--text-muted); }
+  .gap { margin-top: 1rem; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { StatusBadge, PaymentBadge, Badge, Tag } = window.WhatOrderDesignSystem_b54bed;
+  const statuses = ['pending','approved','preparing','ready','on_the_way','delivered','rejected','cancelled'];
+  function Demo() {
+    return (
+      <div>
+        <div className="light">
+          <p className="lbl">Order status</p>
+          <div className="row">{statuses.map(s => <StatusBadge key={s} status={s} />)}</div>
+          <p className="lbl gap">Payment</p>
+          <div className="row">
+            <PaymentBadge kind="cash" /><PaymentBadge kind="paid" />
+            <PaymentBadge kind="unpaid" /><PaymentBadge kind="failed" />
+          </div>
+        </div>
+        <div className="dark">
+          <p className="lbl lbl-d">Marketing pill &amp; category tags</p>
+          <div className="row">
+            <Badge>Pilot · Vienna, Austria</Badge>
+            <Tag>Döner &amp; Kebab</Tag>
+            <Tag>Pizzerias</Tag>
+            <Tag>Cafés &amp; bakeries</Tag>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

@@ -30,6 +30,7 @@ function LayoutContent() {
     { to: '/customers', label: t('nav.customers') },
     { to: '/income',    label: t('nav.income') },
     { to: '/menu',      label: t('nav.menu') },
+    { to: '/intent-playground', label: t('nav.intentPlayground') },
     { to: '/learned-phrases', label: t('nav.learnedPhrases') },
     { to: '/settings',  label: t('nav.settings') },
   ];

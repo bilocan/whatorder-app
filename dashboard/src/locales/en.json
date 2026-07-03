@@ -16,6 +16,7 @@
     "income": "Income",
     "menu": "Menu",
     "learnedPhrases": "Phrases",
+    "intentPlayground": "Teach bot",
     "settings": "Settings",
     "admin": "Admin",
     "adminMap": "Map",
@@ -158,9 +159,12 @@
   },
   "learnedPhrases": {
     "title": "Learned phrases",
-    "description": "Phrases your customers typed that the bot remembered after a confirmed order. Deleting removes the repeat-order shortcut only. Promoted phrases also live on menu item aliases until you edit the menu.",
+    "description": "Saved phrases the bot replays on WhatsApp — from confirmed orders, owner corrections, or manual teaches. Search, review hits, or delete. To add or fix a phrase, use Teach bot.",
+    "playgroundHint": "Type a customer phrase, see what the bot understands, fix SKU, quantity, or toppings, then teach the bot.",
+    "openPlayground": "Open Teach bot",
+    "rowOpenPlayground": "Open",
     "searchPlaceholder": "Search phrase or item…",
-    "empty": "No learned phrases yet. They appear after customers confirm orders the bot understood.",
+    "empty": "No learned phrases yet. Use Teach bot to add one, or they appear after customers confirm orders.",
     "loadError": "Could not load phrases from Firestore. If you just added this page, ask an admin to deploy firestore.rules.",
     "col": {
       "phrase": "Customer phrase",
@@ -175,7 +179,8 @@
     "source": {
       "llm": "AI",
       "rules": "Rules",
-      "manual": "Manual"
+      "manual": "Manual",
+      "manual_correction": "Owner correction"
     },
     "status": {
       "promoted": "On menu aliases",
@@ -234,6 +239,41 @@
         "remove": "Would remove from basket/proposal",
         "remove_failed": "Remove failed (item not in basket)"
       }
+    }
+  },
+  "intentPlayground": {
+    "title": "Teach bot",
+    "description": "Type how customers order on WhatsApp. See what the bot understands, fix SKU, quantity, or toppings, then teach the bot for next time.",
+    "customerSays": "Customer would say",
+    "phrasePlaceholder": "e.g. 2 Döner 1 ayran",
+    "parse": "Parse",
+    "parsing": "Parsing…",
+    "parseError": "Parse failed — is the backend running?",
+    "previewError": "Preview update failed",
+    "botUnderstood": "What the bot understood",
+    "yourCorrection": "Your correction",
+    "intentLines": "Parsed lines",
+    "matchedSkus": "Matched menu items",
+    "disambiguation": "Pick item",
+    "updating": "updating…",
+    "qty": "Quantity",
+    "pickSku": "Choose menu item…",
+    "removeLine": "Remove line",
+    "addLine": "+ Add line",
+    "whatsappPreview": "WhatsApp preview",
+    "teachBot": "Teach bot",
+    "teaching": "Saving…",
+    "teachSuccess": "Bot learned “{{key}}”",
+    "teachError": "Could not save — try again",
+    "viewPhrases": "View saved phrases",
+    "alreadyTrained": "Already trained (used {{hits}}×).",
+    "teachHint": {
+      "needsParse": "Click Parse first, then review your correction.",
+      "needsSku": "Choose a menu item for each line.",
+      "unchanged": "The bot already got this right. Change item, quantity, or toppings to save something new.",
+      "alreadySaved": "This correction is already saved. Change something to update what the bot learned.",
+      "readyMisunderstood": "The bot did not understand this phrase. Save now so it learns for next time.",
+      "readyCorrection": "Save your correction — the bot will remember this phrase next time."
     }
   },
   "menu": {

@@ -2,21 +2,34 @@ const express = require('express');
 const { requireOwnerOfBusiness } = require('../lib/dashboardAuth');
 const { getMenuContext } = require('../bot/menuService');
 const { evaluateIntent } = require('../bot/intentSandbox');
-const { saveManualIntentLearning } = require('../bot/intentLearning');
+const { saveOwnerIntentLearning, lookupLearnedMeta } = require('../bot/intentLearning');
+const {
+  normalizeDraftItems,
+  buildAddDraftPreview,
+  slimMatchedLine,
+} = require('../bot/intentPlaygroundDraft');
+const { enrichPendingWithModifier } = require('../bot/intentModifiers');
 
 const router = express.Router();
 
 function slimPreview(result) {
+  const intentItems = (result.intent?.items ?? []).map((i) => ({
+    rawName: i.name ?? i.rawName ?? '',
+    qty: i.qty ?? 1,
+  }));
+
   return {
     outcome: result.outcome,
     operation: result.operation ?? result.intent?.operation ?? 'add',
     parsedBy: result.intent?.parsedBy ?? null,
     orderLike: result.orderLike ?? false,
-    matched: (result.matched ?? []).map((line) => ({
-      name: line.name,
-      qty: line.qty ?? 1,
-      menuItemId: line.menuItemId ?? null,
-    })),
+    intentItems,
+    matched: (result.matched ?? []).map((line) => {
+      const enriched = enrichPendingWithModifier(line);
+      return slimMatchedLine(enriched.prefilledSelections
+        ? { ...line, prefilledSelections: enriched.prefilledSelections, name: enriched.name }
+        : line);
+    }),
     unmatched: result.unmatched ?? [],
     disambiguation: result.disambiguation
       ? {
@@ -31,6 +44,26 @@ function slimPreview(result) {
     botReply: result.botReply ?? null,
     llmEnabled: result.llmEnabled ?? false,
     llmAllowed: result.llmAllowed ?? false,
+  };
+}
+
+function slimLearnedMeta(meta) {
+  if (!meta) return null;
+  return {
+    id: meta.id,
+    textKey: meta.textKey,
+    hitCount: meta.hitCount ?? 0,
+    source: meta.source ?? null,
+    operation: meta.operation ?? 'add',
+    aliasesPromotedAt: meta.aliasesPromotedAt ?? null,
+    items: (meta.items ?? []).map((i) => ({
+      menuItemId: i.menuItemId ?? null,
+      name: i.name,
+      qty: i.qty ?? 1,
+      removeAll: !!i.removeAll,
+      rawName: i.rawName ?? null,
+      selections: i.selections ?? null,
+    })),
   };
 }
 
@@ -57,16 +90,16 @@ function buildSampleLines(menu, sampleItems, context = 'basket') {
 }
 
 function normalizeSaveItems(items) {
-  if (!Array.isArray(items) || !items.length) return [];
-  return items
-    .filter((i) => i && (i.menuItemId || i.name))
-    .map((i) => ({
-      name: String(i.name ?? '').trim(),
-      qty: Math.min(99, Math.max(1, Number(i.qty) || 1)),
-      menuItemId: i.menuItemId ? String(i.menuItemId) : undefined,
-      removeAll: !!i.removeAll,
-    }))
-    .filter((i) => i.name || i.menuItemId);
+  return normalizeDraftItems(items);
+}
+
+function slimOriginalItems(items) {
+  return (items ?? []).map((i) => ({
+    name: i.name ?? '',
+    qty: i.qty ?? 1,
+    menuItemId: i.menuItemId ?? null,
+    rawName: i.rawIntentName ?? i.rawName ?? null,
+  }));
 }
 
 // POST /api/businesses/:businessId/intent-phrases/preview  { text, llm? }
@@ -89,8 +122,10 @@ router.post(
         basket: sample.basket,
         pendingItems: sample.pendingItems,
       });
-      const draft = normalizeSaveItems(draftItems);
-      if (draft.length && (operation === 'remove' || result.operation === 'remove')) {
+      const draft = normalizeDraftItems(draftItems);
+      const isRemove = operation === 'remove' || result.operation === 'remove';
+
+      if (draft.length && isRemove) {
         const { previewLearnedRemove } = require('../bot/intentLearnedRemove');
         const byId = new Map((menu ?? []).map((m) => [m.id, m]));
         const removeIntent = {
@@ -113,8 +148,24 @@ router.post(
           matched: removePreview.matched,
           botReply: removePreview.botReply,
         };
+      } else if (draft.length && !isRemove) {
+        const draftPreview = buildAddDraftPreview(draft, menu, {
+          unmatched: result.unmatched ?? [],
+        });
+        result = {
+          ...result,
+          outcome: draftPreview.outcome,
+          operation: 'add',
+          matched: draftPreview.matched,
+          unmatched: draftPreview.unmatched,
+          botReply: draftPreview.botReply,
+        };
       }
-      res.json(slimPreview(result));
+      const learnedMeta = await lookupLearnedMeta(businessId, String(text).trim());
+      const body = slimPreview(result);
+      const slimMeta = slimLearnedMeta(learnedMeta);
+      if (slimMeta) body.learnedMeta = slimMeta;
+      res.json(body);
     } catch (err) {
       console.error('[intent-phrases] preview failed:', err);
       res.status(500).json({ error: 'Preview failed' });
@@ -128,16 +179,20 @@ router.post(
   requireOwnerOfBusiness,
   async (req, res) => {
     const { businessId } = req.params;
-    const { text, items, operation } = req.body ?? {};
+    const { text, items, operation, correction } = req.body ?? {};
     const normalized = normalizeSaveItems(items);
     if (!text?.trim()) return res.status(400).json({ error: 'text is required' });
     if (!normalized.length) return res.status(400).json({ error: 'items are required' });
     try {
-      const saved = await saveManualIntentLearning(
+      const saved = await saveOwnerIntentLearning(
         businessId,
         String(text).trim(),
         normalized,
-        { operation: operation ?? 'add' },
+        {
+          operation: operation ?? 'add',
+          correction: correction ?? null,
+          correctedBy: req.uid ?? null,
+        },
       );
       res.status(201).json(saved);
     } catch (err) {

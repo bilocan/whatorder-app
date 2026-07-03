@@ -1,0 +1,32 @@
+/* WhatOrder — Spacing, radius, shadow tokens */
+
+:root {
+  /* ── Spacing (rem) — the app uses a loose 0.25rem-derived rhythm ── */
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.5rem;
+  --space-6:  2rem;
+  --space-8:  3rem;
+  --space-10: 4rem;
+  --space-14: 7rem;   /* marketing section padding */
+
+  /* ── Radius ── */
+  --radius-sm:  6px;    /* buttons, controls, small pills */
+  --radius-md:  8px;    /* inputs, default buttons */
+  --radius-lg:  10px;   /* dialogs */
+  --radius-xl:  12px;   /* cards, marketing steps, logo tile */
+  --radius-pill: 999px; /* status / payment badges, tags */
+
+  /* ── Shadows ── */
+  --shadow-card:   0 1px 4px rgba(0, 0, 0, 0.08);   /* login card, light surfaces */
+  --shadow-dialog: 0 12px 32px rgba(0, 0, 0, 0.25); /* confirm dialog */
+  --shadow-drawer: 4px 0 20px rgba(0, 0, 0, 0.15);  /* mobile nav drawer */
+  --glow-accent:   0 0 24px rgba(34, 197, 94, 0.25);/* hero logo glow (dark) */
+
+  /* ── Layout ── */
+  --nav-width: 200px;         /* dashboard sidebar */
+  --content-max: 1100px;      /* marketing section width */
+  --blur-nav: 12px;           /* sticky nav backdrop blur */
+}

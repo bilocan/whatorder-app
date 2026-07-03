@@ -1,6 +1,6 @@
 // Pure menu matching helpers (no Firestore). Used by menuService and intentMatcher.
 
-const { expandNeedle, wordMatchesInText, splitCompoundDish, nameTokens, typoTolerantWordMatch, scoreStemTypo, MIN_FUZZY_SYNONYM_SCORE } = require('./menuSynonyms');
+const { expandNeedle, wordMatchesInText, splitCompoundDish, nameTokens, typoTolerantWordMatch, scoreStemTypo, MIN_FUZZY_SYNONYM_SCORE, SYNONYM_GROUPS } = require('./menuSynonyms');
 const { extractDishNameForMatch } = require('./intentModifiers');
 const { trySmartDefault, hasExplicitDrinkSize } = require('./smartDefaults');
 const { tryCategorySubmenu, isCategorySubmenuQuery } = require('./menuCategory');
@@ -101,6 +101,40 @@ function itemStemMatchesNeedles(item, needles) {
   return itemMatchLabels(item).some(label => (
     needles.some(needle => labelStemMatchesNeedle(needle, label))
   ));
+}
+
+/** Multi-word dish queries must not stem-match on single synonym needles (e.g. "pommes"). */
+function substantiveWordCount(dishName) {
+  return String(dishName ?? '')
+    .split(/\s+/)
+    .filter(w => w.length >= 2 && !/^(mit|und|and|ve)$/i.test(w))
+    .length;
+}
+
+function needlesForStemMatch(needles, dishName) {
+  const primary = norm(dishName);
+  if (substantiveWordCount(dishName) < 2) return needles;
+
+  const dishTokens = new Set(
+    primary.split(/\s+/).filter(w => w.length >= 2 && !/^(mit|und|and|ve)$/i.test(w)),
+  );
+
+  return needles.filter((needle) => {
+    if (needle === primary || needle.includes(' ')) return true;
+    if (dishTokens.has(needle)) return true;
+
+    for (const group of SYNONYM_GROUPS) {
+      const normalized = group.map(term => norm(term));
+      if (!normalized.includes(needle)) continue;
+      const groupTouchesDish = normalized.some(term => (
+        dishTokens.has(term)
+        || [...dishTokens].some(t => term.includes(t) || t.includes(term))
+      ));
+      return groupTouchesDish;
+    }
+
+    return true;
+  });
 }
 
 function wantsFamilienPizza(dishName) {
@@ -240,8 +274,9 @@ function classifyMenuMatch(rawName, menuItems, menuMatch = null, menuTokenIndex 
   }
 
   // Single-word or fallback stem match (e.g. "döner", "cola")
+  const stemNeedles = needlesForStemMatch(needles, dishName);
   const stemHits = filterCandidatesForQuery(available.filter(item => (
-    itemStemMatchesNeedles(item, needles)
+    itemStemMatchesNeedles(item, stemNeedles)
   )), dishName);
   if (stemHits.length > 1) {
     return finishAmbiguous(rawName, stemHits, menuMatch);

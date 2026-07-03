@@ -8,6 +8,10 @@ describe('normalizeIntentItemName', () => {
     expect(normalizeIntentItemName('eier bitte')).toBe('ayran');
   });
 
+  test('maps Eimer standalone drink typo to ayran', () => {
+    expect(normalizeIntentItemName('Eimer')).toBe('ayran');
+  });
+
   test('maps Eiern with short continuation filler (TTS + noch dazu)', () => {
     expect(normalizeIntentItemName('Eiern noch dazu bitte')).toBe('ayran');
   });

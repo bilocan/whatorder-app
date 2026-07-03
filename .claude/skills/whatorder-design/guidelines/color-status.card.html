@@ -1,0 +1,33 @@
+<!-- @dsCard group="Colors" viewport="700x160" name="Order status hues" subtitle="The dashboard lifecycle signature" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--font-sans); background: var(--surface); padding: 1.5rem; }
+  .row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .sw { flex: 1; min-width: 66px; }
+  .chip { height: 44px; border-radius: var(--radius-md); }
+  .pill { display: inline-block; margin-top: 0.5rem; font-size: 0.68rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: var(--radius-pill); }
+  .name { font-size: 0.66rem; color: var(--text-quiet); font-family: var(--font-mono); margin: 0.35rem 0 0; }
+</style>
+</head>
+<body>
+  <div class="row" id="row"></div>
+  <script>
+    const items = [
+      ['pending','#f59e0b','Pending'],['approved','#a855f7','Approved'],
+      ['preparing','#f97316','Preparing'],['ready','#3b82f6','Ready'],
+      ['on-the-way','#06b6d4','On the way'],['delivered','#22c55e','Delivered'],
+      ['rejected','#ef4444','Rejected'],['cancelled','#6b7280','Cancelled'],
+    ];
+    document.getElementById('row').innerHTML = items.map(([k,c,l]) => `
+      <div class="sw">
+        <div class="chip" style="background:${c}"></div>
+        <span class="pill" style="color:${c};background:color-mix(in srgb, ${c} 13%, transparent)">${l}</span>
+        <p class="name">${k}</p>
+      </div>`).join('');
+  </script>
+</body>
+</html>

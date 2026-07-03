@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { buildMenuLlmIndex, resolveMenuLlmItems } = require('../bot/menuLlmIndex');
+const { repairMenuLlmRawItems } = require('../bot/menuLlmRepair');
 
 const OPENAI_INTENT_SCHEMA = {
   type: 'object',
@@ -62,8 +63,11 @@ Rules:
 - items[].qty: per-line quantity when explicit; null if not stated for that line.
 - partySize: from "for 2", "2 personen", "iki kişi", etc.; null if absent.
 - confidence: 0.0–1.0. Use <0.6 for greetings, recommendations, or unclear requests.
-- Split combined orders into separate items.
-- Map voice typos to the closest menu item (Eiern→Ayran if on menu, Margarita→Margherita).
+- Split combined orders into separate items only when the customer names distinct dishes or drinks.
+- Do NOT split on "und" when it links modifiers to the previous dish (e.g. "kebab mit allem und scharf" = ONE item).
+- "Schaf" after food is a TTS typo for spicy (scharf), NOT Schafskäse — keep it in lineText on the kebab/döner line, never as a separate wrap item.
+- Drink TTS typos: Eiern/Eimer/einem → Ayran when on menu; never map orphan tokens to unrelated drinks.
+- Map other voice typos to the closest menu item (Margarita→Margherita).
 - Austria pizza: large size is Familienpizza when on menu.`;
 
 const OPENAI_MENU_INTENT_SCHEMA = {
@@ -269,8 +273,10 @@ function validateMenuIntentPayload(data, menuIndex) {
   const confidence = Number(data.confidence);
   if (!Number.isFinite(confidence)) return null;
 
-  const rawItems = (data.items ?? [])
-    .filter(i => i && typeof i.menuItemId === 'string' && i.menuItemId.trim());
+  const rawItems = repairMenuLlmRawItems(
+    (data.items ?? []).filter(i => i && typeof i.menuItemId === 'string' && i.menuItemId.trim()),
+    menuIndex,
+  );
 
   const items = resolveMenuLlmItems(rawItems, menuIndex);
   if (!items.length) return null;
