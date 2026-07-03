@@ -91,6 +91,22 @@ describe('basketOps', () => {
       }]);
       expect(result.rejected[0].reason).toBe('not_found');
     });
+
+    test('rejects remove by out-of-range index', () => {
+      const result = applyOps(BASKET, [{
+        type: 'remove',
+        target: { kind: 'index', index: 99 },
+      }]);
+      expect(result.rejected[0].reason).toBe('not_found');
+    });
+
+    test('rejects remove by invalid target', () => {
+      const result = applyOps(BASKET, [{
+        type: 'remove',
+        target: { kind: 'invalid' },
+      }]);
+      expect(result.rejected[0].reason).toBe('invalid');
+    });
   });
 
   describe('applyOps — setQty', () => {
@@ -173,6 +189,29 @@ describe('basketOps', () => {
       applyOp(basket, { type: 'clear' });
       expect(basket).toHaveLength(3);
     });
+
+    test('rejects unknown op type', () => {
+      const { basket, result } = applyOp(BASKET, { type: 'unknown' });
+      expect(result.status).toBe('rejected');
+      expect(result.reason).toBe('invalid');
+      expect(basket).toEqual(BASKET);
+    });
+  });
+
+  describe('applyOps — setQty to zero', () => {
+    test('removes line when qty set to 0', () => {
+      const result = applyOps(BASKET, [{
+        type: 'setQty',
+        target: { kind: 'name', fragment: 'ayran' },
+        qty: 0,
+      }]);
+      expect(result.applied).toHaveLength(1);
+      expect(result.applied[0].kind).toBe('remove');
+      expect(result.basket.map(i => i.name)).toEqual([
+        'Kebap Sandwich Huhn — Tomaten, Salad',
+        'Coca Cola 0.33L',
+      ]);
+    });
   });
 
   describe('clampQty', () => {
@@ -225,5 +264,32 @@ describe('parseBasketOps', () => {
     expect(parsed.ops[0].item.name).toBe('Ayran');
     const preview = applyOps(SANDBOX_BASKET, parsed.ops);
     expect(preview.basket.find(i => i.name === 'Ayran').qty).toBe(2);
+  });
+
+  test('alles löschen → clear op', async () => {
+    const parsed = await parseBasketOps('alles löschen', ctx);
+    expect(parsed.outcome).toBe('ops');
+    expect(parsed.ops).toEqual([{ type: 'clear' }]);
+    const preview = applyOps(SANDBOX_BASKET, parsed.ops);
+    expect(preview.basket).toEqual([]);
+  });
+
+  test('1, 3 → remove by line index ops', async () => {
+    const parsed = await parseBasketOps('1, 3', ctx);
+    expect(parsed.outcome).toBe('ops');
+    expect(parsed.ops).toEqual([
+      { type: 'remove', target: { kind: 'index', index: 1 } },
+      { type: 'remove', target: { kind: 'index', index: 3 } },
+    ]);
+    const preview = applyOps(SANDBOX_BASKET, parsed.ops);
+    expect(preview.applied).toHaveLength(1);
+    expect(preview.rejected).toHaveLength(1);
+    expect(preview.basket.map(i => i.name)).toEqual(['Cola', 'Ayran']);
+  });
+
+  test('greeting-only text returns not_order', async () => {
+    const parsed = await parseBasketOps('hallo', ctx);
+    expect(parsed.outcome).toBe('not_order');
+    expect(parsed.ops).toEqual([]);
   });
 });

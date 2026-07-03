@@ -267,6 +267,30 @@ describe('basket formatting', () => {
     expect(body).toContain('🛒 2 Artikel · €17.00');
   });
 
+  test('buildMutationReceiptBody batches multiple removes', () => {
+    const basket = [{ name: 'Ayran', qty: 1, price: 2 }];
+    const body = buildMutationReceiptBody('de', basket, [{
+      kind: 'remove',
+      removedLines: [
+        { name: 'Cola', qty: 1, price: 2.5 },
+        { name: 'Döner', qty: 1, price: 8.5 },
+      ],
+    }]);
+    expect(body).toContain('2 Artikel entfernt');
+  });
+
+  test('buildMutationReceiptBody falls back to basketMutated for mixed ops', () => {
+    const basket = [
+      { name: 'Döner', qty: 1, price: 8.5 },
+      { name: 'Cola', qty: 1, price: 2.5 },
+    ];
+    const body = buildMutationReceiptBody('de', basket, [
+      { kind: 'remove', removedLines: [{ name: 'Ayran', qty: 1, price: 2 }] },
+      { kind: 'add', addedLines: [{ name: 'Cola', qty: 1, price: 2.5 }] },
+    ]);
+    expect(body).toContain('Warenkorb aktualisiert');
+  });
+
   test('basketViewButtons uses remove instead of clear', () => {
     expect(basketViewButtons('de').map(b => b.id)).toEqual([
       'btn_add_more', 'btn_remove_item', 'btn_confirm',
