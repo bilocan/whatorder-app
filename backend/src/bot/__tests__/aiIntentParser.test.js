@@ -102,6 +102,36 @@ describe('parseIntentAsync', () => {
     expect(r.items).toHaveLength(2);
   });
 
+  test('repairs bad learned over-split when menu is available', async () => {
+    mockLookupLearnedIntent.mockResolvedValueOnce({
+      items: [
+        { name: 'Kebab mit allem', qty: 1, menuItemId: 'enes-kebap-sandwich-huhn' },
+        { name: 'Schaf', qty: 1, menuItemId: 'enes-wrap-schafskase' },
+        { name: 'Eimer', qty: 1, menuItemId: 'enes-getr-cola-033' },
+      ],
+      partySize: null,
+    });
+
+    const menu = [
+      { id: 'enes-kebap-sandwich-huhn', name: 'Kebap Sandwich Huhn', category: 'Kebap', available: true },
+      { id: 'enes-wrap-schafskase', name: 'Wrap mit Schafskäse', category: 'Wraps', available: true },
+      { id: 'enes-getr-cola-033', name: 'Coca Cola 0.33L', category: 'Getraenke', available: true },
+      { id: 'enes-getr-ayran-025', name: 'Mis Ayran 0.25L', category: 'Getraenke', available: true },
+    ];
+
+    const r = await parseIntentAsync(
+      'Hallo ich hätte einen Kebab mit allem und Schaf und ein Eimer bitte',
+      { phone: '+438', businessId: 'biz_enes_kebap_9450w', menu },
+    );
+
+    expect(r.parsedBy).toBe('learned');
+    expect(r.items).toHaveLength(2);
+    expect(r.items[0].menuItemId).toBe('enes-kebap-sandwich-huhn');
+    expect(r.items[0].name).toMatch(/und scharf/i);
+    expect(r.items[1].menuItemId).toBe('enes-getr-ayran-025');
+    expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
+  });
+
   test('uses learned intent before LLM when business has cache hit', async () => {
     mockLookupLearnedIntent.mockResolvedValueOnce({
       items: [{ name: 'Eiern', qty: 2 }],

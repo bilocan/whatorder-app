@@ -62,6 +62,26 @@
       }
     },
     {
+      "id": "enes-tts-kebab-schaf-eimer",
+      "text": "Hallo ich hätte einen Kebab mit allem und Schaf und ein Eimer bitte",
+      "tags": [
+        "tts_typo",
+        "modifier",
+        "wave_c",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "matchedNames": [
+          "Kebap Sandwich Huhn",
+          "Mis Ayran 0.25L"
+        ],
+        "matchedCount": 2,
+        "matchedQtySum": 2
+      }
+    },
+    {
       "id": "enes-mod-split-doner",
       "text": "zwei döner einer mit allem einer ohne zwiebel",
       "tags": [
