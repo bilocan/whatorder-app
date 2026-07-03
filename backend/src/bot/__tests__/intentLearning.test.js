@@ -31,6 +31,7 @@ const {
   lookupLearnedIntent,
   rememberValidatedIntent,
   rememberValidatedLlmIntent,
+  buildBasketPendingLearning,
   _resetIntentLearningMemory,
 } = require('../intentLearning');
 
@@ -176,6 +177,56 @@ describe('rememberValidatedIntent', () => {
       items: [{ name: 'pizza', qty: 1 }],
     });
     expect(mockSet).not.toHaveBeenCalled();
+  });
+});
+
+describe('buildBasketPendingLearning', () => {
+  test('builds add learning from parsed matched items', () => {
+    const pending = buildBasketPendingLearning({
+      businessId: 'biz1',
+      text: 'noch ein ayran',
+      parsed: {
+        intent: { parsedBy: 'rules', operation: 'add', items: [{ name: 'ayran', qty: 1 }] },
+        matched: [{ menuItemId: 'a1', name: 'Ayran', qty: 1 }],
+      },
+      applyResult: {
+        applied: [{ kind: 'add', addedLines: [{ name: 'Ayran', qty: 1 }] }],
+      },
+    });
+    expect(pending).toMatchObject({
+      businessId: 'biz1',
+      text: 'noch ein ayran',
+      matched: [{ menuItemId: 'a1', name: 'Ayran', qty: 1 }],
+    });
+  });
+
+  test('builds remove learning from removed lines', () => {
+    const pending = buildBasketPendingLearning({
+      businessId: 'biz1',
+      text: 'cola raus',
+      parsed: { intent: { parsedBy: 'rules', operation: 'remove', items: [{ name: 'cola', qty: 1 }] } },
+      applyResult: {
+        applied: [{
+          kind: 'remove',
+          removedLines: [{ name: 'Coca Cola 0.33L', qty: 1 }],
+        }],
+      },
+    });
+    expect(pending).toMatchObject({
+      businessId: 'biz1',
+      text: 'cola raus',
+      intent: expect.objectContaining({ operation: 'remove' }),
+    });
+    expect(pending.matched[0].name).toBe('Coca Cola 0.33L');
+  });
+
+  test('returns null when nothing applied', () => {
+    expect(buildBasketPendingLearning({
+      businessId: 'biz1',
+      text: 'cola raus',
+      parsed: {},
+      applyResult: { applied: [] },
+    })).toBeNull();
   });
 });
 

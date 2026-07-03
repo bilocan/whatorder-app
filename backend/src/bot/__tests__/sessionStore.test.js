@@ -175,6 +175,29 @@ describe('buildSessionWrite', () => {
     expect(payload.basket).toHaveLength(1);
     expect(payload).not.toHaveProperty('pendingIntentItems');
   });
+
+  test('preserves basketPendingLearning on unrelated patch', () => {
+    const pending = {
+      businessId: 'biz_test',
+      text: 'cola raus',
+      intent: { operation: 'remove', parsedBy: 'rules' },
+      matched: [{ name: 'Coca Cola 0.33L', qty: 1 }],
+    };
+    const payload = buildSessionWrite(
+      {
+        state: 'browsing',
+        language: 'de',
+        businessId: 'biz_test',
+        basket: [{ name: 'Döner', qty: 1, price: 8.5 }],
+        basketPendingLearning: pending,
+        textMenuCategory: 'Kebap',
+      },
+      { pendingDeleteIds: ['list_msg_id'] },
+    );
+
+    expect(payload.basketPendingLearning).toEqual(pending);
+    expect(payload.textMenuCategory).toBe('Kebap');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -231,6 +254,74 @@ describe('patchSession', () => {
 
     expect(stored.pendingIntentItems).toHaveLength(1);
     expect(stored.pendingDeleteIds).toEqual(['list_msg_id']);
+  });
+
+  test('late basket mutation patch preserves textMenuIndex and pendingIntentItems', async () => {
+    const liveDoc = {
+      state: 'browsing',
+      language: 'tr',
+      businessId: 'biz_test',
+      basket: [{ name: 'Döner', qty: 1, price: 8.5 }],
+      textMenuCategory: 'Kebap',
+      textMenuIndex: [{ id: 'k1', name: 'Kebap Sandwich Huhn', price: 7.5 }],
+      pendingIntentItems: [{ menuItemId: 'k1', name: 'Kebap Sandwich Huhn', qty: 1, price: 7.5 }],
+    };
+    const mockSet = jest.fn().mockResolvedValue(undefined);
+    const mockRef = {
+      get: jest.fn().mockResolvedValue({ exists: true, data: () => liveDoc }),
+      set: mockSet,
+    };
+    db.collection.mockReturnValue({ doc: jest.fn().mockReturnValue(mockRef) });
+    mockTransaction(mockRef);
+
+    await patchSession('+43699000001', {
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.5 },
+        { name: 'Mis Ayran 0.25L', qty: 1, price: 2.5 },
+      ],
+      basketUndoSnapshot: { basket: liveDoc.basket },
+      pendingIntentItems: undefined,
+      pendingDeleteIds: [],
+    });
+
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({
+      basket: expect.arrayContaining([
+        expect.objectContaining({ name: 'Mis Ayran 0.25L' }),
+      ]),
+      textMenuCategory: 'Kebap',
+      textMenuIndex: liveDoc.textMenuIndex,
+      pendingDeleteIds: [],
+    }));
+    expect(mockSet.mock.calls[0][0]).not.toHaveProperty('pendingIntentItems');
+  });
+
+  test('sequential menuId patch then basket mutation keeps menu context', async () => {
+    let stored = {
+      state: 'browsing',
+      language: 'tr',
+      businessId: 'biz_test',
+      basket: [{ name: 'Döner', qty: 1, price: 8.5 }],
+      textMenuCategory: 'Kebap',
+      textMenuIndex: [{ id: 'k1', name: 'Kebap Sandwich Huhn', price: 7.5 }],
+    };
+    const mockRef = {
+      get: jest.fn(async () => ({ exists: true, data: () => ({ ...stored }) })),
+      set: jest.fn(async (data) => { stored = { ...data }; }),
+    };
+    db.collection.mockReturnValue({ doc: jest.fn().mockReturnValue(mockRef) });
+    mockTransaction(mockRef);
+
+    await patchSession('+43699000001', { menuId: 'list_msg_id' });
+    await patchSession('+43699000001', {
+      basket: [{ name: 'Döner', qty: 2, price: 8.5 }],
+      basketUndoSnapshot: { basket: [{ name: 'Döner', qty: 1, price: 8.5 }] },
+      pendingDeleteIds: [],
+    });
+
+    expect(stored.textMenuCategory).toBe('Kebap');
+    expect(stored.textMenuIndex).toHaveLength(1);
+    expect(stored.basket[0].qty).toBe(2);
+    expect(stored.pendingDeleteIds).toEqual([]);
   });
 });
 

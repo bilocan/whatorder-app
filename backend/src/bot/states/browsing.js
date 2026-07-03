@@ -14,7 +14,8 @@ const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
 const { resumeDeliveryCheckout, showDeliveryBasketGate, proceedFromConfirmedBasket } = require('./checkout');
 const { sendPopularBoard } = require('../popularBoard');
-const { tryConversationalBasketText, tryBasketUndo, isBasketUndoPhrase } = require('../conversationalBasket');
+const { tryConversationalBasketText, tryBasketUndo, isBasketUndoPhrase, flushBasketPendingLearning } = require('../conversationalBasket');
+const { isConversationalBasket } = require('../featureFlags');
 const {
   sendSearchPrompt,
   handleSearchModeText,
@@ -222,6 +223,14 @@ async function handleSelecting({ from, session, lang, businessId, basket, type, 
 }
 
 async function handleBrowsing({ from, session, lang, businessId, basket, isMulti, type, id, items, norm, text }) {
+  // Commit deferred basket learning from prior mutation (skip undo — that discards instead)
+  if (session.basketPendingLearning && !(type === 'text' && isBasketUndoPhrase(norm))) {
+    const info = await getBusinessInfo(businessId);
+    if (isConversationalBasket(info)) {
+      session = await flushBasketPendingLearning(from, session);
+    }
+  }
+
   // Cart submitted from catalog UI
   if (type === 'cart_submitted') {
     if (!items || !items.length) {
