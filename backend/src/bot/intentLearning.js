@@ -5,6 +5,7 @@ const { intentLearnKey, intentLearnKeyVariants } = require('./intentNormalize');
 const { levenshtein, maxTypoDistance } = require('./menuSynonyms');
 const { scheduleAliasPromotion } = require('./intentLearningPromote');
 const { learnedItemIdsChanged } = require('./intentLearningRebind');
+const { isPartialBlobTrap, countDistinctProductStems } = require('./intentPartialMatch');
 
 /** In-process L1: businessId → Map(textKey → intent payload). */
 const memoryByBusiness = new Map();
@@ -43,8 +44,22 @@ function docIdForKey(textKey) {
   return crypto.createHash('sha256').update(textKey).digest('hex').slice(0, 40);
 }
 
+function extractDigitTokens(key) {
+  const matches = String(key ?? '').match(/\d+/g);
+  return matches ? matches.map(n => parseInt(n, 10)) : [];
+}
+
+/** Qty digits in learn keys are semantic — never fuzzy-match across different counts. */
+function keysDigitTokensCompatible(a, b) {
+  const digitsA = extractDigitTokens(a);
+  const digitsB = extractDigitTokens(b);
+  if (digitsA.length !== digitsB.length) return false;
+  return digitsA.every((d, i) => d === digitsB[i]);
+}
+
 function keysAreFuzzyMatch(a, b) {
   if (!a || !b || a === b) return a === b;
+  if (!keysDigitTokensCompatible(a, b)) return false;
   const maxLen = Math.max(a.length, b.length);
   if (maxLen < FUZZY_MIN_KEY_LEN) return false;
   const maxDist = Math.min(FUZZY_KEY_MAX_DIST, maxTypoDistance(a, b) + 1);
@@ -436,6 +451,15 @@ function buildBasketPendingLearning({ businessId, text, parsed, applyResult }) {
   const removeKinds = applied.every(r => r.kind === 'remove' || r.kind === 'clear');
 
   if (addKinds && parsed?.intent && parsed?.matched?.length) {
+    if (isPartialBlobTrap(text, parsed.intent, parsed.matched)) return null;
+    const intentItems = parsed.intent.items ?? [];
+    if (intentItems.length === 1 && parsed.matched.length === 1
+      && countDistinctProductStems(String(text).replace(/(\d)([a-zA-ZäöüÄÖÜß])/g, '$1 $2')) >= 2) {
+      return null;
+    }
+    if (intentItems.length > 1 && parsed.matched.length < intentItems.length) return null;
+    const addOps = (parsed.ops ?? []).filter(o => o.type === 'add');
+    if (intentItems.length > 1 && addOps.length < intentItems.length) return null;
     return {
       businessId,
       text: text.trim(),

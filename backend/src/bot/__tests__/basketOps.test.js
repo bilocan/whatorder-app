@@ -1,3 +1,7 @@
+jest.mock('../intentLearning', () => ({
+  lookupLearnedIntent: jest.fn().mockResolvedValue(null),
+}));
+
 const { applyOps, applyOp, clampQty, parseBasketOps } = require('../basketOps');
 const { BUILTIN_MENU } = require('../intentSandbox');
 const { buildMenuMatchIndex } = require('../menuMapper');
@@ -286,6 +290,28 @@ describe('parseBasketOps', () => {
     expect(preview.rejected).toHaveLength(1);
     expect(preview.basket.map(i => i.name)).toEqual(['Cola', 'Ayran']);
   });
+
+  test('2doner 1 ayran on empty basket does not partial-match ayran only', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const menu = JSON.parse(fs.readFileSync(
+      path.join(__dirname, '../../../fixtures/intent-corpus/restaurants/enes/menu.json'),
+      'utf8',
+    ));
+    const menuMatch = JSON.parse(fs.readFileSync(
+      path.join(__dirname, '../../../fixtures/intent-corpus/restaurants/enes/menuMatch.json'),
+      'utf8',
+    ));
+    const parsed = await parseBasketOps('2doner 1 ayran', {
+      basket: [],
+      menu,
+      menuMatch,
+      rulesOnly: true,
+      businessId: 'biz_enes_kebap_9450w',
+    });
+    expect(parsed.outcome).not.toBe('ops');
+    expect(parsed.ops ?? []).toHaveLength(0);
+  }, 15000);
 
   describe('buildAppliedMutationPatch', () => {
     const {

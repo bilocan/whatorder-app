@@ -40,6 +40,29 @@ function isBasketUndoPhrase(norm) {
 }
 
 /**
+ * Fresh combo orders on an empty basket should use the proposal flow (confirm + customize),
+ * not silent auto-apply or partial blob matches.
+ */
+function shouldFallThroughToIntentOrder(basket, parsed, text) {
+  if (basket?.length) return false;
+  if (parsed.outcome === 'needs_customize') return true;
+  if (parsed.outcome === 'no_match') return true;
+  if (parsed.outcome !== 'ops' || !parsed.ops?.length) return false;
+  const { isPartialBlobTrap } = require('./intentPartialMatch');
+  if (parsed.intent && parsed.matched?.length
+    && isPartialBlobTrap(text, parsed.intent, parsed.matched)) {
+    return true;
+  }
+  const intentItems = parsed.intent?.items ?? [];
+  if (intentItems.length > 1 && (parsed.matched?.length ?? 0) < intentItems.length) {
+    return true;
+  }
+  const addOps = parsed.ops.filter(o => o.type === 'add');
+  if (intentItems.length > 1 && addOps.length < intentItems.length) return true;
+  return false;
+}
+
+/**
  * Commit deferred learning from the prior mutation turn (skipped on undo).
  * @returns {Promise<object>} updated session snapshot for in-memory use
  */
@@ -215,6 +238,8 @@ async function tryConversationalBasketText({
   });
 
   if (parsed.outcome === 'llm_failed') return 'llm_failed';
+
+  if (shouldFallThroughToIntentOrder(basket, parsed, text)) return false;
 
   if (parsed.outcome === 'disambiguation' && parsed.disambiguation) {
     await persistBasketMutation(from, session, PROPOSAL_CLEAR_PATCH);

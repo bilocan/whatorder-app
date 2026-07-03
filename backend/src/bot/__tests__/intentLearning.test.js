@@ -56,6 +56,12 @@ describe('intentLearnKey', () => {
     expect(intentLearnKey('ich hätte gerne ein hühner döner und ne cola')).toBe(core);
   });
 
+  test('strips imperative "mach" prefix from learn keys', () => {
+    expect(intentLearnKey('mach 3 dürüm')).toBe('3 durum');
+    expect(intentLearnKey('mach mir 4 doner')).toBe('4 doner');
+    expect(intentLearnKey('mach mal 2 cola')).toBe('2 cola');
+  });
+
   test('does not strip "für N personen" party-size phrases', () => {
     expect(intentLearnKey('für 4 personen zwei döner')).toBe('2 doner');
   });
@@ -135,6 +141,24 @@ describe('lookupLearnedIntent', () => {
     ]);
     const hit = await lookupLearnedIntent('biz1', '2 doner und 1 cola');
     expect(hit.items).toHaveLength(2);
+  });
+
+  test('does not fuzzy-match phrases that differ only by qty digit', async () => {
+    rememberValidatedIntent('biz1', 'mach 3 dürüm', {
+      parsedBy: 'rules',
+      items: [{ name: 'Dürüm', qty: 3, menuItemId: 'd1' }],
+    }, [{ menuItemId: 'd1', name: 'Dürüm', qty: 3 }]);
+    const hit = await lookupLearnedIntent('biz1', 'mach 4 dürüm');
+    expect(hit).toBeNull();
+  });
+
+  test('legacy mach-prefixed key still resolves via key variants', async () => {
+    rememberValidatedIntent('biz1', 'mach 3 dürüm', {
+      parsedBy: 'rules',
+      items: [{ name: 'Dürüm', qty: 3, menuItemId: 'd1' }],
+    }, [{ menuItemId: 'd1', name: 'Dürüm', qty: 3 }]);
+    const hit = await lookupLearnedIntent('biz1', 'mach 3 dürüm');
+    expect(hit.items[0].qty).toBe(3);
   });
 });
 
@@ -226,6 +250,21 @@ describe('buildBasketPendingLearning', () => {
       text: 'cola raus',
       parsed: {},
       applyResult: { applied: [] },
+    })).toBeNull();
+  });
+
+  test('returns null for partial blob add (2doner 1 ayran → ayran only)', () => {
+    expect(buildBasketPendingLearning({
+      businessId: 'biz1',
+      text: '2doner 1 ayran',
+      parsed: {
+        intent: { items: [{ name: '2doner 1 ayran', qty: 1 }], parsedBy: 'rules' },
+        matched: [{ name: 'Mis Ayran 0.25L', qty: 1, menuItemId: 'a1' }],
+        ops: [{ type: 'add', item: { name: 'Mis Ayran 0.25L', qty: 1, price: 2.5 } }],
+      },
+      applyResult: {
+        applied: [{ kind: 'add', addedLines: [{ name: 'Mis Ayran 0.25L', qty: 1 }] }],
+      },
     })).toBeNull();
   });
 });
