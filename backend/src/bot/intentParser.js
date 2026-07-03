@@ -4,8 +4,9 @@ const { buildMenuLlmIndex } = require('./menuLlmIndex');
 const { repairIntentItems } = require('./menuLlmRepair');
 const { lookupLearnedIntent, normalizeOperation, persistReboundLearnedItems } = require('./intentLearning');
 const { learnedItemIdsChanged } = require('./intentLearningRebind');
-const { intentLearnKey } = require('./intentNormalize');
+const { intentLearnKey, stripImperativePrefix } = require('./intentNormalize');
 const { detectRemovePhrase } = require('./intentRemoveDetect');
+const { shouldRejectStaleLearnedHit } = require('./intentPartialMatch');
 const {
   stripIntentModifiers, wantsAllIncluded, parseExclusions, isModifierOnlyToken,
 } = require('./intentModifiers');
@@ -157,6 +158,8 @@ function sanitizeIntentText(text) {
   let s = (text ?? '').trim();
   s = s.replace(/^\s*>\s*/, '');
   s = s.replace(/^["'„«»`]+/, '').replace(/["'«»„`]+$/g, '').trim();
+  // TTS / fast typing: "2doner" → "2 doner" so qty+item parsers split correctly.
+  s = s.replace(/(\d)([a-zA-ZäöüÄÖÜß])/g, '$1 $2');
   return s;
 }
 
@@ -521,6 +524,7 @@ function parseIntent(text) {
   stripped = stripOrderTypePrefix(stripped);
   stripped = stripPolitePrefix(stripped);
   stripped = stripContinuationPrefix(stripped);
+  stripped = stripImperativePrefix(stripped);
 
   const jeweils = extractJeweilsDrink(stripped);
   if (jeweils) stripped = jeweils.main;
@@ -595,6 +599,7 @@ function rulesParseQuality(text) {
   stripped = stripOrderTypePrefix(stripped);
   stripped = stripPolitePrefix(stripped);
   stripped = stripContinuationPrefix(stripped);
+  stripped = stripImperativePrefix(stripped);
 
   const jeweils = extractJeweilsDrink(stripped);
   if (jeweils) stripped = jeweils.main;
@@ -666,11 +671,13 @@ function mergeLlmIntent(llm, rawText, rulesIntent) {
   return toIntentResult(items, partySize, rawText, 'llm', llm.confidence);
 }
 
-async function parseIntentAsync(text, { phone, businessId, menu, rulesOnly = false } = {}) {
+async function parseIntentAsync(text, {
+  phone, businessId, menu, rulesOnly = false, skipLearned = false,
+} = {}) {
   const rawText = (text ?? '').trim();
 
   let learned = null;
-  if (businessId) {
+  if (businessId && !skipLearned) {
     learned = await lookupLearnedIntent(businessId, rawText);
   }
 
@@ -680,29 +687,32 @@ async function parseIntentAsync(text, { phone, businessId, menu, rulesOnly = fal
     && normalizeOperation(learned.operation) === 'add';
 
   if (learned?.items?.length && !skipBadAddLearned) {
-    const storedItems = learned.items;
-    let learnedItems = storedItems.map(i => ({
-      rawName: i.rawName ?? i.name,
-      qty: i.qty,
-      menuItemId: i.menuItemId,
-      ...(i.selections ? { selections: i.selections } : {}),
-    }));
-    if (menu?.length) {
-      const menuIndex = buildMenuLlmIndex(menu);
-      learnedItems = repairIntentItems(learnedItems, menuIndex);
-      if (businessId && learnedItemIdsChanged(storedItems, learnedItems)) {
-        const textKey = intentLearnKey(rawText);
-        void persistReboundLearnedItems(businessId, textKey, learnedItems);
+    const rulesCheck = parseIntent(rawText);
+    if (!shouldRejectStaleLearnedHit(rawText, learned, rulesCheck)) {
+      const storedItems = learned.items;
+      let learnedItems = storedItems.map(i => ({
+        rawName: i.rawName ?? i.name,
+        qty: i.qty,
+        menuItemId: i.menuItemId,
+        ...(i.selections ? { selections: i.selections } : {}),
+      }));
+      if (menu?.length) {
+        const menuIndex = buildMenuLlmIndex(menu);
+        learnedItems = repairIntentItems(learnedItems, menuIndex);
+        if (businessId && learnedItemIdsChanged(storedItems, learnedItems)) {
+          const textKey = intentLearnKey(rawText);
+          void persistReboundLearnedItems(businessId, textKey, learnedItems);
+        }
       }
+      return toIntentResult(
+        learnedItems,
+        learned.partySize,
+        rawText,
+        'learned',
+        1,
+        learned.operation,
+      );
     }
-    return toIntentResult(
-      learnedItems,
-      learned.partySize,
-      rawText,
-      'learned',
-      1,
-      learned.operation,
-    );
   }
 
   if (structural?.rawName) {

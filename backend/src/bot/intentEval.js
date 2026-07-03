@@ -232,6 +232,38 @@ function assertExpectations(result, expect = {}) {
       failures.push(`botReplyMatches: pattern /${expect.botReplyMatches}/i did not match reply`);
     }
   }
+  if (expect.parsePath != null && result.parsePath !== expect.parsePath) {
+    failures.push(`parsePath: expected ${expect.parsePath}, got ${result.parsePath ?? '—'}`);
+  }
+  if (expect.appliedCount != null) {
+    const count = result.appliedPreview?.applied?.length ?? 0;
+    if (count !== expect.appliedCount) {
+      failures.push(`appliedCount: expected ${expect.appliedCount}, got ${count}`);
+    }
+  }
+  if (expect.rejectedCount != null) {
+    const count = result.appliedPreview?.rejected?.length ?? 0;
+    if (count !== expect.rejectedCount) {
+      failures.push(`rejectedCount: expected ${expect.rejectedCount}, got ${count}`);
+    }
+  }
+  if (expect.basketAfterNames != null) {
+    const names = (result.basketAfter ?? []).map(line => line.name);
+    const exp = expect.basketAfterNames;
+    if (names.length !== exp.length || exp.some((n, i) => n !== names[i])) {
+      failures.push(`basketAfterNames: expected ${JSON.stringify(exp)}, got ${JSON.stringify(names)}`);
+    }
+  }
+  if (expect.basketLineQty != null) {
+    const { fragment, qty } = expect.basketLineQty;
+    const line = (result.basketAfter ?? []).find(l =>
+      l.name.toLowerCase().includes(String(fragment).toLowerCase()));
+    if (!line) {
+      failures.push(`basketLineQty: no line contains "${fragment}"`);
+    } else if (line.qty !== qty) {
+      failures.push(`basketLineQty: expected ${qty} for "${fragment}", got ${line.qty}`);
+    }
+  }
 
   return failures;
 }
@@ -242,15 +274,22 @@ async function runCase(caseDef, options = {}) {
   const menu = resolveMenu(caseDef, corpusDir);
   const menuMatch = resolveMenuMatch(caseDef, menu, corpusDir);
   const menuTokenIndex = buildMenuTokenIndex(menu);
-  const businessId = caseDef.businessId ?? null;
+  const businessId = caseDef.businessId ?? caseDef._suiteMeta?.businessId ?? null;
+  const basket = caseDef.basket ?? [];
+  const tagBasketEdit = (caseDef.tags ?? []).includes('basket_edit');
+  const useBasketOps = options.basketOps ?? (
+    caseDef.expect?.outcome === 'basket_ops' || tagBasketEdit
+  );
   const result = await evaluateIntent(caseDef.text, {
     menu,
     menuMatch,
     menuTokenIndex,
     lang: caseDef.lang ?? 'de',
-    basket: caseDef.basket ?? [],
+    basket,
+    basketOps: useBasketOps,
     llm: caseDef.llm ?? llmDefault,
     businessId,
+    skipLearned: caseDef.useLearned !== true,
   });
   const failures = assertExpectations(result, caseDef.expect ?? {});
   return {

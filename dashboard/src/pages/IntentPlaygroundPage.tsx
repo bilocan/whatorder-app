@@ -235,6 +235,7 @@ export default function IntentPlaygroundPage() {
   const teachReason = useMemo(() => getTeachBlockReason({
     phraseText,
     parseOutcome: parseSnapshot?.outcome,
+    parsedBy: parseSnapshot?.parsedBy,
     draft,
     initialDraft,
     operation,
@@ -252,7 +253,9 @@ export default function IntentPlaygroundPage() {
     try {
       const items = buildSaveItems(draft, menuById);
       const correction = parseSnapshot && (
-        !draftsEqual(draft, initialDraft) || BAD_OUTCOMES.has(parseSnapshot.outcome)
+        !draftsEqual(draft, initialDraft)
+        || BAD_OUTCOMES.has(parseSnapshot.outcome)
+        || parseSnapshot.parsedBy === 'llm'
       )
         ? buildCorrection(parseSnapshot)
         : undefined;

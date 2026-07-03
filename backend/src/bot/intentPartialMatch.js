@@ -40,6 +40,30 @@ function isPartialBlobTrap(text, intent, matched) {
 }
 
 /**
+ * Ignore poisoned Tier-B rows when rules still see a fuller multi-item order.
+ */
+function shouldRejectStaleLearnedHit(text, learned, rulesIntent) {
+  const learnedItems = learned?.items ?? [];
+  const ruleItems = rulesIntent?.items ?? [];
+  if (!learnedItems.length || !ruleItems.length) return false;
+
+  if (ruleItems.length > learnedItems.length && ruleItems.length >= 2) return true;
+
+  if (learnedItems.length === 1 && ruleItems.length === 1
+    && countDistinctProductStems(String(text).replace(/(\d)([a-zA-ZäöüÄÖÜß])/g, '$1 $2')) >= 2) {
+    return true;
+  }
+
+  if (learnedItems.length === 1 && ruleItems.length === 1) {
+    const learnedQty = learnedItems[0].qty ?? 1;
+    const ruleQty = ruleItems[0].qty ?? 1;
+    if (ruleQty !== learnedQty) return true;
+  }
+
+  return false;
+}
+
+/**
  * Tier B retry after menu match when rules under-delivered.
  * @returns {boolean}
  */
@@ -55,6 +79,7 @@ function shouldRetryIntentWithLlm(text, intent, matched, unmatched) {
 module.exports = {
   countDistinctProductStems,
   isPartialBlobTrap,
+  shouldRejectStaleLearnedHit,
   shouldRetryIntentWithLlm,
   lineLooksLikeDrink,
 };

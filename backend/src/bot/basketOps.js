@@ -21,8 +21,22 @@ const { buildOptionLabel, splitPendingItems } = require('./intentCustomize');
 const { canCallLlm } = require('../lib/llm');
 const { canRetryWithLlm, retryIntentWithMenuLlm } = require('./intentLlmRetry');
 const { isPartialBlobTrap } = require('./intentPartialMatch');
+const { patchSession } = require('./sessionStore');
 
 const MAX_QTY = 99;
+
+const PROPOSAL_CLEAR_PATCH = {
+  pendingIntentItems: undefined,
+  unmatchedIntentItems: undefined,
+  disambiguation: undefined,
+};
+
+const BASKET_MUTATION_CLEAR_PATCH = {
+  ...PROPOSAL_CLEAR_PATCH,
+  basketRemovePending: undefined,
+  basketRemoveDisambig: undefined,
+  pendingDeleteIds: [],
+};
 
 const GERMAN_QTY_WORDS = {
   ein: 1, eine: 1, eins: 1, einen: 1, einer: 1,
@@ -410,6 +424,7 @@ async function parseBasketOps(text, ctx = {}) {
     menuMatch = null,
     menuTokenIndex = null,
     rulesOnly = false,
+    skipLearned = false,
   } = ctx;
 
   const trimmed = sanitizeIntentText(text);
@@ -426,6 +441,7 @@ async function parseBasketOps(text, ctx = {}) {
     businessId: businessId || undefined,
     menu,
     rulesOnly,
+    skipLearned,
   });
   intent = applyJeweilsBasketContext(intent, basket);
 
@@ -550,6 +566,10 @@ async function parseBasketOps(text, ctx = {}) {
       return emptyParseResult(outcome, { ...base, intent, unmatched });
     }
 
+    if (isPartialBlobTrap(trimmed, intent, matched)) {
+      return emptyParseResult('no_match', { ...base, intent, unmatched });
+    }
+
     if (intent.llmFailed && llmAllowed
       && (unmatched.length || isPartialBlobTrap(trimmed, intent, matched))) {
       return emptyParseResult('llm_failed', { ...base, intent, unmatched });
@@ -586,6 +606,78 @@ async function parseBasketOps(text, ctx = {}) {
   return emptyParseResult('no_match', { ...base, intent });
 }
 
+/**
+ * Session patch for a successful basket mutation (persist before outbound sends).
+ */
+function buildAppliedMutationPatch({
+  basketBefore,
+  basketAfter,
+  pendingLearning = undefined,
+}) {
+  return {
+    basket: basketAfter,
+    basketUndoSnapshot: { basket: cloneBasket(basketBefore) },
+    basketPendingLearning: pendingLearning ?? undefined,
+    ...BASKET_MUTATION_CLEAR_PATCH,
+  };
+}
+
+/** Session patch restoring basket from undo snapshot; drops deferred learning. */
+function buildUndoMutationPatch(restoredBasket) {
+  return {
+    basket: restoredBasket,
+    basketUndoSnapshot: undefined,
+    basketPendingLearning: undefined,
+    ...BASKET_MUTATION_CLEAR_PATCH,
+  };
+}
+
+/** Ambiguous remove — no basket change; only disambiguation state. */
+function buildAmbiguousRemovePatch(disambig) {
+  return {
+    basketRemoveDisambig: disambig,
+    ...PROPOSAL_CLEAR_PATCH,
+  };
+}
+
+/**
+ * Atomic session write for basket mutations (race-safe via patchSession transaction).
+ */
+async function persistBasketMutation(phone, session, patch) {
+  await patchSession(phone, patch, session);
+}
+
+/**
+ * Pilot telemetry — structured log for basket-op outcomes (Phase 2 metrics).
+ */
+function logBasketOpTelemetry({
+  businessId,
+  phone,
+  text = null,
+  outcome,
+  parsePath = null,
+  parsedOpCount = 0,
+  appliedCount = 0,
+  rejectedCount = 0,
+  appliedKinds = [],
+  rejectedReasons = [],
+}) {
+  if (process.env.NODE_ENV === 'test') return;
+  console.log('[basket-op]', JSON.stringify({
+    ts: new Date().toISOString(),
+    businessId: businessId ?? null,
+    phone: phone ?? null,
+    text: text?.slice(0, 120) ?? null,
+    outcome,
+    parsePath,
+    parsedOpCount,
+    appliedCount,
+    rejectedCount,
+    appliedKinds,
+    rejectedReasons,
+  }));
+}
+
 module.exports = {
   applyOp,
   applyOps,
@@ -594,4 +686,11 @@ module.exports = {
   parseBasketEditOps,
   removeTargetsToOps,
   matchedToAddOps,
+  buildAppliedMutationPatch,
+  buildUndoMutationPatch,
+  buildAmbiguousRemovePatch,
+  persistBasketMutation,
+  logBasketOpTelemetry,
+  PROPOSAL_CLEAR_PATCH,
+  BASKET_MUTATION_CLEAR_PATCH,
 };

@@ -31,6 +31,7 @@ const {
   lookupLearnedIntent,
   rememberValidatedIntent,
   rememberValidatedLlmIntent,
+  buildBasketPendingLearning,
   _resetIntentLearningMemory,
 } = require('../intentLearning');
 
@@ -53,6 +54,12 @@ describe('intentLearnKey', () => {
     expect(intentLearnKey('was für mich ein hühner döner und ne cola')).toBe(core);
     expect(intentLearnKey('für mich ein hühner döner und ne cola')).toBe(core);
     expect(intentLearnKey('ich hätte gerne ein hühner döner und ne cola')).toBe(core);
+  });
+
+  test('strips imperative "mach" prefix from learn keys', () => {
+    expect(intentLearnKey('mach 3 dürüm')).toBe('3 durum');
+    expect(intentLearnKey('mach mir 4 doner')).toBe('4 doner');
+    expect(intentLearnKey('mach mal 2 cola')).toBe('2 cola');
   });
 
   test('does not strip "für N personen" party-size phrases', () => {
@@ -135,6 +142,24 @@ describe('lookupLearnedIntent', () => {
     const hit = await lookupLearnedIntent('biz1', '2 doner und 1 cola');
     expect(hit.items).toHaveLength(2);
   });
+
+  test('does not fuzzy-match phrases that differ only by qty digit', async () => {
+    rememberValidatedIntent('biz1', 'mach 3 dürüm', {
+      parsedBy: 'rules',
+      items: [{ name: 'Dürüm', qty: 3, menuItemId: 'd1' }],
+    }, [{ menuItemId: 'd1', name: 'Dürüm', qty: 3 }]);
+    const hit = await lookupLearnedIntent('biz1', 'mach 4 dürüm');
+    expect(hit).toBeNull();
+  });
+
+  test('legacy mach-prefixed key still resolves via key variants', async () => {
+    rememberValidatedIntent('biz1', 'mach 3 dürüm', {
+      parsedBy: 'rules',
+      items: [{ name: 'Dürüm', qty: 3, menuItemId: 'd1' }],
+    }, [{ menuItemId: 'd1', name: 'Dürüm', qty: 3 }]);
+    const hit = await lookupLearnedIntent('biz1', 'mach 3 dürüm');
+    expect(hit.items[0].qty).toBe(3);
+  });
 });
 
 describe('rememberValidatedIntent', () => {
@@ -176,6 +201,71 @@ describe('rememberValidatedIntent', () => {
       items: [{ name: 'pizza', qty: 1 }],
     });
     expect(mockSet).not.toHaveBeenCalled();
+  });
+});
+
+describe('buildBasketPendingLearning', () => {
+  test('builds add learning from parsed matched items', () => {
+    const pending = buildBasketPendingLearning({
+      businessId: 'biz1',
+      text: 'noch ein ayran',
+      parsed: {
+        intent: { parsedBy: 'rules', operation: 'add', items: [{ name: 'ayran', qty: 1 }] },
+        matched: [{ menuItemId: 'a1', name: 'Ayran', qty: 1 }],
+      },
+      applyResult: {
+        applied: [{ kind: 'add', addedLines: [{ name: 'Ayran', qty: 1 }] }],
+      },
+    });
+    expect(pending).toMatchObject({
+      businessId: 'biz1',
+      text: 'noch ein ayran',
+      matched: [{ menuItemId: 'a1', name: 'Ayran', qty: 1 }],
+    });
+  });
+
+  test('builds remove learning from removed lines', () => {
+    const pending = buildBasketPendingLearning({
+      businessId: 'biz1',
+      text: 'cola raus',
+      parsed: { intent: { parsedBy: 'rules', operation: 'remove', items: [{ name: 'cola', qty: 1 }] } },
+      applyResult: {
+        applied: [{
+          kind: 'remove',
+          removedLines: [{ name: 'Coca Cola 0.33L', qty: 1 }],
+        }],
+      },
+    });
+    expect(pending).toMatchObject({
+      businessId: 'biz1',
+      text: 'cola raus',
+      intent: expect.objectContaining({ operation: 'remove' }),
+    });
+    expect(pending.matched[0].name).toBe('Coca Cola 0.33L');
+  });
+
+  test('returns null when nothing applied', () => {
+    expect(buildBasketPendingLearning({
+      businessId: 'biz1',
+      text: 'cola raus',
+      parsed: {},
+      applyResult: { applied: [] },
+    })).toBeNull();
+  });
+
+  test('returns null for partial blob add (2doner 1 ayran → ayran only)', () => {
+    expect(buildBasketPendingLearning({
+      businessId: 'biz1',
+      text: '2doner 1 ayran',
+      parsed: {
+        intent: { items: [{ name: '2doner 1 ayran', qty: 1 }], parsedBy: 'rules' },
+        matched: [{ name: 'Mis Ayran 0.25L', qty: 1, menuItemId: 'a1' }],
+        ops: [{ type: 'add', item: { name: 'Mis Ayran 0.25L', qty: 1, price: 2.5 } }],
+      },
+      applyResult: {
+        applied: [{ kind: 'add', addedLines: [{ name: 'Mis Ayran 0.25L', qty: 1 }] }],
+      },
+    })).toBeNull();
   });
 });
 

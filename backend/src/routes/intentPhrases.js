@@ -25,6 +25,7 @@ function slimPreview(result) {
     orderLike: result.orderLike ?? false,
     intentItems,
     matched: (result.matched ?? []).map((line) => {
+      if (line.prefilledSelections) return slimMatchedLine(line);
       const enriched = enrichPendingWithModifier(line);
       return slimMatchedLine(enriched.prefilledSelections
         ? { ...line, prefilledSelections: enriched.prefilledSelections, name: enriched.name }

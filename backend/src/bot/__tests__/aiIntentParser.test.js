@@ -210,6 +210,36 @@ describe('parseIntentAsync', () => {
     expect(r.operation).toBe('remove');
     expect(r.parsedBy).toBe('rules');
   });
+
+  test('rejects stale partial learned combo when rules parse finds more items', async () => {
+    mockLookupLearnedIntent.mockResolvedValueOnce({
+      items: [{ name: 'Mis Ayran 0.25L', qty: 1, menuItemId: 'enes-getr-ayran-025' }],
+      partySize: null,
+      operation: 'add',
+    });
+    const r = await parseIntentAsync('iki doner bir ayran', { phone: '+450', businessId: 'biz_enes' });
+    expect(r.parsedBy).toBe('rules');
+    expect(r.items).toHaveLength(2);
+    expect(r.items[0].name).toMatch(/doner/i);
+    expect(r.items[1].name).toMatch(/ayran/i);
+  });
+
+  test('mach 4 dürüm rejects mach 3 learned row and parses qty 4', async () => {
+    mockLookupLearnedIntent.mockResolvedValueOnce({
+      items: [{ name: 'Enes Kebap Special Dürüm Huhn', qty: 3, menuItemId: 'd1', rawName: 'mach 3 dürüm' }],
+      partySize: null,
+      operation: 'add',
+    });
+    const r = await parseIntentAsync('mach 4 dürüm', { phone: '+451', businessId: 'biz1' });
+    expect(r.parsedBy).toBe('rules');
+    expect(r.items).toEqual([{ name: 'dürüm', qty: 4 }]);
+  });
+
+  test('mach 3 dürüm strips imperative and parses leading qty', async () => {
+    const r = await parseIntentAsync('mach 3 dürüm', { phone: '+452' });
+    expect(r.parsedBy).toBe('rules');
+    expect(r.items).toEqual([{ name: 'dürüm', qty: 3 }]);
+  });
 });
 
 describe('shouldTryLlm', () => {

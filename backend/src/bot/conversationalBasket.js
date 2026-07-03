@@ -8,19 +8,26 @@ const {
 } = require('./botHelpers');
 const { getMenuContext } = require('./menuService');
 const { looksLikeOrderText } = require('./intentParser');
-const { parseBasketOps, applyOps } = require('./basketOps');
+const {
+  parseBasketOps,
+  applyOps,
+  buildAppliedMutationPatch,
+  buildUndoMutationPatch,
+  buildAmbiguousRemovePatch,
+  persistBasketMutation,
+  logBasketOpTelemetry,
+  PROPOSAL_CLEAR_PATCH,
+} = require('./basketOps');
 const { isConversationalBasket } = require('./featureFlags');
+const {
+  buildBasketPendingLearning,
+  commitBasketPendingLearning,
+} = require('./intentLearning');
 const { sendDisambiguationList } = require('./intentDisambiguate');
 const { splitPendingItems, startIntentCustomization } = require('./intentCustomize');
 const { hydratePendingItems } = require('./intentMatcher');
 const { buildBasketRemoveAmbiguousText } = require('./basketEdit');
 const { sendOrderEntryPrompt } = require('./orderEntry');
-
-const INTENT_PROPOSAL_CLEAR = {
-  pendingIntentItems: undefined,
-  unmatchedIntentItems: undefined,
-  disambiguation: undefined,
-};
 
 const UNDO_PHRASES = new Set(['ruckgangig', 'undo', 'geri al']);
 
@@ -32,12 +39,48 @@ function isBasketUndoPhrase(norm) {
   return UNDO_PHRASES.has((norm ?? '').trim());
 }
 
+/**
+ * Fresh combo orders on an empty basket should use the proposal flow (confirm + customize),
+ * not silent auto-apply or partial blob matches.
+ */
+function shouldFallThroughToIntentOrder(basket, parsed, text) {
+  if (basket?.length) return false;
+  if (parsed.outcome === 'needs_customize') return true;
+  if (parsed.outcome === 'no_match') return true;
+  if (parsed.outcome !== 'ops' || !parsed.ops?.length) return false;
+  const { isPartialBlobTrap } = require('./intentPartialMatch');
+  if (parsed.intent && parsed.matched?.length
+    && isPartialBlobTrap(text, parsed.intent, parsed.matched)) {
+    return true;
+  }
+  const intentItems = parsed.intent?.items ?? [];
+  if (intentItems.length > 1 && (parsed.matched?.length ?? 0) < intentItems.length) {
+    return true;
+  }
+  const addOps = parsed.ops.filter(o => o.type === 'add');
+  if (intentItems.length > 1 && addOps.length < intentItems.length) return true;
+  return false;
+}
+
+/**
+ * Commit deferred learning from the prior mutation turn (skipped on undo).
+ * @returns {Promise<object>} updated session snapshot for in-memory use
+ */
+async function flushBasketPendingLearning(from, session) {
+  const pending = session.basketPendingLearning;
+  if (!pending) return session;
+
+  commitBasketPendingLearning(pending);
+  await patchSession(from, { basketPendingLearning: undefined }, session);
+  return { ...session, basketPendingLearning: undefined };
+}
+
 async function sendOpsAmbiguousRemove({ from, session, lang, basket, rejected }) {
   const hit = rejected.find(r => r.reason === 'ambiguous');
   if (!hit?.indices?.length) return false;
 
   const disambig = { fragment: hit.fragment ?? hit.target?.fragment, indices: hit.indices };
-  await patchSession(from, { basketRemoveDisambig: disambig }, session);
+  await persistBasketMutation(from, session, buildAmbiguousRemovePatch(disambig));
   const linesText = buildBasketRemoveAmbiguousText(basket, hit.indices);
   await sendText(from, t('basketRemoveAmbiguous', lang, linesText, hit.indices.length));
   return true;
@@ -54,28 +97,64 @@ async function sendConversationalBasketReply({ from, lang, newBasket, applyResul
 }
 
 async function applyConversationalOps({
-  from, session, lang, businessId, basket, applyResult,
+  from,
+  session,
+  lang,
+  businessId,
+  basket,
+  applyResult,
+  parsed = null,
+  text = null,
+  phone = from,
 }) {
   const { basket: newBasket, applied, rejected } = applyResult;
 
   if (!applied.length) {
+    logBasketOpTelemetry({
+      businessId,
+      phone,
+      text,
+      outcome: 'rejected',
+      parsePath: parsed?.parsePath ?? null,
+      parsedOpCount: parsed?.ops?.length ?? 0,
+      rejectedCount: rejected.length,
+      rejectedReasons: rejected.map(r => r.reason),
+    });
     if (await sendOpsAmbiguousRemove({ from, session, lang, basket, rejected })) {
       return true;
     }
     return false;
   }
 
-  const undoSnapshot = { basket: cloneBasket(basket) };
+  const pendingLearning = buildBasketPendingLearning({
+    businessId,
+    text,
+    parsed,
+    applyResult,
+  });
 
-  // Mutation receipts persist in chat (clean-chat: basket progress stays visible).
-  await patchSession(from, {
-    basket: newBasket,
-    basketUndoSnapshot: undoSnapshot,
-    ...INTENT_PROPOSAL_CLEAR,
-    basketRemovePending: undefined,
-    basketRemoveDisambig: undefined,
-    pendingDeleteIds: [],
-  }, session);
+  await persistBasketMutation(
+    from,
+    session,
+    buildAppliedMutationPatch({
+      basketBefore: basket,
+      basketAfter: newBasket,
+      pendingLearning,
+    }),
+  );
+
+  logBasketOpTelemetry({
+    businessId,
+    phone,
+    text,
+    outcome: 'applied',
+    parsePath: parsed?.parsePath ?? null,
+    parsedOpCount: parsed?.ops?.length ?? 0,
+    appliedCount: applied.length,
+    rejectedCount: rejected.length,
+    appliedKinds: applied.map(r => r.kind),
+    rejectedReasons: rejected.map(r => r.reason),
+  });
 
   if (!newBasket.length) {
     await sendOrderEntryPrompt({
@@ -110,14 +189,13 @@ async function tryBasketUndo({
   }
 
   const restored = cloneBasket(snapshot.basket);
-  await patchSession(from, {
-    basket: restored,
-    basketUndoSnapshot: undefined,
-    ...INTENT_PROPOSAL_CLEAR,
-    basketRemovePending: undefined,
-    basketRemoveDisambig: undefined,
-    pendingDeleteIds: [],
-  }, session);
+  await persistBasketMutation(from, session, buildUndoMutationPatch(restored));
+
+  logBasketOpTelemetry({
+    businessId,
+    phone: from,
+    outcome: 'undone',
+  });
 
   if (!restored.length) {
     await sendOrderEntryPrompt({
@@ -161,8 +239,10 @@ async function tryConversationalBasketText({
 
   if (parsed.outcome === 'llm_failed') return 'llm_failed';
 
+  if (shouldFallThroughToIntentOrder(basket, parsed, text)) return false;
+
   if (parsed.outcome === 'disambiguation' && parsed.disambiguation) {
-    await patchSession(from, INTENT_PROPOSAL_CLEAR, session);
+    await persistBasketMutation(from, session, PROPOSAL_CLEAR_PATCH);
     await sendDisambiguationList({
       from, session, lang, businessId, basket, disambiguation: parsed.disambiguation,
     });
@@ -173,7 +253,7 @@ async function tryConversationalBasketText({
     const hydrated = hydratePendingItems(parsed.matched, menu);
     const { simple, customize } = splitPendingItems(hydrated);
     if (customize.length) {
-      await patchSession(from, INTENT_PROPOSAL_CLEAR, session);
+      await persistBasketMutation(from, session, PROPOSAL_CLEAR_PATCH);
       await startIntentCustomization({
         from, session, lang, businessId, basket, simpleItems: simple, customizeItems: customize,
       });
@@ -185,7 +265,15 @@ async function tryConversationalBasketText({
 
   const applyResult = applyOps(basket, parsed.ops);
   return applyConversationalOps({
-    from, session, lang, businessId, basket, applyResult,
+    from,
+    session,
+    lang,
+    businessId,
+    basket,
+    applyResult,
+    parsed,
+    text,
+    phone: from,
   });
 }
 
@@ -194,4 +282,5 @@ module.exports = {
   tryBasketUndo,
   tryConversationalBasketText,
   applyConversationalOps,
+  flushBasketPendingLearning,
 };
