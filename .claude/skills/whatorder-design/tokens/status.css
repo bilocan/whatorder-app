@@ -1,0 +1,25 @@
+/* WhatOrder — Order status colors
+   The lifecycle signature of the dashboard. Each order status maps to a hue;
+   badges render the hue at full strength on a translucent (hue + ~13% alpha) fill. */
+
+:root {
+  --status-pending:    #f59e0b;  /* amber  — new, awaiting owner */
+  --status-approved:   #a855f7;  /* purple — accepted */
+  --status-preparing:  #f97316;  /* orange — in the kitchen */
+  --status-ready:      #3b82f6;  /* blue   — ready for pickup */
+  --status-on-the-way: #06b6d4;  /* cyan   — out for delivery */
+  --status-delivered:  #22c55e;  /* green  — delivered */
+  --status-picked-up:  #22c55e;  /* green  — picked up */
+  --status-completed:  #22c55e;  /* green  — completed */
+  --status-rejected:   #ef4444;  /* red    — rejected */
+  --status-cancelled:  #6b7280;  /* gray   — cancelled */
+
+  /* Translucent fill suffix used by badges: color + this alpha (hex 22 ≈ 13%). */
+  --status-fill-alpha: 0.13; /* @kind other */
+
+  /* Payment badge hues */
+  --pay-cash:   #d97706;
+  --pay-paid:   #16a34a;
+  --pay-unpaid: #f59e0b;
+  --pay-failed: #ef4444;
+}

@@ -1,0 +1,22 @@
+<!-- @dsCard group="Type" viewport="700x230" name="UI type scale" subtitle="Dashboard — dense rem scale" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--font-sans); background: var(--surface); color: var(--text-body); padding: 1.5rem 1.75rem; }
+  .line { display: flex; align-items: baseline; gap: 1rem; padding: 0.3rem 0; border-bottom: 1px solid var(--surface-border); }
+  .tok { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-quiet); width: 130px; flex-shrink: 0; }
+  .spec { color: var(--text-strong); }
+</style>
+</head>
+<body>
+  <div class="line"><span class="tok">--text-xl · 1.35rem</span><span class="spec" style="font-size:var(--text-xl);font-weight:600">Page heading</span></div>
+  <div class="line"><span class="tok">--text-lg · 1.1rem</span><span class="spec" style="font-size:var(--text-lg);font-weight:700">Order total €24.50</span></div>
+  <div class="line"><span class="tok">--text-md · 1rem</span><span class="spec" style="font-size:var(--text-md)">Input & default text</span></div>
+  <div class="line"><span class="tok">--text-base · 0.9rem</span><span class="spec" style="font-size:var(--text-base)">Table cell / body copy</span></div>
+  <div class="line"><span class="tok">--text-sm · 0.8rem</span><span class="spec" style="font-size:var(--text-sm);color:var(--text-tertiary)">Caption & meta</span></div>
+  <div class="line"><span class="tok">--text-xs · 0.72rem</span><span class="spec" style="font-size:var(--text-xs);color:var(--text-quiet)">Micro label</span></div>
+</body>
+</html>

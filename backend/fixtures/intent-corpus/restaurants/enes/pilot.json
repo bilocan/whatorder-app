@@ -50,7 +50,7 @@
         "parsedBy": "rules",
         "intentItems": [
           {
-            "name": "Eiern noch dazu bitte",
+            "name": "Eiern noch dazu",
             "qty": 2
           }
         ],
@@ -58,6 +58,26 @@
           "Mis Ayran 0.25L"
         ],
         "matchedCount": 1,
+        "matchedQtySum": 2
+      }
+    },
+    {
+      "id": "enes-tts-kebab-schaf-eimer",
+      "text": "Hallo ich hätte einen Kebab mit allem und Schaf und ein Eimer bitte",
+      "tags": [
+        "tts_typo",
+        "modifier",
+        "wave_c",
+        "enes_pilot"
+      ],
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "matchedNames": [
+          "Kebap Sandwich Huhn",
+          "Mis Ayran 0.25L"
+        ],
+        "matchedCount": 2,
         "matchedQtySum": 2
       }
     },
@@ -295,7 +315,7 @@
         "parsedBy": "rules",
         "intentItems": [
           {
-            "name": "spinaci noch bitte",
+            "name": "spinaci noch",
             "qty": 1
           }
         ]
@@ -908,6 +928,213 @@
         ]
       },
       "recordedFrom": "menu.json"
+    },
+    {
+      "id": "bitte-ein-kebap-mit-tomaten-salad-und-zwiebel",
+      "text": "bitte ein kebap mit tomaten salad und zwiebel",
+      "tags": [
+        "enes_pilot",
+        "harvest",
+        "owner"
+      ],
+      "menu": "menu.json",
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "kebap mit tomaten salad und zwiebel",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Kebap Sandwich Huhn"
+        ],
+        "matchedCount": 1
+      },
+      "recordedFrom": "owner"
+    },
+    {
+      "id": "ich-hatte-gerne-ein-huhner-kebap-und-ein-ayran-d",
+      "text": "ich hätte gerne ein hühner kebap und ein ayran dazu noch",
+      "tags": [
+        "enes_pilot",
+        "harvest",
+        "owner"
+      ],
+      "menu": "menu.json",
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "hühner kebap",
+            "qty": 1
+          },
+          {
+            "name": "ayran dazu noch",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Kebap Sandwich Huhn",
+          "Mis Ayran 0.25L"
+        ],
+        "matchedCount": 2
+      },
+      "recordedFrom": "owner"
+    },
+    {
+      "id": "eine-familienpizza-mit-salami-bitte-und-3-cola",
+      "text": "eine familienpizza mit salami bitte und 3 cola",
+      "tags": [
+        "enes_pilot",
+        "harvest",
+        "owner"
+      ],
+      "menu": "menu.json",
+      "expect": {
+        "orderLike": true,
+        "outcome": "disambiguation",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "familienpizza mit salami",
+            "qty": 1
+          },
+          {
+            "name": "cola",
+            "qty": 3
+          }
+        ]
+      },
+      "recordedFrom": "owner"
+    },
+    {
+      "id": "ein-durum-und-ein-kebap-bitte-und-jeweils-ayran",
+      "text": "ein dürüm und ein kebap bitte und jeweils ayran",
+      "tags": [
+        "enes_pilot",
+        "harvest",
+        "owner"
+      ],
+      "menu": "menu.json",
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "dürüm",
+            "qty": 1
+          },
+          {
+            "name": "kebap",
+            "qty": 1
+          },
+          {
+            "name": "jeweils ayran",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Enes Kebap Special Dürüm Huhn",
+          "Kebap Sandwich Huhn",
+          "Mis Ayran 0.25L"
+        ],
+        "matchedCount": 3
+      },
+      "recordedFrom": "owner"
+    },
+    {
+      "id": "ich-kriege-ein-schnitzel-teller-mit-pommes-und-e",
+      "text": "ich kriege ein schnitzel teller mit pommes und eis tee pfirsich",
+      "tags": [
+        "enes_pilot",
+        "harvest",
+        "owner"
+      ],
+      "menu": "menu.json",
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "schnitzel teller mit pommes",
+            "qty": 1
+          },
+          {
+            "name": "eis tee pfirsich",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Schnitzel Teller",
+          "Eistee Pfirsich 0.33L"
+        ],
+        "matchedCount": 2
+      },
+      "recordedFrom": "owner"
+    },
+    {
+      "id": "gib-mir-ein-burger-und-cola-bitte",
+      "text": "gib mir ein burger und cola bitte",
+      "tags": [
+        "enes_pilot",
+        "harvest",
+        "owner"
+      ],
+      "menu": "menu.json",
+      "expect": {
+        "orderLike": true,
+        "outcome": "disambiguation",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "gib mir ein burger",
+            "qty": 1
+          },
+          {
+            "name": "cola",
+            "qty": 1
+          }
+        ]
+      },
+      "recordedFrom": "owner"
+    },
+    {
+      "id": "hamburger-und-cola-dazu-bitte",
+      "text": "hamburger und cola dazu bitte",
+      "tags": [
+        "enes_pilot",
+        "harvest",
+        "owner"
+      ],
+      "menu": "menu.json",
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          {
+            "name": "hamburger",
+            "qty": 1
+          },
+          {
+            "name": "cola dazu",
+            "qty": 1
+          }
+        ],
+        "matchedNames": [
+          "Hamburger XXXL",
+          "Coca Cola 0.33L"
+        ],
+        "matchedCount": 2
+      },
+      "recordedFrom": "owner"
     }
   ]
 }

@@ -1,0 +1,77 @@
+/* WhatOrder — Color tokens
+   Base palette + semantic aliases for both surfaces:
+   the dark marketing site (whatorder.at) and the light owner dashboard. */
+
+:root {
+  /* ── Brand green (the single accent across both surfaces) ── */
+  --green-500: #22c55e;   /* primary accent */
+  --green-600: #16a34a;   /* hover / pressed */
+  --green-700: #059669;   /* gradient end, deep */
+  --green-050: #dcfce7;   /* soft success fill (light UI) */
+  --green-dim: rgba(34, 197, 94, 0.12);  /* accent wash on dark */
+
+  /* ── Dark surface neutrals (marketing site) ── */
+  --ink-000: #0a0a0a;     /* page bg */
+  --ink-100: #111111;     /* raised bg (cards, inputs) */
+  --ink-200: #1e1e1e;     /* border */
+  --ink-300: #333333;     /* hover border / hairline */
+  --ink-400: #444444;     /* faint text / placeholder */
+  --ink-500: #666666;     /* muted text */
+  --ink-fg:  #e8e8e8;     /* primary text on dark */
+
+  /* ── Light surface neutrals (dashboard) ── */
+  --paper-000: #ffffff;   /* card / page bg */
+  --paper-050: #fafafa;   /* app bg, note wells */
+  --paper-100: #f9fafb;   /* control bg */
+  --paper-150: #f5f5f5;   /* panel fill */
+  --paper-200: #f3f4f6;   /* row divider */
+  --line-200:  #eeeeee;   /* standard border */
+  --line-300:  #e5e7eb;   /* control border */
+  --line-400:  #dddddd;   /* input border */
+
+  --slate-900: #213547;   /* body text (light) */
+  --slate-ink: #000000;   /* headings / strong */
+  --slate-600: #555555;   /* secondary text */
+  --slate-500: #666666;   /* muted text */
+  --slate-400: #999999;   /* faint text */
+  --slate-300: #cccccc;   /* disabled / hint */
+
+  /* ── Delivery accent (used on delivery badges / addresses) ── */
+  --delivery: #0ea5e9;
+
+  /* ── Soft semantic fills (badge / callout backgrounds) ── */
+  --danger:      #ef4444;
+  --danger-soft-bg: #fee2e2;
+  --danger-soft-fg: #dc2626;
+  --success-soft-bg: #dcfce7;
+  --success-soft-fg: #16a34a;
+  --warning-soft-bg: #fef3c7;
+  --warning-soft-fg: #92400e;
+  --warning-amber:   #d97706;
+
+  /* ── Semantic aliases — DARK surface (marketing) ── */
+  --bg:            var(--ink-000);
+  --bg-raised:     var(--ink-100);
+  --border:        var(--ink-200);
+  --border-hover:  var(--ink-300);
+  --text:          var(--ink-fg);
+  --text-muted:    var(--ink-500);
+  --text-faint:    var(--ink-400);
+  --accent:        var(--green-500);
+  --accent-hover:  var(--green-600);
+  --accent-wash:   var(--green-dim);
+
+  /* ── Semantic aliases — LIGHT surface (dashboard) ── */
+  --surface:            var(--paper-000);
+  --surface-app:        var(--paper-050);
+  --surface-control:    var(--paper-100);
+  --surface-panel:      var(--paper-150);
+  --surface-border:     var(--line-200);
+  --surface-border-strong: var(--line-300);
+  --input-border:       var(--line-400);
+  --text-body:          var(--slate-900);
+  --text-strong:        var(--slate-ink);
+  --text-secondary:     var(--slate-600);
+  --text-tertiary:      var(--slate-500);
+  --text-quiet:         var(--slate-400);
+}

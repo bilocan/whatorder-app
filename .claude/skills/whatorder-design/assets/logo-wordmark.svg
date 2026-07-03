@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" fill="none" role="img" aria-label="WhatOrder">
+  <defs>
+    <linearGradient id="wo-grad" x1="4" y1="4" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22C55E"></stop>
+      <stop offset="1" stop-color="#059669"></stop>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="40" height="40" rx="10" fill="url(#wo-grad)"></rect>
+  <path d="M10 12h20M10 20h16M10 28h12" stroke="#fff" stroke-width="2.5" stroke-linecap="round"></path>
+  <path d="M26 26l3 3 6-7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+  <text x="52" y="28" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="600" fill="#E8E8E8" letter-spacing="-0.02em">What</text>
+  <text x="112" y="28" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="600" fill="#22C55E" letter-spacing="-0.02em">Order</text>
+</svg>

@@ -176,6 +176,27 @@ describe('parseOrderIntentWithLlm', () => {
     expect(r).toBeNull();
   });
 
+  test('validateMenuIntentPayload repairs Schaf/Eimer over-split', () => {
+    const menu = [
+      { id: 'k1', name: 'Kebap Sandwich Huhn', category: 'Kebap', available: true },
+      { id: 'w1', name: 'Wrap mit Schafskäse', category: 'Wraps', available: true },
+      { id: 'c1', name: 'Coca Cola 0.33L', category: 'Getraenke', available: true },
+      { id: 'a1', name: 'Mis Ayran 0.25L', category: 'Getraenke', available: true },
+    ];
+    const menuIndex = buildMenuLlmIndex(menu);
+    const r = validateMenuIntentPayload({
+      items: [
+        { menuItemId: 'k1', lineText: 'Kebab mit allem' },
+        { menuItemId: 'w1', lineText: 'Schaf' },
+        { menuItemId: 'c1', lineText: 'Eimer' },
+      ],
+      confidence: 0.7,
+    }, menuIndex);
+    expect(r.items).toHaveLength(2);
+    expect(r.items[0]).toMatchObject({ menuItemId: 'k1', name: 'Kebab mit allem und scharf' });
+    expect(r.items[1]).toMatchObject({ menuItemId: 'a1', name: 'ayran' });
+  });
+
   test('rate limits repeat calls from same phone', async () => {
     process.env.AI_INTENT_ENABLED = 'true';
     process.env.GEMINI_API_KEY = 'test-key';

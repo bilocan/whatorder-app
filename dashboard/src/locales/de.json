@@ -16,6 +16,7 @@
     "income": "Einnahmen",
     "menu": "Speisekarte",
     "learnedPhrases": "Phrasen",
+    "intentPlayground": "Bot trainieren",
     "settings": "Einstellungen",
     "admin": "Admin",
     "adminMap": "Karte",
@@ -158,9 +159,12 @@
   },
   "learnedPhrases": {
     "title": "Gelernte Phrasen",
-    "description": "Formulierungen, die Kunden getippt haben und der Bot nach bestätigter Bestellung gespeichert hat. Löschen entfernt nur die Wiederholungs-Abkürzung. Beworbene Phrasen stehen zusätzlich in Menü-Aliassen — dort im Menü bearbeiten.",
+    "description": "Gespeicherte Phrasen, die der Bot auf WhatsApp wiederverwendet — nach bestätigten Bestellungen, Inhaber-Korrekturen oder manuellem Training. Suchen, Treffer prüfen oder löschen. Neue Phrasen oder Korrekturen über Bot trainieren.",
+    "playgroundHint": "Kundenformulierung eingeben, Bot-Verständnis prüfen, SKU, Menge oder Beilagen korrigieren, dann den Bot trainieren.",
+    "openPlayground": "Bot trainieren öffnen",
+    "rowOpenPlayground": "Öffnen",
     "searchPlaceholder": "Phrase oder Artikel suchen…",
-    "empty": "Noch keine gelernten Phrasen. Sie erscheinen nach bestätigten Bestellungen.",
+    "empty": "Noch keine gelernten Phrasen. Über Bot trainieren hinzufügen, oder sie erscheinen nach bestätigten Bestellungen.",
     "loadError": "Phrasen konnten nicht aus Firestore geladen werden. Falls die Seite neu ist: firestore.rules deployen.",
     "col": {
       "phrase": "Kundenphrase",
@@ -175,7 +179,8 @@
     "source": {
       "llm": "KI",
       "rules": "Regeln",
-      "manual": "Manuell"
+      "manual": "Manuell",
+      "manual_correction": "Inhaber-Korrektur"
     },
     "status": {
       "promoted": "In Menü-Aliassen",
@@ -234,6 +239,41 @@
         "remove": "Würde aus Warenkorb/Vorschlag entfernen",
         "remove_failed": "Entfernen fehlgeschlagen (Artikel nicht im Warenkorb)"
       }
+    }
+  },
+  "intentPlayground": {
+    "title": "Bot trainieren",
+    "description": "Tippe, wie Kunden auf WhatsApp bestellen. Sieh, was der Bot versteht, korrigiere Artikel, Menge oder Beilagen, und trainiere den Bot für das nächste Mal.",
+    "customerSays": "Kunde sagt",
+    "phrasePlaceholder": "z. B. 2 Döner 1 ayran",
+    "parse": "Analysieren",
+    "parsing": "Analysiere…",
+    "parseError": "Analyse fehlgeschlagen — läuft das Backend?",
+    "previewError": "Vorschau fehlgeschlagen",
+    "botUnderstood": "Bot-Verständnis",
+    "yourCorrection": "Ihre Korrektur",
+    "intentLines": "Erkannte Zeilen",
+    "matchedSkus": "Zugeordnete Artikel",
+    "disambiguation": "Artikel wählen",
+    "updating": "aktualisiere…",
+    "qty": "Menge",
+    "pickSku": "Artikel wählen…",
+    "removeLine": "Zeile entfernen",
+    "addLine": "+ Zeile hinzufügen",
+    "whatsappPreview": "WhatsApp-Vorschau",
+    "teachBot": "Bot trainieren",
+    "teaching": "Speichern…",
+    "teachSuccess": "Bot hat „{{key}}“ gelernt",
+    "teachError": "Speichern fehlgeschlagen",
+    "viewPhrases": "Gespeicherte Phrasen",
+    "alreadyTrained": "Bereits trainiert ({{hits}}× genutzt).",
+    "teachHint": {
+      "needsParse": "Zuerst Analysieren klicken, dann die Korrektur prüfen.",
+      "needsSku": "Wählen Sie für jede Zeile einen Artikel aus der Speisekarte.",
+      "unchanged": "Der Bot hat es schon richtig verstanden. Ändern Sie Artikel, Menge oder Beilagen, um etwas Neues zu speichern.",
+      "alreadySaved": "Diese Korrektur ist bereits gespeichert. Ändern Sie etwas, um sie zu aktualisieren.",
+      "readyMisunderstood": "Der Bot hat die Phrase nicht erkannt. Jetzt speichern, damit er sie beim nächsten Mal versteht.",
+      "readyCorrection": "Korrektur speichern — der Bot merkt sich die Phrase für das nächste Mal."
     }
   },
   "menu": {

@@ -4,6 +4,7 @@ const { intentLearningRef } = require('../lib/collections');
 const { intentLearnKey, intentLearnKeyVariants } = require('./intentNormalize');
 const { levenshtein, maxTypoDistance } = require('./menuSynonyms');
 const { scheduleAliasPromotion } = require('./intentLearningPromote');
+const { learnedItemIdsChanged } = require('./intentLearningRebind');
 
 /** In-process L1: businessId → Map(textKey → intent payload). */
 const memoryByBusiness = new Map();
@@ -96,6 +97,16 @@ function sanitizeItems(items) {
       if (i.modifierKey) out.modifierKey = String(i.modifierKey);
       if (i.rawName) out.rawName = String(i.rawName).trim();
       if (i.removeAll) out.removeAll = true;
+      if (i.selections && typeof i.selections === 'object') {
+        const selections = {};
+        for (const [groupId, ids] of Object.entries(i.selections)) {
+          if (!groupId) continue;
+          const list = Array.isArray(ids) ? ids.map(String).filter(Boolean) : [];
+          if (list.length) selections[groupId] = list;
+        }
+        if (Object.keys(selections).length) out.selections = selections;
+      }
+      if (i.modifierKey) out.modifierKey = String(i.modifierKey);
       return out;
     })
     .filter(i => i.name);
@@ -142,6 +153,93 @@ async function loadExactKey(businessId, textKey) {
     }
     return null;
   }
+}
+
+async function loadLearnedDoc(businessId, textKey) {
+  if (!businessId || !textKey) return null;
+  const docId = docIdForKey(textKey);
+  try {
+    const snap = await intentLearningRef(businessId, docId).get();
+    if (!snap.exists) return null;
+    const data = snap.data();
+    const items = sanitizeItems(data?.items);
+    if (!items.length) return null;
+    return {
+      docId,
+      textKey: String(data.textKey ?? textKey),
+      data,
+      items,
+    };
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(`[intent-learning] doc load failed: ${err.message}`);
+    }
+    return null;
+  }
+}
+
+function toLearnedMeta({ docId, textKey, data, items }) {
+  return {
+    id: docId,
+    textKey,
+    hitCount: Number(data.hitCount) || 0,
+    source: data.source ?? null,
+    operation: normalizeOperation(data.operation),
+    items,
+    aliasesPromotedAt: data.aliasesPromotedAt ?? null,
+  };
+}
+
+async function persistReboundLearnedItems(businessId, textKey, items) {
+  if (!businessId || !textKey) return;
+  const sanitized = sanitizeItems(items);
+  if (!sanitized.length) return;
+
+  const docId = docIdForKey(textKey);
+  try {
+    await intentLearningRef(businessId, docId).set({
+      items: sanitized,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    const cached = memoryGet(businessId, textKey);
+    if (cached) {
+      memorySet(businessId, textKey, { ...cached, items: sanitized });
+    }
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(`[intent-learning] rebind persist failed: ${err.message}`);
+    }
+  }
+}
+
+/**
+ * Owner playground: existing learning row for phrase (exact, variant, or fuzzy key).
+ */
+async function lookupLearnedMeta(businessId, rawText) {
+  if (!businessId || !rawText?.trim()) return null;
+
+  const variants = intentLearnKeyVariants(rawText);
+  for (const textKey of variants) {
+    const hit = await loadLearnedDoc(businessId, textKey);
+    if (hit) return toLearnedMeta(hit);
+  }
+
+  const canonical = intentLearnKey(rawText);
+  for (const cachedKey of memoryKeys(businessId)) {
+    if (keysAreFuzzyMatch(canonical, cachedKey)) {
+      const hit = await loadLearnedDoc(businessId, cachedKey);
+      if (hit) return toLearnedMeta(hit);
+    }
+  }
+
+  await loadFuzzyIndexFromFirestore(businessId);
+  for (const cachedKey of memoryKeys(businessId)) {
+    if (keysAreFuzzyMatch(canonical, cachedKey)) {
+      const hit = await loadLearnedDoc(businessId, cachedKey);
+      if (hit) return toLearnedMeta(hit);
+    }
+  }
+  return null;
 }
 
 /**
@@ -255,6 +353,22 @@ function rememberValidatedIntent(businessId, rawText, intent, matched = null) {
 
 /** Owner dashboard: seed a phrase → items mapping (rules test or manual pick). */
 async function saveManualIntentLearning(businessId, rawText, items, { operation = 'add' } = {}) {
+  return saveOwnerIntentLearning(businessId, rawText, items, { operation });
+}
+
+/**
+ * Owner dashboard / playground: persist phrase mapping, optional correction metadata.
+ */
+async function saveOwnerIntentLearning(
+  businessId,
+  rawText,
+  items,
+  {
+    operation = 'add',
+    correction = null,
+    correctedBy = null,
+  } = {},
+) {
   if (!businessId || !rawText?.trim()) {
     throw new Error('businessId and text are required');
   }
@@ -265,6 +379,8 @@ async function saveManualIntentLearning(businessId, rawText, items, { operation 
   if (!textKey) throw new Error('Phrase is empty after normalization');
 
   const op = normalizeOperation(operation);
+  const hasCorrection = correction && typeof correction === 'object';
+  const source = hasCorrection ? 'manual_correction' : 'manual';
   const docId = docIdForKey(textKey);
   const ref = intentLearningRef(businessId, docId);
   const payload = {
@@ -274,18 +390,32 @@ async function saveManualIntentLearning(businessId, rawText, items, { operation 
   };
   memorySet(businessId, textKey, payload);
 
-  await ref.set({
+  const doc = {
     textKey,
     items: sanitized,
     partySize: null,
     operation: op,
-    source: 'manual',
+    source,
     hitCount: 1,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  };
 
-  return { id: docId, textKey, items: sanitized, operation: op };
+  if (hasCorrection) {
+    doc.correction = {
+      parsedBy: correction.parsedBy ?? null,
+      outcome: correction.outcome ?? null,
+      originalItems: Array.isArray(correction.originalItems) ? correction.originalItems : [],
+      correctedBy: correctedBy ?? correction.correctedBy ?? null,
+      correctedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    doc.aliasesPromotedAt = admin.firestore.FieldValue.delete();
+    doc.promotedAliases = admin.firestore.FieldValue.delete();
+  }
+
+  await ref.set(doc, { merge: true });
+
+  return { id: docId, textKey, items: sanitized, operation: op, source };
 }
 
 /** @deprecated use rememberValidatedIntent */
@@ -304,10 +434,13 @@ module.exports = {
   intentLearnKey,
   intentLearnKeyVariants,
   lookupLearnedIntent,
+  lookupLearnedMeta,
+  persistReboundLearnedItems,
   rememberValidatedIntent,
   rememberValidatedLlmIntent,
   recordLearnedIntentHit,
   saveManualIntentLearning,
+  saveOwnerIntentLearning,
   normalizeOperation,
   _resetIntentLearningMemory,
 };

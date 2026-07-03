@@ -201,8 +201,23 @@ describe('parseIntent', () => {
   test('sharf typo stays on kebap line not a separate item', () => {
     const r = parseIntent('bitte ein kebap mit allen und sharf und ayran dazu');
     expect(r.items).toEqual([
-      { name: 'bitte ein kebap mit allen und sharf', qty: 1 },
+      { name: 'kebap mit allen und sharf', qty: 1 },
       { name: 'ayran dazu', qty: 1 },
+    ]);
+  });
+
+  test('bitte ein kebap mit tomaten salad und zwiebel stays one line', () => {
+    const r = parseIntent('bitte ein kebap mit tomaten salad und zwiebel');
+    expect(r.items).toEqual([
+      { name: 'kebap mit tomaten salad und zwiebel', qty: 1 },
+    ]);
+  });
+
+  test('ich kriege schnitzel teller mit pommes und eis tee pfirsich splits food and drink', () => {
+    const r = parseIntent('ich kriege ein schnitzel teller mit pommes und eis tee pfirsich');
+    expect(r.items).toEqual([
+      { name: 'schnitzel teller mit pommes', qty: 1 },
+      { name: 'eis tee pfirsich', qty: 1 },
     ]);
   });
 

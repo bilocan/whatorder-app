@@ -1,7 +1,7 @@
 const { matchMenuItem, classifyMenuMatch } = require('./menuMatch');
 const { buildMenuTokenIndex } = require('./menuTokenIndex');
 const {
-  extractModifierKey, normalizeIntentItemName, isModifierOnlyToken,
+  extractModifierKey, normalizeIntentItemName, isModifierOnlyToken, enrichPendingWithModifier,
 } = require('./intentModifiers');
 const { extractBeideMitAllemSpicyDish, textLooksLikeBeideMitAllemOneSpicy } = require('./intentParser');
 
@@ -170,12 +170,17 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex =
   let disambiguation = null;
 
   for (let i = 0; i < intent.items.length; i++) {
-    const { name, qty, menuItemId } = intent.items[i];
+    const { name, qty, menuItemId, selections } = intent.items[i];
 
     if (menuItemId) {
       const byId = menuItems.find(m => m.id === menuItemId && m.available !== false);
       if (byId) {
-        matched = mergePendingLine(matched, toPendingItem(byId, qty, { rawIntentName: name }));
+        let pending = toPendingItem(byId, qty, { rawIntentName: name });
+        if (selections) {
+          const { applyStoredSelections } = require('./intentPlaygroundDraft');
+          pending = applyStoredSelections(pending, selections);
+        } else if (name && name !== byId.name) pending = enrichPendingWithModifier(pending);
+        matched = mergePendingLine(matched, pending);
         continue;
       }
     }

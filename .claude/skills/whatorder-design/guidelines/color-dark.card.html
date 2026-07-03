@@ -1,0 +1,26 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Dark neutrals" subtitle="Marketing surface — ink scale" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--font-sans); background: var(--bg); padding: 1.5rem; }
+  .row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .sw { flex: 1; min-width: 78px; }
+  .chip { height: 60px; border-radius: var(--radius-md); border: 1px solid var(--border); }
+  .name { font-size: var(--text-sm); font-weight: 600; color: var(--text); margin: 0.5rem 0 0.1rem; }
+  .hex { font-size: var(--text-xs); color: var(--text-muted); font-family: var(--font-mono); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="sw"><div class="chip" style="background:var(--ink-000)"></div><p class="name">ink-000</p><p class="hex">#0A0A0A</p></div>
+    <div class="sw"><div class="chip" style="background:var(--ink-100)"></div><p class="name">ink-100</p><p class="hex">#111111</p></div>
+    <div class="sw"><div class="chip" style="background:var(--ink-200)"></div><p class="name">ink-200</p><p class="hex">#1E1E1E</p></div>
+    <div class="sw"><div class="chip" style="background:var(--ink-400)"></div><p class="name">ink-400</p><p class="hex">#444444</p></div>
+    <div class="sw"><div class="chip" style="background:var(--ink-500)"></div><p class="name">ink-500</p><p class="hex">#666666</p></div>
+    <div class="sw"><div class="chip" style="background:var(--ink-fg)"></div><p class="name">ink-fg</p><p class="hex">#E8E8E8</p></div>
+  </div>
+</body>
+</html>

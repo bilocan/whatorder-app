@@ -1,5 +1,6 @@
 const {
   extractModifierKey,
+  extractDishNameForMatch,
   resolveModifierSelections,
   wantsAllIncluded,
   parseExclusions,
@@ -40,6 +41,16 @@ describe('extractModifierKey', () => {
   });
 });
 
+describe('extractDishNameForMatch', () => {
+  test('strips side choice mit pommes on teller dishes', () => {
+    expect(extractDishNameForMatch('schnitzel teller mit pommes')).toBe('schnitzel teller');
+  });
+
+  test('keeps mit pommes on burger product names', () => {
+    expect(extractDishNameForMatch('cheeseburger mit pommes')).toBe('cheeseburger mit pommes');
+  });
+});
+
 describe('resolveModifierSelections', () => {
   test('mit allem selects all inserts', () => {
     const sel = resolveModifierSelections('2x döner mit allem', [BEILAGEN_GROUP]);
@@ -69,6 +80,11 @@ describe('resolveModifierSelections', () => {
   test('sharf typo resolves spicy inclusion', () => {
     const sel = resolveModifierSelections('kebap mit allen und sharf', [BEILAGEN_WITH_CHILI]);
     expect(sel.beilagen).toEqual(['tomato', 'salad', 'onion', 'sauce', 'chili']);
+  });
+
+  test('mit tomaten salad und zwiebel selects named beilagen only', () => {
+    const sel = resolveModifierSelections('kebap mit tomaten salad und zwiebel', [BEILAGEN_GROUP]);
+    expect(sel.beilagen).toEqual(['tomato', 'salad', 'onion']);
   });
 });
 

@@ -1,11 +1,36 @@
 import { auth } from './firebase';
 import { API_URL } from './apiUrl';
 import type { IntentLearningOperation } from '../types';
+import type { OptionSelections } from './optionSelections';
 
 export interface IntentPhrasePreviewMatch {
   name: string;
   qty: number;
   menuItemId: string | null;
+  rawIntentName?: string | null;
+  selections?: OptionSelections | null;
+}
+
+export interface IntentPhraseIntentItem {
+  rawName: string;
+  qty: number;
+}
+
+export interface IntentLearnedMeta {
+  id: string;
+  textKey: string;
+  hitCount: number;
+  source: string | null;
+  operation: IntentLearningOperation;
+  aliasesPromotedAt: string | null;
+  items: {
+    menuItemId: string | null;
+    name: string;
+    qty: number;
+    removeAll?: boolean;
+    rawName?: string | null;
+    selections?: OptionSelections | null;
+  }[];
 }
 
 export interface IntentPhrasePreview {
@@ -13,6 +38,7 @@ export interface IntentPhrasePreview {
   operation?: IntentLearningOperation;
   parsedBy: string | null;
   orderLike: boolean;
+  intentItems?: IntentPhraseIntentItem[];
   matched: IntentPhrasePreviewMatch[];
   unmatched: string[];
   disambiguation: {
@@ -23,6 +49,7 @@ export interface IntentPhrasePreview {
   botReply: string | null;
   llmEnabled: boolean;
   llmAllowed: boolean;
+  learnedMeta?: IntentLearnedMeta | null;
 }
 
 export interface IntentPhraseSaveItem {
@@ -30,6 +57,19 @@ export interface IntentPhraseSaveItem {
   name: string;
   qty: number;
   removeAll?: boolean;
+  rawName?: string;
+  selections?: OptionSelections;
+}
+
+export interface IntentCorrectionPayload {
+  parsedBy: string | null;
+  outcome: string;
+  originalItems: {
+    name: string;
+    qty: number;
+    menuItemId: string | null;
+    rawName?: string | null;
+  }[];
 }
 
 async function authHeaders(): Promise<HeadersInit> {
@@ -49,19 +89,21 @@ export async function previewIntentPhrase(
     sampleItems,
     context = 'basket',
     operation,
-    draftItems,
+    items,
   }: {
     llm?: boolean;
     sampleItems?: IntentPhraseSaveItem[];
     context?: 'basket' | 'proposal';
     operation?: IntentLearningOperation;
-    draftItems?: IntentPhraseSaveItem[];
+    items?: IntentPhraseSaveItem[];
   } = {},
 ): Promise<IntentPhrasePreview> {
   const res = await fetch(`${API_URL}/api/businesses/${businessId}/intent-phrases/preview`, {
     method: 'POST',
     headers: await authHeaders(),
-    body: JSON.stringify({ text, llm, sampleItems, context, operation, items: draftItems }),
+    body: JSON.stringify({
+      text, llm, sampleItems, context, operation, items,
+    }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error ?? 'Preview failed');
@@ -73,13 +115,14 @@ export async function saveIntentPhrase(
   text: string,
   items: IntentPhraseSaveItem[],
   operation: IntentLearningOperation = 'add',
-): Promise<{ id: string; textKey: string; operation: IntentLearningOperation }> {
+  correction?: IntentCorrectionPayload,
+): Promise<{ id: string; textKey: string; operation: IntentLearningOperation; source?: string }> {
   const res = await fetch(`${API_URL}/api/businesses/${businessId}/intent-phrases`, {
     method: 'POST',
     headers: await authHeaders(),
-    body: JSON.stringify({ text, items, operation }),
+    body: JSON.stringify({ text, items, operation, correction }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error ?? 'Save failed');
-  return data as { id: string; textKey: string; operation: IntentLearningOperation };
+  return data as { id: string; textKey: string; operation: IntentLearningOperation; source?: string };
 }

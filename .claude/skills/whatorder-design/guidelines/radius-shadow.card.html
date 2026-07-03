@@ -1,0 +1,26 @@
+<!-- @dsCard group="Spacing" viewport="700x160" name="Radius & shadow" subtitle="Corner radii and elevation" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; font-family: var(--font-sans); background: var(--surface-app); padding: 1.5rem 1.75rem; }
+  .row { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: flex-start; }
+  .box { width: 88px; height: 60px; background: var(--surface); border: 1px solid var(--surface-border); display: flex; align-items: center; justify-content: center; }
+  .tok { font-family: var(--font-mono); font-size: 0.64rem; color: var(--text-quiet); margin: 0.4rem 0 0; }
+  .val { font-size: 0.64rem; color: var(--text-tertiary); margin: 0.1rem 0 0; }
+  .u { text-align: center; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="u"><div class="box" style="border-radius:var(--radius-sm)"></div><p class="tok">radius-sm</p><p class="val">6px</p></div>
+    <div class="u"><div class="box" style="border-radius:var(--radius-md)"></div><p class="tok">radius-md</p><p class="val">8px</p></div>
+    <div class="u"><div class="box" style="border-radius:var(--radius-xl)"></div><p class="tok">radius-xl</p><p class="val">12px</p></div>
+    <div class="u"><div class="box" style="border-radius:var(--radius-pill);width:60px"></div><p class="tok">radius-pill</p><p class="val">999px</p></div>
+    <div class="u"><div class="box" style="border-radius:var(--radius-xl);border:none;box-shadow:var(--shadow-card)"></div><p class="tok">shadow-card</p><p class="val">soft</p></div>
+    <div class="u"><div class="box" style="border-radius:var(--radius-lg);border:none;box-shadow:var(--shadow-dialog)"></div><p class="tok">shadow-dialog</p><p class="val">modal</p></div>
+  </div>
+</body>
+</html>
