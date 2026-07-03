@@ -16,6 +16,23 @@ export interface IntentPhraseIntentItem {
   qty: number;
 }
 
+export interface IntentLearnedMeta {
+  id: string;
+  textKey: string;
+  hitCount: number;
+  source: string | null;
+  operation: IntentLearningOperation;
+  aliasesPromotedAt: string | null;
+  items: {
+    menuItemId: string | null;
+    name: string;
+    qty: number;
+    removeAll?: boolean;
+    rawName?: string | null;
+    selections?: OptionSelections | null;
+  }[];
+}
+
 export interface IntentPhrasePreview {
   outcome: string;
   operation?: IntentLearningOperation;
@@ -32,6 +49,7 @@ export interface IntentPhrasePreview {
   botReply: string | null;
   llmEnabled: boolean;
   llmAllowed: boolean;
+  learnedMeta?: IntentLearnedMeta | null;
 }
 
 export interface IntentPhraseSaveItem {

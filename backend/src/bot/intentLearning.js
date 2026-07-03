@@ -154,6 +154,71 @@ async function loadExactKey(businessId, textKey) {
   }
 }
 
+async function loadLearnedDoc(businessId, textKey) {
+  if (!businessId || !textKey) return null;
+  const docId = docIdForKey(textKey);
+  try {
+    const snap = await intentLearningRef(businessId, docId).get();
+    if (!snap.exists) return null;
+    const data = snap.data();
+    const items = sanitizeItems(data?.items);
+    if (!items.length) return null;
+    return {
+      docId,
+      textKey: String(data.textKey ?? textKey),
+      data,
+      items,
+    };
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(`[intent-learning] doc load failed: ${err.message}`);
+    }
+    return null;
+  }
+}
+
+function toLearnedMeta({ docId, textKey, data, items }) {
+  return {
+    id: docId,
+    textKey,
+    hitCount: Number(data.hitCount) || 0,
+    source: data.source ?? null,
+    operation: normalizeOperation(data.operation),
+    items,
+    aliasesPromotedAt: data.aliasesPromotedAt ?? null,
+  };
+}
+
+/**
+ * Owner playground: existing learning row for phrase (exact, variant, or fuzzy key).
+ */
+async function lookupLearnedMeta(businessId, rawText) {
+  if (!businessId || !rawText?.trim()) return null;
+
+  const variants = intentLearnKeyVariants(rawText);
+  for (const textKey of variants) {
+    const hit = await loadLearnedDoc(businessId, textKey);
+    if (hit) return toLearnedMeta(hit);
+  }
+
+  const canonical = intentLearnKey(rawText);
+  for (const cachedKey of memoryKeys(businessId)) {
+    if (keysAreFuzzyMatch(canonical, cachedKey)) {
+      const hit = await loadLearnedDoc(businessId, cachedKey);
+      if (hit) return toLearnedMeta(hit);
+    }
+  }
+
+  await loadFuzzyIndexFromFirestore(businessId);
+  for (const cachedKey of memoryKeys(businessId)) {
+    if (keysAreFuzzyMatch(canonical, cachedKey)) {
+      const hit = await loadLearnedDoc(businessId, cachedKey);
+      if (hit) return toLearnedMeta(hit);
+    }
+  }
+  return null;
+}
+
 /**
  * Tier B → Tier A: return a prior validated parse (exact, legacy key, or fuzzy).
  * @returns {Promise<{ items: object[], partySize: number|null, operation: string }|null>}
@@ -346,6 +411,7 @@ module.exports = {
   intentLearnKey,
   intentLearnKeyVariants,
   lookupLearnedIntent,
+  lookupLearnedMeta,
   rememberValidatedIntent,
   rememberValidatedLlmIntent,
   recordLearnedIntentHit,

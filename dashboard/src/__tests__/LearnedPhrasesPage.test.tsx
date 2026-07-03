@@ -107,7 +107,7 @@ describe('LearnedPhrasesPage', () => {
         sampleItems: undefined,
         context: 'basket',
         operation: 'add',
-        draftItems: undefined,
+        items: undefined,
       });
     });
     expect(screen.getByText(/Would propose order/)).toBeInTheDocument();

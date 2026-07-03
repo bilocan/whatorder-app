@@ -99,7 +99,7 @@ describe('IntentPlaygroundPage', () => {
 
     await waitFor(() => expect(mockPreview).toHaveBeenCalled());
 
-    const teachBtn = screen.getByRole('button', { name: /teach bot|bot trainieren|botu öğret/i });
+    const teachBtn = screen.getByRole('button', { name: /teach bot|bot trainieren|botu eğit/i });
     expect(teachBtn).toBeDisabled();
 
     const selects = screen.getAllByRole('combobox');
@@ -108,5 +108,39 @@ describe('IntentPlaygroundPage', () => {
     await waitFor(() => {
       expect(teachBtn).not.toBeDisabled();
     });
+  });
+
+  it('shows already trained badge and keeps teach disabled when draft matches stored learning', async () => {
+    mockPreview.mockResolvedValue({
+      ...PARSE_RESULT,
+      parsedBy: 'learned',
+      learnedMeta: {
+        id: 'hash1',
+        textKey: '2 doner',
+        hitCount: 5,
+        source: 'manual_correction',
+        operation: 'add',
+        aliasesPromotedAt: null,
+        items: [{
+          menuItemId: 'd1',
+          name: 'Döner',
+          qty: 1,
+          rawName: 'döner',
+        }],
+      },
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(screen.getByPlaceholderText(/2 Döner/i), '2 doner');
+    await user.click(screen.getByRole('button', { name: /parse|analysieren|ayrıştır/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/already trained|bereits trainiert|zaten öğretildi/i)).toBeInTheDocument();
+      expect(screen.getByText(/already saved|bereits gespeichert|zaten kayıtlı/i)).toBeInTheDocument();
+    });
+
+    const teachBtn = screen.getByRole('button', { name: /teach bot|bot trainieren|botu eğit/i });
+    expect(teachBtn).toBeDisabled();
   });
 });

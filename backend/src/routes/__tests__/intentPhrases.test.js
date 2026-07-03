@@ -16,16 +16,18 @@ jest.mock('../../bot/intentSandbox', () => ({
 jest.mock('../../bot/intentLearning', () => ({
   saveOwnerIntentLearning: jest.fn(),
   saveManualIntentLearning: jest.fn(),
+  lookupLearnedMeta: jest.fn(),
 }));
 
 const app = require('../../index');
 const { getMenuContext } = require('../../bot/menuService');
 const { evaluateIntent } = require('../../bot/intentSandbox');
-const { saveOwnerIntentLearning } = require('../../bot/intentLearning');
+const { saveOwnerIntentLearning, lookupLearnedMeta } = require('../../bot/intentLearning');
 
 describe('intentPhrases routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    lookupLearnedMeta.mockResolvedValue(null);
     getMenuContext.mockResolvedValue({
       menu: [{ id: 'a1', name: 'Ayran', price: 2, available: true }],
       menuMatch: null,
@@ -55,6 +57,37 @@ describe('intentPhrases routes', () => {
       'ayran bitte',
       expect.objectContaining({ businessId: 'biz_test', llm: false }),
     );
+    expect(lookupLearnedMeta).toHaveBeenCalledWith('biz_test', 'ayran bitte');
+  });
+
+  test('POST preview includes learnedMeta when learning exists', async () => {
+    evaluateIntent.mockResolvedValue({
+      outcome: 'proposal',
+      orderLike: true,
+      intent: { parsedBy: 'learned' },
+      matched: [{ name: 'Döner', qty: 2, menuItemId: 'd1' }],
+      unmatched: [],
+    });
+    lookupLearnedMeta.mockResolvedValue({
+      id: 'hash1',
+      textKey: '2 doner',
+      hitCount: 7,
+      source: 'manual_correction',
+      operation: 'add',
+      items: [{ menuItemId: 'd1', name: 'Döner', qty: 2 }],
+      aliasesPromotedAt: null,
+    });
+
+    const res = await request(app)
+      .post('/api/businesses/biz_test/intent-phrases/preview')
+      .send({ text: '2 doner' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.learnedMeta).toMatchObject({
+      id: 'hash1',
+      hitCount: 7,
+      operation: 'add',
+    });
   });
 
   test('POST preview requires text', async () => {

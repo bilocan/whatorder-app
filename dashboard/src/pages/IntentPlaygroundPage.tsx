@@ -12,23 +12,22 @@ import {
   previewIntentPhrase,
   saveIntentPhrase,
   type IntentPhrasePreview,
-  type IntentPhraseSaveItem,
   type IntentCorrectionPayload,
 } from '../lib/intentPhrasesApi';
 import type { IntentLearningOperation, MenuItem } from '../types';
 import ToppingPicker from '../components/intent-playground/ToppingPicker';
-import type { OptionSelections } from '../lib/optionSelections';
-import { selectionsEqual, selectionsForMenuItem } from '../lib/optionSelections';
+import {
+  type DraftLine,
+  buildSaveItems,
+  canTeachFromReason,
+  draftsEqual,
+  getTeachBlockReason,
+  hydrateDraftLines,
+} from '../lib/intentPlaygroundUtils';
+import type { IntentLearnedMeta } from '../lib/intentPhrasesApi';
+import { selectionsForMenuItem } from '../lib/optionSelections';
 
-export type DraftLine = {
-  id: string;
-  menuItemId: string;
-  name: string;
-  qty: number;
-  rawIntentName?: string;
-  selections?: OptionSelections;
-  removeAll?: boolean;
-};
+export type { DraftLine };
 
 const BAD_OUTCOMES = new Set(['no_match', 'llm_failed', 'low_confidence', 'not_order']);
 
@@ -92,34 +91,6 @@ function draftFromPreview(preview: IntentPhrasePreview): DraftLine[] {
     }));
   }
   return [{ id: newLineId(), menuItemId: '', name: '', qty: 1 }];
-}
-
-function draftsEqual(a: DraftLine[], b: DraftLine[]) {
-  if (a.length !== b.length) return false;
-  return a.every((line, idx) => {
-    const other = b[idx];
-    return line.menuItemId === other.menuItemId
-      && line.qty === other.qty
-      && line.removeAll === other.removeAll
-      && selectionsEqual(line.selections, other.selections);
-  });
-}
-
-function buildSaveItems(lines: DraftLine[], menuById: Map<string, MenuItem>): IntentPhraseSaveItem[] {
-  return lines
-    .filter((l) => l.menuItemId)
-    .map((l) => {
-      const sku = menuById.get(l.menuItemId);
-      const item: IntentPhraseSaveItem = {
-        menuItemId: l.menuItemId,
-        name: sku?.name ?? l.name,
-        qty: l.qty,
-      };
-      if (l.removeAll) item.removeAll = true;
-      if (l.rawIntentName) item.rawName = l.rawIntentName;
-      if (l.selections && Object.keys(l.selections).length) item.selections = l.selections;
-      return item;
-    });
 }
 
 function buildCorrection(
@@ -189,6 +160,18 @@ export default function IntentPlaygroundPage() {
     return unsub;
   }, [businessId]);
 
+  useEffect(() => {
+    if (!parseSnapshot || menuItems.length === 0) return;
+    setDraft((prev) => {
+      const next = hydrateDraftLines(prev, menuById);
+      return draftsEqual(prev, next) ? prev : next;
+    });
+    setInitialDraft((prev) => {
+      const next = hydrateDraftLines(prev, menuById);
+      return draftsEqual(prev, next) ? prev : next;
+    });
+  }, [menuItems, menuById, parseSnapshot]);
+
   async function runPreview(
     text: string,
     lines: DraftLine[],
@@ -217,7 +200,7 @@ export default function IntentPlaygroundPage() {
 
     if (opts.isParse) {
       setParseSnapshot(result);
-      const nextDraft = draftFromPreview(result);
+      const nextDraft = hydrateDraftLines(draftFromPreview(result), menuById);
       setInitialDraft(nextDraft);
       setDraft(nextDraft);
       skipDraftPreview.current = true;
@@ -259,12 +242,21 @@ export default function IntentPlaygroundPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, phraseText, operation, useLlm, parseSnapshot]);
 
-  const canTeach = useMemo(() => {
-    if (!phraseText.trim() || !draft.some((l) => l.menuItemId)) return false;
-    if (parseSnapshot && BAD_OUTCOMES.has(parseSnapshot.outcome)) return true;
-    if (!parseSnapshot) return false;
-    return !draftsEqual(draft, initialDraft);
-  }, [phraseText, draft, parseSnapshot, initialDraft]);
+  const learnedMeta: IntentLearnedMeta | null | undefined = (
+    preview?.learnedMeta ?? parseSnapshot?.learnedMeta
+  );
+
+  const teachReason = useMemo(() => getTeachBlockReason({
+    phraseText,
+    parseOutcome: parseSnapshot?.outcome,
+    draft,
+    initialDraft,
+    operation,
+    learnedMeta,
+    menuById,
+  }), [phraseText, parseSnapshot, draft, initialDraft, operation, learnedMeta, menuById]);
+
+  const canTeach = canTeachFromReason(teachReason);
 
   async function handleTeach() {
     if (!businessId || !canTeach) return;
@@ -417,6 +409,24 @@ export default function IntentPlaygroundPage() {
                 </>
               )}
             </div>
+            {learnedMeta && (
+              <div style={{
+                fontSize: '0.8rem',
+                marginBottom: '0.65rem',
+                padding: '0.4rem 0.6rem',
+                background: '#ecfdf5',
+                border: '1px solid #a7f3d0',
+                borderRadius: 6,
+                color: '#047857',
+              }}
+              >
+                {t('intentPlayground.alreadyTrained', { hits: learnedMeta.hitCount })}
+                {' '}
+                <Link to="/learned-phrases" style={{ color: '#047857' }}>
+                  {t('intentPlayground.viewPhrases')}
+                </Link>
+              </div>
+            )}
             {parseSnapshot?.intentItems && parseSnapshot.intentItems.length > 0 && (
               <div style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
                 <strong>{t('intentPlayground.intentLines')}</strong>
@@ -571,26 +581,41 @@ export default function IntentPlaygroundPage() {
         </section>
       )}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', maxWidth: 960 }}>
-        <button
-          type="button"
-          style={btnPrimary}
-          disabled={teaching || !canTeach}
-          onClick={() => void handleTeach()}
+      <section style={{ maxWidth: 960, marginTop: '0.5rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+          <button
+            type="button"
+            style={{
+              ...btnPrimary,
+              opacity: teaching || !canTeach ? 0.45 : 1,
+              cursor: teaching || !canTeach ? 'not-allowed' : 'pointer',
+            }}
+            disabled={teaching || !canTeach}
+            onClick={() => void handleTeach()}
+          >
+            {teaching ? t('intentPlayground.teaching') : t('intentPlayground.teachBot')}
+          </button>
+          {success && (
+            <span style={{ fontSize: '0.85rem', color: '#16a34a' }}>
+              {success}
+              {' '}
+              <Link to="/learned-phrases">{t('intentPlayground.viewPhrases')}</Link>
+            </span>
+          )}
+          {error && (
+            <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{error}</span>
+          )}
+        </div>
+        <p style={{
+          margin: '0.5rem 0 0',
+          fontSize: '0.82rem',
+          color: canTeach ? '#047857' : '#64748b',
+          maxWidth: 640,
+        }}
         >
-          {teaching ? t('intentPlayground.teaching') : t('intentPlayground.teachBot')}
-        </button>
-        {success && (
-          <span style={{ fontSize: '0.85rem', color: '#16a34a' }}>
-            {success}
-            {' '}
-            <Link to="/learned-phrases">{t('intentPlayground.viewPhrases')}</Link>
-          </span>
-        )}
-        {error && (
-          <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{error}</span>
-        )}
-      </div>
+          {t(`intentPlayground.teachHint.${teachReason}`)}
+        </p>
+      </section>
     </div>
   );
 }

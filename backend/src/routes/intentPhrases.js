@@ -2,7 +2,7 @@ const express = require('express');
 const { requireOwnerOfBusiness } = require('../lib/dashboardAuth');
 const { getMenuContext } = require('../bot/menuService');
 const { evaluateIntent } = require('../bot/intentSandbox');
-const { saveOwnerIntentLearning } = require('../bot/intentLearning');
+const { saveOwnerIntentLearning, lookupLearnedMeta } = require('../bot/intentLearning');
 const {
   normalizeDraftItems,
   buildAddDraftPreview,
@@ -44,6 +44,26 @@ function slimPreview(result) {
     botReply: result.botReply ?? null,
     llmEnabled: result.llmEnabled ?? false,
     llmAllowed: result.llmAllowed ?? false,
+  };
+}
+
+function slimLearnedMeta(meta) {
+  if (!meta) return null;
+  return {
+    id: meta.id,
+    textKey: meta.textKey,
+    hitCount: meta.hitCount ?? 0,
+    source: meta.source ?? null,
+    operation: meta.operation ?? 'add',
+    aliasesPromotedAt: meta.aliasesPromotedAt ?? null,
+    items: (meta.items ?? []).map((i) => ({
+      menuItemId: i.menuItemId ?? null,
+      name: i.name,
+      qty: i.qty ?? 1,
+      removeAll: !!i.removeAll,
+      rawName: i.rawName ?? null,
+      selections: i.selections ?? null,
+    })),
   };
 }
 
@@ -141,7 +161,11 @@ router.post(
           botReply: draftPreview.botReply,
         };
       }
-      res.json(slimPreview(result));
+      const learnedMeta = await lookupLearnedMeta(businessId, String(text).trim());
+      const body = slimPreview(result);
+      const slimMeta = slimLearnedMeta(learnedMeta);
+      if (slimMeta) body.learnedMeta = slimMeta;
+      res.json(body);
     } catch (err) {
       console.error('[intent-phrases] preview failed:', err);
       res.status(500).json({ error: 'Preview failed' });

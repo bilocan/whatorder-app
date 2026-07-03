@@ -262,7 +262,16 @@
     "teaching": "Saving…",
     "teachSuccess": "Bot learned “{{key}}”",
     "teachError": "Could not save — try again",
-    "viewPhrases": "View saved phrases"
+    "viewPhrases": "View saved phrases",
+    "alreadyTrained": "Already trained (used {{hits}}×).",
+    "teachHint": {
+      "needsParse": "Click Parse first, then review your correction.",
+      "needsSku": "Choose a menu item for each line.",
+      "unchanged": "The bot already got this right. Change item, quantity, or toppings to save something new.",
+      "alreadySaved": "This correction is already saved. Change something to update what the bot learned.",
+      "readyMisunderstood": "The bot did not understand this phrase. Save now so it learns for next time.",
+      "readyCorrection": "Save your correction — the bot will remember this phrase next time."
+    }
   },
   "menu": {
     "title": "Menu",
