@@ -172,7 +172,7 @@ export interface IntentLearning {
   items: IntentLearningItem[];
   operation?: IntentLearningOperation;
   hitCount?: number;
-  source?: 'llm' | 'rules' | 'manual';
+  source?: 'llm' | 'rules' | 'manual' | 'manual_correction';
   partySize?: number | null;
   aliasesPromotedAt?: Timestamp | string | null;
   promotedAliases?: string[];
