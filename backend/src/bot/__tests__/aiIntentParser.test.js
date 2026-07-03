@@ -5,6 +5,7 @@ const mockLookupLearnedIntent = jest.fn().mockResolvedValue(null);
 jest.mock('../intentLearning', () => ({
   lookupLearnedIntent: (...args) => mockLookupLearnedIntent(...args),
   normalizeOperation: (op) => (op === 'remove' ? 'remove' : 'add'),
+  persistReboundLearnedItems: jest.fn(),
   rememberValidatedIntent: jest.fn(),
   rememberValidatedLlmIntent: jest.fn(),
   _resetIntentLearningMemory: jest.fn(),

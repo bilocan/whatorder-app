@@ -159,9 +159,12 @@
   },
   "learnedPhrases": {
     "title": "Gelernte Phrasen",
-    "description": "Formulierungen, die Kunden getippt haben und der Bot nach bestätigter Bestellung gespeichert hat. Löschen entfernt nur die Wiederholungs-Abkürzung. Beworbene Phrasen stehen zusätzlich in Menü-Aliassen — dort im Menü bearbeiten.",
+    "description": "Gespeicherte Phrasen, die der Bot auf WhatsApp wiederverwendet — nach bestätigten Bestellungen, Inhaber-Korrekturen oder manuellem Training. Suchen, Treffer prüfen oder löschen. Neue Phrasen oder Korrekturen über Bot trainieren.",
+    "playgroundHint": "Kundenformulierung eingeben, Bot-Verständnis prüfen, SKU, Menge oder Beilagen korrigieren, dann den Bot trainieren.",
+    "openPlayground": "Bot trainieren öffnen",
+    "rowOpenPlayground": "Öffnen",
     "searchPlaceholder": "Phrase oder Artikel suchen…",
-    "empty": "Noch keine gelernten Phrasen. Sie erscheinen nach bestätigten Bestellungen.",
+    "empty": "Noch keine gelernten Phrasen. Über Bot trainieren hinzufügen, oder sie erscheinen nach bestätigten Bestellungen.",
     "loadError": "Phrasen konnten nicht aus Firestore geladen werden. Falls die Seite neu ist: firestore.rules deployen.",
     "col": {
       "phrase": "Kundenphrase",

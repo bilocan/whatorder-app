@@ -4,6 +4,7 @@ const { intentLearningRef } = require('../lib/collections');
 const { intentLearnKey, intentLearnKeyVariants } = require('./intentNormalize');
 const { levenshtein, maxTypoDistance } = require('./menuSynonyms');
 const { scheduleAliasPromotion } = require('./intentLearningPromote');
+const { learnedItemIdsChanged } = require('./intentLearningRebind');
 
 /** In-process L1: businessId → Map(textKey → intent payload). */
 const memoryByBusiness = new Map();
@@ -187,6 +188,28 @@ function toLearnedMeta({ docId, textKey, data, items }) {
     items,
     aliasesPromotedAt: data.aliasesPromotedAt ?? null,
   };
+}
+
+async function persistReboundLearnedItems(businessId, textKey, items) {
+  if (!businessId || !textKey) return;
+  const sanitized = sanitizeItems(items);
+  if (!sanitized.length) return;
+
+  const docId = docIdForKey(textKey);
+  try {
+    await intentLearningRef(businessId, docId).set({
+      items: sanitized,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    const cached = memoryGet(businessId, textKey);
+    if (cached) {
+      memorySet(businessId, textKey, { ...cached, items: sanitized });
+    }
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(`[intent-learning] rebind persist failed: ${err.message}`);
+    }
+  }
 }
 
 /**
@@ -412,6 +435,7 @@ module.exports = {
   intentLearnKeyVariants,
   lookupLearnedIntent,
   lookupLearnedMeta,
+  persistReboundLearnedItems,
   rememberValidatedIntent,
   rememberValidatedLlmIntent,
   recordLearnedIntentHit,

@@ -1,20 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  collection, onSnapshot, deleteDoc, doc, query, where,
+  collection, onSnapshot, deleteDoc, doc,
 } from 'firebase/firestore';
 import type { TFunction } from 'i18next';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useConfirm } from '../components/ConfirmDialog';
 import { formatIntentLearningItems } from '../lib/formatIntentLearning';
-import { inferPhraseOperation } from '../lib/inferPhraseOperation';
-import {
-  previewIntentPhrase,
-  saveIntentPhrase,
-  type IntentPhrasePreview,
-} from '../lib/intentPhrasesApi';
-import type { IntentLearning, IntentLearningOperation, MenuItem } from '../types';
+import type { IntentLearning } from '../types';
 import { toDate } from '../types';
 
 const TrashIcon = () => (
@@ -35,6 +30,8 @@ const btnPrimary: React.CSSProperties = {
   cursor: 'pointer',
   fontWeight: 600,
   fontSize: '0.85rem',
+  textDecoration: 'none',
+  display: 'inline-block',
 };
 
 const btnSecondary: React.CSSProperties = {
@@ -44,6 +41,9 @@ const btnSecondary: React.CSSProperties = {
   borderRadius: 6,
   cursor: 'pointer',
   fontSize: '0.85rem',
+  textDecoration: 'none',
+  color: 'inherit',
+  display: 'inline-block',
 };
 
 const btnIconDelete: React.CSSProperties = {
@@ -78,70 +78,8 @@ function formatRelativeTime(d: Date, t: TFunction): string {
   return d.toLocaleDateString();
 }
 
-function outcomeLabel(outcome: string, t: TFunction): string {
-  const key = `learnedPhrases.test.outcome.${outcome}`;
-  const translated = t(key);
-  return translated === key ? outcome : translated;
-}
-
-function PreviewPanel({
-  preview, t, operation,
-}: {
-  preview: IntentPhrasePreview;
-  t: TFunction;
-  operation: IntentLearningOperation;
-}) {
-  return (
-    <div style={{
-      marginTop: '0.75rem',
-      padding: '0.75rem 1rem',
-      background: '#f8fafc',
-      border: '1px solid #e2e8f0',
-      borderRadius: 8,
-      fontSize: '0.88rem',
-    }}
-    >
-      <div style={{ marginBottom: '0.35rem' }}>
-        <strong>{t('learnedPhrases.test.result')}</strong>
-        {' '}
-        {outcomeLabel(preview.outcome, t)}
-        {preview.parsedBy && (
-          <span style={{ color: '#64748b' }}>
-            {' '}
-            ·
-            {' '}
-            {t('learnedPhrases.test.parsedBy', { source: preview.parsedBy })}
-            {preview.operation === 'remove' || operation === 'remove'
-              ? ` · ${t('learnedPhrases.operation.remove')}`
-              : ''}
-          </span>
-        )}
-      </div>
-      {preview.matched.length > 0 && (
-        <div style={{ color: '#334155' }}>
-          {(preview.operation === 'remove' || operation === 'remove')
-            ? t('learnedPhrases.test.wouldRemove')
-            : t('learnedPhrases.test.matched')}
-          :
-          {' '}
-          {preview.matched.map((m) => `${m.qty > 1 ? `${m.qty}× ` : ''}${m.name}`).join(', ')}
-        </div>
-      )}
-      {preview.unmatched?.length > 0 && (
-        <div style={{ color: '#b45309' }}>
-          {t('learnedPhrases.test.unmatched')}
-          :
-          {' '}
-          {preview.unmatched.join(', ')}
-        </div>
-      )}
-      {preview.botReply && (
-        <div style={{ marginTop: '0.5rem', color: '#475569', whiteSpace: 'pre-wrap' }}>
-          {preview.botReply}
-        </div>
-      )}
-    </div>
-  );
+function playgroundPhraseLink(phrase: string): string {
+  return `/intent-playground?phrase=${encodeURIComponent(phrase)}`;
 }
 
 export default function LearnedPhrasesPage() {
@@ -149,22 +87,8 @@ export default function LearnedPhrasesPage() {
   const confirmDialog = useConfirm();
   const { businessId } = useAuth();
   const [rows, setRows] = useState<IntentLearning[]>([]);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [search, setSearch] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const [phraseText, setPhraseText] = useState('');
-  const [operation, setOperation] = useState<IntentLearningOperation>('add');
-  const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
-  const [itemQty, setItemQty] = useState<Record<string, number>>({});
-  const [removeAllIds, setRemoveAllIds] = useState<Record<string, boolean>>({});
-  const [useLlm, setUseLlm] = useState(false);
-  const [preview, setPreview] = useState<IntentPhrasePreview | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const [testing, setTesting] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [saveIsError, setSaveIsError] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -183,9 +107,9 @@ export default function LearnedPhrasesPage() {
           return {
             id: d.id,
             textKey: String(data.textKey ?? ''),
-          items: Array.isArray(data.items) ? data.items : [],
-          operation: data.operation === 'remove' ? 'remove' : 'add',
-          hitCount: Number(data.hitCount) || 0,
+            items: Array.isArray(data.items) ? data.items : [],
+            operation: data.operation === 'remove' ? 'remove' : 'add',
+            hitCount: Number(data.hitCount) || 0,
             source: data.source,
             partySize: data.partySize ?? null,
             aliasesPromotedAt: data.aliasesPromotedAt ?? null,
@@ -204,24 +128,6 @@ export default function LearnedPhrasesPage() {
     return unsub;
   }, [businessId, t]);
 
-  useEffect(() => {
-    if (!businessId) {
-      setMenuItems([]);
-      return undefined;
-    }
-    const q = query(
-      collection(db, 'businesses', businessId, 'menu'),
-      where('available', '==', true),
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const items = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() } as MenuItem))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      setMenuItems(items);
-    });
-    return unsub;
-  }, [businessId]);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = [...rows].sort((a, b) => (b.hitCount ?? 0) - (a.hitCount ?? 0)
@@ -237,114 +143,6 @@ export default function LearnedPhrasesPage() {
       return hay.includes(q);
     });
   }, [rows, search]);
-
-  const selectedMenuItems = menuItems.filter((m) => selectedIds[m.id]);
-
-  function buildRemoveDraftItems(items: MenuItem[]) {
-    return items.map((m) => ({
-      menuItemId: m.id,
-      name: m.name,
-      qty: removeAllIds[m.id] ? 1 : Math.min(99, Math.max(1, itemQty[m.id] ?? 1)),
-      removeAll: !!removeAllIds[m.id],
-    }));
-  }
-
-  function buildRemoveSampleBasket(items: MenuItem[]) {
-    return items.map((m) => {
-      const removeQty = removeAllIds[m.id] ? 1 : Math.min(99, Math.max(1, itemQty[m.id] ?? 1));
-      const basketQty = removeAllIds[m.id] ? Math.max(2, removeQty) : Math.max(2, removeQty + 1);
-      return { menuItemId: m.id, name: m.name, qty: basketQty };
-    });
-  }
-
-  function applyMatchedToSelection(matched: IntentPhrasePreview['matched']) {
-    const next: Record<string, boolean> = { ...selectedIds };
-    for (const line of matched) {
-      if (line.menuItemId) next[line.menuItemId] = true;
-      else {
-        const byName = menuItems.find((m) => m.name === line.name);
-        if (byName) next[byName.id] = true;
-      }
-    }
-    setSelectedIds(next);
-  }
-
-  async function runTest(text: string, opts: { llm?: boolean; op?: IntentLearningOperation } = {}) {
-    if (!businessId || !text.trim()) return;
-    const inferred = inferPhraseOperation(text.trim());
-    const op = inferred === 'remove' ? 'remove' : (opts.op ?? operation);
-    if (inferred === 'remove' && operation !== 'remove') setOperation('remove');
-    setTesting(true);
-    setPreviewError(null);
-    setPreview(null);
-    setSaveMessage(null);
-    try {
-      const row = rows.find((r) => r.textKey === text.trim());
-      const sampleSource = selectedMenuItems.length
-        ? selectedMenuItems
-        : (op === 'remove' && row?.items?.length
-          ? menuItems.filter((m) => row.items.some((i) => i.menuItemId === m.id || i.name === m.name))
-          : []);
-      const sampleItems = op === 'remove' && sampleSource.length
-        ? buildRemoveSampleBasket(sampleSource)
-        : undefined;
-      const draftItems = op === 'remove' && sampleSource.length
-        ? buildRemoveDraftItems(sampleSource)
-        : undefined;
-      const result = await previewIntentPhrase(businessId, text.trim(), {
-        llm: opts.llm ?? useLlm,
-        sampleItems,
-        context: 'basket',
-        operation: op,
-        items: draftItems,
-      });
-      setPreview(result);
-      if (result.operation === 'remove') setOperation('remove');
-      if (result.matched.length && op !== 'remove') applyMatchedToSelection(result.matched);
-    } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : t('learnedPhrases.test.error'));
-    } finally {
-      setTesting(false);
-    }
-  }
-
-  async function handleSave() {
-    if (!businessId || !phraseText.trim() || !selectedMenuItems.length) return;
-    setSaving(true);
-    setSaveMessage(null);
-    try {
-      const items = operation === 'remove'
-        ? buildRemoveDraftItems(selectedMenuItems)
-        : selectedMenuItems.map((m) => ({ menuItemId: m.id, name: m.name, qty: 1 }));
-      const saved = await saveIntentPhrase(businessId, phraseText.trim(), items, operation);
-      const nowIso = new Date().toISOString();
-      setRows((prev) => {
-        const row: IntentLearning = {
-          id: saved.id,
-          textKey: saved.textKey,
-          items,
-          operation: saved.operation ?? operation,
-          hitCount: 1,
-          source: 'manual',
-          partySize: null,
-          aliasesPromotedAt: null,
-          updatedAt: nowIso,
-          createdAt: nowIso,
-        };
-        return [row, ...prev.filter((r) => r.id !== saved.id)];
-      });
-      setSaveMessage(t('learnedPhrases.add.saved', { key: saved.textKey }));
-      setSaveIsError(false);
-      setPhraseText('');
-      setSelectedIds({});
-      setPreview(null);
-    } catch (err) {
-      setSaveMessage(err instanceof Error ? err.message : t('learnedPhrases.add.saveError'));
-      setSaveIsError(true);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function handleDelete(row: IntentLearning) {
     if (!businessId) return;
@@ -384,144 +182,12 @@ export default function LearnedPhrasesPage() {
         maxWidth: 720,
       }}
       >
-        <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>{t('learnedPhrases.add.title')}</h3>
-        <p style={{ fontSize: '0.82rem', color: '#666', marginTop: 0 }}>{t('learnedPhrases.add.hint')}</p>
-
-        <label style={{ display: 'block', fontSize: '0.78rem', color: '#666', marginBottom: '0.25rem' }}>
-          {t('learnedPhrases.add.phraseLabel')}
-        </label>
-        <input
-          type="text"
-          value={phraseText}
-          onChange={(e) => {
-            const v = e.target.value;
-            setPhraseText(v);
-            if (inferPhraseOperation(v) === 'remove') setOperation('remove');
-          }}
-          placeholder={t('learnedPhrases.add.phrasePlaceholder')}
-          style={{ ...inputStyle, marginBottom: '0.75rem' }}
-        />
-
-        <div style={{ fontSize: '0.78rem', color: '#666', marginBottom: '0.35rem' }}>
-          {t('learnedPhrases.add.operationLabel')}
-        </div>
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem', fontSize: '0.88rem' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
-            <input
-              type="radio"
-              name="intent-operation"
-              checked={operation === 'add'}
-              onChange={() => setOperation('add')}
-            />
-            {t('learnedPhrases.operation.add')}
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
-            <input
-              type="radio"
-              name="intent-operation"
-              checked={operation === 'remove'}
-              onChange={() => setOperation('remove')}
-            />
-            {t('learnedPhrases.operation.remove')}
-          </label>
-        </div>
-        {operation === 'remove' && (
-          <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 0.75rem' }}>
-            {t('learnedPhrases.add.removeHint')}
-          </p>
-        )}
-
-        <div style={{ fontSize: '0.78rem', color: '#666', marginBottom: '0.35rem' }}>
-          {operation === 'remove'
-            ? t('learnedPhrases.add.itemsLabelRemove')
-            : t('learnedPhrases.add.itemsLabel')}
-        </div>
-        <div style={{
-          maxHeight: 160,
-          overflowY: 'auto',
-          border: '1px solid #eee',
-          borderRadius: 6,
-          padding: '0.5rem',
-          marginBottom: '0.75rem',
-        }}
-        >
-          {menuItems.length === 0 ? (
-            <span style={{ color: '#888', fontSize: '0.85rem' }}>{t('learnedPhrases.add.noMenu')}</span>
-          ) : menuItems.map((item) => (
-            <div
-              key={item.id}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.2rem 0', fontSize: '0.88rem' }}
-            >
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', flex: 1 }}>
-                <input
-                  type="checkbox"
-                  checked={!!selectedIds[item.id]}
-                  onChange={(e) => setSelectedIds((prev) => ({ ...prev, [item.id]: e.target.checked }))}
-                />
-                <span>{item.name}</span>
-              </label>
-              {operation === 'remove' && selectedIds[item.id] && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem' }}>
-                  <input
-                    type="number"
-                    min={1}
-                    max={99}
-                    disabled={!!removeAllIds[item.id]}
-                    value={itemQty[item.id] ?? 1}
-                    onChange={(e) => setItemQty((prev) => ({
-                      ...prev,
-                      [item.id]: Math.min(99, Math.max(1, Number(e.target.value) || 1)),
-                    }))}
-                    style={{ width: 48, padding: '0.2rem 0.35rem', border: '1px solid #ddd', borderRadius: 4 }}
-                    aria-label={t('learnedPhrases.add.removeQty', { item: item.name })}
-                  />
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }}>
-                    <input
-                      type="checkbox"
-                      checked={!!removeAllIds[item.id]}
-                      onChange={(e) => setRemoveAllIds((prev) => ({ ...prev, [item.id]: e.target.checked }))}
-                    />
-                    {t('learnedPhrases.add.removeAll')}
-                  </label>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
-          <input type="checkbox" checked={useLlm} onChange={(e) => setUseLlm(e.target.checked)} />
-          {t('learnedPhrases.add.useLlm')}
-        </label>
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-          <button
-            type="button"
-            style={btnSecondary}
-            disabled={testing || !phraseText.trim()}
-            onClick={() => runTest(phraseText)}
-          >
-            {testing ? t('learnedPhrases.add.testing') : t('learnedPhrases.add.test')}
-          </button>
-          <button
-            type="button"
-            style={btnPrimary}
-            disabled={saving || !phraseText.trim() || !selectedMenuItems.length}
-            onClick={handleSave}
-          >
-            {saving ? t('learnedPhrases.add.saving') : t('learnedPhrases.add.save')}
-          </button>
-          {saveMessage && (
-            <span style={{ fontSize: '0.85rem', color: saveIsError ? '#ef4444' : '#16a34a' }}>
-              {saveMessage}
-            </span>
-          )}
-        </div>
-
-        {previewError && (
-          <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.75rem' }}>{previewError}</p>
-        )}
-        {preview && <PreviewPanel preview={preview} t={t} operation={operation} />}
+        <p style={{ fontSize: '0.88rem', color: '#475569', margin: '0 0 0.75rem' }}>
+          {t('learnedPhrases.playgroundHint')}
+        </p>
+        <Link to="/intent-playground" style={btnPrimary}>
+          {t('learnedPhrases.openPlayground')}
+        </Link>
       </section>
 
       {loadError && (
@@ -584,18 +250,12 @@ export default function LearnedPhrasesPage() {
                       {formatRelativeTime(updated, t)}
                     </td>
                     <td style={{ padding: '0.65rem 0', whiteSpace: 'nowrap' }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPhraseText(row.textKey);
-                          setOperation(row.operation ?? 'add');
-                          void runTest(row.textKey, { op: row.operation ?? 'add' });
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
+                      <Link
+                        to={playgroundPhraseLink(row.textKey)}
                         style={{ ...btnSecondary, padding: '0.25rem 0.5rem', marginRight: '0.35rem', fontSize: '0.78rem' }}
                       >
-                        {t('learnedPhrases.rowTest')}
-                      </button>
+                        {t('learnedPhrases.rowOpenPlayground')}
+                      </Link>
                       <button
                         type="button"
                         onClick={() => handleDelete(row)}

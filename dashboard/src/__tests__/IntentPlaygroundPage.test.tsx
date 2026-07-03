@@ -57,9 +57,9 @@ const PARSE_RESULT = {
   llmAllowed: false,
 };
 
-function renderPage() {
+function renderPage(initialRoute = '/intent-playground') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialRoute]}>
       <IntentPlaygroundPage />
     </MemoryRouter>,
   );
@@ -75,6 +75,11 @@ describe('IntentPlaygroundPage', () => {
       cb({ docs: MENU.map((data) => ({ id: data.id, data: () => data })) });
       return vi.fn();
     });
+  });
+
+  it('prefills phrase from query string', () => {
+    renderPage('/intent-playground?phrase=ayrani%20cikar');
+    expect(screen.getByDisplayValue('ayrani cikar')).toBeInTheDocument();
   });
 
   it('parses phrase and shows bot understanding', async () => {

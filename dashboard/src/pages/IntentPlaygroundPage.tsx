@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   collection, onSnapshot, query, where,
 } from 'firebase/firestore';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
@@ -20,6 +20,7 @@ import {
   type DraftLine,
   buildSaveItems,
   canTeachFromReason,
+  draftAfterParse,
   draftsEqual,
   getTeachBlockReason,
   hydrateDraftLines,
@@ -70,29 +71,6 @@ function outcomeLabel(outcome: string, t: TFunction): string {
   return translated === key ? outcome : translated;
 }
 
-function draftFromPreview(preview: IntentPhrasePreview): DraftLine[] {
-  if (preview.matched?.length) {
-    return preview.matched.map((m) => ({
-      id: newLineId(),
-      menuItemId: m.menuItemId ?? '',
-      name: m.name,
-      qty: m.qty,
-      rawIntentName: m.rawIntentName ?? undefined,
-      selections: m.selections ?? undefined,
-    }));
-  }
-  if (preview.intentItems?.length) {
-    return preview.intentItems.map((i) => ({
-      id: newLineId(),
-      menuItemId: '',
-      name: i.rawName,
-      qty: i.qty,
-      rawIntentName: i.rawName,
-    }));
-  }
-  return [{ id: newLineId(), menuItemId: '', name: '', qty: 1 }];
-}
-
 function buildCorrection(
   snapshot: IntentPhrasePreview | null,
 ): IntentCorrectionPayload | undefined {
@@ -122,6 +100,7 @@ function buildCorrection(
 export default function IntentPlaygroundPage() {
   const { t } = useTranslation();
   const { businessId } = useAuth();
+  const [searchParams] = useSearchParams();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [phraseText, setPhraseText] = useState('');
   const [operation, setOperation] = useState<IntentLearningOperation>('add');
@@ -141,6 +120,13 @@ export default function IntentPlaygroundPage() {
     () => new Map(menuItems.map((m) => [m.id, m])),
     [menuItems],
   );
+
+  useEffect(() => {
+    const fromUrl = searchParams.get('phrase')?.trim();
+    if (!fromUrl) return;
+    setPhraseText(fromUrl);
+    if (inferPhraseOperation(fromUrl) === 'remove') setOperation('remove');
+  }, [searchParams]);
 
   useEffect(() => {
     if (!businessId) {
@@ -200,7 +186,7 @@ export default function IntentPlaygroundPage() {
 
     if (opts.isParse) {
       setParseSnapshot(result);
-      const nextDraft = hydrateDraftLines(draftFromPreview(result), menuById);
+      const nextDraft = draftAfterParse(result, menuById, menuItems);
       setInitialDraft(nextDraft);
       setDraft(nextDraft);
       skipDraftPreview.current = true;
