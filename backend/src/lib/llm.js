@@ -159,14 +159,18 @@ const GEMINI_EDIT_SCHEMA = {
   required: ['type', 'confidence'],
 };
 
+/** Bot navigation commands — NOT order intent. Never pass menu or menuItemId here. */
 const COMMAND_SYSTEM_PROMPT = `You classify short WhatsApp messages to a food ordering bot (German, English, Turkish).
-Return JSON only. command must be one of:
-- view_basket: customer wants to see their cart (warenkorb, show basket, was hab ich, sepeti göster)
+This is NOT food ordering. Do NOT extract dishes, drinks, menuItemId, quantities, or prices.
+Return JSON only with fields: command, confidence.
+
+command must be one of:
+- view_basket: customer wants to see their cart (warenkorb, show basket, was hab ich, sepeti göster, zeig mal den warenkorb)
 - undo: revert the last cart change (rückgängig, undo, geri al, zurück ONLY when undo is available in context)
-- none: food orders, menu items, greetings, search, or anything else
+- none: food orders, menu item names, greetings, search, checkout steps, or anything else
 
 Rules:
-- Dish or drink names are NEVER commands — use none.
+- Single dish/drink names or order phrasing ("2 döner", "cola dazu") → none (handled by a separate order parser).
 - Use undo only when context says undo is available AND the message clearly means revert/undo, not "go back to menu".
 - confidence: 0.0–1.0; use <0.85 when unsure.`;
 
