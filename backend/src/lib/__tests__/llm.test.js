@@ -2,7 +2,9 @@ const axios = require('axios');
 const {
   validateIntentPayload,
   validateMenuIntentPayload,
+  validateCommandPayload,
   parseOrderIntentWithLlm,
+  parseBotCommandWithLlm,
   isAiIntentEnabled,
   _resetLlmState,
 } = require('../llm');
@@ -222,5 +224,73 @@ describe('parseOrderIntentWithLlm', () => {
     expect(await parseOrderIntentWithLlm('pizza', { phone })).not.toBeNull();
     expect(await parseOrderIntentWithLlm('cola', { phone })).toBeNull();
     expect(axios.post).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('validateCommandPayload', () => {
+  test('accepts view_basket and undo', () => {
+    expect(validateCommandPayload({ command: 'view_basket', confidence: 0.95 })).toEqual({
+      command: 'view_basket',
+      confidence: 0.95,
+    });
+    expect(validateCommandPayload({ command: 'undo', confidence: 0.9 })).toEqual({
+      command: 'undo',
+      confidence: 0.9,
+    });
+  });
+
+  test('rejects unknown command', () => {
+    expect(validateCommandPayload({ command: 'add_pizza', confidence: 0.9 })).toBeNull();
+  });
+});
+
+describe('parseBotCommandWithLlm', () => {
+  test('uses command system prompt — not menu-constrained order prompt', async () => {
+    process.env.AI_INTENT_ENABLED = 'true';
+    process.env.LLM_PROVIDER = 'google';
+    process.env.GEMINI_API_KEY = 'test-key';
+
+    axios.post.mockResolvedValue({
+      data: {
+        candidates: [{
+          content: {
+            parts: [{
+              text: JSON.stringify({ command: 'view_basket', confidence: 0.95 }),
+            }],
+          },
+        }],
+      },
+    });
+
+    const r = await parseBotCommandWithLlm('zeig mal', {
+      phone: '+431',
+      hasBasket: true,
+      hasUndoSnapshot: false,
+    });
+
+    expect(r).toEqual({ command: 'view_basket', confidence: 0.95 });
+    const body = axios.post.mock.calls[0][1];
+    const systemText = body.systemInstruction.parts[0].text;
+    const userText = body.contents[0].parts[0].text;
+
+    expect(systemText).toContain('NOT food ordering');
+    expect(systemText).toContain('view_basket');
+    expect(systemText).not.toContain('MUST be an id from the menu list');
+    expect(systemText).not.toContain('menu provided');
+    expect(userText).toContain('Basket has items: yes');
+    expect(userText).toContain('Undo available: no');
+    expect(userText).not.toContain('id=');
+    expect(body.generationConfig.responseSchema.properties.command.enum).toEqual(
+      ['view_basket', 'undo', 'none'],
+    );
+  });
+
+  test('returns null on API failure', async () => {
+    process.env.AI_INTENT_ENABLED = 'true';
+    process.env.GEMINI_API_KEY = 'test-key';
+    axios.post.mockRejectedValue(new Error('timeout'));
+
+    const r = await parseBotCommandWithLlm('zurück', { phone: '+432', hasUndoSnapshot: true });
+    expect(r).toBeNull();
   });
 });
