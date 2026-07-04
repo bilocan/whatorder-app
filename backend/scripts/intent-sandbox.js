@@ -8,6 +8,10 @@
  *   npm run intent:sandbox -- --business biz_test "zwei döner einer mit allem"
  *   npm run intent:sandbox -- --llm --business biz_test "was für mich ein hühner döner"
  *   npm run intent:sandbox -- --menu ./fixtures/menu.json "pizza und cola"
+ *   npm run intent:sandbox -- --basket-file ./fixtures/basket-sample.json --basket-ops "cola raus"
+ *
+ * Windows: cmd.exe strips JSON quotes from --basket. Prefer --basket-file, or call node directly:
+ *   node scripts/intent-sandbox.js --basket '[{"name":"Döner","qty":1,"price":8.5}]' ...
  */
 require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
 
@@ -29,7 +33,8 @@ Options:
   --lang <de|en|tr>     Locale for bot reply text (default: de)
   --json                Print raw result JSON instead of formatted text
   --basket-ops          Parse committed-basket mutation ops (Tier 5 / basketOps.js)
-  --basket <json>       Basket snapshot JSON array, e.g. '[{"name":"Döner","qty":1,"price":8.5}]'
+  --basket <json>       Basket snapshot JSON array (Unix/macOS; see --basket-file on Windows)
+  --basket-file <path>  Load basket from JSON file (recommended on Windows)
 
 Interactive commands:
   :q / :quit            Exit
@@ -37,6 +42,34 @@ Interactive commands:
   :llm on|off           Toggle LLM retry (or start with --llm)
   :help                 Show this help
 `.trim();
+
+function loadBasketFromFile(filePath) {
+  const abs = path.resolve(filePath);
+  const raw = fs.readFileSync(abs, 'utf8');
+  const data = JSON.parse(raw);
+  if (!Array.isArray(data)) {
+    throw new Error(`Basket file must be a JSON array: ${abs}`);
+  }
+  return data;
+}
+
+function parseBasketJson(raw, sourceLabel) {
+  try {
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data)) {
+      throw new Error(`${sourceLabel} must be a JSON array`);
+    }
+    return data;
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      const hint = process.platform === 'win32'
+        ? ' On Windows, use --basket-file <path> or run node scripts/intent-sandbox.js directly.'
+        : ' Wrap the JSON in single quotes, e.g. --basket \'[{"name":"Döner","qty":1}]\'.';
+      throw new Error(`Invalid basket JSON (${sourceLabel}): ${err.message}.${hint}`);
+    }
+    throw err;
+  }
+}
 
 function parseArgs(argv) {
   const opts = {
@@ -67,8 +100,10 @@ function parseArgs(argv) {
       opts.json = true;
     } else if (arg === '--basket-ops') {
       opts.basketOps = true;
+    } else if (arg === '--basket-file') {
+      opts.basket = loadBasketFromFile(argv[++i]);
     } else if (arg === '--basket') {
-      opts.basket = JSON.parse(argv[++i]);
+      opts.basket = parseBasketJson(argv[++i], '--basket value');
     } else if (arg === '--help' || arg === '-h') {
       console.log(HELP);
       process.exit(0);

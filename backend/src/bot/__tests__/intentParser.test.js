@@ -1,4 +1,4 @@
-const { parseIntent, looksLikeOrderText, extractPartySize, applyJeweilsBasketContext, rulesParseQuality } = require('../intentParser');
+const { parseIntent, looksLikeOrderText, isStrongOrderText, extractPartySize, applyJeweilsBasketContext, rulesParseQuality } = require('../intentParser');
 
 describe('parseIntent', () => {
   test('pizza and cola for 2', () => {
@@ -237,6 +237,15 @@ describe('extractPartySize', () => {
   });
 });
 
+describe('isStrongOrderText', () => {
+  test('detects order phrases but not names or notes', () => {
+    expect(isStrongOrderText('eine cola dazu', 'eine cola dazu')).toBe(true);
+    expect(isStrongOrderText('ohne ayran', 'ohne ayran')).toBe(true);
+    expect(isStrongOrderText('Ahmet', 'ahmet')).toBe(false);
+    expect(isStrongOrderText('No onions please', 'no onions please')).toBe(false);
+  });
+});
+
 describe('looksLikeOrderText', () => {
   test('rejects greetings', () => {
     expect(looksLikeOrderText('Merhaba', 'merhaba')).toBe(false);
@@ -253,6 +262,12 @@ describe('looksLikeOrderText', () => {
     expect(looksLikeOrderText('döner', 'döner')).toBe(true);
     expect(looksLikeOrderText('jeweils ayran noch bitte', 'jeweils ayran noch bitte')).toBe(true);
     expect(looksLikeOrderText('Lahmacun cola', 'lahmacun cola')).toBe(true);
+  });
+
+  test('basket command keywords are not order-like', () => {
+    expect(looksLikeOrderText('warenkorb', 'warenkorb')).toBe(false);
+    expect(looksLikeOrderText('was hab ich', 'was hab ich')).toBe(false);
+    expect(looksLikeOrderText('rückgängig', 'ruckgangig')).toBe(false);
   });
 });
 

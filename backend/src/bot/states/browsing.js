@@ -14,7 +14,8 @@ const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
 const { resumeDeliveryCheckout, showDeliveryBasketGate, proceedFromConfirmedBasket } = require('./checkout');
 const { sendPopularBoard } = require('../popularBoard');
-const { tryConversationalBasketText, tryBasketUndo, isBasketUndoPhrase, flushBasketPendingLearning } = require('../conversationalBasket');
+const { tryConversationalBasketText, tryBasketUndo, flushBasketPendingLearning } = require('../conversationalBasket');
+const { detectBotCommandAsync, isBasketUndoPhrase, BOT_COMMAND } = require('../botCommands');
 const { isConversationalBasket } = require('../featureFlags');
 const {
   sendSearchPrompt,
@@ -175,6 +176,37 @@ function isGatedOnDeliveryMinimum(session) {
 
 const BASKET_KEYWORDS = new Set(['basket', 'sepet', 'warenkorb']);
 
+async function tryBotCommandText({
+  from, session, lang, businessId, basket, text, norm, business,
+}) {
+  const cmd = await detectBotCommandAsync(text, {
+    phone: from,
+    hasUndoSnapshot: !!session.basketUndoSnapshot?.basket,
+    hasBasket: basket.length > 0,
+  });
+  if (!cmd) return false;
+
+  if (cmd.command === BOT_COMMAND.VIEW_BASKET) {
+    if (!basket.length) {
+      await sendOrderEntryPrompt({
+        from, session, lang, businessId, basket,
+        bodyOverride: t('basketEmpty', lang),
+      });
+      return true;
+    }
+    await showBasketForSession({ from, session, lang, businessId, basket });
+    return true;
+  }
+
+  if (cmd.command === BOT_COMMAND.UNDO) {
+    return tryBasketUndo({
+      from, session, lang, businessId, basket, business, norm, silent: false,
+    });
+  }
+
+  return false;
+}
+
 async function handleSelecting({ from, session, lang, businessId, basket, type, id, norm }) {
   let qty = null;
 
@@ -224,7 +256,7 @@ async function handleSelecting({ from, session, lang, businessId, basket, type, 
 
 async function handleBrowsing({ from, session, lang, businessId, basket, isMulti, type, id, items, norm, text }) {
   // Commit deferred basket learning from prior mutation (skip undo — that discards instead)
-  if (session.basketPendingLearning && !(type === 'text' && isBasketUndoPhrase(norm))) {
+  if (session.basketPendingLearning && !(type === 'text' && isBasketUndoPhrase(norm, { hasUndoSnapshot: !!session.basketUndoSnapshot?.basket }))) {
     const info = await getBusinessInfo(businessId);
     if (isConversationalBasket(info)) {
       session = await flushBasketPendingLearning(from, session);
@@ -432,9 +464,18 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     }
   }
 
+  // Text: bot commands (view basket, undo) — before order-intent paths so "warenkorb" is not parsed as food
+  if (type === 'text' && text?.trim()) {
+    const info = await getBusinessInfo(businessId);
+    if (await tryBotCommandText({
+      from, session, lang, businessId, basket, text, norm, business: info,
+    })) return;
+  }
+
   // Text: undo + conversational basket mutations (Tier 5 — flag on only)
   if (type === 'text' && text?.trim()
-    && (isBasketUndoPhrase(norm) || looksLikeOrderText(text, norm))) {
+    && (isBasketUndoPhrase(norm, { hasUndoSnapshot: !!session.basketUndoSnapshot?.basket })
+      || looksLikeOrderText(text, norm))) {
     const info = await getBusinessInfo(businessId);
     if (await tryBasketUndo({
       from, session, lang, businessId, basket, business: info, norm,

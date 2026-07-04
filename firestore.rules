@@ -100,5 +100,11 @@ service cloud.firestore {
     match /sessions/{sessionId} {
       allow read, write: if false;
     }
+
+    // Global bot command phrases (LLM-classified). Backend writes; admin read for debug.
+    match /commandLearnings/{keyHash} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
   }
 }
