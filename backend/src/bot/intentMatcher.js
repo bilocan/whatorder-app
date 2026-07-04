@@ -224,6 +224,14 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex =
     if (menuItemId) {
       const byId = menuItems.find(m => m.id === menuItemId && m.available !== false);
       if (byId) {
+        if (!selections && name) {
+          const matchName = normalizeIntentItemName(name);
+          if (hasSuspiciousTokens(matchName, byId, menuItems)) {
+            unmatched.push(name);
+            unmatchedSuggestions[name] = findSuggestions(matchName, menuItems);
+            continue;
+          }
+        }
         let pending = toPendingItem(byId, qty, { rawIntentName: name });
         if (selections) {
           const { applyStoredSelections } = require('./intentPlaygroundDraft');
