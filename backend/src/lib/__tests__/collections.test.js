@@ -12,7 +12,7 @@ const { db } = require('../firebase');
 const {
   businessRef, menuRef, ordersRef, customersRef, phoneRoutingRef,
   ownerRef, adminRef, processedMessageRef, stripeEventRef, configRef,
-  settlementConfigRef, payoutsRef, payoutRef, intentLearningRef,
+  settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, commandLearningRef,
 } = require('../collections');
 
 beforeEach(() => {
@@ -136,6 +136,14 @@ describe('intentLearningRef', () => {
     expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
     expect(db.doc).toHaveBeenCalledWith('biz_test');
     expect(db.collection).toHaveBeenNthCalledWith(2, 'intentLearnings');
+    expect(db.doc).toHaveBeenCalledWith('abc123');
+  });
+});
+
+describe('commandLearningRef', () => {
+  test('builds path: commandLearnings/{keyHash}', () => {
+    commandLearningRef('abc123');
+    expect(db.collection).toHaveBeenCalledWith('commandLearnings');
     expect(db.doc).toHaveBeenCalledWith('abc123');
   });
 });

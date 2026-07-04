@@ -1,4 +1,4 @@
-const { setSession } = require('../sessionStore');
+const { setSession, patchSession } = require('../sessionStore');
 const { sendText, sendButtonMessage, sendListMessage, sendLocationRequest, sendCtaUrlMessage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
 const { buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView } = require('../botHelpers');
@@ -8,8 +8,20 @@ const { customersRef, ordersRef } = require('../../lib/collections');
 const { reverseGeocode } = require('../../lib/geocode');
 const { isStripeConfigured } = require('../../lib/stripe');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
+const { isStrongOrderText } = require('../intentParser');
+const { isConversationalBasket } = require('../featureFlags');
+const { tryBasketUndo } = require('../conversationalBasket');
+const { isBasketUndoPhrase, detectBotCommandAsync, BOT_COMMAND } = require('../botCommands');
+const {
+  parsePaymentKeyword,
+  parseOrderTypeKeyword,
+  isBareCheckoutDigit,
+  tryCheckoutBasketOp,
+} = require('../checkoutOps');
+const { sendOrderEntryPrompt } = require('../orderEntry');
 
-const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', '1', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
+// M2: bare `1` no longer confirms — use list row btn_place_order only (digit disambiguation).
+const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal', '2']);
 
 function isPaymentEnabled(info) {
@@ -319,8 +331,237 @@ async function sendDeliveryAddressPicker(to, rows, lang) {
   });
 }
 
+function recomputePrepFields(info) {
+  const prepMins = info.avgPrepTime || 30;
+  const pickupTime = new Date(Date.now() + prepMins * 60000)
+    .toLocaleTimeString('de-AT', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: info.timezone || 'Europe/Vienna',
+    });
+  return { prepMins, pickupTime };
+}
+
+/** Re-show the current checkout prompt after a basket mutation (M2). */
+async function reshowCheckoutPrompt(ctx, session, basket) {
+  const { from, lang, businessId } = ctx;
+
+  switch (session.state) {
+    case 'awaiting_name': {
+      const body = t('checkoutBasketUpdated', lang, buildBasketText(basket, lang));
+      const askId = await sendText(from, `${body}\n\n${t('askName', lang)}`);
+      await setSession(from, { ...session, basket, pendingDeleteIds: askId ? [askId] : [] });
+      return;
+    }
+    case 'awaiting_order_type': {
+      const info = await getBusinessInfo(businessId);
+      const bodyPrefix = t('checkoutBasketUpdated', lang, buildBasketText(basket, lang));
+      const msgId = await sendOrderTypePrompt(
+        from,
+        lang,
+        info.deliveryFee ?? 0,
+        session.confirmingOrderTypeEdit
+          ? `${bodyPrefix}\n\n${t('askOrderTypeFromConfirm', lang)}`
+          : `${bodyPrefix}\n\n${t('askOrderType', lang, info.deliveryFee ?? 0)}`,
+      );
+      await setSession(from, { ...session, basket, pendingDeleteIds: msgId ? [msgId] : [] });
+      return;
+    }
+    case 'awaiting_payment_method':
+      await transitionToPaymentMethod(from, { ...session, basket }, lang, businessId, basket);
+      return;
+    case 'confirming':
+      await transitionToConfirming(from, { ...session, basket }, lang, businessId, basket, session.customerName);
+      return;
+    case 'awaiting_confirm_note': {
+      const askId = await sendText(from, t('addNotePrompt', lang));
+      await setSession(from, { ...session, basket, pendingDeleteIds: askId ? [askId] : [] });
+      return;
+    }
+    case 'awaiting_delivery_address': {
+      const askId = await sendText(from, t('askDeliveryAddress', lang));
+      await setSession(from, { ...session, basket, pendingDeleteIds: askId ? [askId] : [] });
+      return;
+    }
+    case 'awaiting_delivery_address_choice': {
+      const rows = await getDeliveryAddressRows(session, from, businessId, lang);
+      if (rows) {
+        const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
+        await setSession(from, { ...session, basket, pendingDeleteIds: pickerId ? [pickerId] : [] });
+      }
+      return;
+    }
+    default:
+      break;
+  }
+}
+
+async function handleDeliveryMinimumAfterMutation(ctx, session, basket) {
+  const { from, lang, businessId } = ctx;
+  if (session.orderType !== 'delivery') return false;
+
+  const info = await getBusinessInfo(businessId);
+  if (!info.minimumOrderValue) return false;
+
+  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  if (subtotal >= info.minimumOrderValue) return false;
+
+  const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
+  await setSession(from, {
+    ...session,
+    basket,
+    state: 'browsing',
+    pendingDeleteIds: msgId ? [msgId] : [],
+  });
+  return true;
+}
+
+/**
+ * M2 checkout text gate — basket ops, payment/order-type keywords, digit clarify, name/note guard.
+ * @returns {Promise<boolean>} true when the message was consumed
+ */
+async function gateCheckoutTextInput(ctx) {
+  const {
+    from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
+  } = ctx;
+  if (type !== 'text' || !text?.trim()) return false;
+
+  if (isBareCheckoutDigit(norm, session.state)) {
+    await sendText(from, t('checkoutDigitClarify', lang));
+    return true;
+  }
+
+  if (session.state === 'awaiting_payment_method') {
+    const pay = parsePaymentKeyword(norm);
+    if (pay === 'card') {
+      await handleAwaitingPaymentMethod({
+        ...ctx, type: 'button_reply', id: 'btn_pay_card',
+      });
+      return true;
+    }
+    if (pay === 'cash') {
+      await handleAwaitingPaymentMethod({
+        ...ctx, type: 'button_reply', id: 'btn_pay_cash',
+      });
+      return true;
+    }
+  }
+
+  if (session.state === 'awaiting_order_type') {
+    const orderType = parseOrderTypeKeyword(norm);
+    if (orderType === 'pickup') {
+      await handleAwaitingOrderType({ ...ctx, type: 'button_reply', id: 'btn_pickup' });
+      return true;
+    }
+    if (orderType === 'delivery') {
+      await handleAwaitingOrderType({ ...ctx, type: 'button_reply', id: 'btn_delivery' });
+      return true;
+    }
+  }
+
+  const info = await getBusinessInfo(businessId);
+
+  if (isConversationalBasket(info)) {
+    const undoCtx = { hasUndoSnapshot: !!session.basketUndoSnapshot?.basket };
+    const cmd = await detectBotCommandAsync(text, {
+      phone: from,
+      hasUndoSnapshot: undoCtx.hasUndoSnapshot,
+      hasBasket: basket.length > 0,
+    });
+
+    if (cmd?.command === BOT_COMMAND.UNDO || isBasketUndoPhrase(norm, undoCtx)) {
+      const restored = await tryBasketUndo({
+        from, session, lang, businessId, basket, business: info, norm, silent: true,
+      });
+      if (restored === null) {
+        await sendText(from, t('basketNothingToUndo', lang));
+        return true;
+      }
+      if (Array.isArray(restored)) {
+        const prepFields = recomputePrepFields(info);
+        const newSession = { ...session, ...prepFields, basket: restored };
+        if (!restored.length) {
+          await sendOrderEntryPrompt({
+            from,
+            session: { ...newSession, state: 'browsing', basket: [] },
+            lang,
+            businessId,
+            basket: [],
+            bodyOverride: t('basketEmpty', lang),
+          });
+          await setSession(from, { state: 'browsing', basket: [], businessId, pendingDeleteIds: [] });
+          return true;
+        }
+        if (await handleDeliveryMinimumAfterMutation(ctx, newSession, restored)) {
+          return true;
+        }
+        await sendText(from, t('checkoutBasketUpdated', lang, buildBasketText(restored, lang)));
+        await reshowCheckoutPrompt(ctx, newSession, restored);
+        return true;
+      }
+    }
+
+    const opResult = await tryCheckoutBasketOp({
+      from, session, lang, businessId, basket, text, norm, business: info,
+    });
+
+    if (opResult.handled === 'llm_failed') {
+      await sendText(from, t('intentParseFailed', lang));
+      return true;
+    }
+
+    if (opResult.handled) {
+      if (opResult.basketCleared) {
+        await sendOrderEntryPrompt({
+          from,
+          session: { ...opResult.session, state: 'browsing', basket: [] },
+          lang,
+          businessId,
+          basket: [],
+          bodyOverride: t('basketEmpty', lang),
+        });
+        await setSession(from, {
+          ...opResult.session,
+          state: 'browsing',
+          basket: [],
+          pendingDeleteIds: [],
+        });
+        return true;
+      }
+
+      const newSession = opResult.session ?? session;
+      const newBasket = opResult.basket ?? basket;
+
+      if (await handleDeliveryMinimumAfterMutation(ctx, newSession, newBasket)) {
+        return true;
+      }
+
+      await patchSession(from, {
+        ...recomputePrepFields(info),
+        basket: newBasket,
+      }, session);
+
+      await reshowCheckoutPrompt(ctx, { ...newSession, basket: newBasket }, newBasket);
+      return true;
+    }
+  }
+
+  if (session.state === 'awaiting_name' && isStrongOrderText(text, norm)) {
+    await sendText(from, t('checkoutNameNotOrder', lang));
+    const askId = await sendText(from, t('askName', lang));
+    await setSession(from, { ...session, pendingDeleteIds: askId ? [askId] : [] });
+    return true;
+  }
+
+  return false;
+}
+
 // Reached only via the "Add note" button on the final confirmation screen.
-async function handleAwaitingConfirmNote({ from, session, lang, businessId, basket, type, text, norm }) {
+async function handleAwaitingConfirmNote({ from, session, lang, businessId, basket, type, text, norm, contactName, isMulti }) {
+  if (await gateCheckoutTextInput({
+    from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
+  })) return;
+
   if (type === 'text' && norm.length > 0) {
     const newSession = { ...session, specialRequests: text.trim() };
     await transitionToConfirming(from, newSession, lang, businessId, basket, session.customerName);
@@ -329,7 +570,11 @@ async function handleAwaitingConfirmNote({ from, session, lang, businessId, bask
   await sendText(from, t('addNotePrompt', lang));
 }
 
-async function handleAwaitingOrderType({ from, session, lang, businessId, basket, type, id }) {
+async function handleAwaitingOrderType({ from, session, lang, businessId, basket, type, id, text, norm, contactName, isMulti }) {
+  if (type === 'text' && await gateCheckoutTextInput({
+    from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
+  })) return;
+
   if (type === 'button_reply') {
     if (id === 'btn_pickup') {
       const newSession = { ...session, orderType: 'pickup', deliveryAddress: null };
@@ -376,7 +621,11 @@ async function handleAwaitingOrderType({ from, session, lang, businessId, basket
   await sendOrderTypePrompt(from, lang, info.deliveryFee ?? 0);
 }
 
-async function handleAwaitingDeliveryAddressChoice({ from, session, lang, businessId, basket, type, id }) {
+async function handleAwaitingDeliveryAddressChoice({ from, session, lang, businessId, basket, type, id, text, norm, contactName, isMulti }) {
+  if (type === 'text' && await gateCheckoutTextInput({
+    from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
+  })) return;
+
   if (type === 'list_reply') {
     if (id === 'delivery_loc_start' && session.lat != null && session.lng != null) {
       const geocoded = await reverseGeocode(session.lat, session.lng);
@@ -413,7 +662,11 @@ async function handleAwaitingDeliveryAddressChoice({ from, session, lang, busine
   }
 }
 
-async function handleAwaitingDeliveryAddress({ from, session, lang, businessId, basket, type, text, norm, latitude, longitude }) {
+async function handleAwaitingDeliveryAddress({ from, session, lang, businessId, basket, type, text, norm, latitude, longitude, contactName, isMulti }) {
+  if (type === 'text' && text?.trim() && await gateCheckoutTextInput({
+    from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
+  })) return;
+
   let deliveryAddress = null;
   if (type === 'location' && latitude != null && longitude != null) {
     const geocoded = await reverseGeocode(latitude, longitude);
@@ -429,7 +682,11 @@ async function handleAwaitingDeliveryAddress({ from, session, lang, businessId, 
   await sendText(from, t('askDeliveryAddress', lang));
 }
 
-async function handleAwaitingName({ from, session, lang, businessId, basket, type, text, norm }) {
+async function handleAwaitingName({ from, session, lang, businessId, basket, type, text, norm, contactName, isMulti }) {
+  if (type === 'text' && await gateCheckoutTextInput({
+    from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
+  })) return;
+
   if (type === 'text' && norm.length > 0) {
     const name = text.trim().slice(0, 60);
     await transitionToConfirming(from, session, lang, businessId, basket, name);
@@ -438,7 +695,11 @@ async function handleAwaitingName({ from, session, lang, businessId, basket, typ
   await sendText(from, t('confirmSummary', lang, buildBasketText(basket, lang), session.prepMins, session.pickupTime));
 }
 
-async function handleConfirming({ from, contactName, session, lang, businessId, basket, isMulti, type, id, norm }) {
+async function handleConfirming({ from, contactName, session, lang, businessId, basket, isMulti, type, id, norm, text }) {
+  if (type === 'text' && await gateCheckoutTextInput({
+    from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
+  })) return;
+
   const replyId = (type === 'list_reply' || type === 'button_reply') ? id : null;
   const isConfirm = replyId === 'btn_place_order' || CONFIRM.has(norm);
   const isCancel  = replyId === 'btn_cancel_order' || CANCEL.has(norm);
@@ -507,7 +768,11 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
   await transitionToConfirming(from, session, lang, businessId, basket, session.customerName);
 }
 
-async function handleAwaitingPaymentMethod({ from, contactName, session, lang, businessId, basket, isMulti, type, id }) {
+async function handleAwaitingPaymentMethod({ from, contactName, session, lang, businessId, basket, isMulti, type, id, text, norm }) {
+  if (type === 'text' && await gateCheckoutTextInput({
+    from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
+  })) return;
+
   if (type === 'button_reply' && id === 'btn_pay_card') {
     await placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'stripe' });
     return;

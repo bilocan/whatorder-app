@@ -58,6 +58,10 @@ const payoutRef = (payoutId) =>
 const intentLearningRef = (businessId, keyHash) =>
   businessRef(businessId).collection('intentLearnings').doc(keyHash);
 
+// commandLearnings/{keyHash} — global LLM-classified bot commands (view_basket, undo)
+const commandLearningRef = (keyHash) =>
+  db.collection('commandLearnings').doc(keyHash);
+
 module.exports = {
   businessRef, menuRef, ordersRef, customersRef,
   phoneRoutingRef, phoneRoutingByBusinessQuery,
@@ -70,4 +74,5 @@ module.exports = {
   payoutsRef,
   payoutRef,
   intentLearningRef,
+  commandLearningRef,
 };
