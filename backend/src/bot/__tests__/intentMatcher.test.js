@@ -202,4 +202,22 @@ describe('matchIntentToMenu — unmatchedSuggestions', () => {
     expect(unmatched).toHaveLength(0);
     expect(unmatchedSuggestions).toEqual({});
   });
+
+  test('flags fuzzy-matched item with unknown token as unmatched with suggestions', () => {
+    const DURUM_MENU = [{ id: 'd1', name: 'Enes Special Dürüm', price: 9.0 }];
+    const intent = { items: [{ name: 'kalp dürüm', qty: 1 }] };
+    const { matched, unmatched, unmatchedSuggestions } = matchIntentToMenu(intent, DURUM_MENU);
+    expect(matched).toHaveLength(0);
+    expect(unmatched).toContain('kalp dürüm');
+    expect(unmatchedSuggestions['kalp dürüm']).toContain('Enes Special Dürüm');
+  });
+
+  test('does not flag single-token abbreviation as suspicious', () => {
+    const SINGLE_MENU = [{ id: 'd1', name: 'Tavuk Döner', price: 8.5 }];
+    const intent = { items: [{ name: 'döner', qty: 1 }] };
+    const { matched, unmatched } = matchIntentToMenu(intent, SINGLE_MENU);
+    expect(unmatched).toHaveLength(0);
+    expect(matched).toHaveLength(1);
+    expect(matched[0].name).toBe('Tavuk Döner');
+  });
 });

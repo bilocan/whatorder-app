@@ -1,7 +1,9 @@
 const { matchMenuItem, classifyMenuMatch, scoreItemForNeedle } = require('./menuMatch');
+const { wordMatchesInText } = require('./menuSynonyms');
 const { buildMenuTokenIndex } = require('./menuTokenIndex');
 const {
   extractModifierKey, normalizeIntentItemName, isModifierOnlyToken, enrichPendingWithModifier,
+  stripIntentModifiers, extractDishNameForMatch,
 } = require('./intentModifiers');
 const { extractBeideMitAllemSpicyDish, textLooksLikeBeideMitAllemOneSpicy } = require('./intentParser');
 
@@ -172,6 +174,43 @@ function findSuggestions(unmatchedName, menuItems) {
   return scored.slice(0, 3).map(x => x.item.name);
 }
 
+// Function words, articles, discourse particles that may survive modifier stripping
+// and must never trigger a suspicious-match rejection on their own.
+const INTENT_FILLER_TOKENS = new Set([
+  // German articles, prepositions, conjunctions
+  'mit', 'und', 'ein', 'eine', 'einen', 'einem', 'einer', 'ei',
+  'der', 'die', 'das', 'dem', 'des', 'den', 'von', 'zum', 'zur',
+  // German pronouns and polite/filler words
+  'ich', 'wir', 'sie', 'bitte', 'gerne', 'danke', 'noch', 'auch', 'mal', 'ja',
+  // Turkish connectors and discourse words
+  've', 'ile', 'bir', 'un', 'bitti', 'tamam', 'lutfen',
+  // English discourse words
+  'actually', 'please', 'also', 'maybe',
+  // Quantifiers
+  'jeweils',
+]);
+
+// Returns true when the intent name contains tokens that have no match in the
+// matched menu item (even after synonym expansion) and are not known modifiers.
+// Catches cases like "kalp dürüm" matched to "Special Dürüm" (unknown food type).
+// Single-token names are excluded so plain abbreviations ("döner" → "Tavuk Döner") stay matched.
+function hasSuspiciousTokens(matchName, menuItem, menuItems) {
+  const dishName = (extractDishNameForMatch(matchName) || matchName).trim();
+  const intentTokens = dishName.split(/\s+/).filter(t => t.length >= 2);
+  if (intentTokens.length < 2) return false;
+  const itemText = normIng([menuItem.name, ...(menuItem.aliases ?? [])].join(' '));
+  return intentTokens.some(token => {
+    const n = normIng(token);
+    if (INTENT_FILLER_TOKENS.has(n)) return false;
+    if (wordMatchesInText(token, itemText)) return false;
+    if (isModifierOnlyToken(token)) return false;
+    // If this token alone matches a different menu item, it's a multi-item blob,
+    // not a food-type qualifier — let isPartialBlobTrap handle it instead.
+    if (menuItems && classifyMenuMatch(token, menuItems).type !== 'none') return false;
+    return true;
+  });
+}
+
 function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex = null) {
   const tokenIndex = menuTokenIndex ?? buildMenuTokenIndex(menuItems);
   let matched = [];
@@ -207,7 +246,12 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex =
     }
 
     if (result.type === 'unique') {
-      matched = mergePendingLine(matched, toPendingItem(result.item, qty, { rawIntentName: name }));
+      if (name && hasSuspiciousTokens(matchName, result.item, menuItems)) {
+        unmatched.push(name);
+        unmatchedSuggestions[name] = findSuggestions(matchName, menuItems);
+      } else {
+        matched = mergePendingLine(matched, toPendingItem(result.item, qty, { rawIntentName: name }));
+      }
       continue;
     }
 
