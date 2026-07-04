@@ -70,6 +70,8 @@ export interface Payout {
 export interface MenuOption {
   id: string;
   label: string;
+  /** Extra charge when selected (EUR). Omitted or 0 = included. */
+  price?: number;
 }
 
 export interface MenuOptionGroup {
@@ -82,6 +84,8 @@ export interface MenuOptionGroup {
   multiDefault?: 'all' | 'none' | 'custom';
   /** multi + custom: which options are included in the default */
   defaultOptionIds?: string[];
+  /** Reusable groups whose options are merged before this group's own options */
+  extendsGroupIds?: string[];
 }
 
 export interface MenuItem {
@@ -92,8 +96,14 @@ export interface MenuItem {
   category: 'mains' | 'sides' | 'drinks';
   photoUrl?: string;
   available: boolean;
+  /** Reusable library group ids assigned to this item */
+  optionGroupIds?: string[];
+  /** Legacy inline groups — still read for backward compat until migrated */
   optionGroups?: MenuOptionGroup[];
 }
+
+/** Reusable customization group stored in businesses/{bid}/optionGroups */
+export type OptionGroupTemplate = MenuOptionGroup;
 
 export interface DaySchedule {
   openTime: string;       // 'HH:mm'

@@ -4,6 +4,11 @@ const { decryptRequest, encryptResponse } = require('../lib/flowCrypto');
 const { getMenu, getBusinessInfo } = require('../bot/menuService');
 const { sessionRef } = require('../lib/collections');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
+const {
+  formatFlowOptionTitle,
+  computeLinePrice,
+  selectionsFromOrderItemPayload,
+} = require('../lib/optionPricing');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -38,7 +43,7 @@ function mapOptionSlots(optionGroups = []) {
       [F[`SLOT${n}_VISIBLE`]]:  true,
       [F[`SLOT${n}_LABEL`]]:    group.label,
       [F[`SLOT${n}_REQUIRED`]]: group.required ?? false,
-      [F[`SLOT${n}_OPTIONS`]]:  group.options.map(o => ({ id: o.id, title: o.label })),
+      [F[`SLOT${n}_OPTIONS`]]:  group.options.map(o => ({ id: o.id, title: formatFlowOptionTitle(o.label, o.price) })),
     };
   }
 
@@ -48,7 +53,7 @@ function mapOptionSlots(optionGroups = []) {
     ...slotFields(3, singles[2] ?? null),
     [F.MULTI_VISIBLE]: !!multi,
     [F.MULTI_LABEL]:   multi?.label ?? '',
-    [F.MULTI_OPTIONS]: multi ? multi.options.map(o => ({ id: o.id, title: o.label })) : [],
+    [F.MULTI_OPTIONS]: multi ? multi.options.map(o => ({ id: o.id, title: formatFlowOptionTitle(o.label, o.price) })) : [],
   };
 }
 
@@ -188,10 +193,12 @@ router.post('/flow/exchange', async (req, res) => {
       const slots = mapOptionSlots(item.optionGroups);
       const itemName = buildCustomLabel(item, payload, slots);
       const itemNotes = notes.trim() || null;
+      const selections = selectionsFromOrderItemPayload(item, payload, F);
+      const linePrice = computeLinePrice(item.price, item.optionGroups, selections);
       const basketItem = {
         name: itemNotes ? `${itemName} (${itemNotes})` : itemName,
         qty,
-        price: item.price,
+        price: linePrice,
       };
 
       const ref = sessionRef(phone);
