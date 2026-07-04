@@ -112,6 +112,7 @@ const MENU_TEXT_INTENT_CALLS = [
   ['intentChangeBtn', []],
   ['intentEditMenuBtn', []],
   ['intentUnmatched', ['cola']],
+  ['intentUnmatchedWithSuggestion', ['et döner', 'Tavuk Döner, Tavuk Dürüm']],
   ['intentSpecialNote', ['extra scharf']],
   ['intentCustomizePrompt', ['Döner', 2, 'Protein']],
   ['intentCustomizeUnitPrompt', [1, 2, 'Döner', 'Protein']],

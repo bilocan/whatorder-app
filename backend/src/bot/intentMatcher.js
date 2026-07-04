@@ -1,4 +1,4 @@
-const { matchMenuItem, classifyMenuMatch } = require('./menuMatch');
+const { matchMenuItem, classifyMenuMatch, scoreItemForNeedle } = require('./menuMatch');
 const { buildMenuTokenIndex } = require('./menuTokenIndex');
 const {
   extractModifierKey, normalizeIntentItemName, isModifierOnlyToken, enrichPendingWithModifier,
@@ -163,10 +163,20 @@ function toPendingItem(item, qty, { rawIntentName } = {}) {
   };
 }
 
+function findSuggestions(unmatchedName, menuItems) {
+  const scored = menuItems
+    .filter(m => m.available !== false)
+    .map(item => ({ item, score: scoreItemForNeedle(item, unmatchedName) }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return scored.slice(0, 3).map(x => x.item.name);
+}
+
 function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex = null) {
   const tokenIndex = menuTokenIndex ?? buildMenuTokenIndex(menuItems);
   let matched = [];
   const unmatched = [];
+  const unmatchedSuggestions = {};
   let disambiguation = null;
 
   for (let i = 0; i < intent.items.length; i++) {
@@ -189,7 +199,10 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex =
     const result = classifyMenuMatch(matchName, menuItems, menuMatch, tokenIndex);
 
     if (result.type === 'none') {
-      if (!isModifierOnlyToken(name)) unmatched.push(name);
+      if (!isModifierOnlyToken(name)) {
+        unmatched.push(name);
+        unmatchedSuggestions[name] = findSuggestions(matchName, menuItems);
+      }
       continue;
     }
 
@@ -211,7 +224,7 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex =
 
   matched = mergeProductIngredientSplitLines(matched);
 
-  return { matched, unmatched, disambiguation };
+  return { matched, unmatched, unmatchedSuggestions, disambiguation };
 }
 
 function basketMergeKey(item) {
@@ -247,6 +260,7 @@ function mergeIntoBasket(basket, items) {
 
 module.exports = {
   matchIntentToMenu,
+  findSuggestions,
   mergeIntoBasket,
   mergePendingLine,
   mergePendingItems,

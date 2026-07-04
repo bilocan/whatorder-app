@@ -170,4 +170,21 @@ describe('tryTextIntentOrder', () => {
     expect(handled).toBe(true);
     expect(sendImage).not.toHaveBeenCalled();
   });
+
+  test('proposal body does not contain unmatched section when all items match', async () => {
+    const handled = await tryTextIntentOrder({
+      from: '+43699000001',
+      session: { state: 'browsing', language: 'en', basket: [] },
+      lang: 'en',
+      businessId: 'biz_test',
+      basket: [],
+      text: '2x Döner + Ayran',
+      norm: '2x döner + ayran',
+    });
+
+    expect(handled).toBe(true);
+    const body = sendButtonMessage.mock.calls[0][1].body;
+    expect(body).not.toMatch(/find/i);
+    expect(body).not.toMatch(/Did you mean/i);
+  });
 });
