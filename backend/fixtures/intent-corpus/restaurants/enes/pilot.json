@@ -1217,6 +1217,30 @@
           "Coca Cola 0.33L"
         ]
       }
+    },
+    {
+      "id": "durum-mit-inserts-ohne-sose-zum-trinken-cola",
+      "text": "ich hätte gerne ein dürüm mit tomaten und salad und zwiebel ohne sose zum trinken cola",
+      "tags": [
+        "modifier",
+        "wave_c",
+        "enes_pilot"
+      ],
+      "menu": "menu.json",
+      "expect": {
+        "orderLike": true,
+        "outcome": "proposal",
+        "parsedBy": "rules",
+        "intentItems": [
+          { "name": "dürüm mit tomaten und salad und zwiebel ohne sose", "qty": 1 },
+          { "name": "cola", "qty": 1 }
+        ],
+        "matchedNames": [
+          "Enes Kebap Special Dürüm Huhn",
+          "Coca Cola 0.33L"
+        ],
+        "matchedCount": 2
+      }
     }
   ]
 }
