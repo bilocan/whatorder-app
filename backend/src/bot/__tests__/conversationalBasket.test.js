@@ -52,9 +52,9 @@ const {
   tryConversationalBasketText,
   tryBasketUndo,
   applyConversationalOps,
-  isBasketUndoPhrase,
   flushBasketPendingLearning,
 } = require('../conversationalBasket');
+const { isBasketUndoPhrase } = require('../botCommands');
 const { buildMenuMatchIndex } = require('../menuMapper');
 const { BUILTIN_MENU } = require('../intentSandbox');
 
@@ -254,6 +254,8 @@ describe('tryConversationalBasketText', () => {
 describe('isBasketUndoPhrase', () => {
   test('matches undo phrases', () => {
     expect(isBasketUndoPhrase('ruckgangig')).toBe(true);
+    expect(isBasketUndoPhrase('rückgängig')).toBe(true);
+    expect(isBasketUndoPhrase('Rückgängig')).toBe(true);
     expect(isBasketUndoPhrase('undo')).toBe(true);
     expect(isBasketUndoPhrase('geri al')).toBe(true);
     expect(isBasketUndoPhrase('2 döner')).toBe(false);

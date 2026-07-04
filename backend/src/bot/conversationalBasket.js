@@ -28,15 +28,10 @@ const { splitPendingItems, startIntentCustomization } = require('./intentCustomi
 const { hydratePendingItems } = require('./intentMatcher');
 const { buildBasketRemoveAmbiguousText } = require('./basketEdit');
 const { sendOrderEntryPrompt } = require('./orderEntry');
-
-const UNDO_PHRASES = new Set(['ruckgangig', 'undo', 'geri al']);
+const { isBasketUndoPhrase } = require('./botCommands');
 
 function cloneBasket(basket) {
   return (basket ?? []).map(item => ({ ...item }));
-}
-
-function isBasketUndoPhrase(norm) {
-  return UNDO_PHRASES.has((norm ?? '').trim());
 }
 
 /**
@@ -177,13 +172,15 @@ async function applyConversationalOps({
  * @returns {Promise<boolean>} true if handled
  */
 async function tryBasketUndo({
-  from, session, lang, businessId, basket, business, norm,
+  from, session, lang, businessId, basket, business, norm, silent = false,
 }) {
   if (!isConversationalBasket(business)) return false;
-  if (!isBasketUndoPhrase(norm)) return false;
+  const undoCtx = { hasUndoSnapshot: !!session.basketUndoSnapshot?.basket };
+  if (!isBasketUndoPhrase(norm, undoCtx)) return false;
 
   const snapshot = session.basketUndoSnapshot;
   if (!snapshot?.basket) {
+    if (silent) return null;
     await sendText(from, t('basketNothingToUndo', lang));
     return true;
   }
@@ -196,6 +193,8 @@ async function tryBasketUndo({
     phone: from,
     outcome: 'undone',
   });
+
+  if (silent) return restored;
 
   if (!restored.length) {
     await sendOrderEntryPrompt({
@@ -278,7 +277,6 @@ async function tryConversationalBasketText({
 }
 
 module.exports = {
-  isBasketUndoPhrase,
   tryBasketUndo,
   tryConversationalBasketText,
   applyConversationalOps,

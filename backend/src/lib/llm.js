@@ -159,6 +159,41 @@ const GEMINI_EDIT_SCHEMA = {
   required: ['type', 'confidence'],
 };
 
+const COMMAND_SYSTEM_PROMPT = `You classify short WhatsApp messages to a food ordering bot (German, English, Turkish).
+Return JSON only. command must be one of:
+- view_basket: customer wants to see their cart (warenkorb, show basket, was hab ich, sepeti göster)
+- undo: revert the last cart change (rückgängig, undo, geri al, zurück ONLY when undo is available in context)
+- none: food orders, menu items, greetings, search, or anything else
+
+Rules:
+- Dish or drink names are NEVER commands — use none.
+- Use undo only when context says undo is available AND the message clearly means revert/undo, not "go back to menu".
+- confidence: 0.0–1.0; use <0.85 when unsure.`;
+
+const OPENAI_COMMAND_SCHEMA = {
+  type: 'object',
+  properties: {
+    command: {
+      type: 'string',
+      enum: ['view_basket', 'undo', 'none'],
+    },
+    confidence: { type: 'number' },
+  },
+  required: ['command', 'confidence'],
+};
+
+const GEMINI_COMMAND_SCHEMA = {
+  type: 'object',
+  properties: {
+    command: {
+      type: 'string',
+      enum: ['view_basket', 'undo', 'none'],
+    },
+    confidence: { type: 'number' },
+  },
+  required: ['command', 'confidence'],
+};
+
 const rateLimitByPhone = new Map();
 let dailyCallCount = 0;
 let dailyCallDate = '';
@@ -335,6 +370,147 @@ function validateEditPayload(data) {
   }
   if (type === 'cancel') return base;
   return null;
+}
+
+function validateCommandPayload(data) {
+  if (!data || typeof data !== 'object') return null;
+  const confidence = Number(data.confidence);
+  if (!Number.isFinite(confidence)) return null;
+  const command = String(data.command ?? '').toLowerCase();
+  const allowed = new Set(['view_basket', 'undo', 'none']);
+  if (!allowed.has(command)) return null;
+  return {
+    command,
+    confidence: Math.max(0, Math.min(1, confidence)),
+  };
+}
+
+function buildCommandUserText(text, { hasUndoSnapshot = false, hasBasket = false } = {}) {
+  const lines = [
+    `Basket has items: ${hasBasket ? 'yes' : 'no'}`,
+    `Undo available: ${hasUndoSnapshot ? 'yes' : 'no'}`,
+    '',
+    `Customer message:\n${text}`,
+  ];
+  return lines.join('\n');
+}
+
+async function callOpenAiCommand(userText) {
+  const model = process.env.LLM_MODEL || 'gpt-4o-mini';
+  const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
+
+  const res = await axios.post(
+    'https://api.openai.com/v1/chat/completions',
+    {
+      model,
+      temperature: 0,
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'bot_command',
+          strict: true,
+          schema: OPENAI_COMMAND_SCHEMA,
+        },
+      },
+      messages: [
+        { role: 'system', content: COMMAND_SYSTEM_PROMPT },
+        { role: 'user', content: userText },
+      ],
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      timeout,
+    },
+  );
+
+  const content = res.data?.choices?.[0]?.message?.content;
+  return validateCommandPayload(parseJsonContent(content));
+}
+
+async function callGeminiCommand(userText) {
+  const model = process.env.LLM_MODEL || 'gemini-2.5-flash-lite';
+  const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const key = process.env.GEMINI_API_KEY;
+
+  const baseBody = {
+    systemInstruction: { parts: [{ text: COMMAND_SYSTEM_PROMPT }] },
+    contents: [{ role: 'user', parts: [{ text: userText }] }],
+    generationConfig: { temperature: 0 },
+  };
+
+  const withSchema = {
+    ...baseBody,
+    generationConfig: {
+      ...baseBody.generationConfig,
+      responseMimeType: 'application/json',
+      responseSchema: GEMINI_COMMAND_SCHEMA,
+    },
+  };
+
+  try {
+    const res = await withLlmRetry(() => axios.post(url, withSchema, {
+      params: { key },
+      headers: { 'Content-Type': 'application/json' },
+      timeout,
+    }));
+    const content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const parsed = validateCommandPayload(parseJsonContent(content));
+    if (parsed) return parsed;
+  } catch (err) {
+    const status = err.response?.status;
+    if (status === 400) {
+      try {
+        const res = await withLlmRetry(() => axios.post(url, {
+          ...baseBody,
+          generationConfig: {
+            ...baseBody.generationConfig,
+            responseMimeType: 'application/json',
+          },
+        }, {
+          params: { key },
+          headers: { 'Content-Type': 'application/json' },
+          timeout,
+        }));
+        const content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        const parsed = validateCommandPayload(parseJsonContent(content));
+        if (parsed) return parsed;
+      } catch (retryErr) {
+        throw retryErr;
+      }
+    }
+    throw err;
+  }
+
+  return null;
+}
+
+async function parseBotCommandWithLlm(text, { phone, hasUndoSnapshot = false, hasBasket = false } = {}) {
+  if (!canCallLlm(phone)) return null;
+
+  const userText = buildCommandUserText(text, { hasUndoSnapshot, hasBasket });
+  const provider = (process.env.LLM_PROVIDER || 'google').toLowerCase();
+  const started = Date.now();
+
+  try {
+    const result = provider === 'openai'
+      ? await callOpenAiCommand(userText)
+      : await callGeminiCommand(userText);
+
+    if (result) {
+      recordCall(phone);
+      if (process.env.LOG_LEVEL === 'debug') {
+        console.log(`[llm] bot command parsed in ${Date.now() - started}ms command=${result.command} confidence=${result.confidence}`);
+      }
+    }
+    return result;
+  } catch (err) {
+    logLlmFailure(err, err.response?.data?.error?.message);
+    return null;
+  }
 }
 
 async function callOpenAiEdit(userText) {
@@ -617,8 +793,10 @@ module.exports = {
   canCallLlm,
   parseOrderIntentWithLlm,
   parseProposalEditWithLlm,
+  parseBotCommandWithLlm,
   validateIntentPayload,
   validateMenuIntentPayload,
   validateEditPayload,
+  validateCommandPayload,
   _resetLlmState,
 };

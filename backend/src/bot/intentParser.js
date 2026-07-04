@@ -7,6 +7,7 @@ const { learnedItemIdsChanged } = require('./intentLearningRebind');
 const { intentLearnKey, stripImperativePrefix } = require('./intentNormalize');
 const { detectRemovePhrase } = require('./intentRemoveDetect');
 const { shouldRejectStaleLearnedHit } = require('./intentPartialMatch');
+const { isBotCommandPhrase } = require('./botCommands');
 const {
   stripIntentModifiers, wantsAllIncluded, parseExclusions, isModifierOnlyToken,
 } = require('./intentModifiers');
@@ -489,6 +490,7 @@ function parseFoodDrinkPair(text) {
 
 function looksLikeOrderText(text, norm) {
   if (!text || text.length < 2) return false;
+  if (isBotCommandPhrase(text, norm)) return false;
   if (isGreetingOnly(norm) || isFreshStartCommand(norm)) return false;
   if (parseOrderText(text).length) return true;
   if (parseTurkishQtyItems(text).length) return true;
@@ -496,6 +498,24 @@ function looksLikeOrderText(text, norm) {
   if (ORDER_SIGNAL_RE.test(text)) return true;
   // Single word ≥3 chars — try menu match later
   if (/^[a-zA-ZäöüÄÖÜßıİ0-9\s-]{3,}$/.test(text.trim()) && !isGreetingOnly(norm)) return true;
+  return false;
+}
+
+/** Stricter than looksLikeOrderText — for checkout name guard (M2). */
+function isStrongOrderText(text, norm) {
+  if (!text?.trim() || text.length < 2) return false;
+  if (isGreetingOnly(norm) || isFreshStartCommand(norm)) return false;
+  if (/^(?:noch\s+)?jeweils\b/i.test(text.trim())) return true;
+  if (/\b(?:dazu|noch ein|noch eine|noch einen|eine extra|einen extra)\b/i.test(norm)) return true;
+  if (/\d+\s*(?:x|×|\*)\s*\w/i.test(text)) return true;
+  if (/^\d+\s+[a-zäöüß]{3,}/i.test(text.trim())) return true;
+  if (parseTurkishQtyItems(text).length) return true;
+  if (detectRemovePhrase(text) && /\b(?:raus|ohne|entfernen|çıkar|löschen|weg|remove|delete)\b/i.test(norm)) {
+    return true;
+  }
+  const items = parseOrderText(text);
+  if (items.length > 1) return true;
+  if (items.length === 1 && items[0].qty > 1) return true;
   return false;
 }
 
@@ -742,6 +762,7 @@ module.exports = {
   parseIntent,
   parseIntentAsync,
   looksLikeOrderText,
+  isStrongOrderText,
   isGreetingOnly,
   isFreshStartCommand,
   extractPartySize,
