@@ -17,6 +17,7 @@ const { splitPendingItems, startIntentCustomization, buildOptionLabel } = requir
 const { norm } = require('./menuMatch');
 const { enrichPendingWithModifier } = require('./intentModifiers');
 const { collectSpicySpecialNote, tagLinesWithNote, resolveLineSpicyNote } = require('./intentNotes');
+const { sendOrderEntryPrompt } = require('./orderEntry');
 
 function isIntentConfirmText(text, lang) {
   const cleaned = norm((text ?? '').replace(/[!?.]+/g, '').trim());
@@ -156,6 +157,19 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   }
 
   if (!matched.length) {
+    // hasSuspiciousTokens rejected all items into unmatched with known alternatives —
+    // show those suggestions instead of the generic parse-failed / no-match message.
+    const itemsWithSuggestions = unmatched.filter(name => unmatchedSuggestions[name]?.length);
+    if (itemsWithSuggestions.length) {
+      const bodyLines = unmatched.map(name => {
+        const suggestions = unmatchedSuggestions[name];
+        return suggestions?.length
+          ? t('intentUnmatchedWithSuggestion', lang, name, suggestions.join(', '))
+          : t('intentNoMatch', lang, name);
+      });
+      await sendOrderEntryPrompt({ from, session, lang, businessId, basket, bodyOverride: bodyLines.join('\n\n') });
+      return true;
+    }
     if (intent.llmFailed || canCallLlm(from)) return 'llm_failed';
     return false;
   }
