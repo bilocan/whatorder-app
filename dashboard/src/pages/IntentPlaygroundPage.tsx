@@ -532,7 +532,7 @@ export default function IntentPlaygroundPage() {
                       {t('learnedPhrases.add.removeAll')}
                     </label>
                   )}
-                  {operation === 'add' && sku?.optionGroups?.length ? (
+                  {sku?.optionGroups?.length ? (
                     <ToppingPicker
                       groups={sku.optionGroups}
                       value={selectionsForMenuItem(sku.optionGroups, line.selections)}

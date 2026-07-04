@@ -4,6 +4,7 @@ const {
   resolveModifierSelections,
   wantsAllIncluded,
   parseExclusions,
+  parseMitInclusions,
 } = require('../intentModifiers');
 const { mergePendingItems } = require('../intentMatcher');
 
@@ -38,6 +39,29 @@ describe('extractModifierKey', () => {
     expect(extractModifierKey('doner mit allen')).toBe('mit:allem');
     expect(extractModifierKey('doner mit allen und scharf')).toBe('mit:allem+scharf');
     expect(extractModifierKey('doner mit allen')).not.toBe(extractModifierKey('doner mit allen und scharf'));
+  });
+
+  test('mit+ohne combo yields prefixed key distinct from ohne-only', () => {
+    const combined = extractModifierKey('dürüm mit tomaten und salad und zwiebel ohne sose');
+    const ohneOnly = extractModifierKey('dürüm ohne sose');
+    expect(combined).toMatch(/^mit:/);
+    expect(combined).toContain('+ohne:');
+    expect(combined).not.toBe(ohneOnly);
+  });
+});
+
+describe('parseMitInclusions', () => {
+  test('returns inclusion tokens truncated at ohne clause', () => {
+    const incl = parseMitInclusions('dürüm mit tomaten und salad und zwiebel ohne sose');
+    expect(incl).toEqual(['tomaten', 'salad', 'zwiebel']);
+  });
+
+  test('returns null for mit allem phrases', () => {
+    expect(parseMitInclusions('döner mit allem')).toBeNull();
+  });
+
+  test('returns null when no mit clause present', () => {
+    expect(parseMitInclusions('döner ohne zwiebel')).toBeNull();
   });
 });
 
@@ -85,6 +109,15 @@ describe('resolveModifierSelections', () => {
   test('mit tomaten salad und zwiebel selects named beilagen only', () => {
     const sel = resolveModifierSelections('kebap mit tomaten salad und zwiebel', [BEILAGEN_GROUP]);
     expect(sel.beilagen).toEqual(['tomato', 'salad', 'onion']);
+  });
+
+  test('mit X und Y ohne sose — whitelist inclusions and exclude sauce', () => {
+    const sel = resolveModifierSelections(
+      'dürüm mit tomaten und salad und zwiebel ohne sose',
+      [BEILAGEN_GROUP],
+    );
+    expect(sel.beilagen).toEqual(['tomato', 'salad', 'onion']);
+    expect(sel.beilagen).not.toContain('sauce');
   });
 });
 

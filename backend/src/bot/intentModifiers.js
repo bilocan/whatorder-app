@@ -103,7 +103,11 @@ function extractModifierKey(rawIntentName) {
   if (!n) return '';
 
   const exclusions = parseExclusions(rawIntentName);
-  if (exclusions.length) return `ohne:${[...exclusions].sort().join(',')}`;
+  if (exclusions.length) {
+    const incl = parseMitInclusions(rawIntentName);
+    const prefix = incl?.length ? `mit:${[...incl].map(norm).sort().join(',')}+` : '';
+    return `${prefix}ohne:${[...exclusions].sort().join(',')}`;
+  }
 
   if (ALL_PHRASES.test(rawIntentName)) {
     return wantsSpicyIncluded(rawIntentName) ? 'mit:allem+scharf' : 'mit:allem';
@@ -165,7 +169,7 @@ function isSpicyLabel(label) {
 function isRegularSauceExclusion(ex) {
   if (isSpicyExclusion(ex)) return false;
   const n = norm(ex);
-  return n.includes('sauce') || n.includes('sobe') || n === 'soße' || n === 'sosse';
+  return n.includes('sauce') || n.includes('sobe') || n === 'soße' || n === 'sosse' || n === 'sose';
 }
 
 function optionExcludedByHint(optionLabel, exclusionTokens) {
@@ -201,15 +205,17 @@ function optionIncludedByHint(optionLabel, inclusionTokens) {
 /** "mit tomaten salad und zwiebel" → ['tomaten', 'salad', 'zwiebel'] */
 function parseMitInclusions(rawIntentName) {
   if (wantsAllIncluded(rawIntentName)) return null;
-  if (parseExclusions(rawIntentName).length > 0) return null;
 
   const raw = rawIntentName ?? '';
   const mitTail = raw.match(/\bmit\s+(.+?)(?:\s+bitte)?\s*$/i);
   if (!mitTail) return null;
 
   let tail = mitTail[1].trim();
+  // Truncate at exclusion clause so "mit X und Y ohne Z" yields inclusions [X, Y]
+  const ohneIdx = tail.search(/\b(?:ohne|without|no)\b/i);
+  if (ohneIdx >= 0) tail = tail.slice(0, ohneIdx).trim();
   tail = tail.replace(/\s+und\s+(?:scharf|scharfe|schaf|sharf)\s*$/i, '').trim();
-  if (/^(?:allem|allen|alles|scharf|scharfe|spicy|hot)$/i.test(tail)) return null;
+  if (!tail || /^(?:allem|allen|alles|scharf|scharfe|spicy|hot)$/i.test(tail)) return null;
 
   const parts = tail.split(/\s+und\s+|\s*,\s*|\s+and\s+/i).map(s => s.trim()).filter(Boolean);
   if (!parts.length) return null;
@@ -334,10 +340,20 @@ function resolveModifierSelections(rawIntentName, optionGroups) {
         });
       }
     } else if (exclusions.length) {
-      ids = allOptionIds(group).filter(id => {
-        const opt = group.options?.find(o => o.id === id);
-        return opt && !optionExcludedByHint(opt.label, exclusions);
-      });
+      if (inclusions?.length) {
+        // "mit X und Y ohne Z" — whitelist inclusions, then remove exclusions
+        ids = allOptionIds(group).filter(id => {
+          const opt = group.options?.find(o => o.id === id);
+          return opt
+            && optionIncludedByHint(opt.label, inclusions)
+            && !optionExcludedByHint(opt.label, exclusions);
+        });
+      } else {
+        ids = allOptionIds(group).filter(id => {
+          const opt = group.options?.find(o => o.id === id);
+          return opt && !optionExcludedByHint(opt.label, exclusions);
+        });
+      }
     } else if (inclusions?.length) {
       ids = allOptionIds(group).filter(id => {
         const opt = group.options?.find(o => o.id === id);
