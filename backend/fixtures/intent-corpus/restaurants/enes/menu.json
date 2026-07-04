@@ -615,6 +615,21 @@
       "eneskebapspecialkabaphuhn",
       "eneskebapspecialkebabhuhn",
       "eneskebapspecialkebaphuhn"
+    ],
+    "optionGroups": [
+      {
+        "id": "beilagen",
+        "label": "Beilagen",
+        "type": "multi",
+        "required": false,
+        "options": [
+          { "id": "tomaten", "label": "Tomaten" },
+          { "id": "salad", "label": "Salad" },
+          { "id": "zwiebel", "label": "Zwiebel" },
+          { "id": "sauce", "label": "Sauce" }
+        ],
+        "multiDefault": "all"
+      }
     ]
   },
   {
@@ -643,6 +658,21 @@
       "eneskebapspecialsandwichhahnchen",
       "eneskebapspecialsandwichhuhner",
       "eneskebapspecialsandwichtavuk"
+    ],
+    "optionGroups": [
+      {
+        "id": "beilagen",
+        "label": "Beilagen",
+        "type": "multi",
+        "required": false,
+        "options": [
+          { "id": "tomaten", "label": "Tomaten" },
+          { "id": "salad", "label": "Salad" },
+          { "id": "zwiebel", "label": "Zwiebel" },
+          { "id": "sauce", "label": "Sauce" }
+        ],
+        "multiDefault": "all"
+      }
     ]
   },
   {
