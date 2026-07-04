@@ -8,9 +8,9 @@ import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { auth, db } from '../../lib/firebase';
 import { geocodeAddress } from '../../lib/geocode';
-import OptionGroupsEditor from '../../components/OptionGroupsEditor';
-import { draftGroupsFromMenu, customizationSummary, buildMenuPayload } from '../../lib/optionGroups';
-import type { DraftOptionGroup } from '../../lib/optionGroups';
+import OptionGroupAssigner from '../../components/OptionGroupAssigner';
+import { customizationSummary, buildMenuPayload, resolveMenuItemOptionGroups } from '../../lib/optionGroups';
+import { useOptionGroupLibrary } from '../../hooks/useOptionGroupLibrary';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { useAdminPhoneLine } from '../../contexts/AdminPhoneLineContext';
 import type { Business, MenuItem, Owner } from '../../types';
@@ -94,6 +94,7 @@ export default function RestaurantDetailPage() {
   const confirmDialog = useConfirm();
   const { id } = useParams<{ id: string }>();
   const { phoneNumberId } = useAdminPhoneLine();
+  const { groups: optionGroupLibrary, byId: optionGroupsById, loading: libraryLoading } = useOptionGroupLibrary(id ?? null);
 
   const [business, setBusiness] = useState<Business | null>(null);
   const [tab, setTab] = useState<Tab>('details');
@@ -122,11 +123,11 @@ type MenuFormState = {
   category: MenuItem['category'];
   description: string;
   available: boolean;
-  optionGroups: DraftOptionGroup[];
+  optionGroupIds: string[];
 };
 
 const EMPTY_MENU: MenuFormState = {
-  name: '', price: '', category: 'mains', description: '', available: true, optionGroups: [],
+  name: '', price: '', category: 'mains', description: '', available: true, optionGroupIds: [],
 };
 
   const [newItem, setNewItem] = useState<MenuFormState>(EMPTY_MENU);
@@ -258,7 +259,7 @@ const EMPTY_MENU: MenuFormState = {
       category: item.category,
       description: item.description ?? '',
       available: item.available,
-      optionGroups: draftGroupsFromMenu(item.optionGroups),
+      optionGroupIds: item.optionGroupIds ?? [],
     });
     setShowMenuForm(false);
   }
@@ -553,9 +554,12 @@ const EMPTY_MENU: MenuFormState = {
                               {t('admin.restaurantDetail.menu.form.available')}
                             </label>
                           </div>
-                          <OptionGroupsEditor
-                            value={editItem.optionGroups}
-                            onChange={(optionGroups) => setEditItem({ ...editItem, optionGroups })}
+                          <OptionGroupAssigner
+                            value={editItem.optionGroupIds}
+                            onChange={(optionGroupIds) => setEditItem({ ...editItem, optionGroupIds })}
+                            library={optionGroupLibrary}
+                            templatesById={optionGroupsById}
+                            loading={libraryLoading}
                           />
                           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
                             <button type="submit" disabled={savingMenu} style={{ ...btnPrimary, opacity: savingMenu ? 0.6 : 1 }}>
@@ -570,11 +574,14 @@ const EMPTY_MENU: MenuFormState = {
                     <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                       <td style={{ padding: '0.65rem 0.5rem', fontWeight: 500 }}>
                         {item.name}
-                        {customizationSummary(item.optionGroups) && (
-                          <span style={{ display: 'block', fontSize: '0.75rem', color: '#6366f1', fontWeight: 400 }}>
-                            {t('menu.optionGroups.badge', { summary: customizationSummary(item.optionGroups) })}
-                          </span>
-                        )}
+                        {(() => {
+                          const resolved = resolveMenuItemOptionGroups(item, optionGroupsById);
+                          return customizationSummary(resolved) && (
+                            <span style={{ display: 'block', fontSize: '0.75rem', color: '#6366f1', fontWeight: 400 }}>
+                              {t('menu.optionGroups.badge', { summary: customizationSummary(resolved) })}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td style={{ padding: '0.65rem 0.5rem', fontSize: '0.85rem', color: '#666', textTransform: 'capitalize' }}>{item.category}</td>
                       <td style={{ padding: '0.65rem 0.5rem' }}>€{Number(item.price).toFixed(2)}</td>
@@ -622,9 +629,12 @@ const EMPTY_MENU: MenuFormState = {
                   {t('admin.restaurantDetail.menu.form.available')}
                 </label>
               </div>
-              <OptionGroupsEditor
-                value={newItem.optionGroups}
-                onChange={(optionGroups) => setNewItem({ ...newItem, optionGroups })}
+              <OptionGroupAssigner
+                value={newItem.optionGroupIds}
+                onChange={(optionGroupIds) => setNewItem({ ...newItem, optionGroupIds })}
+                library={optionGroupLibrary}
+                templatesById={optionGroupsById}
+                loading={libraryLoading}
               />
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
                 <button type="submit" disabled={savingMenu} style={{ ...btnPrimary, opacity: savingMenu ? 0.6 : 1 }}>

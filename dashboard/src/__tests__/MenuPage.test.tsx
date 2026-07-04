@@ -1,18 +1,22 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import MenuPage from '../pages/MenuPage'
 import { ConfirmDialogProvider } from '../components/ConfirmDialog'
 
-const { mockUseAuth, mockOnSnapshot, mockAddDoc, mockUploadBytes, mockGetDownloadURL } = vi.hoisted(() => ({
+const { mockUseAuth, mockOnSnapshot, mockAddDoc, mockUploadBytes, mockGetDownloadURL, stableOptionGroups } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
   mockOnSnapshot: vi.fn(),
   mockAddDoc: vi.fn(),
   mockUploadBytes: vi.fn(),
   mockGetDownloadURL: vi.fn(),
+  stableOptionGroups: { groups: [], byId: {}, loading: false },
 }))
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: mockUseAuth }))
+vi.mock('../hooks/useOptionGroupLibrary', () => ({
+  useOptionGroupLibrary: () => stableOptionGroups,
+}))
 vi.mock('../lib/firebase', () => ({ db: {}, storage: {} }))
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
@@ -36,10 +40,14 @@ const ITEMS = [
   { id: 'm3', name: 'Falafel', description: '', price: 7.0, category: 'mains', available: true },
 ]
 
-function renderPage() {
+function renderPage(initialPath = '/menu') {
   return render(
     <ConfirmDialogProvider>
-      <MemoryRouter><MenuPage /></MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route path="/menu" element={<MenuPage />} />
+        </Routes>
+      </MemoryRouter>
     </ConfirmDialogProvider>
   )
 }
@@ -106,6 +114,18 @@ describe('MenuPage', () => {
     })
     renderPage()
     expect(screen.getByText('+ Add item')).toBeInTheDocument()
+  })
+
+  it('opens edit form when navigated with ?edit=itemId', async () => {
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage('/menu?edit=m1')
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Save')).toBeInTheDocument()
   })
 
   it('uploads a selected photo and saves the returned URL on the new item', async () => {

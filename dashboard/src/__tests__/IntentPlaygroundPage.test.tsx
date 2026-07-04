@@ -4,15 +4,19 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import IntentPlaygroundPage from '../pages/IntentPlaygroundPage';
 
-const { mockUseAuth, mockOnSnapshot } = vi.hoisted(() => ({
+const { mockUseAuth, mockOnSnapshot, stableOptionGroups } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
   mockOnSnapshot: vi.fn(),
+  stableOptionGroups: { groups: [], byId: {}, loading: false },
 }));
 
 const mockPreview = vi.fn();
 const mockSave = vi.fn();
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: mockUseAuth }));
+vi.mock('../hooks/useOptionGroupLibrary', () => ({
+  useOptionGroupLibrary: () => stableOptionGroups,
+}));
 vi.mock('../lib/firebase', () => ({ db: {} }));
 vi.mock('../lib/intentPhrasesApi', () => ({
   previewIntentPhrase: (...args: unknown[]) => mockPreview(...args),

@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
 } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import OptionGroupsEditor from '../components/OptionGroupsEditor';
-import { draftGroupsFromMenu, customizationSummary, buildMenuPayload } from '../lib/optionGroups';
-import type { DraftOptionGroup } from '../lib/optionGroups';
+import OptionGroupAssigner from '../components/OptionGroupAssigner';
+import { customizationSummary, buildMenuPayload, resolveMenuItemOptionGroups } from '../lib/optionGroups';
+import { useOptionGroupLibrary } from '../hooks/useOptionGroupLibrary';
 import { uploadMenuPhoto, deleteMenuPhotoBestEffort, MenuPhotoError } from '../lib/menuPhoto';
 import { useConfirm } from '../components/ConfirmDialog';
 import type { MenuItem } from '../types';
@@ -116,13 +117,13 @@ type FormValues = {
   category: MenuItem['category'];
   description: string;
   available: boolean;
-  optionGroups: DraftOptionGroup[];
+  optionGroupIds: string[];
   photoFile: File | null;
   photoUrl: string | null;
 };
 
 const EMPTY: FormValues = {
-  name: '', price: '', category: 'mains', description: '', available: true, optionGroups: [],
+  name: '', price: '', category: 'mains', description: '', available: true, optionGroupIds: [],
   photoFile: null, photoUrl: null,
 };
 
@@ -134,9 +135,29 @@ interface MenuFormProps {
   submitting: boolean;
   submitLabel: string;
   photoError: string | null;
+  optionGroupLibrary: import('../types').OptionGroupTemplate[];
+  libraryLoading: boolean;
+  templatesById?: Record<string, import('../types').OptionGroupTemplate>;
+  anchorId?: string;
 }
 
-function MenuForm({ values, onChange, onSubmit, onCancel, submitting, submitLabel, photoError }: MenuFormProps) {
+function menuItemToFormValues(item: MenuItem): FormValues {
+  return {
+    name: item.name,
+    price: String(item.price),
+    category: item.category,
+    description: item.description ?? '',
+    available: item.available,
+    optionGroupIds: item.optionGroupIds ?? [],
+    photoFile: null,
+    photoUrl: item.photoUrl ?? null,
+  };
+}
+
+function MenuForm({
+  values, onChange, onSubmit, onCancel, submitting, submitLabel, photoError,
+  optionGroupLibrary, libraryLoading, templatesById, anchorId,
+}: MenuFormProps) {
   const { t } = useTranslation();
   const categoryOptions = STANDARD_CATEGORIES.map((c) => ({ value: c, label: t(`menu.category.${c}`) }));
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -155,6 +176,7 @@ function MenuForm({ values, onChange, onSubmit, onCancel, submitting, submitLabe
 
   return (
     <form
+      id={anchorId}
       onSubmit={onSubmit}
       style={{
         display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end',
@@ -240,9 +262,12 @@ function MenuForm({ values, onChange, onSubmit, onCancel, submitting, submitLabe
         </button>
         <button type="button" style={btnSecondary} onClick={onCancel}>{t('menu.cancel')}</button>
       </div>
-      <OptionGroupsEditor
-        value={values.optionGroups}
-        onChange={(optionGroups) => onChange({ ...values, optionGroups })}
+      <OptionGroupAssigner
+        value={values.optionGroupIds}
+        onChange={(optionGroupIds) => onChange({ ...values, optionGroupIds })}
+        library={optionGroupLibrary}
+        templatesById={templatesById}
+        loading={libraryLoading}
       />
     </form>
   );
@@ -252,6 +277,8 @@ export default function MenuPage() {
   const { t } = useTranslation();
   const confirmDialog = useConfirm();
   const { businessId } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { groups: optionGroupLibrary, byId: optionGroupsById, loading: libraryLoading } = useOptionGroupLibrary(businessId);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newItem, setNewItem] = useState<FormValues>(EMPTY);
@@ -266,6 +293,24 @@ export default function MenuPage() {
       setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() } as MenuItem)));
     });
   }, [businessId]);
+
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId || !items.length) return;
+    const item = items.find((i) => i.id === editId);
+    if (!item || editingId === editId) return;
+    setEditingId(editId);
+    setPhotoError(null);
+    setEditItem(menuItemToFormValues(item));
+    setShowAddForm(false);
+    requestAnimationFrame(() => {
+      document.getElementById(`menu-item-edit-${editId}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }, [searchParams, items, editingId]);
+
+  function clearEditParam() {
+    if (searchParams.get('edit')) setSearchParams({}, { replace: true });
+  }
 
   const grouped = groupMenuItems(items);
 
@@ -299,17 +344,9 @@ export default function MenuPage() {
   function startEdit(item: MenuItem) {
     setEditingId(item.id);
     setPhotoError(null);
-    setEditItem({
-      name: item.name,
-      price: String(item.price),
-      category: item.category,
-      description: item.description ?? '',
-      available: item.available,
-      optionGroups: draftGroupsFromMenu(item.optionGroups),
-      photoFile: null,
-      photoUrl: item.photoUrl ?? null,
-    });
+    setEditItem(menuItemToFormValues(item));
     setShowAddForm(false);
+    setSearchParams({ edit: item.id }, { replace: true });
   }
 
   async function handleSaveEdit(e: React.FormEvent) {
@@ -325,6 +362,7 @@ export default function MenuPage() {
         await deleteMenuPhotoBestEffort(original.photoUrl);
       }
       setEditingId(null);
+      clearEditParam();
     } catch (err) {
       if (err instanceof MenuPhotoError) setPhotoError(photoErrorMessage(err));
       else throw err;
@@ -335,7 +373,10 @@ export default function MenuPage() {
 
   async function handleDelete(itemId: string) {
     if (!businessId || !(await confirmDialog(t('menu.deleteConfirm')))) return;
-    if (editingId === itemId) setEditingId(null);
+    if (editingId === itemId) {
+      setEditingId(null);
+      clearEditParam();
+    }
     await deleteDoc(doc(db, 'businesses', businessId, 'menu', itemId));
   }
 
@@ -352,7 +393,7 @@ export default function MenuPage() {
         <h2 style={{ margin: 0 }}>{t('menu.title')}</h2>
         <button
           style={btnPrimary}
-          onClick={() => { setShowAddForm(true); setEditingId(null); }}
+          onClick={() => { setShowAddForm(true); setEditingId(null); clearEditParam(); }}
         >
           {t('menu.addItem')}
         </button>
@@ -367,6 +408,9 @@ export default function MenuPage() {
           submitting={saving}
           submitLabel={t('menu.add')}
           photoError={photoError}
+          optionGroupLibrary={optionGroupLibrary}
+          libraryLoading={libraryLoading}
+          templatesById={optionGroupsById}
         />
       )}
 
@@ -383,13 +427,17 @@ export default function MenuPage() {
             editingId === item.id ? (
               <MenuForm
                 key={item.id}
+                anchorId={`menu-item-edit-${item.id}`}
                 values={editItem}
                 onChange={setEditItem}
                 onSubmit={handleSaveEdit}
-                onCancel={() => { setEditingId(null); setPhotoError(null); }}
+                onCancel={() => { setEditingId(null); setPhotoError(null); clearEditParam(); }}
                 submitting={saving}
                 submitLabel={t('menu.save')}
                 photoError={photoError}
+                optionGroupLibrary={optionGroupLibrary}
+                libraryLoading={libraryLoading}
+                templatesById={optionGroupsById}
               />
             ) : (
               <div
@@ -401,11 +449,14 @@ export default function MenuPage() {
               >
                 <div>
                   <span style={{ fontWeight: 600 }}>{item.name}</span>
-                  {customizationSummary(item.optionGroups) && (
-                    <span style={{ color: '#6366f1', fontSize: '0.75rem', marginLeft: '0.45rem' }}>
-                      {t('menu.optionGroups.badge', { summary: customizationSummary(item.optionGroups) })}
-                    </span>
-                  )}
+                  {(() => {
+                    const resolved = resolveMenuItemOptionGroups(item, optionGroupsById);
+                    return customizationSummary(resolved) && (
+                      <span style={{ color: '#6366f1', fontSize: '0.75rem', marginLeft: '0.45rem' }}>
+                        {t('menu.optionGroups.badge', { summary: customizationSummary(resolved) })}
+                      </span>
+                    );
+                  })()}
                   {item.description && (
                     <span style={{ color: '#999', fontSize: '0.85rem', marginLeft: '0.5rem' }}>
                       {item.description}

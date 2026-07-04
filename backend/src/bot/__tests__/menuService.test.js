@@ -1,12 +1,13 @@
 // Use factory mocks so the real modules (and firebase init) are never loaded.
 jest.mock('../../lib/collections', () => ({
   menuRef: jest.fn(),
+  optionGroupsRef: jest.fn(),
   businessRef: jest.fn(),
 }));
 jest.mock('../templates');
 
 const { getMenu, getBusinessInfo, formatMenuText, matchMenuItem, resolvePhotoUrl } = require('../menuService');
-const { menuRef, businessRef } = require('../../lib/collections');
+const { menuRef, optionGroupsRef, businessRef } = require('../../lib/collections');
 const { t } = require('../templates');
 
 beforeEach(() => {
@@ -118,17 +119,46 @@ describe('getMenu', () => {
     menuRef.mockReturnValue({
       where: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue({ docs }) }),
     });
+    optionGroupsRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({ docs: [] }),
+    });
 
     const result = await getMenu('biz_1');
     expect(result).toEqual([
-      { id: 'item_1', name: 'Döner', price: 8.5, available: true },
-      { id: 'item_2', name: 'Ayran', price: 2.0, available: true },
+      { id: 'item_1', name: 'Döner', price: 8.5, available: true, optionGroups: [] },
+      { id: 'item_2', name: 'Ayran', price: 2.0, available: true, optionGroups: [] },
     ]);
+  });
+
+  test('resolves optionGroupIds from library templates', async () => {
+    const inserts = {
+      id: 'inserts',
+      label: 'Beilagen',
+      type: 'multi',
+      options: [{ id: 'tomato', label: 'Tomaten' }],
+    };
+    const docs = [
+      { id: 'item_1', data: () => ({ name: 'Dürüm', price: 8.5, optionGroupIds: ['inserts'] }) },
+    ];
+    menuRef.mockReturnValue({
+      where: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue({ docs }) }),
+    });
+    optionGroupsRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        docs: [{ id: 'inserts', data: () => inserts }],
+      }),
+    });
+
+    const result = await getMenu('biz_1');
+    expect(result[0].optionGroups).toEqual([inserts]);
   });
 
   test('returns empty array when no items', async () => {
     menuRef.mockReturnValue({
       where: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue({ docs: [] }) }),
+    });
+    optionGroupsRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({ docs: [] }),
     });
 
     const result = await getMenu('biz_1');

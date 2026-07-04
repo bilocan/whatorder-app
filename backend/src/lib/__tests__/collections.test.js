@@ -10,7 +10,7 @@ jest.mock('../firebase', () => {
 
 const { db } = require('../firebase');
 const {
-  businessRef, menuRef, ordersRef, customersRef, phoneRoutingRef,
+  businessRef, menuRef, optionGroupsRef, ordersRef, customersRef, phoneRoutingRef,
   ownerRef, adminRef, processedMessageRef, stripeEventRef, configRef,
   settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, commandLearningRef,
 } = require('../collections');
@@ -38,6 +38,15 @@ describe('menuRef', () => {
     expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
     expect(db.doc).toHaveBeenCalledWith('biz_test');
     expect(db.collection).toHaveBeenNthCalledWith(2, 'menu');
+  });
+});
+
+describe('optionGroupsRef', () => {
+  test('builds path: businesses/{id}/optionGroups', () => {
+    optionGroupsRef('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
+    expect(db.doc).toHaveBeenCalledWith('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(2, 'optionGroups');
   });
 });
 
