@@ -475,6 +475,22 @@ function isFreshStartCommand(norm) {
   return FRESH_START_COMMANDS.has(cleaned);
 }
 
+/**
+ * "ein dürüm mit tomaten ohne sose zum trinken cola" →
+ * { food: "ein dürüm mit tomaten ohne sose", drink: "cola" }
+ *
+ * Drink can be 1-3 words (e.g. "cola", "eis tee", "eis tee pfirsich").
+ */
+function extractZumTrinkenDrink(text) {
+  const m = (text ?? '').match(
+    /^(.+?)\s+zum\s+trinken\s+([\wäöüÄÖÜß]+(?:\s+[\wäöüÄÖÜß]+){0,2})\s*$/i,
+  );
+  if (!m) return null;
+  const food = m[1].trim();
+  const drink = m[2].trim();
+  return food && drink ? { food, drink } : null;
+}
+
 /** "Lahmacun cola" → food + drink without conjunction or LLM. */
 function parseFoodDrinkPair(text) {
   const trimmed = stripPoliteSuffix((text ?? '').trim());
@@ -529,6 +545,17 @@ function parseIntent(text) {
   const jeweils = extractJeweilsDrink(stripped);
   if (jeweils) stripped = jeweils.main;
 
+  // "… zum trinken cola" → split drink out before conjunction parsing so
+  // beilage attachment doesn't absorb the drink into the food item's rawName.
+  let zumTrinkenDrink = null;
+  if (!jeweils) {
+    const zt = extractZumTrinkenDrink(stripped);
+    if (zt) {
+      stripped = zt.food;
+      zumTrinkenDrink = { qty: 1, rawName: zt.drink };
+    }
+  }
+
   let items = splitOneWithoutModifier(stripped);
   if (!items?.length) items = splitBeideMitAllemOneSpicy(stripped);
   if (!items?.length && jeweils?.drink && !jeweils.main) {
@@ -537,7 +564,18 @@ function parseIntent(text) {
   if (!items?.length) items = parseGermanQtyItems(stripped);
   if (!items?.length) items = parseTurkishQtyItems(stripped);
   if (!items?.length) items = parseFoodDrinkPair(stripped);
+  // When "zum trinken X" was pre-split, parseGermanQtyItems returns null for
+  // single-item phrases. Try leading-qty parse before the space-separated fallback
+  // so "ein X …" becomes [{qty:1, rawName:"X …"}] rather than keeping "ein".
+  if (!items?.length && zumTrinkenDrink) {
+    const single = parseGermanLeadingQty(stripped);
+    if (single?.length) items = single;
+  }
   if (!items?.length) items = parseSpaceSeparatedQtyItems(stripped) ?? parseOrderText(stripped);
+
+  if (zumTrinkenDrink && items?.length) {
+    items = [...items, zumTrinkenDrink];
+  }
 
   if (jeweils?.drink && items?.length && jeweils.main) {
     const perMeal = foodQtySum(items.filter(i => !isDrinkStem(stripPoliteSuffix(i.rawName ?? ''))));
