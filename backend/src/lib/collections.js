@@ -6,6 +6,10 @@ const businessRef = (businessId) =>
 const menuRef = (businessId) =>
   businessRef(businessId).collection('menu');
 
+// businesses/{businessId}/optionGroups/{groupId} — reusable WhatsApp customization groups
+const optionGroupsRef = (businessId) =>
+  businessRef(businessId).collection('optionGroups');
+
 const ordersRef = (businessId) =>
   businessRef(businessId).collection('orders');
 
@@ -63,7 +67,7 @@ const commandLearningRef = (keyHash) =>
   db.collection('commandLearnings').doc(keyHash);
 
 module.exports = {
-  businessRef, menuRef, ordersRef, customersRef,
+  businessRef, menuRef, optionGroupsRef, ordersRef, customersRef,
   phoneRoutingRef, phoneRoutingByBusinessQuery,
   ownerRef, adminRef,
   sessionRef,

@@ -18,6 +18,7 @@ const { lineMatchesTarget } = require('./intentRemoveQty');
 const { parseProposalEdit } = require('./proposalEdit');
 const { enrichPendingWithModifier } = require('./intentModifiers');
 const { buildOptionLabel, splitPendingItems } = require('./intentCustomize');
+const { linePriceForItem } = require('../lib/optionPricing');
 const { canCallLlm } = require('../lib/llm');
 const { canRetryWithLlm, retryIntentWithMenuLlm } = require('./intentLlmRetry');
 const { isPartialBlobTrap } = require('./intentPartialMatch');
@@ -278,7 +279,9 @@ function pendingLineToBasketItem(item) {
   const line = {
     name,
     qty: enriched.qty,
-    price: Number(enriched.price),
+    price: enriched.prefilledSelections
+      ? linePriceForItem(enriched, enriched.prefilledSelections)
+      : Number(enriched.price),
   };
   const note = (enriched.note ?? '').trim();
   if (note) line.note = note;

@@ -6,6 +6,7 @@ const { toBasketLine, tagLinesWithNote } = require('./intentNotes');
 const { mergeIntoBasket } = require('./intentMatcher');
 const { norm } = require('./menuMatch');
 const { enrichPendingWithModifier, isCustomizationSatisfied, wantsAllIncluded, wantsSpicyIncluded, parseExclusions, resolveModifierSelections } = require('./intentModifiers');
+const { linePriceForItem } = require('../lib/optionPricing');
 
 const MULTI_NONE_KEYWORDS = new Set([
   'none', 'no', 'nothing', 'zero',
@@ -45,7 +46,7 @@ function splitPendingItems(pending) {
       simple.push({
         name: buildOptionLabel(item, prefilled),
         qty: item.qty,
-        price: item.price,
+        price: linePriceForItem(item, prefilled),
       });
       continue;
     }
@@ -420,7 +421,8 @@ async function completeCurrentUnit({ from, session, lang, businessId, ic, select
   const item = ic.queue[0];
   const lineName = buildOptionLabel(item, selections);
   const lineQty = ic.unitMode === 'each' ? 1 : item.qty;
-  const readyBasket = mergeIntoBasket(ic.readyBasket, [lineForBasket(session, { name: lineName, qty: lineQty, price: item.price })]);
+  const linePrice = linePriceForItem(item, selections);
+  const readyBasket = mergeIntoBasket(ic.readyBasket, [lineForBasket(session, { name: lineName, qty: lineQty, price: linePrice })]);
 
   if (ic.unitMode === 'each' && ic.unitIndex < ic.unitTotal) {
     const nextIc = {
@@ -473,7 +475,11 @@ async function applyPerUnitModifiersFromText({ from, session, lang, businessId, 
       return;
     }
     const lineName = buildOptionLabel(item, selections);
-    readyBasket = mergeIntoBasket(readyBasket, [lineForBasket(session, { name: lineName, qty: 1, price: item.price })]);
+    readyBasket = mergeIntoBasket(readyBasket, [lineForBasket(session, {
+      name: lineName,
+      qty: 1,
+      price: linePriceForItem(item, selections),
+    })]);
   }
 
   await startNextItem(from, session, lang, businessId, ic.queue.slice(1), readyBasket);

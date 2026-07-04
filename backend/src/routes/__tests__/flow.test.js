@@ -22,8 +22,8 @@ const MENU = [
   {
     id: 'p1', name: 'Pizza', price: 15, category: 'mains',
     optionGroups: [
-      { type: 'single', label: 'Size', required: true,  options: [{ id: 's', label: 'Small' }, { id: 'l', label: 'Large' }] },
-      { type: 'multi',  label: 'Extras', required: false, options: [{ id: 'cheese', label: 'Cheese' }] },
+      { id: 'size', type: 'single', label: 'Size', required: true, options: [{ id: 's', label: 'Small' }, { id: 'l', label: 'Large' }] },
+      { id: 'extras', type: 'multi', label: 'Extras', required: false, options: [{ id: 'cheese', label: 'Cheese', price: 2.5 }] },
     ],
   },
 ];
@@ -184,6 +184,16 @@ test('ORDER_ITEM with slot value + multi value + notes builds custom name', asyn
   expect(saved.basket[0].name).toContain('Large');
   expect(saved.basket[0].name).toContain('Cheese');
   expect(saved.basket[0].name).toContain('extra crispy');
+  expect(saved.basket[0].price).toBe(17.5);
+});
+
+test('ORDER_ITEM shows priced extras in option titles', async () => {
+  const res = await post({
+    action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'p1' },
+  });
+  const body = parsed(res);
+  expect(body.data[F.MULTI_OPTIONS][0].title).toContain('+€2.50');
 });
 
 test('ORDER_ITEM clamps qty to 1 when invalid', async () => {

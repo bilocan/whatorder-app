@@ -53,6 +53,12 @@ service cloud.firestore {
         allow write: if isOwnerOf(businessId) || isAdmin();
       }
 
+      // Reusable WhatsApp customization groups (inserts, protein, sauces, etc.).
+      match /optionGroups/{groupId} {
+        allow read: if isOwnerOf(businessId) || isAdmin();
+        allow write: if isOwnerOf(businessId) || isAdmin();
+      }
+
       // Customers are written by the backend (Admin SDK).
       // Owners may update (e.g. edit name) or delete their own customer records.
       match /customers/{customerId} {

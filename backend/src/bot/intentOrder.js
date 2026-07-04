@@ -14,6 +14,7 @@ const {
 } = require('./intentMatcher');
 const { sendDisambiguationList } = require('./intentDisambiguate');
 const { splitPendingItems, startIntentCustomization, buildOptionLabel } = require('./intentCustomize');
+const { linePriceForItem } = require('../lib/optionPricing');
 const { norm } = require('./menuMatch');
 const { enrichPendingWithModifier } = require('./intentModifiers');
 const { collectSpicySpecialNote, tagLinesWithNote, resolveLineSpicyNote } = require('./intentNotes');
@@ -35,7 +36,8 @@ function formatPendingLine(item, lineNote, lang = 'de') {
   const noteSuffix = note ? ` (${note})` : '';
   if (enriched.prefilledSelections) {
     const label = buildOptionLabel(enriched, enriched.prefilledSelections);
-    return `• ${enriched.qty}x ${label}${noteSuffix} — €${(enriched.price * enriched.qty).toFixed(2)}`;
+    const unitPrice = linePriceForItem(enriched, enriched.prefilledSelections);
+    return `• ${enriched.qty}x ${label}${noteSuffix} — €${(unitPrice * enriched.qty).toFixed(2)}`;
   }
   let hint = '';
   if (enriched.rawIntentName && norm(enriched.rawIntentName) !== norm(enriched.name)) {
@@ -47,7 +49,12 @@ function formatPendingLine(item, lineNote, lang = 'de') {
 function buildIntentConfirmBody(matched, unmatched, lang, specialNote) {
   const note = (specialNote ?? '').trim();
   const lines = matched.map(i => formatPendingLine(i, note, lang));
-  const total = matched.reduce((s, i) => s + i.price * i.qty, 0);
+  const total = matched.reduce((s, i) => {
+    const unit = i.prefilledSelections
+      ? linePriceForItem(i, i.prefilledSelections)
+      : i.price;
+    return s + unit * i.qty;
+  }, 0);
   let body = t('intentConfirmHeader', lang) + '\n\n' + lines.join('\n') + '\n\n' + t('orderTotal', lang, total.toFixed(2));
   if (unmatched.length) {
     body += '\n\n' + t('intentUnmatched', lang, unmatched.join(', '));

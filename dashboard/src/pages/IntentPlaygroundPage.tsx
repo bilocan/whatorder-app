@@ -7,6 +7,8 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useOptionGroupLibrary } from '../hooks/useOptionGroupLibrary';
+import { resolveMenuItemOptionGroups } from '../lib/optionGroups';
 import { inferPhraseOperation } from '../lib/inferPhraseOperation';
 import {
   previewIntentPhrase,
@@ -100,6 +102,7 @@ function buildCorrection(
 export default function IntentPlaygroundPage() {
   const { t } = useTranslation();
   const { businessId } = useAuth();
+  const { byId: optionGroupsById } = useOptionGroupLibrary(businessId);
   const [searchParams] = useSearchParams();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [phraseText, setPhraseText] = useState('');
@@ -139,12 +142,15 @@ export default function IntentPlaygroundPage() {
     );
     const unsub = onSnapshot(q, (snap) => {
       const items = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() } as MenuItem))
+        .map((d) => {
+          const item = { id: d.id, ...d.data() } as MenuItem;
+          return { ...item, optionGroups: resolveMenuItemOptionGroups(item, optionGroupsById) };
+        })
         .sort((a, b) => a.name.localeCompare(b.name));
       setMenuItems(items);
     });
     return unsub;
-  }, [businessId]);
+  }, [businessId, optionGroupsById]);
 
   useEffect(() => {
     if (!parseSnapshot || menuItems.length === 0) return;
