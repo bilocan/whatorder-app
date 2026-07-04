@@ -26,6 +26,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 const mockPhoneNumberId = vi.hoisted(() => ({ current: 'phone_456' as string | undefined }));
+const stableOptionGroups = vi.hoisted(() => ({ groups: [], byId: {}, loading: false }));
 
 vi.mock('../contexts/AdminPhoneLineContext', () => ({
   useAdminPhoneLine: () => ({
@@ -38,6 +39,9 @@ vi.mock('../contexts/AdminPhoneLineContext', () => ({
 
 vi.mock('../lib/firebase', () => ({ db: {} }));
 vi.mock('../lib/geocode', () => ({ geocodeAddress: vi.fn() }));
+vi.mock('../hooks/useOptionGroupLibrary', () => ({
+  useOptionGroupLibrary: () => stableOptionGroups,
+}));
 
 // ── helpers ────────────────────────────────────────────────────────────────
 

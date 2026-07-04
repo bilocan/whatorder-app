@@ -1,12 +1,25 @@
-const { menuRef, businessRef } = require('../lib/collections');
+const { menuRef, optionGroupsRef, businessRef } = require('../lib/collections');
+const { resolveMenuItemOptionGroups, indexOptionGroupTemplates } = require('../lib/resolveOptionGroups');
 const { t } = require('./templates');
 const { matchMenuItem } = require('./menuMatch');
 const { buildMenuMatchIndex } = require('./menuMapper');
 const { buildMenuTokenIndex } = require('./menuTokenIndex');
 
+async function loadOptionGroupTemplates(businessId) {
+  const snap = await optionGroupsRef(businessId).get();
+  return indexOptionGroupTemplates(snap.docs);
+}
+
 async function getMenu(businessId) {
-  const snap = await menuRef(businessId).where('available', '==', true).get();
-  return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+  const [menuSnap, templatesById] = await Promise.all([
+    menuRef(businessId).where('available', '==', true).get(),
+    loadOptionGroupTemplates(businessId),
+  ]);
+  return menuSnap.docs.map((d) => {
+    const item = { ...d.data(), id: d.id };
+    item.optionGroups = resolveMenuItemOptionGroups(item, templatesById);
+    return item;
+  });
 }
 
 async function getMenuMatch(businessId, menuItems = null) {
