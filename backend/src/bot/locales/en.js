@@ -182,6 +182,7 @@ module.exports = {
   intentChangeBtn: () => 'Change',
   intentEditMenuBtn: () => 'Browse menu',
   intentUnmatched: (items) => `Couldn't find: ${items}`,
+  intentUnmatchedWithSuggestion: (name, suggestions) => `We don't have "${name}". Did you mean: ${suggestions}?`,
   intentSpecialNote: (note) => `📝 Note: ${note}`,
   intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\nChoose ${groupLabel}:`,
   intentCustomizeUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel) => `${itemName} ${unitIndex}/${unitTotal}\nChoose ${groupLabel}:`,

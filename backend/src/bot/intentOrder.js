@@ -44,13 +44,18 @@ function formatPendingLine(item, lineNote, lang = 'de') {
   return `• ${enriched.qty}x ${enriched.name}${hint}${noteSuffix} — €${(enriched.price * enriched.qty).toFixed(2)}`;
 }
 
-function buildIntentConfirmBody(matched, unmatched, lang, specialNote) {
+function buildIntentConfirmBody(matched, unmatched, lang, specialNote, unmatchedSuggestions = {}) {
   const note = (specialNote ?? '').trim();
   const lines = matched.map(i => formatPendingLine(i, note, lang));
   const total = matched.reduce((s, i) => s + i.price * i.qty, 0);
   let body = t('intentConfirmHeader', lang) + '\n\n' + lines.join('\n') + '\n\n' + t('orderTotal', lang, total.toFixed(2));
-  if (unmatched.length) {
-    body += '\n\n' + t('intentUnmatched', lang, unmatched.join(', '));
+  for (const name of unmatched) {
+    const suggestions = unmatchedSuggestions[name];
+    if (suggestions && suggestions.length) {
+      body += '\n\n' + t('intentUnmatchedWithSuggestion', lang, name, suggestions.join(', '));
+    } else {
+      body += '\n\n' + t('intentUnmatched', lang, name);
+    }
   }
   body += '\n\n' + t('intentConfirmPrompt', lang);
   return body;
@@ -66,7 +71,7 @@ async function sendIntentItemPhotos(from, items) {
   }
 }
 
-async function sendIntentProposal({ from, session, lang, businessId, basket, matched, unmatched = [], rawText }) {
+async function sendIntentProposal({ from, session, lang, businessId, basket, matched, unmatched = [], unmatchedSuggestions = {}, rawText }) {
   const sourceText = rawText ?? session.pendingIntentRawText;
   const expanded = expandPerUnitSpicyMatched(matched, sourceText);
   const merged = mergePendingItems(expanded.map(enrichPendingWithModifier));
@@ -98,7 +103,7 @@ async function sendIntentProposal({ from, session, lang, businessId, basket, mat
   }, session);
 
   const msgId = await sendButtonMessage(from, {
-    body: buildIntentConfirmBody(merged, unmatched, lang, pendingIntentNote),
+    body: buildIntentConfirmBody(merged, unmatched, lang, pendingIntentNote, unmatchedSuggestions),
     buttons: [
       { id: 'btn_intent_confirm', title: t('intentConfirmBtn', lang) },
       { id: 'btn_intent_change', title: t('intentChangeBtn', lang) },
@@ -128,7 +133,7 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
     });
   }
 
-  let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch, menuTokenIndex);
+  let { matched, unmatched, unmatchedSuggestions, disambiguation } = matchIntentToMenu(intent, menu, menuMatch, menuTokenIndex);
 
   if (canCallLlm(from) && !intent.llmFailed
     && canRetryWithLlm(text, intent, matched, unmatched)) {
@@ -137,7 +142,7 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
     });
     if (retried) {
       intent = retried.intent;
-      ({ matched, unmatched, disambiguation } = retried);
+      ({ matched, unmatched, unmatchedSuggestions, disambiguation } = retried);
     } else {
       intent = { ...intent, llmAttempted: true, llmFailed: true };
     }
@@ -160,7 +165,7 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   }
 
   await sendIntentProposal({
-    from, session, lang, businessId, basket, matched, unmatched, rawText: intent.rawText,
+    from, session, lang, businessId, basket, matched, unmatched, unmatchedSuggestions, rawText: intent.rawText,
   });
   const expanded = expandPerUnitSpicyMatched(matched, intent.rawText ?? text);
   rememberValidatedIntent(

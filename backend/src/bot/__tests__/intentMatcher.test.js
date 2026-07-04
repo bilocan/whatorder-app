@@ -1,5 +1,5 @@
 const {
-  mergePendingItems, matchIntentToMenu, mergeIntoBasket, hydratePendingItems, expandPerUnitSpicyMatched,
+  mergePendingItems, matchIntentToMenu, findSuggestions, mergeIntoBasket, hydratePendingItems, expandPerUnitSpicyMatched,
 } = require('../intentMatcher');
 
 describe('mergePendingItems', () => {
@@ -145,5 +145,61 @@ describe('expandPerUnitSpicyMatched', () => {
     expect(expanded).toHaveLength(2);
     expect(expanded[0]).toMatchObject({ qty: 1, rawIntentName: 'doner mit allen ohne scharf', modifierKey: 'ohne:scharf' });
     expect(expanded[1]).toMatchObject({ qty: 1, rawIntentName: 'doner mit allen und scharf', modifierKey: 'mit:allem+scharf' });
+  });
+});
+
+describe('findSuggestions', () => {
+  const MENU = [
+    { id: 'd1', name: 'Tavuk Döner', price: 8.5 },
+    { id: 'd2', name: 'Tavuk Dürüm Döneri', price: 9.0 },
+    { id: 'a1', name: 'Ayran', price: 2.0 },
+    { id: 'p1', name: 'Pommes', price: 3.5 },
+  ];
+
+  test('returns items sharing a token with the unmatched name', () => {
+    const result = findSuggestions('döner', MENU);
+    expect(result).toContain('Tavuk Döner');
+  });
+
+  test('returns at most 3 suggestions', () => {
+    const bigMenu = Array.from({ length: 10 }, (_, i) => ({ id: `d${i}`, name: `Döner Variante ${i}`, price: 8 }));
+    expect(findSuggestions('döner', bigMenu).length).toBeLessThanOrEqual(3);
+  });
+
+  test('returns empty array when no token overlap exists', () => {
+    expect(findSuggestions('sushi', MENU)).toEqual([]);
+  });
+
+  test('excludes unavailable items from suggestions', () => {
+    const menuWithUnavailable = [
+      { id: 'd1', name: 'Tavuk Döner', price: 8.5, available: false },
+      { id: 'd2', name: 'Tavuk Dürüm Döneri', price: 9.0 },
+    ];
+    const result = findSuggestions('döner', menuWithUnavailable);
+    expect(result).not.toContain('Tavuk Döner');
+    expect(result).toContain('Tavuk Dürüm Döneri');
+  });
+});
+
+describe('matchIntentToMenu — unmatchedSuggestions', () => {
+  const MENU = [
+    { id: 'd1', name: 'Tavuk Döner', price: 8.5 },
+    { id: 'a1', name: 'Ayran', price: 2.0 },
+  ];
+
+  test('includes unmatchedSuggestions entry for a genuinely unmatched item', () => {
+    // "Pizza" has no token overlap with menu items → unmatched with empty suggestions array
+    const intent = { items: [{ name: 'Pizza', qty: 1 }, { name: 'Ayran', qty: 1 }] };
+    const { unmatched, unmatchedSuggestions } = matchIntentToMenu(intent, MENU);
+    expect(unmatched).toContain('Pizza');
+    expect(unmatchedSuggestions).toHaveProperty('Pizza');
+    expect(Array.isArray(unmatchedSuggestions['Pizza'])).toBe(true);
+  });
+
+  test('unmatchedSuggestions is empty object when all items match', () => {
+    const intent = { items: [{ name: 'Ayran', qty: 1 }] };
+    const { unmatched, unmatchedSuggestions } = matchIntentToMenu(intent, MENU);
+    expect(unmatched).toHaveLength(0);
+    expect(unmatchedSuggestions).toEqual({});
   });
 });
