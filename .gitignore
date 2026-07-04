@@ -6,6 +6,7 @@
 .env.prod
 backend/.env.dev
 backend/.env.prod
+backend/.cloudrun-backup.yaml
 dashboard/.env.dev
 dashboard/.env.prod
 dashboard/.env.production

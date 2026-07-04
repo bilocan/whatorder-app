@@ -19,7 +19,9 @@
     "intent:record": "npm run intent:record --prefix backend --",
     "intent:promote": "npm run intent:promote --prefix backend --",
     "intent:ship": "npm run intent:ship --prefix backend --",
-    "intent:harvest": "npm run intent:harvest --prefix backend --"
+    "intent:harvest": "npm run intent:harvest --prefix backend --",
+    "env:pull": "node scripts/env-pull.js",
+    "env:push": "node scripts/env-push.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
