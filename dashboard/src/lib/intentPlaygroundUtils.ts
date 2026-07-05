@@ -223,11 +223,12 @@ export function getTeachBlockReason(params: {
   draft: DraftLine[];
   initialDraft: DraftLine[];
   operation: IntentLearningOperation;
+  parsedOperation?: IntentLearningOperation;
   learnedMeta: IntentLearnedMeta | null | undefined;
   menuById: Map<string, MenuItem>;
 }): TeachBlockReason {
   const {
-    phraseText, parseOutcome, parsedBy, draft, initialDraft, operation, learnedMeta, menuById,
+    phraseText, parseOutcome, parsedBy, draft, initialDraft, operation, parsedOperation, learnedMeta, menuById,
   } = params;
 
   if (!parseOutcome || !phraseText.trim()) return 'needsParse';
@@ -245,6 +246,7 @@ export function getTeachBlockReason(params: {
     return 'readyLlmCapture';
   }
   if (!BAD_OUTCOMES.has(parseOutcome) && draftsEqual(draft, initialDraft)) {
+    if (operation !== (parsedOperation ?? 'add')) return 'readyCorrection';
     return 'unchanged';
   }
   if (BAD_OUTCOMES.has(parseOutcome)) return 'readyMisunderstood';

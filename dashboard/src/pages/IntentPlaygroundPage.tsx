@@ -196,6 +196,28 @@ export default function IntentPlaygroundPage() {
       setInitialDraft(nextDraft);
       setDraft(nextDraft);
       skipDraftPreview.current = true;
+
+      // When operation is remove and the draft has SKUs, immediately re-run preview
+      // with the hydrated draft so the WhatsApp preview reflects remove, not the
+      // empty-draft parse result. Without this, skipDraftPreview blocks the
+      // draft-change effect and the add-based botReply stays visible.
+      const resolvedOp = result.operation === 'remove' ? 'remove' : op;
+      if (resolvedOp === 'remove' && nextDraft.some((l) => l.menuItemId)) {
+        const nextDraftItems = buildSaveItems(nextDraft, menuById);
+        const nextSampleItems = nextDraftItems.map((i) => ({
+          ...i,
+          qty: i.removeAll ? Math.max(2, i.qty) : Math.max(2, i.qty + 1),
+        }));
+        const removeResult = await previewIntentPhrase(businessId, text.trim(), {
+          llm: opts.llm ?? useLlm,
+          operation: 'remove',
+          items: nextDraftItems,
+          sampleItems: nextSampleItems,
+          context: 'basket',
+        });
+        setPreview(removeResult);
+        return;
+      }
     }
     setPreview(result);
     if (result.operation === 'remove') setOperation('remove');
@@ -245,6 +267,7 @@ export default function IntentPlaygroundPage() {
     draft,
     initialDraft,
     operation,
+    parsedOperation: parseSnapshot?.operation,
     learnedMeta,
     menuById,
   }), [phraseText, parseSnapshot, draft, initialDraft, operation, learnedMeta, menuById]);
