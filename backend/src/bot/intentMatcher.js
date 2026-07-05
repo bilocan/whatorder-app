@@ -1,7 +1,9 @@
-const { matchMenuItem, classifyMenuMatch } = require('./menuMatch');
+const { matchMenuItem, classifyMenuMatch, scoreItemForNeedle } = require('./menuMatch');
+const { wordMatchesInText } = require('./menuSynonyms');
 const { buildMenuTokenIndex } = require('./menuTokenIndex');
 const {
   extractModifierKey, normalizeIntentItemName, isModifierOnlyToken, enrichPendingWithModifier,
+  stripIntentModifiers, extractDishNameForMatch,
 } = require('./intentModifiers');
 const { extractBeideMitAllemSpicyDish, textLooksLikeBeideMitAllemOneSpicy } = require('./intentParser');
 
@@ -163,10 +165,77 @@ function toPendingItem(item, qty, { rawIntentName } = {}) {
   };
 }
 
+function findSuggestions(unmatchedName, menuItems) {
+  const scored = menuItems
+    .filter(m => m.available !== false)
+    .map(item => ({ item, score: scoreItemForNeedle(item, unmatchedName) }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return scored.slice(0, 3).map(x => x.item.name);
+}
+
+// Like findSuggestions but uses literal word match only (no synonym expansion) to avoid
+// returning e.g. "Kebap Box Huhn" when the customer asked for "dürüm". Falls back to
+// findSuggestions when no strict match exists.
+function findSuggestionsStrict(matchName, menuItems) {
+  const tokens = normIng(matchName).split(/\s+/).filter(t => t.length >= 2);
+  const strict = menuItems
+    .filter(m => m.available !== false)
+    .filter(item => {
+      const itemWords = normIng(item.name).split(/\s+/);
+      return tokens.some(tok => itemWords.some(w => w === tok || w.startsWith(tok)));
+    });
+  if (strict.length) {
+    const scored = strict
+      .map(item => ({ item, score: scoreItemForNeedle(item, matchName) }))
+      .sort((a, b) => b.score - a.score);
+    return scored.slice(0, 3).map(x => x.item.name);
+  }
+  return findSuggestions(matchName, menuItems);
+}
+
+// Function words, articles, discourse particles that may survive modifier stripping
+// and must never trigger a suspicious-match rejection on their own.
+const INTENT_FILLER_TOKENS = new Set([
+  // German articles, prepositions, conjunctions
+  'mit', 'und', 'ein', 'eine', 'einen', 'einem', 'einer', 'ei',
+  'der', 'die', 'das', 'dem', 'des', 'den', 'von', 'zum', 'zur',
+  // German pronouns and polite/filler words
+  'ich', 'wir', 'sie', 'bitte', 'gerne', 'danke', 'noch', 'auch', 'mal', 'ja',
+  // Turkish connectors and discourse words
+  've', 'ile', 'bir', 'un', 'bitti', 'tamam', 'lutfen',
+  // English discourse words
+  'actually', 'please', 'also', 'maybe',
+  // Quantifiers
+  'jeweils',
+]);
+
+// Returns true when the intent name contains tokens that have no match in the
+// matched menu item (even after synonym expansion) and are not known modifiers.
+// Catches cases like "kalp dürüm" matched to "Special Dürüm" (unknown food type).
+// Single-token names are excluded so plain abbreviations ("döner" → "Tavuk Döner") stay matched.
+function hasSuspiciousTokens(matchName, menuItem, menuItems) {
+  const dishName = (extractDishNameForMatch(matchName) || matchName).trim();
+  const intentTokens = dishName.split(/\s+/).filter(t => t.length >= 2);
+  if (intentTokens.length < 2) return false;
+  const itemText = normIng([menuItem.name, ...(menuItem.aliases ?? [])].join(' '));
+  return intentTokens.some(token => {
+    const n = normIng(token);
+    if (INTENT_FILLER_TOKENS.has(n)) return false;
+    if (wordMatchesInText(token, itemText)) return false;
+    if (isModifierOnlyToken(token)) return false;
+    // If this token alone matches a different menu item, it's a multi-item blob,
+    // not a food-type qualifier — let isPartialBlobTrap handle it instead.
+    if (menuItems && classifyMenuMatch(token, menuItems).type !== 'none') return false;
+    return true;
+  });
+}
+
 function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex = null) {
   const tokenIndex = menuTokenIndex ?? buildMenuTokenIndex(menuItems);
   let matched = [];
   const unmatched = [];
+  const unmatchedSuggestions = {};
   let disambiguation = null;
 
   for (let i = 0; i < intent.items.length; i++) {
@@ -175,6 +244,14 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex =
     if (menuItemId) {
       const byId = menuItems.find(m => m.id === menuItemId && m.available !== false);
       if (byId) {
+        if (!selections && name) {
+          const matchName = normalizeIntentItemName(name);
+          if (hasSuspiciousTokens(matchName, byId, menuItems)) {
+            unmatched.push(name);
+            unmatchedSuggestions[name] = findSuggestionsStrict(matchName, menuItems);
+            continue;
+          }
+        }
         let pending = toPendingItem(byId, qty, { rawIntentName: name });
         if (selections) {
           const { applyStoredSelections } = require('./intentPlaygroundDraft');
@@ -189,12 +266,20 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex =
     const result = classifyMenuMatch(matchName, menuItems, menuMatch, tokenIndex);
 
     if (result.type === 'none') {
-      if (!isModifierOnlyToken(name)) unmatched.push(name);
+      if (!isModifierOnlyToken(name)) {
+        unmatched.push(name);
+        unmatchedSuggestions[name] = findSuggestions(matchName, menuItems);
+      }
       continue;
     }
 
     if (result.type === 'unique') {
-      matched = mergePendingLine(matched, toPendingItem(result.item, qty, { rawIntentName: name }));
+      if (name && hasSuspiciousTokens(matchName, result.item, menuItems)) {
+        unmatched.push(name);
+        unmatchedSuggestions[name] = findSuggestionsStrict(matchName, menuItems);
+      } else {
+        matched = mergePendingLine(matched, toPendingItem(result.item, qty, { rawIntentName: name }));
+      }
       continue;
     }
 
@@ -211,7 +296,7 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex =
 
   matched = mergeProductIngredientSplitLines(matched);
 
-  return { matched, unmatched, disambiguation };
+  return { matched, unmatched, unmatchedSuggestions, disambiguation };
 }
 
 function basketMergeKey(item) {
@@ -247,6 +332,9 @@ function mergeIntoBasket(basket, items) {
 
 module.exports = {
   matchIntentToMenu,
+  findSuggestions,
+  findSuggestionsStrict,
+  normIng,
   mergeIntoBasket,
   mergePendingLine,
   mergePendingItems,

@@ -90,7 +90,7 @@ async function sendSearchResults({ from, session, lang, businessId, basket, quer
       from, session, lang, businessId, basket,
       bodyOverride: t('searchNoResults', lang, query),
     });
-    return false;
+    return true;
   }
 
   const rows = results.map(item => ({

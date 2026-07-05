@@ -16,8 +16,9 @@ const { sendDisambiguationList } = require('./intentDisambiguate');
 const { splitPendingItems, startIntentCustomization, buildOptionLabel } = require('./intentCustomize');
 const { linePriceForItem } = require('../lib/optionPricing');
 const { norm } = require('./menuMatch');
-const { enrichPendingWithModifier } = require('./intentModifiers');
+const { enrichPendingWithModifier, extractDishNameForMatch } = require('./intentModifiers');
 const { collectSpicySpecialNote, tagLinesWithNote, resolveLineSpicyNote } = require('./intentNotes');
+const { sendOrderEntryPrompt } = require('./orderEntry');
 
 function isIntentConfirmText(text, lang) {
   const cleaned = norm((text ?? '').replace(/[!?.]+/g, '').trim());
@@ -46,7 +47,7 @@ function formatPendingLine(item, lineNote, lang = 'de') {
   return `• ${enriched.qty}x ${enriched.name}${hint}${noteSuffix} — €${(enriched.price * enriched.qty).toFixed(2)}`;
 }
 
-function buildIntentConfirmBody(matched, unmatched, lang, specialNote) {
+function buildIntentConfirmBody(matched, unmatched, lang, specialNote, unmatchedSuggestions = {}) {
   const note = (specialNote ?? '').trim();
   const lines = matched.map(i => formatPendingLine(i, note, lang));
   const total = matched.reduce((s, i) => {
@@ -56,8 +57,14 @@ function buildIntentConfirmBody(matched, unmatched, lang, specialNote) {
     return s + unit * i.qty;
   }, 0);
   let body = t('intentConfirmHeader', lang) + '\n\n' + lines.join('\n') + '\n\n' + t('orderTotal', lang, total.toFixed(2));
-  if (unmatched.length) {
-    body += '\n\n' + t('intentUnmatched', lang, unmatched.join(', '));
+  for (const name of unmatched) {
+    const suggestions = unmatchedSuggestions[name];
+    if (suggestions && suggestions.length) {
+      const list = suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n');
+      body += '\n\n' + t('intentUnmatchedWithSuggestion', lang, name, list);
+    } else {
+      body += '\n\n' + t('intentUnmatched', lang, name);
+    }
   }
   body += '\n\n' + t('intentConfirmPrompt', lang);
   return body;
@@ -73,7 +80,7 @@ async function sendIntentItemPhotos(from, items) {
   }
 }
 
-async function sendIntentProposal({ from, session, lang, businessId, basket, matched, unmatched = [], rawText }) {
+async function sendIntentProposal({ from, session, lang, businessId, basket, matched, unmatched = [], unmatchedSuggestions = {}, rawText }) {
   const sourceText = rawText ?? session.pendingIntentRawText;
   const expanded = expandPerUnitSpicyMatched(matched, sourceText);
   const merged = mergePendingItems(expanded.map(enrichPendingWithModifier));
@@ -105,7 +112,7 @@ async function sendIntentProposal({ from, session, lang, businessId, basket, mat
   }, session);
 
   const msgId = await sendButtonMessage(from, {
-    body: buildIntentConfirmBody(merged, unmatched, lang, pendingIntentNote),
+    body: buildIntentConfirmBody(merged, unmatched, lang, pendingIntentNote, unmatchedSuggestions),
     buttons: [
       { id: 'btn_intent_confirm', title: t('intentConfirmBtn', lang) },
       { id: 'btn_intent_change', title: t('intentChangeBtn', lang) },
@@ -135,7 +142,7 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
     });
   }
 
-  let { matched, unmatched, disambiguation } = matchIntentToMenu(intent, menu, menuMatch, menuTokenIndex);
+  let { matched, unmatched, unmatchedSuggestions, disambiguation } = matchIntentToMenu(intent, menu, menuMatch, menuTokenIndex);
 
   if (canCallLlm(from) && !intent.llmFailed
     && canRetryWithLlm(text, intent, matched, unmatched)) {
@@ -144,7 +151,7 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
     });
     if (retried) {
       intent = retried.intent;
-      ({ matched, unmatched, disambiguation } = retried);
+      ({ matched, unmatched, unmatchedSuggestions, disambiguation } = retried);
     } else {
       intent = { ...intent, llmAttempted: true, llmFailed: true };
     }
@@ -158,6 +165,31 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   }
 
   if (!matched.length) {
+    // hasSuspiciousTokens rejected all items into unmatched with known alternatives —
+    // show those suggestions instead of the generic parse-failed / no-match message.
+    const itemsWithSuggestions = unmatched.filter(name => unmatchedSuggestions[name]?.length);
+    if (itemsWithSuggestions.length) {
+      // Deduplicate suggestions across all unmatched items for numbered pick
+      const allSuggestions = [];
+      const seen = new Set();
+      for (const name of unmatched) {
+        for (const s of (unmatchedSuggestions[name] ?? [])) {
+          if (!seen.has(s)) { seen.add(s); allSuggestions.push(s); }
+        }
+      }
+      const list = allSuggestions.map((s, i) => `${i + 1}. ${s}`).join('\n');
+      const bodyLines = unmatched.map(name => {
+        const suggestions = unmatchedSuggestions[name];
+        const displayName = (extractDishNameForMatch(name) || name)
+          .replace(/\s+mit\s+\S.*/i, '').trim() || name;
+        return suggestions?.length
+          ? t('intentUnmatchedWithSuggestion', lang, displayName, list)
+          : t('intentNoMatch', lang, displayName);
+      });
+      await patchSession(from, { intentSuggestions: allSuggestions }, session);
+      await sendOrderEntryPrompt({ from, session, lang, businessId, basket, bodyOverride: bodyLines.join('\n\n') });
+      return true;
+    }
     if (intent.llmFailed || canCallLlm(from)) return 'llm_failed';
     return false;
   }
@@ -167,7 +199,7 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   }
 
   await sendIntentProposal({
-    from, session, lang, businessId, basket, matched, unmatched, rawText: intent.rawText,
+    from, session, lang, businessId, basket, matched, unmatched, unmatchedSuggestions, rawText: intent.rawText,
   });
   const expanded = expandPerUnitSpicyMatched(matched, intent.rawText ?? text);
   rememberValidatedIntent(

@@ -1,6 +1,7 @@
 jest.mock('../sessionStore');
 jest.mock('../menuService');
 jest.mock('../../lib/whatsapp');
+jest.mock('../popularBoard', () => ({ hasPopularItems: jest.fn().mockResolvedValue(false) }));
 jest.mock('../intentLearning', () => ({
   lookupLearnedIntent: jest.fn().mockResolvedValue(null),
   rememberValidatedIntent: jest.fn(),
@@ -169,5 +170,45 @@ describe('tryTextIntentOrder', () => {
 
     expect(handled).toBe(true);
     expect(sendImage).not.toHaveBeenCalled();
+  });
+
+  test('proposal body does not contain unmatched section when all items match', async () => {
+    const handled = await tryTextIntentOrder({
+      from: '+43699000001',
+      session: { state: 'browsing', language: 'en', basket: [] },
+      lang: 'en',
+      businessId: 'biz_test',
+      basket: [],
+      text: '2x Döner + Ayran',
+      norm: '2x döner + ayran',
+    });
+
+    expect(handled).toBe(true);
+    const body = sendButtonMessage.mock.calls[0][1].body;
+    expect(body).not.toMatch(/find/i);
+    expect(body).not.toMatch(/Did you mean/i);
+  });
+
+  test('shows suggestion when all items are suspicious (e.g. "kalp dürüm")', async () => {
+    getMenuContext.mockResolvedValue({
+      menu: [{ id: 'd1', name: 'Enes Special Dürüm Huhn', price: 6.9 }],
+      menuMatch: null,
+      menuTokenIndex: null,
+    });
+
+    const handled = await tryTextIntentOrder({
+      from: '+43699000001',
+      session: { state: 'browsing', language: 'de', basket: [] },
+      lang: 'de',
+      businessId: 'biz_test',
+      basket: [],
+      text: 'Ein kalp dürüm',
+      norm: 'ein kalp dürüm',
+    });
+
+    expect(handled).toBe(true);
+    const body = sendButtonMessage.mock.calls[0][1].body;
+    expect(body).toMatch(/kalp dürüm/i);
+    expect(body).toMatch(/Enes Special Dürüm Huhn/i);
   });
 });
