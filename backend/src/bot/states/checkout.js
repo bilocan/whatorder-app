@@ -111,11 +111,11 @@ async function getKnownName(phone, businessId) {
 async function getCustomerProfile(phone, businessId) {
   try {
     const snap = await customersRef(businessId).doc(phone).get();
-    if (!snap.exists) return null;
     const data = snap.data();
+    if (!data) return null;
     return {
-      name: data?.name ?? null,
-      lastDeliveryAddress: data?.lastDeliveryAddress ?? null,
+      name: data.name ?? null,
+      lastDeliveryAddress: data.lastDeliveryAddress ?? null,
     };
   } catch {
     return null;

@@ -444,11 +444,11 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
         await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
         return;
       }
-      if (isGatedOnDeliveryMinimum(session)) {
+      const info = await getBusinessInfo(businessId);
+      if (isGatedOnDeliveryMinimum(session) && !isConversationalBasket(info)) {
         await resumeDeliveryCheckout({ from, session, lang, businessId, basket });
         return;
       }
-      const info = await getBusinessInfo(businessId);
       if (!isOrderingOpen(info.schedule, info.timezone || 'Europe/Vienna')) {
         const _w = getTodayOrderWindow(info.schedule, info.timezone || 'Europe/Vienna');
         await sendText(from, t('restaurantClosed', lang, info.name, _w?.firstOrderTime ?? null, _w?.lastOrderTime ?? null));

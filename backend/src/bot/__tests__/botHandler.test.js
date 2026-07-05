@@ -118,7 +118,14 @@ const BEILAGEN_WITH_CHILI = {
 const BIZ_INFO = { name: 'Döner Palace', avgPrepTime: 20, catalogId: 'cat_123', alertPhone: '+43699123456', address: 'Musterstrasse 1, 1010 Wien', botLanguage: 'de' };
 
 function mockCustomerProfile(data) {
-  customersRef.mockReturnValue({ doc: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue({ data: () => data }) }) });
+  customersRef.mockReturnValue({
+    doc: jest.fn().mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: !!data,
+        data: () => data,
+      }),
+    }),
+  });
 }
 
 beforeEach(() => {
@@ -2233,6 +2240,123 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       orderType: 'pickup',
     }));
+  });
+});
+
+describe('Checkout state: M3 slot-filling checkout', () => {
+  test('flag on — front-loaded slots skip order type, address, and name on btn_confirm', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      conversationalBasket: true,
+      deliveryEnabled: true,
+      deliveryFee: 2.5,
+      paymentEnabled: true,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      orderType: 'delivery',
+      deliveryAddress: 'Hauptstraße 5',
+      customerName: 'Max',
+      pendingPaymentMethod: 'cash',
+      pickupTime: '14:30',
+      prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      orderType: 'delivery',
+      deliveryAddress: 'Hauptstraße 5',
+      customerName: 'Max',
+      pendingPaymentMethod: 'cash',
+    }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_order_type' }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_delivery_address' }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_name' }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_payment_method' }));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/Zahlung: Bar/),
+    }));
+  });
+
+  test('flag on — profile pre-fill fills name and address before confirming', async () => {
+    mockCustomerProfile({ name: 'Hamza', lastDeliveryAddress: 'Hauptstraße 5' });
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      conversationalBasket: true,
+      deliveryEnabled: true,
+      deliveryFee: 2.5,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      orderType: 'delivery',
+      pendingPaymentMethod: 'cash',
+      pickupTime: '14:30',
+      prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      customerName: 'Hamza',
+      deliveryAddress: 'Hauptstraße 5',
+    }));
+    expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringMatching(/Name/i));
+  });
+
+  test('pendingPaymentMethod cash — btn_place_order skips payment prompt and receipt shows Bar', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      paymentEnabled: true,
+      deliveryEnabled: true,
+      deliveryFee: 2.5,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      orderType: 'delivery',
+      deliveryAddress: 'Hauptstraße 5',
+      customerName: 'Max',
+      pendingPaymentMethod: 'cash',
+      pickupTime: '14:30',
+      prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Bestätigen ✅' }));
+
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({ paymentMethod: 'cash' }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_payment_method' }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/Zahlungsart|payment/i),
+    }));
+    expect(sendText).toHaveBeenCalledWith(
+      FROM,
+      expect.stringMatching(/Zahlung: Bar 💰/),
+      expect.anything(),
+    );
+  });
+
+  test('flag on — checkout-only text persists slots without treating address as food', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true, deliveryEnabled: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'zum Liefern, Hauptstraße 5, bar' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      orderType: 'delivery',
+      deliveryAddress: 'Hauptstraße 5',
+      pendingPaymentMethod: 'cash',
+    }), expect.anything());
+    expect(patchSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: expect.arrayContaining([expect.objectContaining({ name: 'Hauptstraße 5' })]),
+    }), expect.anything());
   });
 });
 
