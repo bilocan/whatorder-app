@@ -6,6 +6,7 @@ const { parseBasketRemove, parseBasketRemoveDisambig, applyBasketRemove, buildBa
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 const { tryTextIntentOrder, handleIntentButtons, isIntentConfirmText } = require('../intentOrder');
+const { normIng } = require('../intentMatcher');
 const { tryProposalEdit, parseProposalEdit } = require('../proposalEdit');
 const { handleReorderButtons, tryOfferReorder } = require('../reorder');
 const { isMenuRequest, sendOrderEntryPrompt } = require('../orderEntry');
@@ -29,6 +30,7 @@ const INTENT_PROPOSAL_CLEAR = {
   pendingIntentItems: undefined,
   unmatchedIntentItems: undefined,
   disambiguation: undefined,
+  intentSuggestions: undefined,
 };
 
 const BASKET_CLEAR_PATCH = {
@@ -252,6 +254,16 @@ async function handleSelecting({ from, session, lang, businessId, basket, type, 
       ],
     });
   }
+}
+
+function resolveIntentSuggestionPick(text, suggestions) {
+  const n = Number(text.trim());
+  if (Number.isInteger(n) && n >= 1 && n <= suggestions.length) return suggestions[n - 1];
+  const tNorm = normIng(text.trim());
+  return suggestions.find(s => {
+    const sNorm = normIng(s);
+    return sNorm === tNorm || sNorm.includes(tNorm) || tNorm.includes(sNorm);
+  }) ?? null;
 }
 
 async function handleBrowsing({ from, session, lang, businessId, basket, isMulti, type, id, items, norm, text }) {
@@ -526,6 +538,18 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
   // Text: active search mode
   if (type === 'text' && text?.trim() && session.menuSearchActive) {
     if (await handleSearchModeText({ from, session, lang, businessId, basket, text, norm })) return;
+  }
+
+  // Text: numbered suggestion pick (active after bot shows "item not on menu" with alternatives)
+  if (session.intentSuggestions?.length && type === 'text' && text?.trim()) {
+    const pick = resolveIntentSuggestionPick(text.trim(), session.intentSuggestions);
+    if (pick) {
+      await patchSession(from, { intentSuggestions: undefined }, session);
+      session = { ...session, intentSuggestions: undefined };
+      const normPick = normIng(pick);
+      const handled = await tryTextIntentOrder({ from, session, lang, businessId, basket, text: pick, norm: normPick });
+      if (handled === true) return;
+    }
   }
 
   // Text: digits / index only — skip menu index when removing from basket

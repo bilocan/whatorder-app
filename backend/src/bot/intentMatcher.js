@@ -174,6 +174,26 @@ function findSuggestions(unmatchedName, menuItems) {
   return scored.slice(0, 3).map(x => x.item.name);
 }
 
+// Like findSuggestions but uses literal word match only (no synonym expansion) to avoid
+// returning e.g. "Kebap Box Huhn" when the customer asked for "dürüm". Falls back to
+// findSuggestions when no strict match exists.
+function findSuggestionsStrict(matchName, menuItems) {
+  const tokens = normIng(matchName).split(/\s+/).filter(t => t.length >= 2);
+  const strict = menuItems
+    .filter(m => m.available !== false)
+    .filter(item => {
+      const itemWords = normIng(item.name).split(/\s+/);
+      return tokens.some(tok => itemWords.some(w => w === tok || w.startsWith(tok)));
+    });
+  if (strict.length) {
+    const scored = strict
+      .map(item => ({ item, score: scoreItemForNeedle(item, matchName) }))
+      .sort((a, b) => b.score - a.score);
+    return scored.slice(0, 3).map(x => x.item.name);
+  }
+  return findSuggestions(matchName, menuItems);
+}
+
 // Function words, articles, discourse particles that may survive modifier stripping
 // and must never trigger a suspicious-match rejection on their own.
 const INTENT_FILLER_TOKENS = new Set([
@@ -228,7 +248,7 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex =
           const matchName = normalizeIntentItemName(name);
           if (hasSuspiciousTokens(matchName, byId, menuItems)) {
             unmatched.push(name);
-            unmatchedSuggestions[name] = findSuggestions(matchName, menuItems);
+            unmatchedSuggestions[name] = findSuggestionsStrict(matchName, menuItems);
             continue;
           }
         }
@@ -256,7 +276,7 @@ function matchIntentToMenu(intent, menuItems, menuMatch = null, menuTokenIndex =
     if (result.type === 'unique') {
       if (name && hasSuspiciousTokens(matchName, result.item, menuItems)) {
         unmatched.push(name);
-        unmatchedSuggestions[name] = findSuggestions(matchName, menuItems);
+        unmatchedSuggestions[name] = findSuggestionsStrict(matchName, menuItems);
       } else {
         matched = mergePendingLine(matched, toPendingItem(result.item, qty, { rawIntentName: name }));
       }
@@ -313,6 +333,8 @@ function mergeIntoBasket(basket, items) {
 module.exports = {
   matchIntentToMenu,
   findSuggestions,
+  findSuggestionsStrict,
+  normIng,
   mergeIntoBasket,
   mergePendingLine,
   mergePendingItems,
