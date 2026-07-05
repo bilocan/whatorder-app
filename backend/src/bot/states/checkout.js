@@ -72,7 +72,16 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
   const shortId = orderId.slice(-6).toUpperCase();
   const itemLines = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });
 
-  await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: isMulti ? null : businessId, pendingDeleteIds: [] });
+  await setSession(from, {
+    state: 'browsing',
+    language: lang,
+    basket: [],
+    businessId: isMulti ? null : businessId,
+    pendingDeleteIds: [],
+    pendingAmendOrderId: orderId,
+    pendingAmendPlacedAt: Date.now(),
+    consecutiveParseFailures: 0,
+  });
 
   if (paymentMethod === 'stripe') {
     try {
