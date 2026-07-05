@@ -57,12 +57,17 @@ module.exports = {
 
   orderTotal: (total) => `Gesamt: €${total}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Fertig in ~${prepMins} Min. (gegen ${pickupTime})\n\nWie lautet Ihr Name?`,
-  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes) => {
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod) => {
     const detail = deliveryAddress
       ? `🚚 Lieferung an: ${deliveryAddress}`
       : `⏱️ Fertig gegen ${pickupTime}`;
     const notesLine = notes ? `\n📝 Notiz: ${notes}` : '';
-    return `✅ Fast fertig!\n\n👤 ${name}\n💶 Gesamt: €${total}\n${detail}${notesLine}\n\nUnten tippen zum Bestätigen oder Ändern.`;
+    const paymentLine = paymentMethod === 'stripe'
+      ? '\n💳 Zahlung: Karte'
+      : paymentMethod === 'cash'
+        ? '\n💰 Zahlung: Bar'
+        : '';
+    return `✅ Fast fertig!\n\n👤 ${name}\n💶 Gesamt: €${total}\n${detail}${paymentLine}${notesLine}\n\nUnten tippen zum Bestätigen oder Ändern.`;
   },
   confirmListHeader: () => 'Bestellung prüfen',
   confirmListBtn: () => 'Optionen',
@@ -82,11 +87,17 @@ module.exports = {
   confirmPrompt: () => 'YES zum Bestätigen, NO zum Abbrechen.',
   yesNoOnly: () => 'Bitte YES oder NO schreiben.',
   orderConfirmed: (shortId) => `✅ Bestellung erhalten! Bestellnr.: #${shortId}\n\nWir benachrichtigen Sie wenn sie fertig ist. Danke! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, alertPhone, address) => {
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Lieferung an: ${deliveryAddress}` : `Fertig um: ${pickupTime}`;
-    return `✅ Bestellung #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nGesamt: €${total}\n${detail}\n\nDanke, ${customerName}! 🙏`;
+    const paymentLine = paymentMethod === 'stripe'
+      ? 'Zahlung: Karte 💳'
+      : paymentMethod === 'cash'
+        ? 'Zahlung: Bar 💰'
+        : null;
+    const detailBlock = [detail, paymentLine].filter(Boolean).join('\n');
+    return `✅ Bestellung #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nGesamt: €${total}\n${detailBlock}\n\nDanke, ${customerName}! 🙏`;
   },
   checkoutCancelled: () => 'Bestellung abgebrochen.',
   askPaymentMethod: (total) => `Wie möchtest du bezahlen?\n\nGesamt: €${total}`,
