@@ -57,12 +57,17 @@ module.exports = {
 
   orderTotal: (total) => `Total: €${total}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Ready in ~${prepMins} min (around ${pickupTime})\n\nWhat's your name for the order?`,
-  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes) => {
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod) => {
     const detail = deliveryAddress
       ? `🚚 Delivery to: ${deliveryAddress}`
       : `⏱️ Ready around ${pickupTime}`;
     const notesLine = notes ? `\n📝 Note: ${notes}` : '';
-    return `✅ Almost done!\n\n👤 ${name}\n💶 Total: €${total}\n${detail}${notesLine}\n\nTap below to confirm or edit.`;
+    const paymentLine = paymentMethod === 'stripe'
+      ? '\n💳 Payment: Card'
+      : paymentMethod === 'cash'
+        ? '\n💰 Payment: Cash'
+        : '';
+    return `✅ Almost done!\n\n👤 ${name}\n💶 Total: €${total}\n${detail}${paymentLine}${notesLine}\n\nTap below to confirm or edit.`;
   },
   confirmListHeader: () => 'Review order',
   confirmListBtn: () => 'Confirm or edit',
@@ -82,11 +87,17 @@ module.exports = {
   confirmPrompt: () => 'Type YES to confirm, NO to cancel.',
   yesNoOnly: () => 'Please type YES or NO.',
   orderConfirmed: (shortId) => `✅ Order received! Order #${shortId}\n\nWe'll notify you when it's ready. Thank you! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, alertPhone, address) => {
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Delivery to: ${deliveryAddress}` : `Ready by: ${pickupTime}`;
-    return `✅ Order #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nTotal: €${total}\n${detail}\n\nThanks, ${customerName}! 🙏`;
+    const paymentLine = paymentMethod === 'stripe'
+      ? 'Payment: Card 💳'
+      : paymentMethod === 'cash'
+        ? 'Payment: Cash 💰'
+        : null;
+    const detailBlock = [detail, paymentLine].filter(Boolean).join('\n');
+    return `✅ Order #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nTotal: €${total}\n${detailBlock}\n\nThanks, ${customerName}! 🙏`;
   },
   checkoutCancelled: () => 'Order cancelled.',
   askPaymentMethod: (total) => `How would you like to pay?\n\nTotal: €${total}`,

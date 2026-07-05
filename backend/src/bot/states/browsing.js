@@ -18,6 +18,7 @@ const { sendPopularBoard } = require('../popularBoard');
 const { tryConversationalBasketText, tryBasketUndo, flushBasketPendingLearning } = require('../conversationalBasket');
 const { detectBotCommandAsync, isBasketUndoPhrase, BOT_COMMAND } = require('../botCommands');
 const { isConversationalBasket } = require('../featureFlags');
+const { tryApplyCheckoutSlotsFromText, stripCheckoutSlotsFromOrderText } = require('../checkoutSlots');
 const {
   sendSearchPrompt,
   handleSearchModeText,
@@ -39,6 +40,7 @@ const BASKET_CLEAR_PATCH = {
   orderType: undefined,
   deliveryAddress: undefined,
   specialRequests: undefined,
+  pendingPaymentMethod: undefined,
   basketRemovePending: undefined,
   basketRemoveDisambig: undefined,
 };
@@ -442,11 +444,11 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
         await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
         return;
       }
-      if (isGatedOnDeliveryMinimum(session)) {
+      const info = await getBusinessInfo(businessId);
+      if (isGatedOnDeliveryMinimum(session) && !isConversationalBasket(info)) {
         await resumeDeliveryCheckout({ from, session, lang, businessId, basket });
         return;
       }
-      const info = await getBusinessInfo(businessId);
       if (!isOrderingOpen(info.schedule, info.timezone || 'Europe/Vienna')) {
         const _w = getTodayOrderWindow(info.schedule, info.timezone || 'Europe/Vienna');
         await sendText(from, t('restaurantClosed', lang, info.name, _w?.firstOrderTime ?? null, _w?.lastOrderTime ?? null));
@@ -482,6 +484,12 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     if (await tryBotCommandText({
       from, session, lang, businessId, basket, text, norm, business: info,
     })) return;
+
+    if (isConversationalBasket(info)) {
+      session = await tryApplyCheckoutSlotsFromText({
+        from, session, text, norm, business: info,
+      });
+    }
   }
 
   // Text: undo + conversational basket mutations (Tier 5 — flag on only)
@@ -489,13 +497,15 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     && (isBasketUndoPhrase(norm, { hasUndoSnapshot: !!session.basketUndoSnapshot?.basket })
       || looksLikeOrderText(text, norm))) {
     const info = await getBusinessInfo(businessId);
+    const foodText = isConversationalBasket(info) ? stripCheckoutSlotsFromOrderText(text) : text;
+
     if (await tryBasketUndo({
       from, session, lang, businessId, basket, business: info, norm,
     })) return;
 
-    if (looksLikeOrderText(text, norm)) {
+    if (foodText?.trim() && looksLikeOrderText(foodText, norm)) {
       const convHandled = await tryConversationalBasketText({
-        from, session, lang, businessId, basket, text, norm, business: info,
+        from, session, lang, businessId, basket, text: foodText, norm, business: info,
       });
       if (convHandled === true) return;
       if (convHandled === 'llm_failed') {
@@ -577,28 +587,44 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
 
   // Text: natural-language order (clears stale proposals before AI/rules parse)
   if (type === 'text' && text?.trim() && looksLikeOrderText(text, norm)) {
-    if (session.pendingIntentItems?.length && isFullOrderReplace(text, norm)) {
+    const info = await getBusinessInfo(businessId);
+    const foodText = isConversationalBasket(info) ? stripCheckoutSlotsFromOrderText(text) : text;
+
+    if (isConversationalBasket(info) && !foodText?.trim()
+      && (session.orderType || session.deliveryAddress || session.pendingPaymentMethod)) {
+      await sendOrderEntryPrompt({ from, session, lang, businessId, basket });
+      return;
+    }
+
+    if (!foodText?.trim()) {
+      // Slot-only or unparseable after strip — fall through to default prompt
+    } else if (session.pendingIntentItems?.length && isFullOrderReplace(foodText, norm)) {
       await patchSession(from, INTENT_PROPOSAL_CLEAR, session);
       session = { ...session, ...INTENT_PROPOSAL_CLEAR };
     }
-    const intentHandled = await tryTextIntentOrder({ from, session, lang, businessId, basket, text, norm });
-    if (intentHandled === true) return;
-    if (intentHandled === 'llm_failed') {
-      await sendOrderEntryPrompt({
-        from, session, lang, businessId, basket,
-        bodyOverride: t('intentParseFailed', lang),
+
+    if (foodText?.trim()) {
+      const intentHandled = await tryTextIntentOrder({
+        from, session, lang, businessId, basket, text: foodText, norm,
       });
-      return;
-    }
-    if (isShortLookupText(text, norm)) {
-      if (await tryMenuSearch({ from, session, lang, businessId, basket, text })) return;
-    }
-    if (!session.pendingIntentItems?.length) {
-      await sendOrderEntryPrompt({
-        from, session, lang, businessId, basket,
-        bodyOverride: t('intentNoMatch', lang, text.trim()),
-      });
-      return;
+      if (intentHandled === true) return;
+      if (intentHandled === 'llm_failed') {
+        await sendOrderEntryPrompt({
+          from, session, lang, businessId, basket,
+          bodyOverride: t('intentParseFailed', lang),
+        });
+        return;
+      }
+      if (isShortLookupText(foodText, norm)) {
+        if (await tryMenuSearch({ from, session, lang, businessId, basket, text: foodText })) return;
+      }
+      if (!session.pendingIntentItems?.length) {
+        await sendOrderEntryPrompt({
+          from, session, lang, businessId, basket,
+          bodyOverride: t('intentNoMatch', lang, foodText.trim()),
+        });
+        return;
+      }
     }
   }
 

@@ -1,5 +1,6 @@
 module.exports = {
   testEnvironment: 'node',
+  testPathIgnorePatterns: ['/node_modules/', '/__tests__/helpers/'],
   collectCoverageFrom: [
     'src/**/*.js',
     '!src/index.js',

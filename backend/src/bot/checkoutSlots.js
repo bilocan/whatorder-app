@@ -1,0 +1,256 @@
+const { patchSession } = require('./sessionStore');
+const { isConversationalBasket } = require('./featureFlags');
+
+const PAY_CARD = new Set(['karte', 'card', 'kart', 'kredi', 'kartı', 'kartim', 'kreditkarte']);
+const PAY_CASH = new Set(['bar', 'cash', 'nakit', 'bargeld']);
+const ORDER_PICKUP = new Set(['abholen', 'pickup', 'selbstabholung', 'gel al', 'abholung']);
+const ORDER_DELIVERY = new Set(['lieferung', 'delivery', 'lieferservice', 'teslimat', 'paket']);
+
+function parsePaymentKeyword(norm) {
+  const token = (norm ?? '').trim();
+  if (PAY_CARD.has(token)) return 'card';
+  if (PAY_CASH.has(token)) return 'cash';
+  return null;
+}
+
+function parseOrderTypeKeyword(norm) {
+  const token = (norm ?? '').trim();
+  if (ORDER_PICKUP.has(token)) return 'pickup';
+  if (ORDER_DELIVERY.has(token)) return 'delivery';
+  return null;
+}
+
+const DELIVERY_PHRASE_RE = /\b(?:zum\s+)?(?:liefern|lieferung|lieferservice|delivery|teslimat|paket(?:\s*servis)?)\b/i;
+const PICKUP_PHRASE_RE = /\b(?:zum\s+)?(?:abholen|mitnehmen|pickup|abholung|gel\s+al|takeaway|to\s+go)\b/i;
+const STREET_SUFFIX_RE = /\b(?:straße|str\.|strasse|gasse|weg|platz|allee|ring|ufer|gürtel|gurtel|sokak|mah\.|cad\.|bulvar)\b/i;
+const FOOD_TOKEN_RE = /\b(?:döner|doner|kebap|kebab|cola|ayran|pizza|burger|dürüm|durum|sandwich|box|falafel|pommes|salat)\b/i;
+const ADDRESS_HINT_RE = /\b(?:an\s+die\s+adresse|adresse|liefern\s+an|nach)\s+(.+)/i;
+const NAME_RE = /\b(?:ich\s+(?:hei[ßs]e|bin)|mein\s+name\s+ist|name\s+ist|für)\s+([A-Za-zäöüÄÖÜß][A-Za-zäöüÄÖÜß\s'.-]{1,40})/i;
+const NOTE_RE = /\b(?:notiz|anmerkung|bemerkung|note)\s*:\s*(.+)/i;
+
+function normalizeSegment(text) {
+  return (text ?? '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+}
+
+function parsePaymentFromSegment(segment, segNorm) {
+  const tokenPay = parsePaymentKeyword(segNorm.trim());
+  if (tokenPay === 'card') return 'stripe';
+  if (tokenPay === 'cash') return 'cash';
+  if (/\b(?:mit\s+)?(?:karte|kart|kredi\s+kart(?:i|ı)?|card)\b/i.test(segment)) return 'stripe';
+  if (/\b(?:mit\s+)?(?:bar|nakit|cash|bargeld)\b/i.test(segment)) return 'cash';
+  return null;
+}
+
+function parseOrderTypeFromSegment(segment) {
+  if (DELIVERY_PHRASE_RE.test(segment)) return 'delivery';
+  if (PICKUP_PHRASE_RE.test(segment)) return 'pickup';
+  const kw = parseOrderTypeKeyword(normalizeSegment(segment));
+  return kw;
+}
+
+function looksLikeAddressSegment(segment) {
+  const s = segment.trim();
+  if (s.length < 5) return false;
+  if (FOOD_TOKEN_RE.test(s)) return false;
+  if (DELIVERY_PHRASE_RE.test(s) && !STREET_SUFFIX_RE.test(s) && !/\d/.test(s)) return false;
+  if (parsePaymentFromSegment(s, normalizeSegment(s)) && s.split(/\s+/).length <= 4) return false;
+
+  const hint = s.match(ADDRESS_HINT_RE);
+  if (hint?.[1]?.trim().length >= 4) return true;
+  if (STREET_SUFFIX_RE.test(s) && /\d/.test(s)) return true;
+  if (/\b\w[\wäöüÄÖÜß.-]*\s+\d+[a-z]?\b/i.test(s) && s.split(/\s+/).length >= 2) return true;
+  return false;
+}
+
+function extractAddressFromSegment(segment) {
+  const hint = segment.match(ADDRESS_HINT_RE);
+  if (hint?.[1]?.trim()) return hint[1].trim();
+  return segment.trim();
+}
+
+/** Segment is checkout metadata only (address, payment, order-type phrase), not food. */
+function isCheckoutOnlySegment(segment) {
+  const s = segment.trim();
+  if (!s) return true;
+  if (looksLikeAddressSegment(s)) return true;
+
+  const segNorm = normalizeSegment(s);
+  const pay = parsePaymentFromSegment(s, segNorm);
+  if (pay && !FOOD_TOKEN_RE.test(s) && s.split(/\s+/).length <= 4) return true;
+
+  if (parseOrderTypeFromSegment(s) && !FOOD_TOKEN_RE.test(s) && !/^\d/.test(s)) return true;
+
+  const nameMatch = s.match(NAME_RE);
+  if (nameMatch && s.replace(nameMatch[0], '').trim().length < 3) return true;
+
+  const noteMatch = s.match(NOTE_RE);
+  if (noteMatch && s.replace(noteMatch[0], '').trim().length < 3) return true;
+
+  return false;
+}
+
+/** Remove inline delivery/payment/name/note phrases from a food segment. */
+function stripInlineCheckoutPhrases(segment) {
+  let s = segment.trim();
+  s = s.replace(/\s*,?\s*\b(?:zum\s+)?(?:liefern|lieferung|lieferservice|delivery|teslimat|paket(?:\s*servis)?)\b/gi, '');
+  s = s.replace(/\s*,?\s*\b(?:zum\s+)?(?:abholen|mitnehmen|pickup|abholung|gel\s+al|takeaway|to\s+go)\b/gi, '');
+  s = s.replace(/\s*,?\s*\b(?:mit\s+)?(?:karte|kart|kredi\s+kart(?:i|ı)?|card)\b/gi, '');
+  s = s.replace(/\s*,?\s*\b(?:mit\s+)?(?:bar|nakit|cash|bargeld)\b/gi, '');
+  s = s.replace(/\s*,?\s*\b(?:ich\s+(?:hei[ßs]e|bin)|mein\s+name\s+ist|name\s+ist)\s+[^,;]+/gi, '');
+  s = s.replace(/\s*,?\s*\b(?:notiz|anmerkung|bemerkung|note)\s*:\s*[^,;]+/gi, '');
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Remove checkout slot segments/phrases so food parsers see only menu intent.
+ * e.g. "2 döner zum liefern, Hauptstraße 5, bar" → "2 döner"
+ */
+function stripCheckoutSlotsFromOrderText(text) {
+  if (!text?.trim()) return '';
+
+  const trimmed = text.trim();
+  const segments = trimmed.includes(',') || trimmed.includes(';')
+    ? trimmed.split(/[,;]+/).map(s => s.trim()).filter(Boolean)
+    : [trimmed];
+
+  if (segments.length === 1) {
+    return stripInlineCheckoutPhrases(segments[0]);
+  }
+
+  return segments
+    .filter(seg => !isCheckoutOnlySegment(seg))
+    .map(seg => stripInlineCheckoutPhrases(seg))
+    .filter(seg => seg.length >= 2)
+    .join(', ');
+}
+
+/**
+ * Rule-based checkout slot extraction (M3 step 1).
+ * @returns {{ orderType?: string, deliveryAddress?: string, customerName?: string, specialRequests?: string, pendingPaymentMethod?: string }}
+ */
+function extractCheckoutSlotsRules(text, _norm) {
+  const slots = {};
+  if (!text?.trim()) return slots;
+
+  const noteMatch = text.match(NOTE_RE);
+  if (noteMatch?.[1]?.trim()) slots.specialRequests = noteMatch[1].trim();
+
+  const nameMatch = text.match(NAME_RE);
+  if (nameMatch?.[1]?.trim()) {
+    const name = nameMatch[1].trim().slice(0, 60);
+    if (name.length >= 2) slots.customerName = name;
+  }
+
+  const segments = text.includes(',') || text.includes(';')
+    ? text.split(/[,;]+/).map(s => s.trim()).filter(Boolean)
+    : [text.trim()];
+
+  for (const segment of segments) {
+    const segNorm = normalizeSegment(segment);
+
+    if (!slots.orderType) {
+      const orderType = parseOrderTypeFromSegment(segment);
+      if (orderType) slots.orderType = orderType;
+    }
+
+    if (!slots.pendingPaymentMethod) {
+      const pay = parsePaymentFromSegment(segment, segNorm);
+      if (pay) slots.pendingPaymentMethod = pay;
+    }
+
+    if (!slots.deliveryAddress && looksLikeAddressSegment(segment)) {
+      slots.deliveryAddress = extractAddressFromSegment(segment);
+    }
+  }
+
+  if (!slots.orderType) {
+    if (DELIVERY_PHRASE_RE.test(text)) slots.orderType = 'delivery';
+    else if (PICKUP_PHRASE_RE.test(text)) slots.orderType = 'pickup';
+  }
+
+  if (!slots.pendingPaymentMethod) {
+    const pay = parsePaymentFromSegment(text, normalizeSegment(text));
+    if (pay) slots.pendingPaymentMethod = pay;
+  }
+
+  return slots;
+}
+
+function isFilledName(name) {
+  return name != null && name !== '' && name !== 'WhatsApp Customer';
+}
+
+function mergeCheckoutSlots(session, slots) {
+  if (!slots || !Object.keys(slots).length) return session;
+  const merged = { ...session };
+  if (slots.orderType && !merged.orderType) merged.orderType = slots.orderType;
+  if (slots.deliveryAddress && !merged.deliveryAddress) merged.deliveryAddress = slots.deliveryAddress;
+  if (slots.customerName && !isFilledName(merged.customerName)) merged.customerName = slots.customerName;
+  if (slots.specialRequests != null && slots.specialRequests !== '' && !merged.specialRequests) {
+    merged.specialRequests = slots.specialRequests;
+  }
+  if (slots.pendingPaymentMethod && !merged.pendingPaymentMethod) {
+    merged.pendingPaymentMethod = slots.pendingPaymentMethod;
+  }
+  return merged;
+}
+
+function slotsToSessionPatch(slots) {
+  const patch = {};
+  if (slots.orderType) patch.orderType = slots.orderType;
+  if (slots.deliveryAddress) patch.deliveryAddress = slots.deliveryAddress;
+  if (slots.customerName) patch.customerName = slots.customerName;
+  if (slots.specialRequests) patch.specialRequests = slots.specialRequests;
+  if (slots.pendingPaymentMethod) patch.pendingPaymentMethod = slots.pendingPaymentMethod;
+  return patch;
+}
+
+function applyProfilePrefill(session, profile) {
+  const merged = { ...session };
+  if (profile?.name && isFilledName(profile.name) && !isFilledName(merged.customerName)) {
+    merged.customerName = profile.name;
+  }
+  if (merged.orderType === 'delivery' && !merged.deliveryAddress && profile?.lastDeliveryAddress) {
+    merged.deliveryAddress = profile.lastDeliveryAddress;
+  }
+  return merged;
+}
+
+function isDeliveryOffered(info) {
+  return info?.deliveryEnabled === true || info?.deliveryEnabled === 'true';
+}
+
+/** Required checkout slots still missing after profile pre-fill. */
+function getMissingCheckoutSlots(session, info) {
+  const missing = [];
+  if (isDeliveryOffered(info) && !session.orderType) missing.push('orderType');
+  if (session.orderType === 'delivery' && !session.deliveryAddress) missing.push('deliveryAddress');
+  if (!isFilledName(session.customerName)) missing.push('customerName');
+  return missing;
+}
+
+/**
+ * Extract + persist checkout slots from inbound text (flag on only).
+ * @returns {Promise<object>} updated in-memory session
+ */
+async function tryApplyCheckoutSlotsFromText({ from, session, text, norm, business }) {
+  if (!isConversationalBasket(business)) return session;
+  const slots = extractCheckoutSlotsRules(text, norm);
+  const patch = slotsToSessionPatch(slots);
+  if (!Object.keys(patch).length) return session;
+  await patchSession(from, patch, session);
+  return mergeCheckoutSlots(session, slots);
+}
+
+module.exports = {
+  extractCheckoutSlotsRules,
+  mergeCheckoutSlots,
+  slotsToSessionPatch,
+  applyProfilePrefill,
+  getMissingCheckoutSlots,
+  isFilledName,
+  isDeliveryOffered,
+  isCheckoutOnlySegment,
+  stripCheckoutSlotsFromOrderText,
+  tryApplyCheckoutSlotsFromText,
+};

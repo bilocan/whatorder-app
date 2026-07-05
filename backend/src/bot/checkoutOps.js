@@ -1,6 +1,7 @@
 const { looksLikeOrderText } = require('./intentParser');
 const { getMenuContext, getBusinessInfo } = require('./menuService');
 const { isConversationalBasket } = require('./featureFlags');
+const { stripCheckoutSlotsFromOrderText } = require('./checkoutSlots');
 const {
   parseBasketOps,
   applyOps,
@@ -97,8 +98,11 @@ async function tryCheckoutBasketOp({
   if (!CHECKOUT_BASKET_OP_STATES.has(session.state)) return { handled: false };
   if (!text?.trim() || !looksLikeOrderText(text, norm)) return { handled: false };
 
+  const foodText = stripCheckoutSlotsFromOrderText(text);
+  if (!foodText?.trim() || !looksLikeOrderText(foodText, norm)) return { handled: false };
+
   const { menu, menuMatch, menuTokenIndex } = await getMenuContext(businessId);
-  const parsed = await parseBasketOps(text, {
+  const parsed = await parseBasketOps(foodText, {
     basket,
     businessId,
     phone: from,
