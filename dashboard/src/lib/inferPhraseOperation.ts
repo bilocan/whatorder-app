@@ -1,7 +1,7 @@
 import type { IntentLearningOperation } from '../types';
 
-const REMOVE_SUFFIX_RE = /\s+(remove|removes|delete|ohne|entfernen|entferne|entfernt|löschen|lösche|lösch|loschen|streichen|sil|cikar|çıkar|kaldir|kaldır|weg|raus)$/i;
-const REMOVE_PREFIX_RE = /^(remove|removes|delete|ohne|entfernen|entferne|entfernt|löschen|lösche|lösch|loschen|sil)\s+/i;
+const REMOVE_SUFFIX_RE = /\s+(remove|removes|delete|ohne|entfernen|entferne|entfernt|löschen|lösche|lösch|loschen|streichen|sil|cikar|çıkar|kaldir|kaldır|weg|raus|iptal)$/i;
+const REMOVE_PREFIX_RE = /^(remove|removes|delete|ohne|entfernen|entferne|entfernt|löschen|lösche|lösch|loschen|sil|iptal)\s+/i;
 
 // Positive ordering phrases that should always resolve to 'add' even if they contain
 // exclusion words like "ohne" in modifier position ("ich hätte gerne ... ohne scharf").

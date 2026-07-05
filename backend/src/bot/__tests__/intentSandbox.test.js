@@ -107,6 +107,15 @@ describe('evaluateIntent', () => {
     expect(result.botReply).not.toMatch(/Scharfe Sauce/i);
     expect(result.botReply).not.toMatch(/extra scharf/i);
   });
+
+  test('"tavuk döner iptal" is detected as remove operation', async () => {
+    const result = await evaluateIntent('tavuk döner iptal', {
+      menu: BUILTIN_MENU,
+      lang: 'de',
+      llm: false,
+    });
+    expect(result.operation).toBe('remove');
+  });
 });
 
 describe('formatSandboxResult', () => {

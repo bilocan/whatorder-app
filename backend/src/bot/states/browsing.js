@@ -508,8 +508,10 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
     }
   }
 
-  // Text: basket remove mode (line numbers or item names) — optional accelerator when flag on
-  if (type === 'text' && text?.trim() && session.basketRemovePending && basket.length) {
+  // Text: basket remove mode (line numbers or item names) — optional accelerator when flag on.
+  // Also handles active remove disambiguation (basketRemoveDisambig) even without basketRemovePending,
+  // e.g. when disambiguation was triggered via conversational basket (sendOpsAmbiguousRemove).
+  if (type === 'text' && text?.trim() && (session.basketRemovePending || session.basketRemoveDisambig) && basket.length) {
     if (await handleBasketRemoveText({ from, session, lang, businessId, basket, text, norm })) return;
   }
 
