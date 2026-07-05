@@ -19,6 +19,7 @@ const {
   PROPOSAL_CLEAR_PATCH,
 } = require('./basketOps');
 const { isConversationalBasket } = require('./featureFlags');
+const { stripCheckoutSlotsFromOrderText } = require('./checkoutSlots');
 const {
   buildBasketPendingLearning,
   commitBasketPendingLearning,
@@ -224,10 +225,12 @@ async function tryConversationalBasketText({
   from, session, lang, businessId, basket, text, norm, business,
 }) {
   if (!isConversationalBasket(business)) return false;
-  if (!text?.trim() || !looksLikeOrderText(text, norm)) return false;
+  const foodText = stripCheckoutSlotsFromOrderText(text);
+  if (!foodText?.trim()) return false;
+  if (!looksLikeOrderText(foodText, norm)) return false;
 
   const { menu, menuMatch, menuTokenIndex } = await getMenuContext(businessId);
-  const parsed = await parseBasketOps(text, {
+  const parsed = await parseBasketOps(foodText, {
     basket,
     businessId,
     phone: from,
@@ -238,7 +241,7 @@ async function tryConversationalBasketText({
 
   if (parsed.outcome === 'llm_failed') return 'llm_failed';
 
-  if (shouldFallThroughToIntentOrder(basket, parsed, text)) return false;
+  if (shouldFallThroughToIntentOrder(basket, parsed, foodText)) return false;
 
   if (parsed.outcome === 'disambiguation' && parsed.disambiguation) {
     await persistBasketMutation(from, session, PROPOSAL_CLEAR_PATCH);

@@ -57,12 +57,17 @@ module.exports = {
 
   orderTotal: (total) => `Toplam: €${total}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Tahmini hazırlık: ~${prepMins} dk (saat ${pickupTime} civarı)\n\nAdınızı yazar mısınız?`,
-  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes) => {
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod) => {
     const detail = deliveryAddress
       ? `🚚 Teslimat adresi: ${deliveryAddress}`
       : `⏱️ Hazır saat: ~${pickupTime}`;
     const notesLine = notes ? `\n📝 Not: ${notes}` : '';
-    return `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n${detail}${notesLine}\n\nOnaylamak veya düzenlemek için aşağıya dokunun.`;
+    const paymentLine = paymentMethod === 'stripe'
+      ? '\n💳 Ödeme: Kart'
+      : paymentMethod === 'cash'
+        ? '\n💰 Ödeme: Nakit'
+        : '';
+    return `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nOnaylamak veya düzenlemek için aşağıya dokunun.`;
   },
   confirmListHeader: () => 'Siparişi kontrol et',
   confirmListBtn: () => 'Onayla / düzenle',
@@ -82,11 +87,17 @@ module.exports = {
   confirmPrompt: () => 'Onaylamak için YES, iptal için NO yazın.',
   yesNoOnly: () => 'Lütfen YES veya NO yazın.',
   orderConfirmed: (shortId) => `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\nHazır olduğunda size bildireceğiz. Teşekkürler! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, alertPhone, address) => {
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Teslimat: ${deliveryAddress}` : `Hazır: ${pickupTime}`;
-    return `✅ Sipariş #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}\n${detail}\n\nTeşekkürler, ${customerName}! 🙏`;
+    const paymentLine = paymentMethod === 'stripe'
+      ? 'Ödeme: Kart 💳'
+      : paymentMethod === 'cash'
+        ? 'Ödeme: Nakit 💰'
+        : null;
+    const detailBlock = [detail, paymentLine].filter(Boolean).join('\n');
+    return `✅ Sipariş #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}\n${detailBlock}\n\nTeşekkürler, ${customerName}! 🙏`;
   },
   checkoutCancelled: () => 'Sipariş iptal edildi.',
   askPaymentMethod: (total) => `Nasıl ödemek istersiniz?\n\nToplam: €${total}`,
