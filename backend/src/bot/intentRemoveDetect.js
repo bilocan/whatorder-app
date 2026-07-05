@@ -2,7 +2,7 @@ const REMOVE_VERBS =
   'remove|removes|removed|delete|without|no|kein|keine|ohne'
   + '|entfernen|entferne|entfernt'
   + '|löschen|lösche|lösch|loschen'
-  + '|streichen|sil|cikar|çıkar|kaldir|kaldır|weg|raus';
+  + '|streichen|sil|cikar|çıkar|kaldir|kaldır|weg|raus|iptal';
 const REMOVE_RE = new RegExp(`^(${REMOVE_VERBS})\\s+(.+)$`, 'i');
 const REMOVE_SUFFIX_RE = new RegExp(`^(.+?)\\s+(${REMOVE_VERBS})$`, 'i');
 

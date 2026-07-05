@@ -5,6 +5,8 @@ describe('inferPhraseOperation', () => {
   it('detects Turkish remove suffix', () => {
     expect(inferPhraseOperation('ayrani cikar')).toBe('remove');
     expect(inferPhraseOperation('Pizza cikar')).toBe('remove');
+    expect(inferPhraseOperation('tavuk döner iptal')).toBe('remove');
+    expect(inferPhraseOperation('ayran iptal')).toBe('remove');
   });
 
   it('detects German conjugated remove', () => {
