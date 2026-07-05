@@ -303,6 +303,14 @@ function removeTargetsToOps(basket, targets) {
   for (const target of targets) {
     let remaining = target.removeAll ? Number.POSITIVE_INFINITY : Math.max(1, Number(target.qty) || 1);
 
+    // When multiple basket lines match this target and we're removing fewer than all
+    // of them, we can't pick one arbitrarily. Return null so parseBasketOps falls
+    // through to the tryTextIntentOrder → tryLearnedRemoveIntent disambiguation path.
+    if (!target.removeAll) {
+      const matchCount = current.filter(line => lineMatchesTarget(line, target)).length;
+      if (matchCount > 1 && remaining < matchCount) return null;
+    }
+
     while (remaining > 0) {
       const idx = current.findIndex(line => lineMatchesTarget(line, target));
       if (idx < 0) return null;

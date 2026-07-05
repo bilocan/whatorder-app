@@ -291,6 +291,30 @@ describe('parseBasketOps', () => {
     expect(preview.basket.map(i => i.name)).toEqual(['Cola', 'Ayran']);
   });
 
+  test('ambiguous remove (same-name items with different toppings) does not silently pick one', async () => {
+    const dupBasket = [
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel, Sauce', qty: 1, price: 7.5 },
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad', qty: 1, price: 7.5 },
+    ];
+    const parsed = await parseBasketOps('Kebap iptal', {
+      basket: dupBasket,
+      menu,
+      menuMatch,
+      rulesOnly: true,
+    });
+    // When multiple lines match by name, the remove op must be name-based (not index-based),
+    // so that applyOps → applyRemove → resolveTargetIndices can detect ambiguity.
+    expect(parsed.outcome).toBe('ops');
+    expect(parsed.ops).toHaveLength(1);
+    expect(parsed.ops[0].type).toBe('remove');
+    expect(parsed.ops[0].target.kind).toBe('name');
+    // Verify that applying these ops produces an ambiguous rejection (not a silent remove)
+    const applyResult = applyOps(dupBasket, parsed.ops);
+    expect(applyResult.applied).toHaveLength(0);
+    expect(applyResult.rejected[0].reason).toBe('ambiguous');
+    expect(applyResult.basket).toEqual(dupBasket);
+  });
+
   test('2doner 1 ayran on empty basket does not partial-match ayran only', async () => {
     const fs = require('fs');
     const path = require('path');
