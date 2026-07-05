@@ -1,7 +1,7 @@
 const { handleMessage } = require('../../botHandler');
 const { getSession, setSession, patchSession } = require('../../sessionStore');
 const { getMenu, getMenuContext, getBusinessInfo, resolvePhotoUrl } = require('../../menuService');
-const { createOrder, getLastOrderForCustomer } = require('../../orderService');
+const { createOrder, getLastOrderForCustomer, getOrder, amendOrderAddItems, cancelOrder } = require('../../orderService');
 const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage, sendCtaUrlMessage } = require('../../../lib/whatsapp');
 const { reverseGeocode } = require('../../../lib/geocode');
 const { customersRef } = require('../../../lib/collections');
@@ -124,6 +124,9 @@ function resetBotHandlerMocks() {
   }));
   getBusinessInfo.mockResolvedValue(BIZ_INFO);
   createOrder.mockResolvedValue('order_abc123');
+  getOrder.mockResolvedValue(null);
+  cancelOrder.mockResolvedValue(undefined);
+  amendOrderAddItems.mockResolvedValue({ applied: [], total: 0 });
   getLastOrderForCustomer.mockResolvedValue(null);
   sendText.mockResolvedValue();
   sendListMessage.mockResolvedValue('list_msg_id');
@@ -164,6 +167,9 @@ module.exports = {
   resolvePhotoUrl,
   createOrder,
   getLastOrderForCustomer,
+  getOrder,
+  amendOrderAddItems,
+  cancelOrder,
   sendText,
   sendListMessage,
   sendButtonMessage,

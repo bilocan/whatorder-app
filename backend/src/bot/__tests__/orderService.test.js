@@ -14,7 +14,7 @@ jest.mock('../../lib/whatsapp');
 jest.mock('../../lib/whatsappRouting', () => jest.requireActual('../../lib/whatsappRouting'));
 jest.mock('../templates');
 
-const { createOrder, getLastOrderForCustomer, approveOrder, rejectOrder, startPreparation, markReady, markOnTheWay, markPickedUp, markDelivered, cancelOrder } = require('../orderService');
+const { createOrder, getLastOrderForCustomer, getOrder, amendOrderAddItems, approveOrder, rejectOrder, startPreparation, markReady, markOnTheWay, markPickedUp, markDelivered, cancelOrder } = require('../orderService');
 const { ordersRef, businessRef, customersRef } = require('../../lib/collections');
 const { sendText } = require('../../lib/whatsapp');
 const { t } = require('../templates');
@@ -543,5 +543,76 @@ describe('getLastOrderForCustomer', () => {
     const result = await getLastOrderForCustomer(BIZ, '43699000001');
     expect(result).toEqual(order);
     expect(ordersRef().where).toHaveBeenCalledWith('customerId', 'in', expect.arrayContaining(['43699000001', '+43699000001']));
+  });
+});
+
+describe('getOrder', () => {
+  test('returns order with id when document exists', async () => {
+    const mockGet = jest.fn().mockResolvedValue({
+      exists: true,
+      id: 'order_1',
+      data: () => ({ status: 'pending', total: 10 }),
+    });
+    ordersRef.mockReturnValue({ doc: jest.fn().mockReturnValue({ get: mockGet }) });
+
+    const result = await getOrder(BIZ, 'order_1');
+    expect(result).toEqual({ id: 'order_1', status: 'pending', total: 10 });
+  });
+
+  test('returns null when missing', async () => {
+    ordersRef.mockReturnValue({
+      doc: jest.fn().mockReturnValue({
+        get: jest.fn().mockResolvedValue({ exists: false }),
+      }),
+    });
+    expect(await getOrder(BIZ, 'missing')).toBeNull();
+  });
+});
+
+describe('amendOrderAddItems', () => {
+  test('merges items and notifies owner for pending cash order', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue(undefined);
+    const orderData = {
+      status: 'pending',
+      paymentMethod: 'cash',
+      orderType: 'pickup',
+      items: [{ name: 'Döner', qty: 1, price: 8 }],
+      total: 8,
+      customerName: 'Ali',
+      customerPhone: '+43699000001',
+      whatsappPhoneNumberId: 'phone_id_test',
+    };
+    ordersRef.mockReturnValue({
+      doc: jest.fn().mockReturnValue({
+        get: jest.fn().mockResolvedValue({ exists: true, data: () => orderData }),
+        update: mockUpdate,
+      }),
+    });
+    businessRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({ exists: true, data: () => ({ alertPhone: '+431111111', name: 'Enes' }) }),
+    });
+
+    const newItems = [{ name: 'Ayran', qty: 1, price: 2.5 }];
+    const result = await amendOrderAddItems(BIZ, 'order_abc123456789', newItems);
+
+    expect(result.applied).toEqual(newItems);
+    expect(result.total).toBe(10.5);
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      items: [...orderData.items, ...newItems],
+      total: 10.5,
+    }));
+    expect(sendText).toHaveBeenCalled();
+  });
+
+  test('rejects stripe orders', async () => {
+    ordersRef.mockReturnValue({
+      doc: jest.fn().mockReturnValue({
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({ status: 'pending', paymentMethod: 'stripe', items: [] }),
+        }),
+      }),
+    });
+    await expect(amendOrderAddItems(BIZ, 'order_1', [{ name: 'Cola', qty: 1, price: 3 }])).rejects.toThrow('Card orders');
   });
 });
