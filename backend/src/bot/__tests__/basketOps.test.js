@@ -1,5 +1,7 @@
 jest.mock('../intentLearning', () => ({
+  ...jest.requireActual('../intentLearning'),
   lookupLearnedIntent: jest.fn().mockResolvedValue(null),
+  recordLearnedIntentHit: jest.fn(),
 }));
 
 const { applyOps, applyOp, clampQty, parseBasketOps } = require('../basketOps');
@@ -289,6 +291,59 @@ describe('parseBasketOps', () => {
     expect(preview.applied).toHaveLength(1);
     expect(preview.rejected).toHaveLength(1);
     expect(preview.basket.map(i => i.name)).toEqual(['Cola', 'Ayran']);
+  });
+
+  test('ambiguous remove (same-name items with different toppings) does not silently pick one', async () => {
+    const dupBasket = [
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel, Sauce', qty: 1, price: 7.5 },
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad', qty: 1, price: 7.5 },
+    ];
+    const parsed = await parseBasketOps('Kebap iptal', {
+      basket: dupBasket,
+      menu,
+      menuMatch,
+      rulesOnly: true,
+    });
+    // When multiple lines match by name, the remove op must be name-based (not index-based),
+    // so that applyOps → applyRemove → resolveTargetIndices can detect ambiguity.
+    expect(parsed.outcome).toBe('ops');
+    expect(parsed.ops).toHaveLength(1);
+    expect(parsed.ops[0].type).toBe('remove');
+    expect(parsed.ops[0].target.kind).toBe('name');
+    // Verify that applying these ops produces an ambiguous rejection (not a silent remove)
+    const applyResult = applyOps(dupBasket, parsed.ops);
+    expect(applyResult.applied).toHaveLength(0);
+    expect(applyResult.rejected[0].reason).toBe('ambiguous');
+    expect(applyResult.basket).toEqual(dupBasket);
+  });
+
+  test('learned intent pointing to wrong item is overridden by basket name match', async () => {
+    // Scenario: restaurant trained "kola" → Kebap Sandwich Huhn (a stale/incorrect mapping).
+    // Basket has 2× Cola (note: 'kola') + 2× Kebap. "kola iptal" should remove Cola, not Kebap.
+    const { lookupLearnedIntent } = require('../intentLearning');
+    lookupLearnedIntent.mockResolvedValueOnce({
+      operation: 'remove',
+      items: [{ name: 'Kebap Sandwich Huhn', rawName: 'kola', menuItemId: 'k1', qty: 1 }],
+    });
+
+    const basket = [
+      { menuItemId: 'c1', name: 'Coca Cola 0.33L', note: 'kola', qty: 2, price: 2.9 },
+      { menuItemId: 'k1', name: 'Kebap Sandwich Huhn — Tomaten, Salad', qty: 2, price: 7.5 },
+    ];
+
+    // No menu → repairIntentItems skipped, so rawName 'kola' is preserved in intent items.
+    const parsed = await parseBasketOps('kola iptal', {
+      basket,
+      menu: [],
+      menuMatch: {},
+      businessId: 'test-biz',
+    });
+
+    expect(parsed.outcome).toBe('ops');
+    const result = applyOps(basket, parsed.ops);
+    // Kebap must be untouched; Cola must have been removed or reduced
+    expect(result.basket.find(l => l.name.includes('Kebap'))?.qty).toBe(2);
+    expect((result.basket.find(l => l.name.includes('Cola'))?.qty ?? 0)).toBeLessThan(2);
   });
 
   test('2doner 1 ayran on empty basket does not partial-match ayran only', async () => {

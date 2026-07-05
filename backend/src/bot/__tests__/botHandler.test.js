@@ -2033,6 +2033,26 @@ describe('Browsing state: basket remove (chat)', () => {
     }), expect.anything());
   });
 
+  test('disambig reply "2" without basketRemovePending removes correct line (conversational basket path)', async () => {
+    const dupBasket = [
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel, Sauce', qty: 1, price: 7.50 },
+      { name: 'Kebap Sandwich Huhn — Tomaten, Salad', qty: 1, price: 7.50 },
+    ];
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      // basketRemovePending is NOT set — only disambig state from sendOpsAmbiguousRemove
+      basketRemoveDisambig: { fragment: 'Kebap', indices: [1, 2] },
+      basket: dupBasket,
+    });
+
+    await handleMessage(ROUTING, msg({ text: '2' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [dupBasket[0]],
+      basketRemoveDisambig: undefined,
+    }), expect.anything());
+  });
+
   test('alles löschen in remove mode clears basket', async () => {
     getSession.mockResolvedValue({
       language: 'de', state: 'browsing', businessId: BIZ,
