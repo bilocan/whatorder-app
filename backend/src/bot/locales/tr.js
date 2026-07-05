@@ -138,6 +138,15 @@ module.exports = {
   orderDelivered: (shortId) => `✅ Sipariş #${shortId} teslim edildi. Afiyet olsun! 🙏`,
   orderRejected:  (shortId) => `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Lütfen bize ulaşın.`,
   orderCancelled: (shortId) => `❌ Sipariş #${shortId} iptal edildi.`,
+  orderStatusPending: (shortId) => `⏳ Sipariş #${shortId} alındı, restoran onayı bekleniyor.`,
+  postOrderCallRestaurant: (name, phone) => phone
+    ? `Siparişinizde değişiklik için lütfen ${name} arayın: ${phone}`
+    : `Siparişinizde değişiklik için lütfen ${name} ile iletişime geçin.`,
+  postOrderCancelled: (shortId) => `✅ Sipariş #${shortId} iptal edildi.`,
+  postOrderAmended: (shortId, itemLines, total) => `✅ Sipariş #${shortId} güncellendi.\n\n${itemLines}\n\nYeni toplam: €${total}`,
+  humanHandoffOffer: () => 'Anlamakta zorlanıyorum. Restoranın size dönmesini ister misiniz?',
+  humanHandoffBtn: () => 'Yardım iste',
+  humanHandoffConfirmed: () => 'Tamam. Restoran bilgilendirildi, size dönecek.',
 
   askOrderType: (fee) => `Siparişinizi nasıl almak istersiniz?\n\nTeslimat ücreti: €${Number(fee).toFixed(2)}`,
   pickupBtn: () => 'Gel Al',

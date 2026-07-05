@@ -138,6 +138,15 @@ module.exports = {
   orderDelivered: (shortId) => `✅ Bestellung #${shortId} zugestellt. Guten Appetit! 🙏`,
   orderRejected:  (shortId) => `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Bitte kontaktieren Sie uns.`,
   orderCancelled: (shortId) => `❌ Bestellung #${shortId} wurde storniert.`,
+  orderStatusPending: (shortId) => `⏳ Bestellung #${shortId} ist eingegangen und wartet auf Bestätigung durch das Restaurant.`,
+  postOrderCallRestaurant: (name, phone) => phone
+    ? `Für Änderungen an Ihrer Bestellung rufen Sie bitte ${name} an: ${phone}`
+    : `Für Änderungen an Ihrer Bestellung kontaktieren Sie bitte ${name} direkt.`,
+  postOrderCancelled: (shortId) => `✅ Bestellung #${shortId} wurde storniert.`,
+  postOrderAmended: (shortId, itemLines, total) => `✅ Bestellung #${shortId} aktualisiert.\n\n${itemLines}\n\nNeuer Gesamtbetrag: €${total}`,
+  humanHandoffOffer: () => 'Ich habe Schwierigkeiten, das zu verstehen. Möchten Sie, dass das Restaurant Ihnen antwortet?',
+  humanHandoffBtn: () => 'Hilfe anfordern',
+  humanHandoffConfirmed: () => 'Alles klar. Das Restaurant wurde benachrichtigt und meldet sich bei Ihnen.',
 
   askOrderType: (fee) => `Wie möchten Sie Ihre Bestellung erhalten?\n\nLiefergebühr: €${Number(fee).toFixed(2)}`,
   pickupBtn: () => 'Abholung',

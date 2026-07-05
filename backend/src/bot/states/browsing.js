@@ -18,6 +18,7 @@ const { sendPopularBoard } = require('../popularBoard');
 const { tryConversationalBasketText, tryBasketUndo, flushBasketPendingLearning } = require('../conversationalBasket');
 const { detectBotCommandAsync, isBasketUndoPhrase, BOT_COMMAND } = require('../botCommands');
 const { isConversationalBasket } = require('../featureFlags');
+const { recordParseFailure, resetParseFailures } = require('../postOrder');
 const { tryApplyCheckoutSlotsFromText, stripCheckoutSlotsFromOrderText } = require('../checkoutSlots');
 const {
   sendSearchPrompt,
@@ -268,7 +269,7 @@ function resolveIntentSuggestionPick(text, suggestions) {
   }) ?? null;
 }
 
-async function handleBrowsing({ from, session, lang, businessId, basket, isMulti, type, id, items, norm, text }) {
+async function handleBrowsing({ from, contactName, session, lang, businessId, basket, isMulti, type, id, items, norm, text }) {
   // Commit deferred basket learning from prior mutation (skip undo — that discards instead)
   if (session.basketPendingLearning && !(type === 'text' && isBasketUndoPhrase(norm, { hasUndoSnapshot: !!session.basketUndoSnapshot?.basket }))) {
     const info = await getBusinessInfo(businessId);
@@ -507,12 +508,16 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       const convHandled = await tryConversationalBasketText({
         from, session, lang, businessId, basket, text: foodText, norm, business: info,
       });
-      if (convHandled === true) return;
+      if (convHandled === true) {
+        await resetParseFailures(from, session);
+        return;
+      }
       if (convHandled === 'llm_failed') {
         await sendOrderEntryPrompt({
           from, session, lang, businessId, basket,
           bodyOverride: t('intentParseFailed', lang),
         });
+        await recordParseFailure({ from, session, lang, businessId, text: foodText, contactName });
         return;
       }
     }
@@ -607,12 +612,16 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
       const intentHandled = await tryTextIntentOrder({
         from, session, lang, businessId, basket, text: foodText, norm,
       });
-      if (intentHandled === true) return;
+      if (intentHandled === true) {
+        await resetParseFailures(from, session);
+        return;
+      }
       if (intentHandled === 'llm_failed') {
         await sendOrderEntryPrompt({
           from, session, lang, businessId, basket,
           bodyOverride: t('intentParseFailed', lang),
         });
+        await recordParseFailure({ from, session, lang, businessId, text: foodText, contactName });
         return;
       }
       if (isShortLookupText(foodText, norm)) {
@@ -623,6 +632,7 @@ async function handleBrowsing({ from, session, lang, businessId, basket, isMulti
           from, session, lang, businessId, basket,
           bodyOverride: t('intentNoMatch', lang, foodText.trim()),
         });
+        await recordParseFailure({ from, session, lang, businessId, text: foodText, contactName });
         return;
       }
     }
