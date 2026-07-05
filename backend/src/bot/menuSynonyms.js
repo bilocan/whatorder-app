@@ -21,6 +21,7 @@ const SYNONYM_GROUPS = [
   ['hamburger', 'ham burger'],
   ['sandwich', 'sandvic'],
   ['falafel'],
+  ['corba', 'corbasi', 'suppe', 'soup'],
   ['wasser', 'water', 'su'],
   ['bier', 'beer', 'bira'],
   ['fanta'],

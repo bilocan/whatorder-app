@@ -182,6 +182,7 @@ module.exports = {
   intentChangeBtn: () => 'Değiştir',
   intentEditMenuBtn: () => 'Menüye bak',
   intentUnmatched: (items) => `Bulunamadı: ${items}`,
+  intentUnmatchedWithSuggestion: (name, list) => `"${name}" menüde yok. Hangisini kastettiniz?\n\n${list}\n\nNumara veya adı yaz.`,
   intentSpecialNote: (note) => `📝 Not: ${note}`,
   intentCustomizePrompt: (itemName, qty, groupLabel) => `${qty}x ${itemName}\n${groupLabel} seçin:`,
   intentCustomizeUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel) => `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} seçin:`,
