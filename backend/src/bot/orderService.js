@@ -199,9 +199,62 @@ const markPickedUp      = (bid, oid) => transitionOrder(bid, oid, 'picked_up');
 const markDelivered     = (bid, oid) => transitionOrder(bid, oid, 'delivered');
 const cancelOrder       = (bid, oid) => transitionOrder(bid, oid, 'cancelled');
 
+async function getOrder(businessId, orderId) {
+  const snap = await ordersRef(businessId).doc(orderId).get();
+  if (!snap.exists) return null;
+  return { id: snap.id, ...snap.data() };
+}
+
+/**
+ * Add items to a pending cash order (M4 amend window). Re-notifies owner on success.
+ * @returns {{ applied: object[], total: number }}
+ */
+async function amendOrderAddItems(businessId, orderId, newItems) {
+  const ref = ordersRef(businessId).doc(orderId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error('Order not found');
+
+  const order = snap.data();
+  if (order.status !== 'pending') throw new Error('Order not amendable');
+  if (order.paymentMethod === 'stripe') throw new Error('Card orders not self-serve amendable');
+  if (!newItems?.length) return { applied: [], total: order.total };
+
+  const mergedItems = [...(order.items || []), ...newItems];
+  const subtotal = mergedItems.reduce((s, i) => s + (i.price * i.qty), 0);
+  const deliveryFee = order.deliveryFee || 0;
+  const total = order.orderType === 'delivery' ? subtotal + deliveryFee : subtotal;
+
+  await ref.update({
+    items: mergedItems,
+    total,
+    amendedAt: new Date().toISOString(),
+  });
+
+  try {
+    const phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);
+    const bizSnap = await businessRef(businessId).get();
+    const biz = bizSnap.exists ? bizSnap.data() : null;
+    if (biz?.alertPhone) {
+      const shortId = orderId.slice(-6).toUpperCase();
+      const addedLines = formatBasketItemsText(newItems, { numbered: false, mergeIdentical: true });
+      const ownerMsg = `✏️ Order #${shortId} amended (add-on)\n\nAdded:\n${addedLines}\n\nNew total: €${total.toFixed(2)}\nCustomer: ${order.customerName} (${order.customerPhone})`;
+      await sendText(biz.alertPhone, ownerMsg, phoneNumberId);
+    }
+  } catch (err) {
+    const msg = err.name === 'WhatsAppRoutingError'
+      ? err.message
+      : formatOrderWhatsAppSendError(err, { orderId, businessId, phoneNumberId: order.whatsappPhoneNumberId, kind: 'Owner amend notification' });
+    console.error(msg);
+  }
+
+  return { applied: newItems, total };
+}
+
 module.exports = {
   getLastOrderForCustomer,
+  getOrder,
   createOrder,
+  amendOrderAddItems,
   approveOrder,
   rejectOrder,
   startPreparation,

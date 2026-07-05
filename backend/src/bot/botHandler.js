@@ -14,6 +14,12 @@ const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
 const { handleIntentCustomize } = require('./intentCustomize');
 const { handleDisambiguatingIntent } = require('./intentDisambiguate');
 const { parseOrderDeepLink } = require('../lib/chatDeepLink');
+const {
+  tryReplyOrderStatus,
+  tryHandlePostOrderMessage,
+  isHumanHandoffButton,
+  handleHumanHandoffButton,
+} = require('./postOrder');
 
 const SWITCH_KEYWORDS = new Set(['switch', 'change', 'restaurants', 'back', 'home', 'wechseln', 'zurück', 'zuruck', 'değiştir', 'degistir', 'restoranlar', 'start', 'starten']);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsing sessions
@@ -260,6 +266,17 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   }
 
   const ctx = { from, contactName, session, lang, businessId, basket, isMulti, routing, type, text, norm, id, items, data, latitude, longitude };
+
+  if (type === 'button_reply' && isHumanHandoffButton(id)) {
+    await handleHumanHandoffButton({ from, session, lang, businessId, contactName, text });
+    return;
+  }
+
+  if (type === 'text' && text?.trim()) {
+    if (await tryReplyOrderStatus({ from, session, lang, businessId, text })) return;
+    if (await tryHandlePostOrderMessage({ from, session, lang, businessId, text, norm, contactName })) return;
+  }
+
   await (STATE_HANDLERS[session.state] ?? handleBrowsing)(ctx);
 }
 
