@@ -303,16 +303,26 @@ function removeTargetsToOps(basket, targets) {
   for (const target of targets) {
     let remaining = target.removeAll ? Number.POSITIVE_INFINITY : Math.max(1, Number(target.qty) || 1);
 
+    // When a learned intent's menuItemId points to one item (e.g. Kebap) but the
+    // user's rawName directly matches a different basket item by name (e.g. Cola with
+    // note 'kola'), trust the name match over the potentially-stale learned mapping.
+    let effectiveTarget = target;
+    if (!target.removeAll && target.menuItemId && target.rawName) {
+      if (findMatchingLineIndices(current, target.rawName).length > 0) {
+        effectiveTarget = { ...target, menuItemId: undefined };
+      }
+    }
+
     // When multiple basket lines match this target and we're removing fewer than all
     // of them, we can't pick one arbitrarily. Return null so parseBasketOps falls
-    // through to the tryTextIntentOrder → tryLearnedRemoveIntent disambiguation path.
+    // through to the basketEditOps (name-based) path for disambiguation.
     if (!target.removeAll) {
-      const matchCount = current.filter(line => lineMatchesTarget(line, target)).length;
+      const matchCount = current.filter(line => lineMatchesTarget(line, effectiveTarget)).length;
       if (matchCount > 1 && remaining < matchCount) return null;
     }
 
     while (remaining > 0) {
-      const idx = current.findIndex(line => lineMatchesTarget(line, target));
+      const idx = current.findIndex(line => lineMatchesTarget(line, effectiveTarget));
       if (idx < 0) return null;
 
       const lineQty = Math.max(1, Number(current[idx].qty) || 1);
@@ -463,6 +473,26 @@ async function parseBasketOps(text, ctx = {}) {
   const basketEditOps = parseBasketEditOps(trimmed, basket);
 
   if (intent.items.length && intent.operation === 'remove') {
+    // For learned-intent removes only: prefer direct basket name match (basketEditOps)
+    // over the trained mapping. detectRemovePhrase extracts the user's raw phrase ("Kola")
+    // and basketEditOps matches it against basket item names. If a basket item matches,
+    // trust that over a learned mapping that may point to a different item
+    // (e.g. "kola" trained to → Kebap Sandwich Huhn when basket actually has Cola).
+    if (intent.parsedBy === 'learned'
+        && basketEditOps?.length
+        && basketEditOps.every(op => op.type === 'setQty' || op.type === 'remove')) {
+      return {
+        ...base,
+        outcome: 'ops',
+        ops: basketEditOps,
+        parsePath: 'proposal_edit',
+        intent,
+        matched: [],
+        unmatched: [],
+        disambiguation: null,
+      };
+    }
+
     const targets = learnedRemoveTargets(intent);
     const ops = removeTargetsToOps(basket, targets);
     if (ops?.length) {
