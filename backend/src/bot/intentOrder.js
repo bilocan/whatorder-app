@@ -15,7 +15,7 @@ const {
 const { sendDisambiguationList } = require('./intentDisambiguate');
 const { splitPendingItems, startIntentCustomization, buildOptionLabel } = require('./intentCustomize');
 const { norm } = require('./menuMatch');
-const { enrichPendingWithModifier } = require('./intentModifiers');
+const { enrichPendingWithModifier, extractDishNameForMatch } = require('./intentModifiers');
 const { collectSpicySpecialNote, tagLinesWithNote, resolveLineSpicyNote } = require('./intentNotes');
 const { sendOrderEntryPrompt } = require('./orderEntry');
 
@@ -53,7 +53,8 @@ function buildIntentConfirmBody(matched, unmatched, lang, specialNote, unmatched
   for (const name of unmatched) {
     const suggestions = unmatchedSuggestions[name];
     if (suggestions && suggestions.length) {
-      body += '\n\n' + t('intentUnmatchedWithSuggestion', lang, name, suggestions.join(', '));
+      const list = suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n');
+      body += '\n\n' + t('intentUnmatchedWithSuggestion', lang, name, list);
     } else {
       body += '\n\n' + t('intentUnmatched', lang, name);
     }
@@ -161,12 +162,24 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
     // show those suggestions instead of the generic parse-failed / no-match message.
     const itemsWithSuggestions = unmatched.filter(name => unmatchedSuggestions[name]?.length);
     if (itemsWithSuggestions.length) {
+      // Deduplicate suggestions across all unmatched items for numbered pick
+      const allSuggestions = [];
+      const seen = new Set();
+      for (const name of unmatched) {
+        for (const s of (unmatchedSuggestions[name] ?? [])) {
+          if (!seen.has(s)) { seen.add(s); allSuggestions.push(s); }
+        }
+      }
+      const list = allSuggestions.map((s, i) => `${i + 1}. ${s}`).join('\n');
       const bodyLines = unmatched.map(name => {
         const suggestions = unmatchedSuggestions[name];
+        const displayName = (extractDishNameForMatch(name) || name)
+          .replace(/\s+mit\s+\S.*/i, '').trim() || name;
         return suggestions?.length
-          ? t('intentUnmatchedWithSuggestion', lang, name, suggestions.join(', '))
-          : t('intentNoMatch', lang, name);
+          ? t('intentUnmatchedWithSuggestion', lang, displayName, list)
+          : t('intentNoMatch', lang, displayName);
       });
+      await patchSession(from, { intentSuggestions: allSuggestions }, session);
       await sendOrderEntryPrompt({ from, session, lang, businessId, basket, bodyOverride: bodyLines.join('\n\n') });
       return true;
     }
