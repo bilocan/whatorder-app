@@ -39,6 +39,19 @@ const BASKET_MUTATION_CLEAR_PATCH = {
   pendingDeleteIds: [],
 };
 
+// Emptying the basket must also drop checkout slots (order type, address,
+// payment, note) — otherwise the next order silently reuses stale answers.
+const BASKET_CLEAR_PATCH = {
+  basket: [],
+  flow: undefined,
+  orderType: undefined,
+  deliveryAddress: undefined,
+  specialRequests: undefined,
+  pendingPaymentMethod: undefined,
+  basketRemovePending: undefined,
+  basketRemoveDisambig: undefined,
+};
+
 const GERMAN_QTY_WORDS = {
   ein: 1, eine: 1, eins: 1, einen: 1, einer: 1,
   zwei: 2, drei: 3, vier: 4, funf: 5, fünf: 5, sechs: 6,
@@ -734,4 +747,5 @@ module.exports = {
   logBasketOpTelemetry,
   PROPOSAL_CLEAR_PATCH,
   BASKET_MUTATION_CLEAR_PATCH,
+  BASKET_CLEAR_PATCH,
 };

@@ -291,6 +291,54 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
     }));
   });
 
+  test('flag on — basket-clearing op mid-checkout also clears checkout slots (row 61)', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true, deliveryEnabled: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'awaiting_name', businessId: BIZ,
+      basket: [{ id: 'd1', name: 'Döner', qty: 1, price: 8.50 }],
+      orderType: 'delivery',
+      deliveryAddress: 'Hauptstraße 5',
+      pendingPaymentMethod: 'cash',
+      prepMins: 20,
+      pickupTime: '14:30',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'alles löschen' }));
+
+    // last session write wins in Firestore — it must be the cleared one
+    const [, write] = setSession.mock.calls[setSession.mock.calls.length - 1];
+    expect(write.state).toBe('browsing');
+    expect(write.basket).toEqual([]);
+    expect(write.orderType).toBeUndefined();
+    expect(write.deliveryAddress).toBeUndefined();
+    expect(write.pendingPaymentMethod).toBeUndefined();
+  });
+
+  test('flag on — undo to empty basket mid-checkout keeps language and clears slots', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true, deliveryEnabled: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'awaiting_name', businessId: BIZ,
+      basket: [{ id: 'd1', name: 'Döner', qty: 1, price: 8.50 }],
+      basketUndoSnapshot: { basket: [] },
+      orderType: 'delivery',
+      deliveryAddress: 'Hauptstraße 5',
+      prepMins: 20,
+      pickupTime: '14:30',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'rückgängig' }));
+
+    // last session write wins in Firestore — it must be the cleared one
+    const [, write] = setSession.mock.calls[setSession.mock.calls.length - 1];
+    expect(write.state).toBe('browsing');
+    expect(write.language).toBe('de');
+    expect(write.businessId).toBe(BIZ);
+    expect(write.basket).toEqual([]);
+    expect(write.orderType).toBeUndefined();
+    expect(write.deliveryAddress).toBeUndefined();
+    expect(write.basketUndoSnapshot).toBeUndefined();
+  });
+
   test('bare digit 1 in confirming does not place order', async () => {
     getSession.mockResolvedValue({
       language: 'de', state: 'confirming', businessId: BIZ,
