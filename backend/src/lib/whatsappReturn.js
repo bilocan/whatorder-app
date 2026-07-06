@@ -1,5 +1,5 @@
 const { phoneRoutingRef } = require('./collections');
-const { t } = require('../bot/templates');
+const { t } = require('./templates');
 
 const PAYMENT_LANGS = new Set(['de', 'en', 'tr']);
 

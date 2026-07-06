@@ -28,6 +28,7 @@ const {
   buildMenuFoodTokens,
 } = require('../checkoutSlots');
 const { sendOrderEntryPrompt } = require('../orderEntry');
+const { basketSubtotal, orderTotals } = require('../orderTotals');
 
 // M2: bare `1` no longer confirms — use list row btn_place_order only (digit disambiguation).
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
@@ -43,14 +44,6 @@ function logPaymentSkipped(businessId, info) {
   } else if (!isStripeConfigured()) {
     console.warn(`[checkout] payment skipped for ${businessId}: STRIPE_SECRET_KEY not set`);
   }
-}
-
-function orderTotals(basket, session, info) {
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
-  const isDelivery = session.orderType === 'delivery';
-  const deliveryFee = isDelivery ? (info.deliveryFee || 0) : 0;
-  const total = isDelivery ? subtotal + deliveryFee : subtotal;
-  return { subtotal, deliveryFee, total, isDelivery };
 }
 
 async function placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod }) {
@@ -169,7 +162,7 @@ async function sendOrderTypePrompt(from, lang, deliveryFee, body) {
 // Renders the basket with a below-minimum warning (Confirm button hidden) or, once the
 // subtotal meets minimumOrderValue, the plain basket with Confirm available again.
 async function sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue }) {
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  const subtotal = basketSubtotal(basket);
   const meets = !minimumOrderValue || subtotal >= minimumOrderValue;
   const buttons = basketViewButtons(lang, { includeConfirm: meets });
   const body = meets
@@ -197,7 +190,7 @@ async function proceedToDeliveryAddress({ from, session, lang, businessId }) {
 // selection. Never re-asks pickup/delivery, since that's already answered.
 async function resumeDeliveryCheckout({ from, session, lang, businessId, basket }) {
   const info = await getBusinessInfo(businessId);
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  const subtotal = basketSubtotal(basket);
   if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
     const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
     await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
@@ -260,7 +253,7 @@ async function advanceCheckoutFromSlots({ from, session, lang, businessId, baske
   }
 
   if (s.orderType === 'delivery') {
-    const subtotal = basket.reduce((sum, i) => sum + i.price * i.qty, 0);
+    const subtotal = basketSubtotal(basket);
     if (info.deliveryOpen === false) {
       const msgId = await sendButtonMessage(from, {
         body: t('deliveryClosedByOwner', lang),
@@ -338,9 +331,8 @@ function buildConfirmListRows(session, name, lang, info) {
 }
 
 async function sendConfirmList(from, session, lang, businessId, basket, name) {
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
   const info = await getBusinessInfo(businessId);
-  const displayTotal = session.orderType === 'delivery' ? subtotal + (info.deliveryFee || 0) : subtotal;
+  const { total: displayTotal } = orderTotals(basket, session, info);
   const rows = buildConfirmListRows(session, name, lang, info);
   if (process.env.NODE_ENV !== 'test') {
     console.log(`[checkout] confirm list ${businessId}: deliveryEnabled=${info.deliveryEnabled} orderType=${session.orderType ?? 'unset'} rows=${rows.map(r => r.id).join(',')}`);
@@ -356,8 +348,8 @@ async function sendConfirmList(from, session, lang, businessId, basket, name) {
 // Sends the final confirmation message and sets state to 'confirming'.
 // Call instead of transitioning to awaiting_name when a known name is available.
 async function transitionToConfirming(from, session, lang, businessId, basket, name) {
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
   const info = await getBusinessInfo(businessId);
+  const { subtotal } = orderTotals(basket, session, info);
 
   // Safety net: the delivery minimum gate normally runs earlier (btn_delivery /
   // resumeDeliveryCheckout), before the address is even asked. This re-check only
@@ -492,7 +484,7 @@ async function handleDeliveryMinimumAfterMutation(ctx, session, basket) {
   const info = await getBusinessInfo(businessId);
   if (!info.minimumOrderValue) return false;
 
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  const subtotal = basketSubtotal(basket);
   if (subtotal >= info.minimumOrderValue) return false;
 
   const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
@@ -720,7 +712,7 @@ async function handleAwaitingOrderType({ from, session, lang, businessId, basket
         await setSession(from, { ...session, pendingDeleteIds: msgId ? [msgId] : [] });
         return;
       }
-      const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+      const subtotal = basketSubtotal(basket);
       if (delivInfo.minimumOrderValue && subtotal < delivInfo.minimumOrderValue) {
         const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: delivInfo.minimumOrderValue });
         await setSession(from, {

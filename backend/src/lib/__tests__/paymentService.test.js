@@ -23,7 +23,7 @@ jest.mock('../whatsappReturn', () => ({
   waMeUrl: jest.fn((d) => (d ? `https://wa.me/${d}` : null)),
 }));
 jest.mock('../whatsappRouting', () => jest.requireActual('../whatsappRouting'));
-jest.mock('../../bot/templates', () => ({ t: jest.fn((_k, _lang, shortId) => `paid:${shortId}`) }));
+jest.mock('../templates', () => ({ t: jest.fn((_k, _lang, shortId) => `paid:${shortId}`) }));
 
 const { ordersRef, stripeEventRef } = require('../collections');
 const { getStripe } = require('../stripe');
