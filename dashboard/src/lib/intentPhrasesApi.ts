@@ -1,5 +1,5 @@
-import { auth } from './firebase';
 import { API_URL } from './apiUrl';
+import { jsonAuthHeaders } from './apiAuth';
 import type { IntentLearningOperation } from '../types';
 import type { OptionSelections } from './optionSelections';
 
@@ -72,15 +72,6 @@ export interface IntentCorrectionPayload {
   }[];
 }
 
-async function authHeaders(): Promise<HeadersInit> {
-  const token = await auth.currentUser?.getIdToken();
-  if (!token) throw new Error('Not signed in');
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-}
-
 export async function previewIntentPhrase(
   businessId: string,
   text: string,
@@ -100,7 +91,7 @@ export async function previewIntentPhrase(
 ): Promise<IntentPhrasePreview> {
   const res = await fetch(`${API_URL}/api/businesses/${businessId}/intent-phrases/preview`, {
     method: 'POST',
-    headers: await authHeaders(),
+    headers: await jsonAuthHeaders(),
     body: JSON.stringify({
       text, llm, sampleItems, context, operation, items,
     }),
@@ -119,7 +110,7 @@ export async function saveIntentPhrase(
 ): Promise<{ id: string; textKey: string; operation: IntentLearningOperation; source?: string }> {
   const res = await fetch(`${API_URL}/api/businesses/${businessId}/intent-phrases`, {
     method: 'POST',
-    headers: await authHeaders(),
+    headers: await jsonAuthHeaders(),
     body: JSON.stringify({ text, items, operation, correction }),
   });
   const data = await res.json().catch(() => ({}));

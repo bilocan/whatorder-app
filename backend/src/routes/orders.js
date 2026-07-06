@@ -1,10 +1,13 @@
 const express = require('express');
+const { requireOwnerOfBusiness } = require('../lib/dashboardAuth');
 const {
   approveOrder, rejectOrder, startPreparation,
   markReady, markOnTheWay, markPickedUp, markDelivered, cancelOrder,
 } = require('../bot/orderService');
 
 const router = express.Router();
+
+router.use('/businesses/:businessId/orders/:orderId', requireOwnerOfBusiness);
 
 function handleTransition(fn) {
   return async (req, res) => {

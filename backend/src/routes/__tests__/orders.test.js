@@ -1,5 +1,9 @@
 jest.mock('../../lib/firebase', () => ({ db: {}, admin: {} }));
 jest.mock('../../bot/orderService');
+jest.mock('../../lib/dashboardAuth', () => ({
+  requireOwnerOrAdmin: (_req, _res, next) => next(),
+  requireOwnerOfBusiness: (_req, _res, next) => next(),
+}));
 
 const request = require('supertest');
 const app = require('../../index');
