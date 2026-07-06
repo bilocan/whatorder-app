@@ -18,6 +18,7 @@ const {
   isBareCheckoutDigit,
   tryCheckoutBasketOp,
 } = require('../checkoutOps');
+const { BASKET_CLEAR_PATCH } = require('../basketOps');
 const {
   applyProfilePrefill,
   getMissingCheckoutSlots,
@@ -583,7 +584,15 @@ async function gateCheckoutTextInput(ctx) {
             basket: [],
             bodyOverride: t('basketEmpty', lang),
           });
-          await setSession(from, { state: 'browsing', basket: [], businessId, pendingDeleteIds: [] });
+          await setSession(from, {
+            ...newSession,
+            ...BASKET_CLEAR_PATCH,
+            // undo consumed its snapshot — don't resurrect it from the stale session
+            basketUndoSnapshot: undefined,
+            basketPendingLearning: undefined,
+            state: 'browsing',
+            pendingDeleteIds: [],
+          });
           return true;
         }
         if (await handleDeliveryMinimumAfterMutation(ctx, newSession, restored)) {
@@ -616,8 +625,8 @@ async function gateCheckoutTextInput(ctx) {
         });
         await setSession(from, {
           ...opResult.session,
+          ...BASKET_CLEAR_PATCH,
           state: 'browsing',
-          basket: [],
           pendingDeleteIds: [],
         });
         return true;

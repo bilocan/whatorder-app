@@ -35,16 +35,7 @@ const INTENT_PROPOSAL_CLEAR = {
   intentSuggestions: undefined,
 };
 
-const BASKET_CLEAR_PATCH = {
-  basket: [],
-  flow: undefined,
-  orderType: undefined,
-  deliveryAddress: undefined,
-  specialRequests: undefined,
-  pendingPaymentMethod: undefined,
-  basketRemovePending: undefined,
-  basketRemoveDisambig: undefined,
-};
+const { BASKET_CLEAR_PATCH } = require('../basketOps');
 
 function isFullOrderReplace(text, norm) {
   const edit = parseProposalEdit(text, norm);
