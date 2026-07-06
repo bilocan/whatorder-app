@@ -20,8 +20,65 @@ function gcloudBin() {
   return process.env.GCLOUD_BIN || 'gcloud';
 }
 
+function resolveGcloudPs1() {
+  const root = process.env.CLOUDSDK_ROOT_DIR;
+  if (root) {
+    const ps1 = path.join(root, 'bin', 'gcloud.ps1');
+    if (fs.existsSync(ps1)) return ps1;
+  }
+  const candidates = [
+    'C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.ps1',
+    'C:\\Program Files\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.ps1',
+  ];
+  for (const ps1 of candidates) {
+    if (fs.existsSync(ps1)) return ps1;
+  }
+  const where = spawnSync('where.exe', ['gcloud'], { encoding: 'utf8' });
+  if (where.status === 0) {
+    for (const line of where.stdout.trim().split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed.toLowerCase().endsWith('gcloud.ps1') && fs.existsSync(trimmed)) return trimmed;
+      const ps1 = path.join(path.dirname(trimmed), 'gcloud.ps1');
+      if (fs.existsSync(ps1)) return ps1;
+    }
+  }
+  return null;
+}
+
+function spawnGcloud(args, options = {}) {
+  const { encoding = 'utf8', stdio = 'pipe', maxBuffer } = options;
+  const spawnOpts = { encoding, stdio, shell: false };
+  if (maxBuffer) spawnOpts.maxBuffer = maxBuffer;
+
+  if (process.platform === 'win32') {
+    const ps1 = resolveGcloudPs1();
+    if (!ps1) {
+      return { error: Object.assign(new Error('gcloud.ps1 not found'), { code: 'ENOENT' }) };
+    }
+    return spawnSync(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1, ...args],
+      spawnOpts,
+    );
+  }
+
+  return spawnSync(gcloudBin(), args, spawnOpts);
+}
+
+function execGcloud(args, options = {}) {
+  const result = spawnGcloud(args, { ...options, stdio: 'pipe' });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || '').trim();
+    const err = new Error(detail || `gcloud exited with code ${result.status}`);
+    err.status = result.status;
+    throw err;
+  }
+  return result.stdout;
+}
+
 function ensureGcloud() {
-  const result = spawnSync(gcloudBin(), ['--version'], { encoding: 'utf8' });
+  const result = spawnGcloud(['--version']);
   if (result.error?.code === 'ENOENT') {
     console.error('[env-secrets] gcloud CLI not found.');
     console.error('Install: https://cloud.google.com/sdk/docs/install');
@@ -49,10 +106,8 @@ function describeSecret(project, secret, { retries = 3, retryDelayMs = 1500 } = 
   let lastDetail = '';
 
   for (let attempt = 0; attempt < retries; attempt += 1) {
-    const result = spawnSync(
-      gcloudBin(),
+    const result = spawnGcloud(
       ['secrets', 'describe', secret, `--project=${project}`, '--format=value(name)'],
-      { encoding: 'utf8' },
     );
 
     if (result.status === 0) {
@@ -91,27 +146,28 @@ function secretExists(project, secret) {
 }
 
 function fetchSecret(project, secret) {
-  return execFileSync(
-    gcloudBin(),
+  return execGcloud(
     ['secrets', 'versions', 'access', 'latest', `--secret=${secret}`, `--project=${project}`],
-    { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
+    { maxBuffer: 10 * 1024 * 1024 },
   );
 }
 
 function createSecret(project, secret) {
-  execFileSync(
-    gcloudBin(),
+  const result = spawnGcloud(
     ['secrets', 'create', secret, `--project=${project}`, '--replication-policy=automatic'],
     { stdio: 'inherit' },
   );
+  if (result.error) throw result.error;
+  if (result.status !== 0) process.exit(result.status || 1);
 }
 
 function addSecretVersion(project, secret, filePath) {
-  execFileSync(
-    gcloudBin(),
+  const result = spawnGcloud(
     ['secrets', 'versions', 'add', secret, `--project=${project}`, `--data-file=${filePath}`],
     { stdio: 'inherit' },
   );
+  if (result.error) throw result.error;
+  if (result.status !== 0) process.exit(result.status || 1);
 }
 
 function parseArgs(argv) {

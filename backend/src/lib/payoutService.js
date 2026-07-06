@@ -1,5 +1,5 @@
 const { db, admin } = require('./firebase');
-const { businessRef, ordersRef, payoutsRef } = require('./collections');
+const { businessRef, businessesCollectionRef, ordersRef, payoutsRef } = require('./collections');
 const { getSettlementConfig, resolveConnectMode } = require('./settlementConfig');
 const { executeConnectTransfer } = require('./connectTransfer');
 
@@ -19,7 +19,7 @@ function filterEligibleDocs(docs, batchRunTimeIso, ignoreHold) {
 
 /** Per-business scan — no collectionGroup index required (pilot scale). */
 async function fetchEligibleOrdersPerBusiness(batchRunTimeIso, { ignoreHold }) {
-  const bizSnap = await db.collection('businesses').get();
+  const bizSnap = await businessesCollectionRef().get();
   const byBusiness = new Map();
 
   await Promise.all(bizSnap.docs.map(async (bizDoc) => {
@@ -73,7 +73,7 @@ async function countHoldBlockedOrders(batchRunTimeIso) {
     if (!isMissingIndexError(err)) throw err;
   }
 
-  const bizSnap = await db.collection('businesses').get();
+  const bizSnap = await businessesCollectionRef().get();
   let count = 0;
   await Promise.all(bizSnap.docs.map(async (bizDoc) => {
     const snap = await ordersRef(bizDoc.id).where('settlementStatus', '==', 'pending').get();
