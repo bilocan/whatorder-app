@@ -268,6 +268,8 @@
     "teachError": "Could not save — try again",
     "viewPhrases": "View saved phrases",
     "alreadyTrained": "Already trained (used {{hits}}×).",
+    "changePick": "Change",
+    "defaultOption": "Default",
     "teachHint": {
       "needsParse": "Click Parse first, then review your correction.",
       "needsSku": "Choose a menu item for each line.",
