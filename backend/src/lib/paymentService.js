@@ -6,7 +6,7 @@ const { getSettlementConfig, computeHoldEndsAt, computeExpectedPayoutAt } = requ
 const { resolveWhatsAppReturnPhoneDigits, waMeUrl, resolvePaymentLang } = require('./whatsappReturn');
 const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('./whatsappRouting');
 const { sendText } = require('./whatsapp');
-const { t } = require('../bot/templates');
+const { t } = require('./templates');
 
 function paymentBaseUrl() {
   const url = process.env.BACKEND_URL?.replace(/\/$/, '');
