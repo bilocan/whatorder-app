@@ -1,0 +1,117 @@
+name: Release to Production
+
+# Production is release-driven: merges to master accumulate without deploying.
+# Publishing a GitHub Release (tag on master) deploys that exact commit:
+#
+#   gh release create v2026.07.0 --target master --generate-notes
+#
+# Tests are not re-run here: master only accepts PRs from dev with all CI
+# checks green (ruleset-enforced), so every master commit already passed the
+# full suite. The guard job only verifies the tag actually points into master.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  guard:
+    name: Release guard (tag on master)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify the released commit is on master
+        run: |
+          git fetch --no-tags origin master
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "OK: released commit $GITHUB_SHA is on master"
+          else
+            echo "::error::Release tag must point to a commit on master. Delete the release/tag and re-create it with --target master."
+            exit 1
+          fi
+
+  deploy-backend:
+    name: Deploy Backend to Cloud Run (prod)
+    runs-on: ubuntu-latest
+    needs: guard
+    environment: Production
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker europe-west3-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        run: |
+          docker build -t europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }} backend/
+          docker push europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT }}
+          service: whatorder-backend
+          region: europe-west3
+          image: europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }}
+          flags: --min-instances=1 --allow-unauthenticated
+
+  deploy-dashboard:
+    name: Deploy Dashboard to Firebase Hosting (prod)
+    runs-on: ubuntu-latest
+    needs: guard
+    environment: Production
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          # 24.17 breaks firebase-tools JWT token exchange (Premature close).
+          # https://github.com/firebase/firebase-tools/issues/10692
+          node-version: '24.16.0'
+
+      - name: Install dependencies
+        working-directory: dashboard
+        run: npm install
+
+      - name: Build dashboard
+        working-directory: dashboard
+        run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          VITE_WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.VITE_WHATSAPP_PHONE_NUMBER_ID }}
+
+      # Keyless hosting deploy: firebase-tools picks up the WIF credentials
+      # exported by google-github-actions/auth (GOOGLE_APPLICATION_CREDENTIALS).
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ vars.FIREBASE_HOSTING_SA }}
+
+      - name: Deploy to Firebase Hosting
+        run: npx firebase-tools@15.22.1 deploy --only hosting --project ${{ vars.GCP_PROJECT }}
