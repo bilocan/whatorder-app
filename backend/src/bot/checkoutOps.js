@@ -82,7 +82,7 @@ function recomputePrepFields(info) {
 
 /**
  * Parse + apply basket ops during checkout (no mutation receipt — caller re-shows checkout prompt).
- * @returns {Promise<{ handled: boolean|'llm_failed', basket?: object[], session?: object, redirected?: boolean }>}
+ * @returns {Promise<{ handled: boolean|'llm_failed'|'no_match', basket?: object[], session?: object, redirected?: boolean, basketCleared?: boolean }>}
  */
 async function tryCheckoutBasketOp({
   from,
@@ -134,7 +134,9 @@ async function tryCheckoutBasketOp({
     }
   }
 
-  if (parsed.outcome !== 'ops' || !parsed.ops?.length) return { handled: false };
+  if (parsed.outcome === 'no_match' || parsed.outcome !== 'ops' || !parsed.ops?.length) {
+    return { handled: 'no_match' };
+  }
 
   const applyResult = applyOps(basket, parsed.ops);
 

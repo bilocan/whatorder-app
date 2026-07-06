@@ -24,11 +24,13 @@ const {
   getMissingCheckoutSlots,
   isDeliveryOffered,
   isCheckoutOnlySegment,
+  stripCheckoutSlotsFromOrderText,
   tryApplyCheckoutSlotsFromText,
   buildMenuFoodTokens,
 } = require('../checkoutSlots');
 const { sendOrderEntryPrompt } = require('../orderEntry');
 const { basketSubtotal, orderTotals } = require('../orderTotals');
+const { recordParseFailure } = require('../postOrder');
 
 // M2: bare `1` no longer confirms — use list row btn_place_order only (digit disambiguation).
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
@@ -604,8 +606,15 @@ async function gateCheckoutTextInput(ctx) {
       from, session: liveSession, lang, businessId, basket, text, norm, business: info,
     });
 
-    if (opResult.handled === 'llm_failed') {
-      await sendText(from, t('intentParseFailed', lang));
+    if (opResult.handled === 'llm_failed' || opResult.handled === 'no_match') {
+      const foodText = stripCheckoutSlotsFromOrderText(text) || text;
+      const body = opResult.handled === 'llm_failed'
+        ? t('intentParseFailed', lang)
+        : t('intentNoMatch', lang, foodText.trim());
+      await sendText(from, body);
+      await recordParseFailure({
+        from, session: liveSession, lang, businessId, text: foodText, contactName,
+      });
       return true;
     }
 
