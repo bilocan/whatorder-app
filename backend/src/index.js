@@ -26,6 +26,14 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use('/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookRouter);
 app.use(stripeWebhookRouter);
+
+const whatsappJson = express.json({
+  verify: (req, _res, buf) => {
+    if (req.method === 'POST') req.rawBody = buf;
+  },
+});
+app.use('/webhooks/whatsapp', whatsappJson, webhookRouter);
+
 app.use(express.json());
 app.use((req, _res, next) => { console.log(`[express] ${req.method} ${req.url}`); next(); });
 
@@ -34,7 +42,6 @@ app.get('/health', (req, res) => {
 });
 
 app.use(chatRouter);
-app.use('/webhooks/whatsapp', webhookRouter);
 app.use('/admin', adminRouter);
 app.use('/admin', payoutsRouter);
 app.use('/', flowRouter);

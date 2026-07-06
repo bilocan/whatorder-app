@@ -1,10 +1,13 @@
-jest.mock('../../lib/firebase', () => ({ db: {}, admin: {} }));
+jest.mock('../../lib/firebase', () => ({
+  db: {},
+  admin: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } },
+}));
 jest.mock('../../bot/botHandler');
 jest.mock('../../lib/collections');
 
 const { verifyWebhook, receiveWebhook } = require('../webhookController');
 const { handleMessage } = require('../../bot/botHandler');
-const { phoneRoutingRef } = require('../../lib/collections');
+const { phoneRoutingRef, processedMessageRef } = require('../../lib/collections');
 
 function makeRes() {
   const res = {};
@@ -19,7 +22,7 @@ function webhookBody(msgOverride = {}) {
     entry: [{
       changes: [{
         value: {
-          messages: [{ from: '+43123', type: 'text', text: { body: 'Hi' }, ...msgOverride }],
+          messages: [{ id: 'wamid_test', from: '+43123', type: 'text', text: { body: 'Hi' }, ...msgOverride }],
           contacts: [{ profile: { name: 'Test User' } }],
           metadata: { phone_number_id: 'PH_ID' },
         },
@@ -60,6 +63,12 @@ describe('receiveWebhook', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     handleMessage.mockResolvedValue();
+    processedMessageRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({ exists: false }),
+      set: jest.fn().mockResolvedValue(undefined),
+    });
+    delete process.env.WHATSAPP_APP_SECRET;
+    delete process.env.NODE_ENV;
   });
 
   test('200 ok when body has no message', async () => {
@@ -230,6 +239,46 @@ describe('receiveWebhook', () => {
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(res.json).toHaveBeenCalledWith({ status: 'success' });
+    expect(processedMessageRef().set).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
+  });
+
+  test('skips duplicate wamid without calling handleMessage', async () => {
+    processedMessageRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({ exists: true }),
+      set: jest.fn(),
+    });
+    const req = { body: webhookBody() };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(handleMessage).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ status: 'ok' });
+  });
+
+  test('marks wamid processed after successful handleMessage', async () => {
+    phoneRoutingRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({ businessIds: ['biz_a'], defaultBusinessId: 'biz_a' }),
+      }),
+    });
+    const setMock = jest.fn().mockResolvedValue(undefined);
+    processedMessageRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({ exists: false }),
+      set: setMock,
+    });
+    const req = { body: webhookBody() };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(setMock).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz_a' }));
+  });
+
+  test('401 when signature required but missing', async () => {
+    process.env.WHATSAPP_APP_SECRET = 'secret';
+    const req = { body: webhookBody(), headers: {} };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(handleMessage).not.toHaveBeenCalled();
   });
 });

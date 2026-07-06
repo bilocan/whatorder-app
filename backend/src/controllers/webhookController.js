@@ -1,5 +1,7 @@
 const { handleMessage } = require('../bot/botHandler');
-const { phoneRoutingRef } = require('../lib/collections');
+const { phoneRoutingRef, processedMessageRef } = require('../lib/collections');
+const { admin } = require('../lib/firebase');
+const { assertWebhookSignature } = require('../lib/whatsappWebhookSecurity');
 
 async function resolveRouting(phoneNumberId) {
   if (phoneNumberId) {
@@ -24,6 +26,13 @@ function verifyWebhook(req, res) {
 }
 
 async function receiveWebhook(req, res) {
+  const sig = assertWebhookSignature(req);
+  if (!sig.ok) {
+    console.warn(`[webhook] signature rejected: ${sig.message}`);
+    res.status(sig.status).json({ error: sig.message });
+    return;
+  }
+
   console.log('[webhook] POST received', req.method, req.url);
   const entry = req.body?.entry?.[0];
   const change = entry?.changes?.[0]?.value;
@@ -41,9 +50,19 @@ async function receiveWebhook(req, res) {
   }
 
   const from = msg.from;
+  const wamid = msg.id ?? null;
   const contactName = change?.contacts?.[0]?.profile?.name ?? null;
   const phoneNumberId = change?.metadata?.phone_number_id ?? null;
-  console.log(`[webhook] message type=${msg.type} phone_number_id=${phoneNumberId} from=${from}`);
+  console.log(`[webhook] message type=${msg.type} phone_number_id=${phoneNumberId} wamid=${wamid ?? 'n/a'}`);
+
+  if (wamid) {
+    const prior = await processedMessageRef(wamid).get();
+    if (prior.exists) {
+      console.log(`[webhook] duplicate wamid=${wamid}, skipping`);
+      res.status(200).json({ status: 'ok' });
+      return;
+    }
+  }
 
   let message;
   if (msg.type === 'text') {
@@ -96,6 +115,14 @@ async function receiveWebhook(req, res) {
   try {
     const routing = await resolveRouting(phoneNumberId);
     await handleMessage(routing, { from, contactName, ...message });
+    if (wamid) {
+      const businessId = routing.defaultBusinessId
+        ?? (routing.businessIds?.length === 1 ? routing.businessIds[0] : null);
+      await processedMessageRef(wamid).set({
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+        businessId,
+      });
+    }
   } catch (err) {
     const metaError = err.response?.data ? JSON.stringify(err.response.data) : null;
     console.error('Bot error:', metaError ?? err.message ?? err);

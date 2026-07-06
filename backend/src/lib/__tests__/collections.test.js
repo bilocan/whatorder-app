@@ -10,7 +10,7 @@ jest.mock('../firebase', () => {
 
 const { db } = require('../firebase');
 const {
-  businessRef, menuRef, optionGroupsRef, ordersRef, customersRef, phoneRoutingRef,
+  businessRef, businessesCollectionRef, menuRef, optionGroupsRef, ordersRef, customersRef, phoneRoutingRef,
   ownerRef, adminRef, processedMessageRef, stripeEventRef, configRef,
   settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, commandLearningRef,
 } = require('../collections');
@@ -18,6 +18,13 @@ const {
 beforeEach(() => {
   db.collection.mockClear();
   db.doc.mockClear();
+});
+
+describe('businessesCollectionRef', () => {
+  test('returns businesses collection ref', () => {
+    businessesCollectionRef();
+    expect(db.collection).toHaveBeenCalledWith('businesses');
+  });
 });
 
 describe('businessRef', () => {
