@@ -153,6 +153,51 @@ describe('IntentPlaygroundPage', () => {
     expect(teachBtn).toBeDisabled();
   });
 
+  it('collapses disambiguation candidates after a pick and seeds the correction line', async () => {
+    mockPreview.mockResolvedValue({
+      ...PARSE_RESULT,
+      outcome: 'disambiguation',
+      matched: [],
+      intentItems: [{ rawName: 'döner', qty: 2 }],
+      disambiguation: {
+        rawName: 'döner',
+        qty: 2,
+        candidates: [
+          { id: 'd1', name: 'Döner' },
+          { id: 'a1', name: 'Ayran' },
+        ],
+      },
+      botReply: null,
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(screen.getByPlaceholderText(/2 Döner/i), '2 doner');
+    await user.click(screen.getByRole('button', { name: /parse|analysieren|ayrıştır/i }));
+
+    // Candidate buttons show name + price from the menu
+    const ayranBtn = await screen.findByRole('button', { name: /Ayran · €2\.00/ });
+    expect(screen.getByRole('button', { name: /Döner · €8\.50/ })).toBeInTheDocument();
+
+    await user.click(ayranBtn);
+
+    // List collapses: picked chip + change button remain, other candidate gone
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /change/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Döner · €8\.50/ })).not.toBeInTheDocument();
+    });
+
+    // Correction line seeded with the picked SKU and disambiguation qty
+    const select = screen.getAllByRole('combobox')[0] as HTMLSelectElement;
+    expect(select.value).toBe('a1');
+    expect((screen.getByLabelText(/quantity/i) as HTMLInputElement).value).toBe('2');
+
+    // Change re-opens the full candidate list with the pick marked
+    await user.click(screen.getByRole('button', { name: /change/i }));
+    expect(screen.getByRole('button', { name: /Döner · €8\.50/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ayran · €2\.00/ })).toBeInTheDocument();
+  });
+
   it('enables teach bot when LLM parsed correctly but phrase is not stored yet', async () => {
     mockPreview.mockResolvedValue({
       ...PARSE_RESULT,
