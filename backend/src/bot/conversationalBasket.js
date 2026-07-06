@@ -19,7 +19,7 @@ const {
   PROPOSAL_CLEAR_PATCH,
 } = require('./basketOps');
 const { isConversationalBasket } = require('./featureFlags');
-const { stripCheckoutSlotsFromOrderText } = require('./checkoutSlots');
+const { stripCheckoutSlotsFromOrderText, buildMenuFoodTokens } = require('./checkoutSlots');
 const {
   buildBasketPendingLearning,
   commitBasketPendingLearning,
@@ -225,11 +225,12 @@ async function tryConversationalBasketText({
   from, session, lang, businessId, basket, text, norm, business,
 }) {
   if (!isConversationalBasket(business)) return false;
-  const foodText = stripCheckoutSlotsFromOrderText(text);
+  const { menu, menuMatch, menuTokenIndex } = await getMenuContext(businessId);
+  const menuTokens = buildMenuFoodTokens(menuTokenIndex);
+  const foodText = stripCheckoutSlotsFromOrderText(text, menuTokens);
   if (!foodText?.trim()) return false;
   if (!looksLikeOrderText(foodText, norm)) return false;
 
-  const { menu, menuMatch, menuTokenIndex } = await getMenuContext(businessId);
   const parsed = await parseBasketOps(foodText, {
     basket,
     businessId,
