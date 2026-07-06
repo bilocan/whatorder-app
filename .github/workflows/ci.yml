@@ -35,6 +35,38 @@ jobs:
           flags: backend
           fail_ci_if_error: false
 
+  # Intent corpus eval — separate job so PR checks show "Intent Corpus Eval" explicitly.
+  # Rules-only (no LLM API). Builtin + Enes pilot golden phrases.
+  #
+  # To disable if this gate blocks merges while corpus stabilizes:
+  #   1. Add `if: false` on the job below (or comment out the whole intent-corpus job).
+  #   2. Change deploy-backend `needs` from [backend, intent-corpus] to `backend` only —
+  #      otherwise deploy is skipped when this job is skipped.
+  # Jest still runs intentEval.test.js inside Backend Tests as a lighter backup.
+  intent-corpus:
+    name: Intent Corpus Eval
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: backend
+
+      - name: Builtin corpus (rules-only)
+        working-directory: backend
+        run: npm run intent:eval -- --ci
+
+      - name: Enes pilot corpus (rules-only)
+        working-directory: backend
+        run: npm run intent:eval -- --restaurant enes
+
   dashboard:
     name: Dashboard Build & Test
     runs-on: ubuntu-latest
@@ -62,7 +94,7 @@ jobs:
   deploy-backend:
     name: Deploy Backend to Cloud Run
     runs-on: ubuntu-latest
-    needs: backend
+    needs: [backend, intent-corpus]
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     permissions:
       contents: read

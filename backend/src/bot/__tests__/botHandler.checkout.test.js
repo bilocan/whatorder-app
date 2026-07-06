@@ -297,6 +297,42 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
       orderType: 'pickup',
     }));
   });
+
+  test('flag on — ohne ayran on confirming screen updates basket and re-shows confirm', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getMenuContext.mockResolvedValue({
+      menu: [
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'a1', name: 'Ayran', price: 2, available: true },
+      ],
+      menuMatch: require('../menuMapper').buildMenuMatchIndex([
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'a1', name: 'Ayran', price: 2, available: true },
+      ]),
+      menuTokenIndex: null,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.50 },
+        { name: 'Ayran', qty: 1, price: 2.00 },
+      ],
+      customerName: 'Max',
+      orderType: 'pickup',
+      pickupTime: '14:30',
+      prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'ohne ayran' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+    }), expect.anything());
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/Gesamt|Bestellung prüfen/i),
+    }));
+    expect(createOrder).not.toHaveBeenCalled();
+  });
 });
 
 describe('Checkout state: M3 slot-filling checkout', () => {

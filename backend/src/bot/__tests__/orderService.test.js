@@ -601,7 +601,11 @@ describe('amendOrderAddItems', () => {
       items: [...orderData.items, ...newItems],
       total: 10.5,
     }));
-    expect(sendText).toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(
+      '+431111111',
+      expect.stringMatching(/amended \(add-on\)[\s\S]*Ayran[\s\S]*€10\.50[\s\S]*Ali/),
+      'phone_id_test',
+    );
   });
 
   test('rejects stripe orders', async () => {

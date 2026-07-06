@@ -161,6 +161,11 @@ describe('M4 post-order routing', () => {
       expect.stringContaining('456789'),
       'test_phone_id',
     );
+    expect(sendText).not.toHaveBeenCalledWith(
+      BIZ_INFO.alertPhone,
+      expect.stringMatching(/amended \(add-on\)/),
+      expect.anything(),
+    );
   });
 
   test('approved order modify attempt gets call-restaurant reply', async () => {
