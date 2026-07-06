@@ -2,7 +2,7 @@ const { setSession, patchSession } = require('../sessionStore');
 const { sendText, sendButtonMessage, sendListMessage, sendLocationRequest, sendCtaUrlMessage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
 const { buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView } = require('../botHelpers');
-const { getBusinessInfo } = require('../menuService');
+const { getBusinessInfo, getMenuContext } = require('../menuService');
 const { createOrder } = require('../orderService');
 const { customersRef, ordersRef } = require('../../lib/collections');
 const { reverseGeocode } = require('../../lib/geocode');
@@ -25,6 +25,7 @@ const {
   isDeliveryOffered,
   isCheckoutOnlySegment,
   tryApplyCheckoutSlotsFromText,
+  buildMenuFoodTokens,
 } = require('../checkoutSlots');
 const { sendOrderEntryPrompt } = require('../orderEntry');
 
@@ -516,9 +517,12 @@ async function gateCheckoutTextInput(ctx) {
 
   const info = await getBusinessInfo(businessId);
   let liveSession = session;
+  let menuTokens = null;
   if (isConversationalBasket(info)) {
+    const { menuTokenIndex } = await getMenuContext(businessId);
+    menuTokens = buildMenuFoodTokens(menuTokenIndex);
     liveSession = await tryApplyCheckoutSlotsFromText({
-      from, session: liveSession, text, norm, business: info,
+      from, session: liveSession, text, norm, business: info, menuTokens,
     });
     ctx.session = liveSession;
   }
@@ -658,7 +662,7 @@ async function gateCheckoutTextInput(ctx) {
 
   // Slot-only text ("zum Liefern", "Hauptstraße 5", "bar") must not become the
   // customer's name — the slots were already applied above, so just advance.
-  if (liveSession.state === 'awaiting_name' && isConversationalBasket(info) && isCheckoutOnlySegment(text)) {
+  if (liveSession.state === 'awaiting_name' && isConversationalBasket(info) && isCheckoutOnlySegment(text, menuTokens)) {
     await advanceCheckoutFromSlots({ from, session: liveSession, lang, businessId, basket, info });
     return true;
   }

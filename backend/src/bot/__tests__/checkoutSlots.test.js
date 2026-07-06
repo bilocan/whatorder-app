@@ -10,7 +10,16 @@ const {
   getMissingCheckoutSlots,
   stripCheckoutSlotsFromOrderText,
   tryApplyCheckoutSlotsFromText,
+  buildMenuFoodTokens,
 } = require('../checkoutSlots');
+const { buildMenuTokenIndex } = require('../menuTokenIndex');
+
+const ENES_LIKE_MENU = [
+  { id: 'schnitzel', name: 'Schnitzel Wiener Art', price: 12, available: true },
+  { id: 'lahmacun', name: 'Lahmacun', price: 8, available: true },
+  { id: 'doner', name: 'Döner', price: 7, available: true },
+];
+const ENES_MENU_TOKENS = buildMenuFoodTokens(buildMenuTokenIndex(ENES_LIKE_MENU));
 
 describe('checkoutSlots', () => {
   beforeEach(() => {
@@ -70,6 +79,31 @@ describe('checkoutSlots', () => {
 
     test('food text unchanged when no checkout slots', () => {
       expect(stripCheckoutSlotsFromOrderText('2 döner und cola')).toBe('2 döner und cola');
+    });
+
+    test('menu item + qty shape is not stripped as address (Schnitzel 2)', () => {
+      expect(stripCheckoutSlotsFromOrderText('Schnitzel 2', ENES_MENU_TOKENS)).toBe('Schnitzel 2');
+    });
+
+    test('menu item + qty shape is not stripped as address (Lahmacun 2)', () => {
+      expect(stripCheckoutSlotsFromOrderText('Lahmacun 2', ENES_MENU_TOKENS)).toBe('Lahmacun 2');
+    });
+
+    test('real address still stripped with menu tokens', () => {
+      expect(stripCheckoutSlotsFromOrderText('2 döner, Hauptstraße 5, bar', ENES_MENU_TOKENS)).toBe('2 döner');
+    });
+  });
+
+  describe('extractCheckoutSlotsRules with menu tokens', () => {
+    test('does not treat menu item + qty as delivery address', () => {
+      const slots = extractCheckoutSlotsRules('Schnitzel 2, zum Liefern', 'schnitzel 2, zum liefern', ENES_MENU_TOKENS);
+      expect(slots.deliveryAddress).toBeUndefined();
+      expect(slots.orderType).toBe('delivery');
+    });
+
+    test('still captures standalone street address', () => {
+      const slots = extractCheckoutSlotsRules('Hauptstraße 12, 1040 Wien', 'hauptstrasse 12, 1040 wien', ENES_MENU_TOKENS);
+      expect(slots.deliveryAddress).toBe('Hauptstraße 12');
     });
   });
 
