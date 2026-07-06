@@ -41,6 +41,10 @@ jest.mock('../../lib/collections', () => ({
     })),
   })),
 }));
+jest.mock('../checkoutOps', () => {
+  const actual = jest.requireActual('../checkoutOps');
+  return { ...actual, tryCheckoutBasketOp: jest.fn((...args) => actual.tryCheckoutBasketOp(...args)) };
+});
 
 const {
   handleMessage,
@@ -81,6 +85,7 @@ const {
   resetBotHandlerMocks,
   clearBotHandlerEnv,
 } = require('./helpers/botHandlerTestFixtures');
+const { tryCheckoutBasketOp } = require('../checkoutOps');
 
 beforeEach(resetBotHandlerMocks);
 afterEach(clearBotHandlerEnv);
@@ -249,6 +254,93 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
 
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/Bestellung/i));
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'confirming' }));
+  });
+
+  test('flag on — llm_failed during awaiting_name records parse failure', async () => {
+    tryCheckoutBasketOp.mockResolvedValueOnce({ handled: 'llm_failed' });
+
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'awaiting_name', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      prepMins: 20,
+      pickupTime: '14:30',
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'noch ein cola' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/verstehen|understand/i));
+    expect(patchSession).toHaveBeenCalledWith(FROM, { consecutiveParseFailures: 1 }, expect.anything());
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+  });
+
+  test('flag on — second llm_failed during awaiting_name offers human handoff', async () => {
+    tryCheckoutBasketOp.mockResolvedValueOnce({ handled: 'llm_failed' });
+
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'awaiting_name', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      prepMins: 20,
+      pickupTime: '14:30',
+      consecutiveParseFailures: 1,
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+    getLastOrderForCustomer.mockResolvedValue(null);
+
+    await handleMessage(ROUTING, msg({ text: 'noch ein cola' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, { consecutiveParseFailures: 2 }, expect.anything());
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_human_handoff' }),
+      ]),
+    }), 'test_phone_id');
+  });
+
+  test('flag on — no_match on confirming records parse failure (not re-show confirm)', async () => {
+    tryCheckoutBasketOp.mockResolvedValueOnce({ handled: 'no_match' });
+
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'Max',
+      pickupTime: '14:30',
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'xyz gibberish order' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/xyz gibberish order/i));
+    expect(patchSession).toHaveBeenCalledWith(FROM, { consecutiveParseFailures: 1 }, expect.anything());
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('flag on — second no_match on confirming offers human handoff', async () => {
+    tryCheckoutBasketOp.mockResolvedValueOnce({ handled: 'no_match' });
+
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'Max',
+      pickupTime: '14:30',
+      consecutiveParseFailures: 1,
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+    getLastOrderForCustomer.mockResolvedValue(null);
+
+    await handleMessage(ROUTING, msg({ text: 'abc nonsense 2x foo' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, { consecutiveParseFailures: 2 }, expect.anything());
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_human_handoff' }),
+      ]),
+    }), 'test_phone_id');
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('bare digit 1 in confirming does not place order', async () => {

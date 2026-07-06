@@ -137,6 +137,12 @@ describe('tryCheckoutBasketOp', () => {
     expect(result).toEqual({ handled: 'llm_failed' });
   });
 
+  test('returns no_match when parse finds nothing', async () => {
+    parseBasketOps.mockResolvedValue({ outcome: 'no_match' });
+    const result = await tryCheckoutBasketOp(BASE);
+    expect(result).toEqual({ handled: 'no_match' });
+  });
+
   test('routes disambiguation to pick-list', async () => {
     parseBasketOps.mockResolvedValue({
       outcome: 'disambiguation',
