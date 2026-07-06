@@ -1210,6 +1210,70 @@ describe('Browsing state: conversational basket (Tier 5)', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringMatching(/Konnte die Bestellung nicht verstehen/i));
     canCallLlm.mockReturnValue(false);
   });
+
+  test('flag on — front-loaded delivery phrase sets slots and shows food proposal', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      conversationalBasket: true,
+      deliveryEnabled: true,
+      deliveryFee: 2.5,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ, basket: [],
+    });
+
+    await handleMessage(ROUTING, msg({ text: '2 döner zum Liefern, Hauptstraße 5, bar' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      orderType: 'delivery',
+      deliveryAddress: 'Hauptstraße 5',
+      pendingPaymentMethod: 'cash',
+    }), expect.anything());
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Döner'),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_intent_confirm' }),
+      ]),
+    }));
+  });
+
+  test('flag on — two unparseable order-like messages offer human handoff', async () => {
+    let stored = {
+      language: 'de',
+      state: 'browsing',
+      businessId: BIZ,
+      basket: [],
+      whatsappPhoneNumberId: 'test_phone_id',
+      consecutiveParseFailures: 0,
+    };
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockImplementation(async () => ({ ...stored }));
+    setSession.mockImplementation(async (_phone, data) => { stored = { ...data }; });
+    getLastOrderForCustomer.mockResolvedValue(null);
+
+    await handleMessage(ROUTING, msg({ text: 'flibberty gibberish nonsense' }));
+
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_human_handoff' }),
+      ]),
+    }));
+    expect(stored.consecutiveParseFailures).toBe(1);
+
+    await handleMessage(ROUTING, msg({ text: 'xyzzy qwerty plugh' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_human_handoff' }),
+      ]),
+    }), 'test_phone_id');
+    expect(sendText).toHaveBeenCalledWith(
+      BIZ_INFO.alertPhone,
+      expect.stringContaining('Customer needs help'),
+      'test_phone_id',
+    );
+    expect(stored.consecutiveParseFailures).toBe(2);
+  });
 });
 
 describe('Layer 0: reorder-first for returning customers', () => {
