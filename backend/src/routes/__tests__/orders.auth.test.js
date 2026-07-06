@@ -93,4 +93,44 @@ describe('order route auth (requireOwnerOfBusiness)', () => {
       .set('Authorization', 'Bearer admin-token');
     expect(res.status).toBe(200);
   });
+
+  test('401 on reject without Authorization (not only approve)', async () => {
+    const res = await request(app).post('/api/businesses/biz1/orders/ord1/reject');
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'Missing auth token' });
+  });
+
+  test('200 on reject when owner owns businessId', async () => {
+    const res = await request(app)
+      .post('/api/businesses/biz1/orders/ord1/reject')
+      .set('Authorization', 'Bearer valid-token');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: 'ok' });
+  });
+
+  test('auth applies on bare /businesses mount (no /api prefix)', async () => {
+    const res = await request(app)
+      .post('/businesses/biz1/orders/ord1/cancel')
+      .set('Authorization', 'Bearer valid-token');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: 'ok' });
+  });
+
+  test('401 on bare /businesses mount without token', async () => {
+    const res = await request(app).post('/businesses/biz1/orders/ord1/cancel');
+    expect(res.status).toBe(401);
+  });
+
+  test('200 when businessId is in owner businessIds array', async () => {
+    ownerRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({ businessIds: ['biz_a', 'biz1', 'biz_b'] }),
+      }),
+    });
+    const res = await request(app)
+      .post('/api/businesses/biz1/orders/ord1/approve')
+      .set('Authorization', 'Bearer valid-token');
+    expect(res.status).toBe(200);
+  });
 });
