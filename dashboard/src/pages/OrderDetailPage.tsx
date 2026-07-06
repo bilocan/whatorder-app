@@ -10,6 +10,7 @@ import { paymentBadge } from '../lib/paymentBadge';
 import { shortId } from '../lib/shortId';
 
 import { API_URL } from '../lib/apiUrl';
+import { authHeaders, jsonAuthHeaders } from '../lib/apiAuth';
 import { matchesActivePhoneRouting } from '../lib/orderPhoneFilter';
 
 type ActionButton = { labelKey: string; action: string; style?: React.CSSProperties };
@@ -141,10 +142,13 @@ export default function OrderDetailPage() {
     setLoading(true);
     setActionError('');
     try {
+      const headers = action === 'approve'
+        ? await jsonAuthHeaders()
+        : await authHeaders();
       const res = await fetch(`${API_URL}/api/businesses/${businessId}/orders/${orderId}/${action}`, {
         method: 'POST',
+        headers,
         ...(action === 'approve' && {
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ etaMinutes }),
         }),
       });
