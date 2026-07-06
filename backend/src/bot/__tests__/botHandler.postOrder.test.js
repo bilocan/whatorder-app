@@ -45,6 +45,7 @@ jest.mock('../../lib/collections', () => ({
 const {
   handleMessage,
   getSession,
+  setSession,
   patchSession,
   getBusinessInfo,
   getOrder,
@@ -180,6 +181,75 @@ describe('M4 post-order routing', () => {
     await handleMessage(ROUTING, msg({ text: 'noch ein ayran' }));
 
     expect(amendOrderAddItems).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(
+      FROM,
+      expect.stringContaining(BIZ_INFO.alertPhone),
+      'test_phone_id',
+    );
+  });
+
+  test('order text after post-order context expires clears stale amend id and falls through', async () => {
+    const staleSession = {
+      ...POST_ORDER_SESSION,
+      pendingAmendPlacedAt: Date.now() - 24 * 60 * 60 * 1000,
+    };
+    getSession.mockResolvedValue(staleSession);
+    getOrder.mockResolvedValue({
+      id: ORDER_ID,
+      status: 'delivered',
+      paymentMethod: 'cash',
+      items: [{ name: 'Döner', qty: 1, price: 8.5 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: '2 döner' }));
+
+    // Not swallowed by the post-order path: no call-restaurant reply, no amend
+    expect(amendOrderAddItems).not.toHaveBeenCalled();
+    expect(sendText).not.toHaveBeenCalledWith(
+      FROM,
+      expect.stringContaining(BIZ_INFO.alertPhone),
+      expect.anything(),
+    );
+    // Stale amend context is cleared so it cannot hijack future messages
+    const [, firstWrite] = setSession.mock.calls[0];
+    expect(firstWrite).not.toHaveProperty('pendingAmendOrderId');
+    expect(firstWrite).not.toHaveProperty('pendingAmendPlacedAt');
+  });
+
+  test('modify text with missing pendingAmendPlacedAt clears stale amend id', async () => {
+    getSession.mockResolvedValue({
+      ...POST_ORDER_SESSION,
+      pendingAmendPlacedAt: undefined,
+    });
+    getOrder.mockResolvedValue({
+      id: ORDER_ID,
+      status: 'pending',
+      paymentMethod: 'cash',
+      items: [{ name: 'Döner', qty: 1, price: 8.5 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'noch ein ayran' }));
+
+    expect(amendOrderAddItems).not.toHaveBeenCalled();
+    const [, firstWrite] = setSession.mock.calls[0];
+    expect(firstWrite).not.toHaveProperty('pendingAmendOrderId');
+  });
+
+  test('cancel request after context expiry still gets call-restaurant reply', async () => {
+    getSession.mockResolvedValue({
+      ...POST_ORDER_SESSION,
+      pendingAmendPlacedAt: Date.now() - 24 * 60 * 60 * 1000,
+    });
+    getOrder.mockResolvedValue({
+      id: ORDER_ID,
+      status: 'delivered',
+      paymentMethod: 'cash',
+      items: [{ name: 'Döner', qty: 1, price: 8.5 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'stornieren' }));
+
+    expect(cancelOrder).not.toHaveBeenCalled();
     expect(sendText).toHaveBeenCalledWith(
       FROM,
       expect.stringContaining(BIZ_INFO.alertPhone),

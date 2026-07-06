@@ -22,6 +22,7 @@ const {
   applyProfilePrefill,
   getMissingCheckoutSlots,
   isDeliveryOffered,
+  isCheckoutOnlySegment,
   tryApplyCheckoutSlotsFromText,
 } = require('../checkoutSlots');
 const { sendOrderEntryPrompt } = require('../orderEntry');
@@ -643,6 +644,13 @@ async function gateCheckoutTextInput(ctx) {
     await sendText(from, t('checkoutNameNotOrder', lang));
     const askId = await sendText(from, t('askName', lang));
     await setSession(from, { ...liveSession, pendingDeleteIds: askId ? [askId] : [] });
+    return true;
+  }
+
+  // Slot-only text ("zum Liefern", "Hauptstraße 5", "bar") must not become the
+  // customer's name — the slots were already applied above, so just advance.
+  if (liveSession.state === 'awaiting_name' && isConversationalBasket(info) && isCheckoutOnlySegment(text)) {
+    await advanceCheckoutFromSlots({ from, session: liveSession, lang, businessId, basket, info });
     return true;
   }
 
