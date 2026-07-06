@@ -251,6 +251,46 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'confirming' }));
   });
 
+  test('flag on — slot-only "zum Abholen" during awaiting_name sets order type and re-asks name (row 59)', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'awaiting_name', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      prepMins: 20,
+      pickupTime: '14:30',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'zum Abholen' }));
+
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      customerName: expect.stringMatching(/abholen/i),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+      orderType: 'pickup',
+    }));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/Name/i));
+  });
+
+  test('flag on — slot-only "zum Liefern" during awaiting_name is not saved as customer name (row 59)', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true, deliveryEnabled: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'awaiting_name', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      prepMins: 20,
+      pickupTime: '14:30',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'zum Liefern' }));
+
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      customerName: expect.stringMatching(/liefern/i),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      orderType: 'delivery',
+    }));
+  });
+
   test('bare digit 1 in confirming does not place order', async () => {
     getSession.mockResolvedValue({
       language: 'de', state: 'confirming', businessId: BIZ,

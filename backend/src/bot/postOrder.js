@@ -15,6 +15,10 @@ const {
 } = require('./orderService');
 
 const AMEND_WINDOW_MS = 15 * 60 * 1000;
+// How long after placing an order typed order text is still treated as a modify
+// attempt (→ call-restaurant when the amend window is closed). Beyond this,
+// order text is a new order and the stale amend context must not swallow it.
+const POST_ORDER_CONTEXT_MS = 60 * 60 * 1000;
 const HANDOFF_FAILURE_THRESHOLD = 2;
 const HANDOFF_BUTTON_ID = 'btn_human_handoff';
 
@@ -44,6 +48,11 @@ function isAmendWindowOpen(order, placedAtMs) {
   if (!order || order.status !== 'pending') return false;
   if (!placedAtMs) return false;
   return Date.now() - placedAtMs < AMEND_WINDOW_MS;
+}
+
+function isPostOrderContextExpired(placedAtMs) {
+  if (!placedAtMs) return true;
+  return Date.now() - placedAtMs > POST_ORDER_CONTEXT_MS;
 }
 
 function isCashOrder(order) {
@@ -137,6 +146,13 @@ async function tryHandlePostOrderMessage({
   if (!session.pendingAmendOrderId) return false;
   if (!looksLikePostOrderModify(text, norm)) return false;
 
+  const placedAtMs = session.pendingAmendPlacedAt ?? null;
+  const isCancelRequest = detectCancelOrderRequest(text, norm);
+  if (!isCancelRequest && isPostOrderContextExpired(placedAtMs)) {
+    await clearPostOrderSession(from, session);
+    return false;
+  }
+
   const phoneNumberId = session.whatsappPhoneNumberId || null;
   const order = await getOrder(businessId, session.pendingAmendOrderId);
   if (!order) {
@@ -144,12 +160,11 @@ async function tryHandlePostOrderMessage({
     return false;
   }
 
-  const placedAtMs = session.pendingAmendPlacedAt ?? null;
   const windowOpen = isAmendWindowOpen(order, placedAtMs);
   const info = await getBusinessInfo(businessId);
   const convoOn = isConversationalBasket(info);
 
-  if (detectCancelOrderRequest(text, norm)) {
+  if (isCancelRequest) {
     if (windowOpen && isCashOrder(order) && convoOn) {
       await cancelOrder(businessId, order.id);
       await clearPostOrderSession(from, session, { consecutiveParseFailures: 0 });
@@ -262,10 +277,12 @@ function isHumanHandoffButton(id) {
 
 module.exports = {
   AMEND_WINDOW_MS,
+  POST_ORDER_CONTEXT_MS,
   HANDOFF_BUTTON_ID,
   detectCancelOrderRequest,
   looksLikePostOrderModify,
   isAmendWindowOpen,
+  isPostOrderContextExpired,
   isHumanHandoffButton,
   tryReplyOrderStatus,
   tryHandlePostOrderMessage,
