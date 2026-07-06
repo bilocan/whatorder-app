@@ -2,12 +2,27 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-/** Golden infra-only GCS folder under gs://whatorder-fire-backups/manual/ */
-const DEFAULT_GOLDEN_INFRA_BACKUP = '2026-06-27-in8ra';
+/** Golden infra-only GCS folder under gs://<project>-backups/manual/ */
+const DEFAULT_GOLDEN_INFRA_BACKUP = '2026-07-06-infra';
 
-const GCS_BUCKET = 'whatorder-fire-backups';
-const FIRESTORE_PROJECT = 'whatorder-fire';
+/**
+ * The 2026-06-27 exports were empty (316 bytes of metadata, zero documents) —
+ * the Windows comma-mangling bug hit the export side. A real infra export
+ * (209 docs) is well above this; anything smaller is metadata-only.
+ */
+const MIN_INFRA_BACKUP_BYTES = 10 * 1024;
+
+const DEFAULT_FIRESTORE_PROJECT = 'whatorder-fire';
 const FIRESTORE_DATABASE = '(default)';
+
+/** Test and prod mirror the same layout: <project>-backups in the DB's region. */
+function backupsBucketFor(project) {
+  return `${project}-backups`;
+}
+
+function resolveFirestoreProject() {
+  return process.env.FIREBASE_PROJECT_ID || DEFAULT_FIRESTORE_PROJECT;
+}
 
 const INFRA_COLLECTION_IDS = [
   'businesses',
@@ -43,6 +58,9 @@ function parseResetProductionArgs(argv) {
     throw new Error('Missing value for --infra-backup');
   }
 
+  const project = resolveFirestoreProject();
+  const bucket = backupsBucketFor(project);
+
   return {
     dryRun,
     confirm,
@@ -50,8 +68,9 @@ function parseResetProductionArgs(argv) {
     skipCleanup,
     skipSmoke,
     infraBackup,
-    gcsImportUri: `gs://${GCS_BUCKET}/manual/${infraBackup}`,
-    metadataPath: `gs://${GCS_BUCKET}/manual/${infraBackup}/${infraBackup}.overall_export_metadata`,
+    project,
+    gcsImportUri: `gs://${bucket}/manual/${infraBackup}`,
+    metadataPath: `gs://${bucket}/manual/${infraBackup}/${infraBackup}.overall_export_metadata`,
     collectionIds: INFRA_COLLECTION_IDS.join(','),
   };
 }
@@ -97,7 +116,7 @@ function spawnGcloud(args, stdio = 'pipe') {
  * @param {string} metadataPath
  * @param {string} project
  */
-function verifyInfraBackupExists(metadataPath, project = FIRESTORE_PROJECT) {
+function verifyInfraBackupExists(metadataPath, project = resolveFirestoreProject()) {
   const result = spawnGcloud(['storage', 'ls', metadataPath, `--project=${project}`]);
   if (result.status !== 0) {
     const err = (result.stderr || result.stdout || '').trim();
@@ -105,6 +124,42 @@ function verifyInfraBackupExists(metadataPath, project = FIRESTORE_PROJECT) {
       `Infra backup not found: ${metadataPath}\n${err}\nExport first — see vault firestore-backup-restore.`,
     );
   }
+}
+
+/**
+ * @param {string} duOutput stdout of `gcloud storage du -s <uri>`
+ * @returns {number} total bytes
+ */
+function parseDuTotalBytes(duOutput) {
+  const match = /^\s*(\d+)/.exec(duOutput || '');
+  if (!match) {
+    throw new Error(`Could not parse total size from gcloud storage du output: ${JSON.stringify(duOutput)}`);
+  }
+  return Number(match[1]);
+}
+
+/**
+ * Guards against importing a metadata-only export like the empty 2026-06-27
+ * folders — restoring one wipes the DB and brings back zero documents.
+ *
+ * @param {string} gcsImportUri
+ * @param {string} project
+ */
+function verifyInfraBackupNotEmpty(gcsImportUri, project = resolveFirestoreProject()) {
+  const result = spawnGcloud(['storage', 'du', '-s', gcsImportUri, `--project=${project}`]);
+  if (result.status !== 0) {
+    const err = (result.stderr || result.stdout || '').trim();
+    throw new Error(`Could not measure infra backup size: ${gcsImportUri}\n${err}`);
+  }
+  const totalBytes = parseDuTotalBytes(result.stdout);
+  if (totalBytes < MIN_INFRA_BACKUP_BYTES) {
+    throw new Error(
+      `Infra backup looks empty: ${gcsImportUri} is ${totalBytes} bytes ` +
+      `(minimum ${MIN_INFRA_BACKUP_BYTES}). Metadata-only exports import zero documents — ` +
+      `re-export and verify doc counts before using it as golden.`,
+    );
+  }
+  return totalBytes;
 }
 
 /**
@@ -136,7 +191,7 @@ function runNodeScript(scriptName, args) {
 function buildFirestoreImportArgs(opts) {
   return [
     'firestore', 'import', opts.gcsImportUri,
-    `--project=${FIRESTORE_PROJECT}`,
+    `--project=${opts.project}`,
     '--database', FIRESTORE_DATABASE,
   ];
 }
@@ -153,8 +208,8 @@ function runInfraImport(opts) {
 
 /** @param {ReturnType<typeof parseResetProductionArgs>} opts */
 function printResetPlan(opts) {
-  console.log('Production reset plan\n');
-  console.log(`Project: ${FIRESTORE_PROJECT}`);
+  console.log('Firestore reset plan\n');
+  console.log(`Project: ${opts.project}`);
   console.log(`Golden infra backup: ${opts.infraBackup}`);
   console.log(`GCS: ${opts.gcsImportUri}`);
   console.log(`Collection groups: ${opts.collectionIds}\n`);
@@ -182,14 +237,18 @@ function printManualChecklist() {
 
 module.exports = {
   DEFAULT_GOLDEN_INFRA_BACKUP,
-  GCS_BUCKET,
-  FIRESTORE_PROJECT,
+  MIN_INFRA_BACKUP_BYTES,
+  DEFAULT_FIRESTORE_PROJECT,
   FIRESTORE_DATABASE,
+  backupsBucketFor,
+  resolveFirestoreProject,
   INFRA_COLLECTION_IDS,
   MANUAL_CHECKLIST,
   parseResetProductionArgs,
   buildFirestoreImportArgs,
+  parseDuTotalBytes,
   verifyInfraBackupExists,
+  verifyInfraBackupNotEmpty,
   runNodeScript,
   runInfraImport,
   printResetPlan,
