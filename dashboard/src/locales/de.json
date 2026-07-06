@@ -268,6 +268,8 @@
     "teachError": "Speichern fehlgeschlagen",
     "viewPhrases": "Gespeicherte Phrasen",
     "alreadyTrained": "Bereits trainiert ({{hits}}× genutzt).",
+    "changePick": "Ändern",
+    "defaultOption": "Standard",
     "teachHint": {
       "needsParse": "Zuerst Analysieren klicken, dann die Korrektur prüfen.",
       "needsSku": "Wählen Sie für jede Zeile einen Artikel aus der Speisekarte.",

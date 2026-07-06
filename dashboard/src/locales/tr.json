@@ -268,6 +268,8 @@
     "teachError": "Kaydedilemedi",
     "viewPhrases": "Kayıtlı ifadeler",
     "alreadyTrained": "Zaten öğretildi ({{hits}}× kullanıldı).",
+    "changePick": "Değiştir",
+    "defaultOption": "Varsayılan",
     "teachHint": {
       "needsParse": "Önce Ayrıştır'a tıklayın, sonra düzeltmeyi kontrol edin.",
       "needsSku": "Her satır için menüden bir ürün seçin.",
