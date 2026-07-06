@@ -95,6 +95,25 @@ jobs:
         working-directory: dashboard
         run: npm test
 
+  # Enforces the promotion flow: master only accepts PRs whose source branch is
+  # dev. Required status check in the "master — release branch" ruleset, so a PR
+  # from any other branch cannot be merged. Feature branches merge into dev.
+  master-merge-guard:
+    name: Master merge guard (dev only)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.base_ref == 'master'
+
+    steps:
+      - name: Fail unless source branch is dev
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          echo "PR: $HEAD_REF -> master"
+          if [ "$HEAD_REF" != "dev" ]; then
+            echo "::error::PRs into master are only allowed from dev. Merge into dev first; dev promotes to master."
+            exit 1
+          fi
+
   # Deploys resolve their target from the GitHub Environment:
   #   push to dev    → Test       (whatorder-fire)
   #   push to master → Production (whatorder-fire-prod)
