@@ -712,12 +712,35 @@ describe('Confirming state: ambiguous input', () => {
     }));
   });
 
-  test('greeting in confirming state restarts ordering instead of yesNoOnly', async () => {
-    getLastOrderForCustomer.mockResolvedValue(null);
+  test('greeting in confirming state with basket re-shows confirm list instead of restarting', async () => {
+    getLastOrderForCustomer.mockResolvedValue({
+      items: [{ name: 'Pizza', qty: 1, price: 13.90 }],
+    });
     getSession.mockResolvedValue({
       language: 'tr', state: 'confirming',
       businessId: BIZ,
       basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'Ahmet',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Ahmet'),
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(
+      FROM,
+      expect.objectContaining({ body: expect.stringMatching(/hoş geldin|Welcome back/i) }),
+    );
+  });
+
+  test('greeting in confirming state with empty basket restarts ordering instead of yesNoOnly', async () => {
+    getLastOrderForCustomer.mockResolvedValue(null);
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'confirming',
+      businessId: BIZ,
+      basket: [],
       customerName: 'Ahmet',
     });
 

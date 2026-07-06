@@ -8,7 +8,7 @@ const { customersRef, ordersRef } = require('../../lib/collections');
 const { reverseGeocode } = require('../../lib/geocode');
 const { isStripeConfigured } = require('../../lib/stripe');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
-const { isStrongOrderText } = require('../intentParser');
+const { isStrongOrderText, isGreetingOnly, isFreshStartCommand } = require('../intentParser');
 const { isConversationalBasket } = require('../featureFlags');
 const { tryBasketUndo } = require('../conversationalBasket');
 const { isBasketUndoPhrase, detectBotCommandAsync, BOT_COMMAND } = require('../botCommands');
@@ -797,6 +797,12 @@ async function handleAwaitingName({ from, session, lang, businessId, basket, typ
   if (type === 'text' && await gateCheckoutTextInput({
     from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
   })) return;
+
+  if (type === 'text' && (isGreetingOnly(norm) || isFreshStartCommand(norm))) {
+    const askId = await sendText(from, t('askName', lang));
+    await setSession(from, { ...session, pendingDeleteIds: askId ? [askId] : [] });
+    return;
+  }
 
   if (type === 'text' && norm.length > 0) {
     const name = text.trim().slice(0, 60);
