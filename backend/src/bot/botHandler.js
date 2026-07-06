@@ -22,8 +22,8 @@ const {
 } = require('./postOrder');
 
 const SWITCH_KEYWORDS = new Set(['switch', 'change', 'restaurants', 'back', 'home', 'wechseln', 'zurück', 'zuruck', 'değiştir', 'degistir', 'restoranlar', 'start', 'starten']);
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsing sessions
-// Greeting while stuck in checkout → fresh menu/reorder, not "type YES or NO"
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsing sessions (empty basket only)
+// Greeting while stuck in checkout → fresh menu/reorder, not "type YES or NO" (empty basket only)
 const GREETING_FRESH_START_STATES = new Set([
   'confirming',
   'awaiting_payment_method',
@@ -205,8 +205,11 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     : (routing.defaultBusinessId || routing.businessIds[0]);
   const basket = session.basket ?? [];
 
-  // Abandoned checkout + greeting or fresh start → catalog/reorder, not yesNoOnly
-  if (type === 'text' && (isGreetingOnly(norm) || isFreshStartCommand(norm)) && GREETING_FRESH_START_STATES.has(session.state)) {
+  // Abandoned checkout (empty basket) + greeting, or explicit fresh-start → catalog/reorder.
+  // Greeting with non-empty basket: keep in-progress order — fall through to checkout handler.
+  const checkoutFreshStart = type === 'text' && GREETING_FRESH_START_STATES.has(session.state)
+    && (isFreshStartCommand(norm) || (isGreetingOnly(norm) && basket.length === 0));
+  if (checkoutFreshStart) {
     const bidInfo = await getBusinessInfo(businessId);
     if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
       const _w = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
