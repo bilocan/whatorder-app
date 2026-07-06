@@ -1,7 +1,9 @@
 const { db } = require('./firebase');
 
+const businessesCollectionRef = () => db.collection('businesses');
+
 const businessRef = (businessId) =>
-  db.collection('businesses').doc(businessId);
+  businessesCollectionRef().doc(businessId);
 
 const menuRef = (businessId) =>
   businessRef(businessId).collection('menu');
@@ -67,6 +69,7 @@ const commandLearningRef = (keyHash) =>
   db.collection('commandLearnings').doc(keyHash);
 
 module.exports = {
+  businessesCollectionRef,
   businessRef, menuRef, optionGroupsRef, ordersRef, customersRef,
   phoneRoutingRef, phoneRoutingByBusinessQuery,
   ownerRef, adminRef,

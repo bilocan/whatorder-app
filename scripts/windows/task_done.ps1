@@ -36,12 +36,12 @@ if (Test-Path $dashboardPkg) {
 
 # 3. Dashboard tests
 Step "3. Dashboard tests"
-$testDir = Join-Path $dashboard "src" "__tests__"
+$testDir = Join-Path $dashboard "src\__tests__"
 if (Test-Path $testDir) {
     $testFiles = Get-ChildItem $testDir -Recurse -Include "*.test.ts", "*.test.tsx" -ErrorAction SilentlyContinue
     if ($testFiles.Count -gt 0) {
         Push-Location $dashboard
-        npm test -- --watchAll=false
+        npm test
         if ($LASTEXITCODE -ne 0) { Fail "npm test" }
         Pass "npm test ($($testFiles.Count) test files)"
         Pop-Location
@@ -54,7 +54,7 @@ if (Test-Path $testDir) {
 
 # 3b. Backend tests
 Step "3b. Backend tests"
-$backendTest = Join-Path $root "backend" "package.json"
+$backendTest = Join-Path $root "backend\package.json"
 if (Test-Path $backendTest) {
     $pkg = Get-Content $backendTest | ConvertFrom-Json
     $hasJest = $pkg.devDependencies.PSObject.Properties.Name -contains "jest" -or
@@ -73,6 +73,10 @@ if (Test-Path $backendTest) {
 }
 
 Write-Host "`nAll checks passed." -ForegroundColor Green
+
+# Checks are done — git may print warnings to stderr (e.g. CRLF notices);
+# don't let those terminate the commit-suggestion section under PS 5.1.
+$ErrorActionPreference = "Continue"
 
 # Suggested commit — app repo
 Step "Suggested commit (app)"

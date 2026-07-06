@@ -1,6 +1,6 @@
 const axios = require('axios');
-const { buildMenuLlmIndex, resolveMenuLlmItems } = require('../bot/menuLlmIndex');
-const { repairMenuLlmRawItems } = require('../bot/menuLlmRepair');
+const { buildMenuLlmIndex, resolveMenuLlmItems } = require('./menuLlmIndex');
+const { repairMenuLlmRawItems } = require('./menuLlmRepair');
 
 const OPENAI_INTENT_SCHEMA = {
   type: 'object',

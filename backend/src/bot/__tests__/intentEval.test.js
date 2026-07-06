@@ -152,6 +152,15 @@ describe('assertExpectations', () => {
       expect(report.total).toBeGreaterThanOrEqual(10);
     }, 15000);
 
+    test('enes wave_d basket_ops cases pass (conversational M1 edit phrases)', async () => {
+      const report = await runCorpusEval({ mode: 'enes', tag: 'wave_d', llm: false });
+      if (report.failed > 0) {
+        console.error(formatEvalReport(report, { verbose: true, label: 'enes-wave_d' }));
+      }
+      expect(report.failed).toBe(0);
+      expect(report.total).toBeGreaterThanOrEqual(4);
+    });
+
     test('modifier-tagged cases pass', async () => {
       const report = await runCorpusEval({ file: 'builtin.json', tag: 'modifier', llm: false });
       expect(report.failed).toBe(0);

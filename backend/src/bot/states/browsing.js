@@ -3,7 +3,7 @@ const { sendText, sendButtonMessage, sendImage } = require('../../lib/whatsapp')
 const { t } = require('../templates');
 const { sendMenu, sendMenuPage, sendCatalog, groupMenuByCategory, decodeCategory, buildPostAddBody, postAddBasketButtons, sendBasketView } = require('../botHelpers');
 const { parseBasketRemove, parseBasketRemoveDisambig, applyBasketRemove, buildBasketRemoveAmbiguousText } = require('../basketEdit');
-const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
+const { getMenu, getBusinessInfo, getMenuContext, resolvePhotoUrl } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 const { tryTextIntentOrder, handleIntentButtons, isIntentConfirmText } = require('../intentOrder');
 const { normIng } = require('../intentMatcher');
@@ -19,7 +19,7 @@ const { tryConversationalBasketText, tryBasketUndo, flushBasketPendingLearning }
 const { detectBotCommandAsync, isBasketUndoPhrase, BOT_COMMAND } = require('../botCommands');
 const { isConversationalBasket } = require('../featureFlags');
 const { recordParseFailure, resetParseFailures } = require('../postOrder');
-const { tryApplyCheckoutSlotsFromText, stripCheckoutSlotsFromOrderText } = require('../checkoutSlots');
+const { tryApplyCheckoutSlotsFromText, stripCheckoutSlotsFromOrderText, buildMenuFoodTokens } = require('../checkoutSlots');
 const {
   sendSearchPrompt,
   handleSearchModeText,
@@ -35,16 +35,7 @@ const INTENT_PROPOSAL_CLEAR = {
   intentSuggestions: undefined,
 };
 
-const BASKET_CLEAR_PATCH = {
-  basket: [],
-  flow: undefined,
-  orderType: undefined,
-  deliveryAddress: undefined,
-  specialRequests: undefined,
-  pendingPaymentMethod: undefined,
-  basketRemovePending: undefined,
-  basketRemoveDisambig: undefined,
-};
+const { BASKET_CLEAR_PATCH } = require('../basketOps');
 
 function isFullOrderReplace(text, norm) {
   const edit = parseProposalEdit(text, norm);
@@ -487,8 +478,10 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
     })) return;
 
     if (isConversationalBasket(info)) {
+      const { menuTokenIndex } = await getMenuContext(businessId);
+      const menuTokens = buildMenuFoodTokens(menuTokenIndex);
       session = await tryApplyCheckoutSlotsFromText({
-        from, session, text, norm, business: info,
+        from, session, text, norm, business: info, menuTokens,
       });
     }
   }
@@ -498,7 +491,12 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
     && (isBasketUndoPhrase(norm, { hasUndoSnapshot: !!session.basketUndoSnapshot?.basket })
       || looksLikeOrderText(text, norm))) {
     const info = await getBusinessInfo(businessId);
-    const foodText = isConversationalBasket(info) ? stripCheckoutSlotsFromOrderText(text) : text;
+    let foodText = text;
+    if (isConversationalBasket(info)) {
+      const { menuTokenIndex } = await getMenuContext(businessId);
+      const menuTokens = buildMenuFoodTokens(menuTokenIndex);
+      foodText = stripCheckoutSlotsFromOrderText(text, menuTokens);
+    }
 
     if (await tryBasketUndo({
       from, session, lang, businessId, basket, business: info, norm,
@@ -593,7 +591,12 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
   // Text: natural-language order (clears stale proposals before AI/rules parse)
   if (type === 'text' && text?.trim() && looksLikeOrderText(text, norm)) {
     const info = await getBusinessInfo(businessId);
-    const foodText = isConversationalBasket(info) ? stripCheckoutSlotsFromOrderText(text) : text;
+    let foodText = text;
+    if (isConversationalBasket(info)) {
+      const { menuTokenIndex } = await getMenuContext(businessId);
+      const menuTokens = buildMenuFoodTokens(menuTokenIndex);
+      foodText = stripCheckoutSlotsFromOrderText(text, menuTokens);
+    }
 
     if (isConversationalBasket(info) && !foodText?.trim()
       && (session.orderType || session.deliveryAddress || session.pendingPaymentMethod)) {

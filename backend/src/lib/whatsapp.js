@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { redactPhone } = require('./logRedact');
 
 const BASE_URL = 'https://graph.facebook.com/v21.0';
 
@@ -64,7 +65,7 @@ async function send(payload, phoneNumberId) {
     return await postMessage(payload, primaryId);
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-    console.error(`[WA] ${err.response?.status ?? 'ERR'} to=${payload.to} type=${payload.type} phoneNumberId=${primaryId} — ${detail}`);
+    console.error(`[WA] ${err.response?.status ?? 'ERR'} to=${redactPhone(payload.to)} type=${payload.type} phoneNumberId=${primaryId} — ${detail}`);
     throw err;
   }
 }

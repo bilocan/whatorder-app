@@ -13,6 +13,7 @@ jest.mock('../firebase', () => ({
 
 jest.mock('../collections', () => ({
   businessRef: jest.fn(),
+  businessesCollectionRef: jest.fn(),
   ordersRef: jest.fn(),
   payoutsRef: jest.fn(),
 }));
@@ -27,7 +28,7 @@ jest.mock('../connectTransfer', () => ({
 }));
 
 const { db } = require('../firebase');
-const { businessRef, ordersRef, payoutsRef } = require('../collections');
+const { businessRef, businessesCollectionRef, ordersRef, payoutsRef } = require('../collections');
 const { getSettlementConfig } = require('../settlementConfig');
 const { executeConnectTransfer } = require('../connectTransfer');
 const { runPayoutBatch } = require('../payoutService');
@@ -37,7 +38,7 @@ describe('runPayoutBatch', () => {
   const mockBatchCommit = jest.fn().mockResolvedValue(undefined);
 
   function mockPerBusinessOrders(docs) {
-    db.collection.mockReturnValue({
+    businessesCollectionRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({ docs: [{ id: 'biz1' }] }),
     });
     ordersRef.mockReturnValue({

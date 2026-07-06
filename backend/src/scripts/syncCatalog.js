@@ -14,7 +14,7 @@
  */
 
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.dev') });
-const { db } = require('../lib/firebase');
+const { businessRef } = require('../lib/collections');
 
 async function main() {
   const [businessId, catalogId] = process.argv.slice(2);
@@ -23,7 +23,7 @@ async function main() {
     process.exit(1);
   }
 
-  const ref = db.collection('businesses').doc(businessId);
+  const ref = businessRef(businessId);
   const snap = await ref.get();
   if (!snap.exists) {
     console.error(`Business "${businessId}" not found in Firestore`);

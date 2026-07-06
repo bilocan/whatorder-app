@@ -1,5 +1,6 @@
 const { patchSession } = require('./sessionStore');
 const { isConversationalBasket } = require('./featureFlags');
+const { tokensOf } = require('./menuMapper');
 
 const PAY_CARD = new Set(['karte', 'card', 'kart', 'kredi', 'kartı', 'kartim', 'kreditkarte']);
 const PAY_CASH = new Set(['bar', 'cash', 'nakit', 'bargeld']);
@@ -32,6 +33,41 @@ function normalizeSegment(text) {
   return (text ?? '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
 }
 
+// Tokens that must never count as "food" even when a menu item name contains
+// them — checkout keywords and German/TR function words.
+const NON_FOOD_TOKENS = new Set([
+  ...PAY_CARD, ...PAY_CASH, ...ORDER_PICKUP, ...ORDER_DELIVERY,
+  'liefern', 'lieferung', 'lieferservice', 'delivery', 'teslimat', 'paket',
+  'abholen', 'mitnehmen', 'abholung', 'takeaway',
+  'mit', 'und', 'oder', 'ohne', 'der', 'die', 'das', 'ein', 'eine', 'zum', 'zur', 'von',
+]);
+
+/**
+ * Flat token set of menu item names + aliases so slot heuristics can tell
+ * food from addresses on any menu (not just the FOOD_TOKEN_RE hardcodes).
+ * Accepts raw menu items or menuTokenIndex entries ({ item, tokens }).
+ */
+function buildMenuFoodTokens(menuOrIndex) {
+  const tokens = new Set();
+  for (const entry of menuOrIndex ?? []) {
+    if (Array.isArray(entry?.tokens)) {
+      for (const t of entry.tokens) tokens.add(t);
+      continue;
+    }
+    for (const label of [entry?.name, ...(entry?.aliases ?? [])].filter(Boolean)) {
+      for (const t of tokensOf(label)) tokens.add(t);
+    }
+  }
+  for (const t of NON_FOOD_TOKENS) tokens.delete(t);
+  return tokens;
+}
+
+function segmentHasFoodToken(segment, menuTokens) {
+  if (FOOD_TOKEN_RE.test(segment)) return true;
+  if (!menuTokens?.size) return false;
+  return tokensOf(segment).some(t => menuTokens.has(t));
+}
+
 function parsePaymentFromSegment(segment, segNorm) {
   const tokenPay = parsePaymentKeyword(segNorm.trim());
   if (tokenPay === 'card') return 'stripe';
@@ -48,10 +84,10 @@ function parseOrderTypeFromSegment(segment) {
   return kw;
 }
 
-function looksLikeAddressSegment(segment) {
+function looksLikeAddressSegment(segment, menuTokens = null) {
   const s = segment.trim();
   if (s.length < 5) return false;
-  if (FOOD_TOKEN_RE.test(s)) return false;
+  if (segmentHasFoodToken(s, menuTokens)) return false;
   if (DELIVERY_PHRASE_RE.test(s) && !STREET_SUFFIX_RE.test(s) && !/\d/.test(s)) return false;
   if (parsePaymentFromSegment(s, normalizeSegment(s)) && s.split(/\s+/).length <= 4) return false;
 
@@ -69,16 +105,16 @@ function extractAddressFromSegment(segment) {
 }
 
 /** Segment is checkout metadata only (address, payment, order-type phrase), not food. */
-function isCheckoutOnlySegment(segment) {
+function isCheckoutOnlySegment(segment, menuTokens = null) {
   const s = segment.trim();
   if (!s) return true;
-  if (looksLikeAddressSegment(s)) return true;
+  if (looksLikeAddressSegment(s, menuTokens)) return true;
 
   const segNorm = normalizeSegment(s);
   const pay = parsePaymentFromSegment(s, segNorm);
-  if (pay && !FOOD_TOKEN_RE.test(s) && s.split(/\s+/).length <= 4) return true;
+  if (pay && !segmentHasFoodToken(s, menuTokens) && s.split(/\s+/).length <= 4) return true;
 
-  if (parseOrderTypeFromSegment(s) && !FOOD_TOKEN_RE.test(s) && !/^\d/.test(s)) return true;
+  if (parseOrderTypeFromSegment(s) && !segmentHasFoodToken(s, menuTokens) && !/^\d/.test(s)) return true;
 
   const nameMatch = s.match(NAME_RE);
   if (nameMatch && s.replace(nameMatch[0], '').trim().length < 3) return true;
@@ -105,7 +141,7 @@ function stripInlineCheckoutPhrases(segment) {
  * Remove checkout slot segments/phrases so food parsers see only menu intent.
  * e.g. "2 döner zum liefern, Hauptstraße 5, bar" → "2 döner"
  */
-function stripCheckoutSlotsFromOrderText(text) {
+function stripCheckoutSlotsFromOrderText(text, menuTokens = null) {
   if (!text?.trim()) return '';
 
   const trimmed = text.trim();
@@ -118,7 +154,7 @@ function stripCheckoutSlotsFromOrderText(text) {
   }
 
   return segments
-    .filter(seg => !isCheckoutOnlySegment(seg))
+    .filter(seg => !isCheckoutOnlySegment(seg, menuTokens))
     .map(seg => stripInlineCheckoutPhrases(seg))
     .filter(seg => seg.length >= 2)
     .join(', ');
@@ -128,7 +164,7 @@ function stripCheckoutSlotsFromOrderText(text) {
  * Rule-based checkout slot extraction (M3 step 1).
  * @returns {{ orderType?: string, deliveryAddress?: string, customerName?: string, specialRequests?: string, pendingPaymentMethod?: string }}
  */
-function extractCheckoutSlotsRules(text, _norm) {
+function extractCheckoutSlotsRules(text, _norm, menuTokens = null) {
   const slots = {};
   if (!text?.trim()) return slots;
 
@@ -158,7 +194,7 @@ function extractCheckoutSlotsRules(text, _norm) {
       if (pay) slots.pendingPaymentMethod = pay;
     }
 
-    if (!slots.deliveryAddress && looksLikeAddressSegment(segment)) {
+    if (!slots.deliveryAddress && looksLikeAddressSegment(segment, menuTokens)) {
       slots.deliveryAddress = extractAddressFromSegment(segment);
     }
   }
@@ -233,9 +269,9 @@ function getMissingCheckoutSlots(session, info) {
  * Extract + persist checkout slots from inbound text (flag on only).
  * @returns {Promise<object>} updated in-memory session
  */
-async function tryApplyCheckoutSlotsFromText({ from, session, text, norm, business }) {
+async function tryApplyCheckoutSlotsFromText({ from, session, text, norm, business, menuTokens = null }) {
   if (!isConversationalBasket(business)) return session;
-  const slots = extractCheckoutSlotsRules(text, norm);
+  const slots = extractCheckoutSlotsRules(text, norm, menuTokens);
   const patch = slotsToSessionPatch(slots);
   if (!Object.keys(patch).length) return session;
   await patchSession(from, patch, session);
@@ -243,6 +279,7 @@ async function tryApplyCheckoutSlotsFromText({ from, session, text, norm, busine
 }
 
 module.exports = {
+  buildMenuFoodTokens,
   extractCheckoutSlotsRules,
   mergeCheckoutSlots,
   slotsToSessionPatch,

@@ -6,19 +6,11 @@ const { trySmartDefault, hasExplicitDrinkSize } = require('./smartDefaults');
 const { tryCategorySubmenu, isCategorySubmenuQuery } = require('./menuCategory');
 const { findTokenIndexMatches } = require('./menuTokenIndex');
 const { tokensOf } = require('./menuMapper');
+const { norm } = require('../lib/textNorm');
 
 const FAMILIEN_MARKER_RE = /\b(familien|family)\b/i;
 const GROSSE_MARKER_RE = /\b(gro[sß]e|large|xl)\b/i;
 const LARGE_CM_RE = /\b(4[5-9]|5\d|60)\s*cm\b/i;
-
-function norm(str) {
-  return str
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/ı/g, 'i')
-    .trim();
-}
 
 function scoreMatch(needle, candidate) {
   if (!candidate) return 0;

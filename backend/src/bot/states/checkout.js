@@ -2,13 +2,13 @@ const { setSession, patchSession } = require('../sessionStore');
 const { sendText, sendButtonMessage, sendListMessage, sendLocationRequest, sendCtaUrlMessage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
 const { buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView } = require('../botHelpers');
-const { getBusinessInfo } = require('../menuService');
+const { getBusinessInfo, getMenuContext } = require('../menuService');
 const { createOrder } = require('../orderService');
 const { customersRef, ordersRef } = require('../../lib/collections');
 const { reverseGeocode } = require('../../lib/geocode');
 const { isStripeConfigured } = require('../../lib/stripe');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
-const { isStrongOrderText } = require('../intentParser');
+const { isStrongOrderText, isGreetingOnly, isFreshStartCommand } = require('../intentParser');
 const { isConversationalBasket } = require('../featureFlags');
 const { tryBasketUndo } = require('../conversationalBasket');
 const { isBasketUndoPhrase, detectBotCommandAsync, BOT_COMMAND } = require('../botCommands');
@@ -18,19 +18,23 @@ const {
   isBareCheckoutDigit,
   tryCheckoutBasketOp,
 } = require('../checkoutOps');
+const { BASKET_CLEAR_PATCH } = require('../basketOps');
 const {
   applyProfilePrefill,
   getMissingCheckoutSlots,
   isDeliveryOffered,
+  isCheckoutOnlySegment,
   stripCheckoutSlotsFromOrderText,
   tryApplyCheckoutSlotsFromText,
+  buildMenuFoodTokens,
 } = require('../checkoutSlots');
 const { sendOrderEntryPrompt } = require('../orderEntry');
-const { recordParseFailure } = require('../postOrder');
+const { basketSubtotal, orderTotals } = require('../orderTotals');
+const { recordParseFailure, resetParseFailures } = require('../postOrder');
 
 // M2: bare `1` no longer confirms — use list row btn_place_order only (digit disambiguation).
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
-const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal', '2']);
+const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal']);
 
 function isPaymentEnabled(info) {
   return info.paymentEnabled === true && isStripeConfigured();
@@ -42,14 +46,6 @@ function logPaymentSkipped(businessId, info) {
   } else if (!isStripeConfigured()) {
     console.warn(`[checkout] payment skipped for ${businessId}: STRIPE_SECRET_KEY not set`);
   }
-}
-
-function orderTotals(basket, session, info) {
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
-  const isDelivery = session.orderType === 'delivery';
-  const deliveryFee = isDelivery ? (info.deliveryFee || 0) : 0;
-  const total = isDelivery ? subtotal + deliveryFee : subtotal;
-  return { subtotal, deliveryFee, total, isDelivery };
 }
 
 async function placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod }) {
@@ -168,7 +164,7 @@ async function sendOrderTypePrompt(from, lang, deliveryFee, body) {
 // Renders the basket with a below-minimum warning (Confirm button hidden) or, once the
 // subtotal meets minimumOrderValue, the plain basket with Confirm available again.
 async function sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue }) {
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  const subtotal = basketSubtotal(basket);
   const meets = !minimumOrderValue || subtotal >= minimumOrderValue;
   const buttons = basketViewButtons(lang, { includeConfirm: meets });
   const body = meets
@@ -196,7 +192,7 @@ async function proceedToDeliveryAddress({ from, session, lang, businessId }) {
 // selection. Never re-asks pickup/delivery, since that's already answered.
 async function resumeDeliveryCheckout({ from, session, lang, businessId, basket }) {
   const info = await getBusinessInfo(businessId);
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  const subtotal = basketSubtotal(basket);
   if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
     const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
     await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
@@ -259,7 +255,7 @@ async function advanceCheckoutFromSlots({ from, session, lang, businessId, baske
   }
 
   if (s.orderType === 'delivery') {
-    const subtotal = basket.reduce((sum, i) => sum + i.price * i.qty, 0);
+    const subtotal = basketSubtotal(basket);
     if (info.deliveryOpen === false) {
       const msgId = await sendButtonMessage(from, {
         body: t('deliveryClosedByOwner', lang),
@@ -337,9 +333,8 @@ function buildConfirmListRows(session, name, lang, info) {
 }
 
 async function sendConfirmList(from, session, lang, businessId, basket, name) {
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
   const info = await getBusinessInfo(businessId);
-  const displayTotal = session.orderType === 'delivery' ? subtotal + (info.deliveryFee || 0) : subtotal;
+  const { total: displayTotal } = orderTotals(basket, session, info);
   const rows = buildConfirmListRows(session, name, lang, info);
   if (process.env.NODE_ENV !== 'test') {
     console.log(`[checkout] confirm list ${businessId}: deliveryEnabled=${info.deliveryEnabled} orderType=${session.orderType ?? 'unset'} rows=${rows.map(r => r.id).join(',')}`);
@@ -355,8 +350,8 @@ async function sendConfirmList(from, session, lang, businessId, basket, name) {
 // Sends the final confirmation message and sets state to 'confirming'.
 // Call instead of transitioning to awaiting_name when a known name is available.
 async function transitionToConfirming(from, session, lang, businessId, basket, name) {
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
   const info = await getBusinessInfo(businessId);
+  const { subtotal } = orderTotals(basket, session, info);
 
   // Safety net: the delivery minimum gate normally runs earlier (btn_delivery /
   // resumeDeliveryCheckout), before the address is even asked. This re-check only
@@ -491,7 +486,7 @@ async function handleDeliveryMinimumAfterMutation(ctx, session, basket) {
   const info = await getBusinessInfo(businessId);
   if (!info.minimumOrderValue) return false;
 
-  const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+  const subtotal = basketSubtotal(basket);
   if (subtotal >= info.minimumOrderValue) return false;
 
   const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
@@ -516,9 +511,12 @@ async function gateCheckoutTextInput(ctx) {
 
   const info = await getBusinessInfo(businessId);
   let liveSession = session;
+  let menuTokens = null;
   if (isConversationalBasket(info)) {
+    const { menuTokenIndex } = await getMenuContext(businessId);
+    menuTokens = buildMenuFoodTokens(menuTokenIndex);
     liveSession = await tryApplyCheckoutSlotsFromText({
-      from, session: liveSession, text, norm, business: info,
+      from, session: liveSession, text, norm, business: info, menuTokens,
     });
     ctx.session = liveSession;
   }
@@ -584,7 +582,15 @@ async function gateCheckoutTextInput(ctx) {
             basket: [],
             bodyOverride: t('basketEmpty', lang),
           });
-          await setSession(from, { state: 'browsing', basket: [], businessId, pendingDeleteIds: [] });
+          await setSession(from, {
+            ...newSession,
+            ...BASKET_CLEAR_PATCH,
+            // undo consumed its snapshot — don't resurrect it from the stale session
+            basketUndoSnapshot: undefined,
+            basketPendingLearning: undefined,
+            state: 'browsing',
+            pendingDeleteIds: [],
+          });
           return true;
         }
         if (await handleDeliveryMinimumAfterMutation(ctx, newSession, restored)) {
@@ -624,8 +630,8 @@ async function gateCheckoutTextInput(ctx) {
         });
         await setSession(from, {
           ...opResult.session,
+          ...BASKET_CLEAR_PATCH,
           state: 'browsing',
-          basket: [],
           pendingDeleteIds: [],
         });
         return true;
@@ -637,6 +643,8 @@ async function gateCheckoutTextInput(ctx) {
       if (await handleDeliveryMinimumAfterMutation(ctx, newSession, newBasket)) {
         return true;
       }
+
+      await resetParseFailures(from, liveSession);
 
       await patchSession(from, {
         ...recomputePrepFields(info),
@@ -652,6 +660,13 @@ async function gateCheckoutTextInput(ctx) {
     await sendText(from, t('checkoutNameNotOrder', lang));
     const askId = await sendText(from, t('askName', lang));
     await setSession(from, { ...liveSession, pendingDeleteIds: askId ? [askId] : [] });
+    return true;
+  }
+
+  // Slot-only text ("zum Liefern", "Hauptstraße 5", "bar") must not become the
+  // customer's name — the slots were already applied above, so just advance.
+  if (liveSession.state === 'awaiting_name' && isConversationalBasket(info) && isCheckoutOnlySegment(text, menuTokens)) {
+    await advanceCheckoutFromSlots({ from, session: liveSession, lang, businessId, basket, info });
     return true;
   }
 
@@ -708,7 +723,7 @@ async function handleAwaitingOrderType({ from, session, lang, businessId, basket
         await setSession(from, { ...session, pendingDeleteIds: msgId ? [msgId] : [] });
         return;
       }
-      const subtotal = basket.reduce((s, i) => s + i.price * i.qty, 0);
+      const subtotal = basketSubtotal(basket);
       if (delivInfo.minimumOrderValue && subtotal < delivInfo.minimumOrderValue) {
         const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: delivInfo.minimumOrderValue });
         await setSession(from, {
@@ -793,6 +808,12 @@ async function handleAwaitingName({ from, session, lang, businessId, basket, typ
   if (type === 'text' && await gateCheckoutTextInput({
     from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
   })) return;
+
+  if (type === 'text' && (isGreetingOnly(norm) || isFreshStartCommand(norm))) {
+    const askId = await sendText(from, t('askName', lang));
+    await setSession(from, { ...session, pendingDeleteIds: askId ? [askId] : [] });
+    return;
+  }
 
   if (type === 'text' && norm.length > 0) {
     const name = text.trim().slice(0, 60);

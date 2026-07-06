@@ -8,7 +8,7 @@ const {
   isAiIntentEnabled,
   _resetLlmState,
 } = require('../llm');
-const { buildMenuLlmIndex } = require('../../bot/menuLlmIndex');
+const { buildMenuLlmIndex } = require('../menuLlmIndex');
 
 jest.mock('axios');
 
