@@ -30,11 +30,11 @@ const {
 } = require('../checkoutSlots');
 const { sendOrderEntryPrompt } = require('../orderEntry');
 const { basketSubtotal, orderTotals } = require('../orderTotals');
-const { recordParseFailure } = require('../postOrder');
+const { recordParseFailure, resetParseFailures } = require('../postOrder');
 
 // M2: bare `1` no longer confirms — use list row btn_place_order only (digit disambiguation).
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
-const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal', '2']);
+const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal']);
 
 function isPaymentEnabled(info) {
   return info.paymentEnabled === true && isStripeConfigured();
@@ -643,6 +643,8 @@ async function gateCheckoutTextInput(ctx) {
       if (await handleDeliveryMinimumAfterMutation(ctx, newSession, newBasket)) {
         return true;
       }
+
+      await resetParseFailures(from, liveSession);
 
       await patchSession(from, {
         ...recomputePrepFields(info),

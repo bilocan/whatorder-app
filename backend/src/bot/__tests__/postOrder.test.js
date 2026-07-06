@@ -66,6 +66,7 @@ describe('detectCancelOrderRequest', () => {
     expect(detectCancelOrderRequest('stornieren', 'stornieren')).toBe(true);
     expect(detectCancelOrderRequest('cancel order', 'cancel order')).toBe(true);
     expect(detectCancelOrderRequest('bestellung stornieren', 'bestellung stornieren')).toBe(true);
+    expect(detectCancelOrderRequest('iptal', 'iptal')).toBe(true);
   });
 
   test('does not match food orders', () => {
@@ -151,6 +152,52 @@ describe('tryHandlePostOrderMessage', () => {
     expect(handled).toBe(true);
     expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCallRestaurant', null);
     expect(amendOrderAddItems).not.toHaveBeenCalled();
+  });
+
+  test('bare iptal post-order routes to call-restaurant when window closed', async () => {
+    getOrder.mockResolvedValue({
+      id: ORDER_ID,
+      status: 'approved',
+      paymentMethod: 'cash',
+      items: [],
+    });
+
+    const handled = await tryHandlePostOrderMessage({
+      from: FROM,
+      session: baseSession,
+      lang: 'tr',
+      businessId: BIZ,
+      text: 'iptal',
+      norm: 'iptal',
+    });
+
+    expect(handled).toBe(true);
+    expect(cancelOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCallRestaurant', null);
+  });
+
+  test('flag off directs cash amend-window add-ons to call restaurant', async () => {
+    isConversationalBasket.mockReturnValue(false);
+    getOrder.mockResolvedValue({
+      id: ORDER_ID,
+      status: 'pending',
+      paymentMethod: 'cash',
+      items: [{ name: 'Döner', qty: 1, price: 8 }],
+    });
+
+    const handled = await tryHandlePostOrderMessage({
+      from: FROM,
+      session: baseSession,
+      lang: 'de',
+      businessId: BIZ,
+      text: 'noch ein ayran',
+      norm: 'noch ein ayran',
+    });
+
+    expect(handled).toBe(true);
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCallRestaurant', null);
+    expect(amendOrderAddItems).not.toHaveBeenCalled();
+    expect(parseBasketOps).not.toHaveBeenCalled();
   });
 
   test('amends cash order with parsed add-ons', async () => {

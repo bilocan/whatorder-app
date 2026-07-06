@@ -257,6 +257,46 @@ describe('M4 post-order routing', () => {
     );
   });
 
+  test('flag off: modify after approve gets call-restaurant reply (row 75)', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: false });
+    getSession.mockResolvedValue(POST_ORDER_SESSION);
+    getOrder.mockResolvedValue({
+      id: ORDER_ID,
+      status: 'approved',
+      paymentMethod: 'cash',
+      items: [{ name: 'Döner', qty: 1, price: 8.5 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'noch ein ayran' }));
+
+    expect(amendOrderAddItems).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(
+      FROM,
+      expect.stringContaining(BIZ_INFO.alertPhone),
+      'test_phone_id',
+    );
+  });
+
+  test('flag off: cash add-on in amend window gets call-restaurant reply', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: false });
+    getSession.mockResolvedValue(POST_ORDER_SESSION);
+    getOrder.mockResolvedValue({
+      id: ORDER_ID,
+      status: 'pending',
+      paymentMethod: 'cash',
+      items: [{ name: 'Döner', qty: 1, price: 8.5 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'noch ein ayran' }));
+
+    expect(amendOrderAddItems).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(
+      FROM,
+      expect.stringContaining(BIZ_INFO.alertPhone),
+      'test_phone_id',
+    );
+  });
+
   test('human handoff button notifies customer', async () => {
     getSession.mockResolvedValue({
       language: 'de',

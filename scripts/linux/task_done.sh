@@ -37,7 +37,7 @@ if [ -d "$DASHBOARD/src/__tests__" ]; then
     count=$(find "$DASHBOARD/src/__tests__" -name "*.test.*" 2>/dev/null | wc -l)
     if [ "$count" -gt 0 ]; then
         cd "$DASHBOARD"
-        npm test -- --watchAll=false
+        npm test
         pass "npm test ($count test files)"
         cd "$ROOT"
     else

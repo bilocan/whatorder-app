@@ -198,6 +198,24 @@ describe('buildSessionWrite', () => {
     expect(payload.basketPendingLearning).toEqual(pending);
     expect(payload.textMenuCategory).toBe('Kebap');
   });
+
+  test('preserves restaurantPickerUnfiltered on unrelated patch', () => {
+    const payload = buildSessionWrite(
+      {
+        state: 'selecting_restaurant',
+        language: 'de',
+        businessId: null,
+        basket: [],
+        restaurantPickerUnfiltered: true,
+        lat: 48.2,
+        lng: 16.3,
+      },
+      { pendingDeleteIds: ['list_msg_id'] },
+    );
+
+    expect(payload.restaurantPickerUnfiltered).toBe(true);
+    expect(payload.lat).toBe(48.2);
+  });
 });
 
 // ---------------------------------------------------------------------------

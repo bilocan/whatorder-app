@@ -16,7 +16,7 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.dev') });
 const fs   = require('fs');
 const path = require('path');
-const { db } = require('../lib/firebase');
+const { businessRef, menuRef } = require('../lib/collections');
 
 const DEFAULT_IMAGE = process.env.CATALOG_DEFAULT_IMAGE_URL || 'https://whatorder.app/placeholder.png';
 const PRODUCT_URL   = process.env.CATALOG_PRODUCT_URL       || 'https://whatorder.app';
@@ -36,7 +36,7 @@ async function main() {
   }
 
   console.log('Connecting to Firestore...');
-  const bizSnap = await db.collection('businesses').doc(businessId).get();
+  const bizSnap = await businessRef(businessId).get();
   if (!bizSnap.exists) {
     console.error(`Business "${businessId}" not found in Firestore`);
     process.exit(1);
@@ -44,9 +44,7 @@ async function main() {
   const biz = bizSnap.data();
   console.log(`Business found: ${biz.name}`);
 
-  const menuSnap = await db
-    .collection('businesses').doc(businessId)
-    .collection('menu')
+  const menuSnap = await menuRef(businessId)
     .where('available', '==', true)
     .get();
 

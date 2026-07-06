@@ -41,7 +41,7 @@ if (Test-Path $testDir) {
     $testFiles = Get-ChildItem $testDir -Recurse -Include "*.test.ts", "*.test.tsx" -ErrorAction SilentlyContinue
     if ($testFiles.Count -gt 0) {
         Push-Location $dashboard
-        npm test -- --watchAll=false
+        npm test
         if ($LASTEXITCODE -ne 0) { Fail "npm test" }
         Pass "npm test ($($testFiles.Count) test files)"
         Pop-Location

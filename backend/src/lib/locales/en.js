@@ -106,7 +106,6 @@ module.exports = {
   cancelOrderBtn: () => 'Cancel',
   choosePaymentMethod: () => 'Please tap Card or Cash to continue.',
   checkoutNameNotOrder: () => 'That sounds like an order, not a name. What name should we put on the order?',
-  checkoutNoteOrOrder: () => 'Did you mean a note, or did you want to add something to your basket? Type your note only, or add items via the basket first.',
   checkoutDigitClarify: () => 'Did you mean a line number from your basket? Type item names or use the confirm button.',
   checkoutBasketUpdated: (basketText) => `✅ Basket updated.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'That sounds like an order. Please enter your delivery address, or add items via the basket first.',

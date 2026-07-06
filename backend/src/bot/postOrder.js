@@ -24,7 +24,7 @@ const HANDOFF_BUTTON_ID = 'btn_human_handoff';
 
 const CANCEL_ORDER_PHRASES = new Set([
   'stornieren', 'storno', 'cancel order', 'bestellung stornieren', 'bestellung abbrechen',
-  'siparis iptal', 'siparisi iptal', 'iptal et', 'cancel my order',
+  'siparis iptal', 'siparisi iptal', 'iptal et', 'iptal', 'cancel my order',
 ]);
 
 const CANCEL_ORDER_RE = /\b(stornier(?:en|e)?|cancel(?:\s+(?:my\s+)?order)?|bestellung\s+(?:stornieren|abbrechen)|siparis(?:i)?\s+iptal)\b/i;

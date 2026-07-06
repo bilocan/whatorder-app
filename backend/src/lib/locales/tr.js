@@ -106,7 +106,6 @@ module.exports = {
   cancelOrderBtn: () => 'İptal',
   choosePaymentMethod: () => 'Lütfen Kart veya Nakit seçin.',
   checkoutNameNotOrder: () => 'Bu bir sipariş gibi görünüyor, isim değil. Sipariş için adınız nedir?',
-  checkoutNoteOrOrder: () => 'Not mu demek istediniz, yoksa sepete bir şey mi eklemek istiyorsunuz? Sadece notunuzu yazın veya önce sepete ürün ekleyin.',
   checkoutDigitClarify: () => 'Sepetteki bir satır numarasını mı kastettiniz? Ürün adı yazın veya onay düğmesini kullanın.',
   checkoutBasketUpdated: (basketText) => `✅ Sepet güncellendi.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'Bu bir sipariş gibi görünüyor. Lütfen teslimat adresinizi girin veya önce sepete ürün ekleyin.',

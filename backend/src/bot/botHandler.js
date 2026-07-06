@@ -14,6 +14,7 @@ const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
 const { handleIntentCustomize } = require('./intentCustomize');
 const { handleDisambiguatingIntent } = require('./intentDisambiguate');
 const { parseOrderDeepLink } = require('../lib/chatDeepLink');
+const { redactPhone } = require('../lib/logRedact');
 const {
   tryReplyOrderStatus,
   tryHandlePostOrderMessage,
@@ -21,7 +22,8 @@ const {
   handleHumanHandoffButton,
 } = require('./postOrder');
 
-const SWITCH_KEYWORDS = new Set(['switch', 'change', 'restaurants', 'back', 'home', 'wechseln', 'zurück', 'zuruck', 'değiştir', 'degistir', 'restoranlar', 'start', 'starten']);
+// Restaurant switch only — "start"/"starten" are fresh-start at the current venue (see isFreshStartCommand).
+const SWITCH_KEYWORDS = new Set(['switch', 'change', 'restaurants', 'back', 'home', 'wechseln', 'zurück', 'zuruck', 'değiştir', 'degistir', 'restoranlar']);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsing sessions (empty basket only)
 // Greeting while stuck in checkout → fresh menu/reorder, not "type YES or NO" (empty basket only)
 const GREETING_FRESH_START_STATES = new Set([
@@ -85,7 +87,7 @@ async function enterRestaurantDirect(from, bid, lang) {
 //   { type: 'flow_completion', data: { item_id, protein, quantity, sauces_text, special_requests, total, unit_price } }
 async function handleMessage(routing, { from, contactName, type, text, id, items, data, latitude, longitude }) {
   if (!routing.businessIds.length) {
-    console.warn(`[bot] no restaurants routed for this WhatsApp number — ignoring message from ${from}`);
+    console.warn(`[bot] no restaurants routed for this WhatsApp number — ignoring message from ${redactPhone(from)}`);
     return;
   }
 

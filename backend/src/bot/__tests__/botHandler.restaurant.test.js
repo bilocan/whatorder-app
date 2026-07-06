@@ -439,6 +439,54 @@ describe('Multi-restaurant: switch keyword from browsing state', () => {
   });
 });
 
+describe('Multi-restaurant: start vs switch (Asana 1216105866871196)', () => {
+  beforeEach(() => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO)
+    );
+  });
+
+  test('"start" with basket clears at current restaurant — no picker', async () => {
+    getSession.mockResolvedValue(multiSession({
+      state: 'browsing',
+      businessId: 'biz_a',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      lat: 48.1980,
+      lng: 16.3730,
+    }));
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'start' }));
+
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendLocationRequest).not.toHaveBeenCalled();
+    expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringMatching(/Switching restaurants/i));
+    expect(patchSession).toHaveBeenCalled();
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ businessId: null }));
+  });
+
+  test('"switch" still opens restaurant picker', async () => {
+    const BIZ_A_WITH_COORDS = { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 };
+    const BIZ_B_WITH_COORDS = { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 };
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a' ? BIZ_A_WITH_COORDS : BIZ_B_WITH_COORDS)
+    );
+    getSession.mockResolvedValue(multiSession({
+      state: 'browsing',
+      businessId: 'biz_a',
+      lat: 48.1980,
+      lng: 16.3730,
+    }));
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'switch' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'selecting_restaurant',
+      businessId: null,
+    }));
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+});
+
 // ─── Use case: TTL safety net for abandoned browsing sessions ─────────────────
 
 describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', () => {

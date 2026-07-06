@@ -13,6 +13,7 @@ const BASKET_EDIT_FIELDS = [
   'basketPendingLearning',
 ];
 const POST_ORDER_FIELDS = ['pendingAmendOrderId', 'pendingAmendPlacedAt', 'consecutiveParseFailures'];
+const MULTI_RESTAURANT_FIELDS = ['restaurantPickerUnfiltered'];
 
 /** Firestore rejects undefined at any depth — strip before write. */
 function stripUndefinedDeep(value) {
@@ -40,7 +41,7 @@ function buildSessionWrite(session, overrides) {
     pendingDeleteIds: session.pendingDeleteIds ?? [],
     whatsappPhoneNumberId: session.whatsappPhoneNumberId ?? null,
   };
-  for (const key of [...CHECKOUT_FIELDS, ...MENU_BROWSE_FIELDS, ...INTENT_FIELDS, ...REORDER_FIELDS, ...DISAMBIGUATION_FIELDS, ...BASKET_EDIT_FIELDS, ...POST_ORDER_FIELDS]) {
+  for (const key of [...CHECKOUT_FIELDS, ...MENU_BROWSE_FIELDS, ...INTENT_FIELDS, ...REORDER_FIELDS, ...DISAMBIGUATION_FIELDS, ...BASKET_EDIT_FIELDS, ...POST_ORDER_FIELDS, ...MULTI_RESTAURANT_FIELDS]) {
     if (session[key] != null) data[key] = session[key];
   }
   const merged = { ...data, ...overrides };

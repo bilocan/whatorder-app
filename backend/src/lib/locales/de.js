@@ -106,7 +106,6 @@ module.exports = {
   cancelOrderBtn: () => 'Abbrechen',
   choosePaymentMethod: () => 'Bitte tippe auf Karte oder Bar.',
   checkoutNameNotOrder: () => 'Das klingt nach einer Bestellung, nicht nach einem Namen. Wie lautet Ihr Name?',
-  checkoutNoteOrOrder: () => 'Meinten Sie eine Notiz oder möchten Sie etwas zum Warenkorb hinzufügen? Schreiben Sie nur Ihre Notiz, oder bestellen Sie zuerst über den Warenkorb.',
   checkoutDigitClarify: () => 'Meinten Sie eine Zeilennummer aus dem Warenkorb? Bitte Artikelnamen tippen oder die Bestätigen-Schaltfläche nutzen.',
   checkoutBasketUpdated: (basketText) => `✅ Warenkorb aktualisiert.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'Das klingt nach einer Bestellung. Bitte geben Sie Ihre Lieferadresse ein, oder fügen Sie Artikel über den Warenkorb hinzu.',

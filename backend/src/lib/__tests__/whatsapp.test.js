@@ -324,6 +324,8 @@ describe('production paths (NODE_ENV overridden)', () => {
 
     await expect(sendText('+43123456789', 'Hi')).rejects.toThrow('Bad request');
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('400'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('to=***6789'));
+    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('43123456789'));
 
     consoleSpy.mockRestore();
   });

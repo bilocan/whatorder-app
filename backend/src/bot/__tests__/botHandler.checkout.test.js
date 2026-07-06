@@ -339,6 +339,34 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
     }), 'test_phone_id');
   });
 
+  test('flag on — successful checkout basket op resets parse-failure counter', async () => {
+    const session = {
+      language: 'de', state: 'awaiting_name', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      prepMins: 20,
+      pickupTime: '14:30',
+      consecutiveParseFailures: 1,
+      whatsappPhoneNumberId: 'test_phone_id',
+    };
+    const updatedBasket = [
+      { name: 'Döner', qty: 1, price: 8.50 },
+      { name: 'Ayran', qty: 1, price: 2.00 },
+    ];
+    tryCheckoutBasketOp.mockResolvedValueOnce({
+      handled: true,
+      basket: updatedBasket,
+      session,
+    });
+
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue(session);
+
+    await handleMessage(ROUTING, msg({ text: 'noch ein ayran' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, { consecutiveParseFailures: 0 }, session);
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+  });
+
   test('flag on — basket-clearing op mid-checkout also clears checkout slots (row 61)', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true, deliveryEnabled: true });
     getSession.mockResolvedValue({

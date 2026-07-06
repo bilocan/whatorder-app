@@ -2,6 +2,7 @@ const { handleMessage } = require('../bot/botHandler');
 const { phoneRoutingRef, processedMessageRef } = require('../lib/collections');
 const { admin } = require('../lib/firebase');
 const { assertWebhookSignature } = require('../lib/whatsappWebhookSecurity');
+const { redactLogValue } = require('../lib/logRedact');
 
 async function resolveRouting(phoneNumberId) {
   if (phoneNumberId) {
@@ -43,7 +44,7 @@ async function receiveWebhook(req, res) {
     if (statuses) {
       console.log(`[webhook] status update: ${statuses.map(s => `${s.status}/${s.id}`).join(', ')}`);
     } else {
-      console.log('[webhook] non-message event received', JSON.stringify(req.body?.entry?.[0]?.changes?.[0]?.field ?? req.body));
+      console.log('[webhook] non-message event received', redactLogValue(req.body?.entry?.[0]?.changes?.[0]?.field ?? req.body));
     }
     res.status(200).json({ status: 'ok' });
     return;
@@ -73,7 +74,7 @@ async function receiveWebhook(req, res) {
     if (iType === 'list_reply') {
       const lr = interactive.list_reply;
       if (!lr?.id) {
-        console.warn('[webhook] list_reply missing id', JSON.stringify(interactive));
+        console.warn('[webhook] list_reply missing id', redactLogValue(interactive));
         res.status(200).json({ status: 'ok' });
         return;
       }
@@ -81,7 +82,7 @@ async function receiveWebhook(req, res) {
     } else if (iType === 'button_reply') {
       const br = interactive.button_reply;
       if (!br?.id) {
-        console.warn('[webhook] button_reply missing id', JSON.stringify(interactive));
+        console.warn('[webhook] button_reply missing id', redactLogValue(interactive));
         res.status(200).json({ status: 'ok' });
         return;
       }
