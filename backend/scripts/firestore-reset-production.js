@@ -1,5 +1,7 @@
 /**
- * Reset whatorder-fire to a clean production baseline:
+ * Reset a Firestore environment to a clean baseline. Target project comes from
+ * FIREBASE_PROJECT_ID (default whatorder-fire = Test); the backups bucket is
+ * derived as <project>-backups, so the same script serves test and prod.
  *   1. Delete transactional data (cleanup reset)
  *   2. Import golden infra-only GCS backup
  *   3. Run automated smoke tests
@@ -8,13 +10,14 @@
  * Usage:
  *   npm run firestore:reset-production -- --dry-run
  *   npm run firestore:reset-production -- --confirm
- *   npm run firestore:reset-production -- --confirm --infra-backup=2026-06-27-in8ra
+ *   npm run firestore:reset-production -- --confirm --infra-backup=2026-07-06-infra
  */
 require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
 
 const {
   parseResetProductionArgs,
   verifyInfraBackupExists,
+  verifyInfraBackupNotEmpty,
   runNodeScript,
   runInfraImport,
   printResetPlan,
@@ -27,8 +30,9 @@ async function main() {
   if (opts.dryRun) {
     printResetPlan(opts);
     try {
-      verifyInfraBackupExists(opts.metadataPath);
-      console.log(`Backup OK: ${opts.metadataPath}`);
+      verifyInfraBackupExists(opts.metadataPath, opts.project);
+      const totalBytes = verifyInfraBackupNotEmpty(opts.gcsImportUri, opts.project);
+      console.log(`Backup OK (${totalBytes} bytes): ${opts.metadataPath}`);
     } catch (err) {
       console.error(String(err.message));
       process.exitCode = 1;
@@ -42,13 +46,14 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('Firestore production reset\n');
+  console.log(`Firestore reset — ${opts.project}\n`);
   printResetPlan(opts);
 
   if (!opts.skipImport) {
     console.log('\nVerifying infra backup…');
-    verifyInfraBackupExists(opts.metadataPath);
-    console.log('Backup found.');
+    verifyInfraBackupExists(opts.metadataPath, opts.project);
+    const totalBytes = verifyInfraBackupNotEmpty(opts.gcsImportUri, opts.project);
+    console.log(`Backup found (${totalBytes} bytes).`);
   }
 
   if (!opts.skipCleanup) {
@@ -68,10 +73,10 @@ async function main() {
 
   console.log('\n--- Step 4: manual checks ---');
   printManualChecklist();
-  console.log('\nProduction reset complete.');
+  console.log(`\nFirestore reset complete (${opts.project}).`);
 }
 
 main().catch((err) => {
-  console.error('Production reset failed:', err.message || err);
+  console.error('Firestore reset failed:', err.message || err);
   process.exit(1);
 });

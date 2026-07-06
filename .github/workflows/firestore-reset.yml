@@ -1,0 +1,88 @@
+# Destructive: wipes transactional Firestore data and re-imports golden infra backup.
+# Manual trigger only — never runs on push/PR.
+#
+# Environment-parametrized: Test resets whatorder-fire, Production resets
+# whatorder-fire-prod. Project ID and credentials come from the selected GitHub
+# Environment (vars.GCP_PROJECT + WIF secrets); the backups bucket is derived
+# as <project>-backups by the reset script.
+#
+# NOTE: the Production deploy SA (github-deploy@whatorder-fire-prod) currently
+# has deploy roles only. Before the first prod reset it additionally needs:
+# datastore.importExportAdmin + datastore.user (cleanup writes via ADC) and
+# storage.objectViewer on the backups bucket.
+name: Firestore reset
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'Test'
+        type: choice
+        options:
+          - Test
+          - Production
+      infra_backup_folder:
+        description: 'GCS folder under gs://<project>-backups/manual/ (golden infra export)'
+        required: true
+        default: '2026-07-06-infra'
+        type: string
+      confirm:
+        description: 'Type the exact project ID to reset (whatorder-fire or whatorder-fire-prod)'
+        required: true
+        type: string
+
+jobs:
+  reset:
+    name: Reset DB + infra import + smoke (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Validate confirmation matches target project
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          TARGET_PROJECT: ${{ vars.GCP_PROJECT }}
+        run: |
+          if [ -z "$TARGET_PROJECT" ]; then
+            echo "::error::vars.GCP_PROJECT is not set on the '${{ inputs.environment }}' environment."
+            exit 1
+          fi
+          if [ "$CONFIRM" != "$TARGET_PROJECT" ]; then
+            echo "::error::Aborted: confirm input ('$CONFIRM') must be the exact project ID being reset ('$TARGET_PROJECT')."
+            exit 1
+          fi
+          echo "Confirmed reset target: $TARGET_PROJECT"
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install
+
+      - name: Firestore reset (cleanup + infra import + smoke)
+        working-directory: backend
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.GCP_PROJECT }}
+          GOLDEN_INFRA_BACKUP: ${{ inputs.infra_backup_folder }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: |
+          npm run firestore:reset-production -- --confirm --infra-backup="${{ inputs.infra_backup_folder }}"
