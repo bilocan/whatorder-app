@@ -1,6 +1,7 @@
+import type { DashboardT } from '../i18n';
 import type { Order } from '../types';
 
-export function paymentBadge(order: Order, t: (key: string) => string): { label: string; color: string } {
+export function paymentBadge(order: Order, t: DashboardT): { label: string; color: string } {
   const status = order.paymentStatus;
   if (!status || status === 'cash') return { label: t('orders.payment.cash'), color: '#6b7280' };
   if (status === 'paid') return { label: t('orders.payment.paid'), color: '#22c55e' };

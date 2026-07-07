@@ -11,6 +11,7 @@ import { customizationSummary, buildMenuPayload, resolveMenuItemOptionGroups } f
 import { useOptionGroupLibrary } from '../hooks/useOptionGroupLibrary';
 import { uploadMenuPhoto, deleteMenuPhotoBestEffort, MenuPhotoError } from '../lib/menuPhoto';
 import { useConfirm } from '../components/ConfirmDialog';
+import type { DashboardT } from '../i18n';
 import type { MenuItem } from '../types';
 
 const PencilIcon = () => (
@@ -32,7 +33,7 @@ const TrashIcon = () => (
 const STANDARD_CATEGORIES: MenuItem['category'][] = ['mains', 'sides', 'drinks'];
 const CATEGORY_ORDER: Record<string, number> = { mains: 0, sides: 1, drinks: 2 };
 
-function categoryLabel(cat: string, t: (key: string) => string): string {
+function categoryLabel(cat: string, t: DashboardT): string {
   if (STANDARD_CATEGORIES.includes(cat as MenuItem['category'])) {
     return t(`menu.category.${cat}`);
   }

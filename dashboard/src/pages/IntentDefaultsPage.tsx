@@ -10,6 +10,7 @@ import {
   buildStemDefaultsForKebab,
   customStemsFromDefaults,
   drinkItemsFromMenu,
+  intentOutcomeText,
   kebabItemIdFromStemDefaults,
   kebabItemsFromMenu,
   mergeMenuMatchDefaults,
@@ -78,7 +79,6 @@ function TestRow({
   onTest,
   testing,
   result,
-  t,
 }: {
   label: string;
   phrase: string;
@@ -86,8 +86,8 @@ function TestRow({
   onTest: () => void;
   testing: boolean;
   result: TestResult | null;
-  t: (key: string) => string;
 }) {
+  const { t } = useTranslation();
   const status = result ? outcomeLabel(result.outcome) : null;
   const statusColor = status === 'pass' ? '#16a34a' : status === 'warn' ? '#d97706' : '#dc2626';
 
@@ -107,7 +107,7 @@ function TestRow({
       {result && (
         <div style={{ marginTop: '0.5rem', fontSize: '0.82rem' }}>
           <span style={{ color: statusColor, fontWeight: 600 }}>
-            {t(`intentDefaults.outcome.${result.outcome}`, { defaultValue: result.outcome })}
+            {intentOutcomeText(result.outcome, t)}
           </span>
           {result.matched.length > 0 && (
             <span style={{ color: '#444' }}>
@@ -128,14 +128,13 @@ function ItemSelect({
   value,
   onChange,
   drinkItems,
-  t,
 }: {
   items: MenuItem[];
   value: string;
   onChange: (id: string) => void;
   drinkItems: MenuItem[];
-  t: (key: string) => string;
 }) {
+  const { t } = useTranslation();
   const drinkIds = new Set(drinkItems.map((i) => i.id));
   const drinks = items.filter((i) => drinkIds.has(i.id));
   const rest = items.filter((i) => !drinkIds.has(i.id));
@@ -342,7 +341,6 @@ export default function IntentDefaultsPage() {
           onTest={() => runTest(pizzaTestPhrase, setPizzaTestResult, setTestingPizza)}
           testing={testingPizza}
           result={pizzaTestResult}
-          t={t}
         />
       </div>
 
@@ -382,7 +380,6 @@ export default function IntentDefaultsPage() {
           onTest={() => runTest(kebabTestPhrase, setKebabTestResult, setTestingKebab)}
           testing={testingKebab}
           result={kebabTestResult}
-          t={t}
         />
       </div>
 
@@ -433,7 +430,6 @@ export default function IntentDefaultsPage() {
                 drinkItems={drinkItems}
                 value={row.itemId}
                 onChange={(id) => updateCustomStem(index, { itemId: id })}
-                t={t}
               />
             </div>
             <button
@@ -482,7 +478,6 @@ export default function IntentDefaultsPage() {
           onTest={() => runTest(customTestPhrase, setCustomTestResult, setTestingCustom)}
           testing={testingCustom}
           result={customTestResult}
-          t={t}
         />
       </div>
 

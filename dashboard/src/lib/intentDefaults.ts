@@ -1,4 +1,5 @@
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import type { DashboardT } from '../i18n';
 import { db } from './firebase';
 import type { MenuItem, MenuMatch } from '../types';
 
@@ -131,6 +132,10 @@ export function outcomeLabel(outcome: string): 'pass' | 'warn' | 'fail' {
   if (outcome === 'proposal') return 'pass';
   if (outcome === 'disambiguation') return 'warn';
   return 'fail';
+}
+
+export function intentOutcomeText(outcome: string, t: DashboardT): string {
+  return t(`intentDefaults.outcome.${outcome}`, { defaultValue: outcome });
 }
 
 export function serializeCustomStems(stems: CustomStemEntry[]): string {

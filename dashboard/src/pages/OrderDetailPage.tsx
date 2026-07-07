@@ -12,6 +12,7 @@ import { shortId } from '../lib/shortId';
 import { API_URL } from '../lib/apiUrl';
 import { authHeaders, jsonAuthHeaders } from '../lib/apiAuth';
 import { matchesActivePhoneRouting } from '../lib/orderPhoneFilter';
+import type { DashboardT } from '../i18n';
 
 type ActionButton = { labelKey: string; action: string; style?: React.CSSProperties };
 
@@ -50,7 +51,7 @@ const STATUS_COLOR: Record<string, string> = {
   completed:  '#22c55e',
 };
 
-function SettlementStatusLine({ order, t }: { order: Order; t: (key: string, opts?: Record<string, unknown>) => string }) {
+function SettlementStatusLine({ order, t }: { order: Order; t: DashboardT }) {
   if (order.settlementStatus === 'paid_out' && order.paidAt) {
     return (
       <p style={{ color: '#16a34a', fontSize: '0.85rem', margin: '0.2rem 0 0' }}>
@@ -84,7 +85,7 @@ function SettlementStatusLine({ order, t }: { order: Order; t: (key: string, opt
   return null;
 }
 
-function SettlementInfo({ order, t }: { order: Order; t: (key: string, opts?: Record<string, unknown>) => string }) {
+function SettlementInfo({ order, t }: { order: Order; t: DashboardT }) {
   const badge = paymentBadge(order, t);
 
   return (

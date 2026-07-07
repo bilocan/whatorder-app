@@ -8,6 +8,7 @@ import {
   kebabItemsFromMenu,
   mergeMenuMatchDefaults,
   outcomeLabel,
+  intentOutcomeText,
   pizzaCategoriesFromMenu,
   serializeCustomStems,
 } from '../lib/intentDefaults';
@@ -130,5 +131,11 @@ describe('intentDefaults helpers', () => {
     expect(outcomeLabel('proposal')).toBe('pass');
     expect(outcomeLabel('disambiguation')).toBe('warn');
     expect(outcomeLabel('no_match')).toBe('fail');
+  });
+
+  it('formats outcome text with i18next options', () => {
+    const t = ((key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key) as import('../i18n').DashboardT;
+    expect(intentOutcomeText('proposal', t)).toBe('proposal');
+    expect(intentOutcomeText('unknown_outcome', t)).toBe('unknown_outcome');
   });
 });
