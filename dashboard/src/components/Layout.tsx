@@ -32,6 +32,7 @@ function LayoutContent() {
     { to: '/menu',      label: t('nav.menu') },
     { to: '/option-groups', label: t('nav.optionGroups') },
     { to: '/intent-playground', label: t('nav.intentPlayground') },
+    { to: '/intent-defaults', label: t('nav.intentDefaults') },
     { to: '/learned-phrases', label: t('nav.learnedPhrases') },
     { to: '/settings',  label: t('nav.settings') },
   ];

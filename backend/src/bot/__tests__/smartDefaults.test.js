@@ -58,6 +58,33 @@ describe('trySmartDefault — kebab', () => {
     expect(trySmartDefault('dner', KEBAB_MENU)?.id).toBe('s1');
     expect(classifyMenuMatch('dner', KEBAB_MENU).item.id).toBe('s1');
   });
+
+  test('owner stemDefaults override ambiguous döner list', () => {
+    const menu = [
+      { id: 'd1', name: 'Döner', price: 8.5, available: true },
+      { id: 'd2', name: 'Döner Box', price: 9.5, available: true },
+      { id: 's1', name: 'Kebap Sandwich Huhn', price: 7.5, available: true },
+    ];
+    const menuMatch = {
+      defaults: {
+        stemDefaults: { doner: 's1', döner: 's1', kebap: 's1' },
+      },
+    };
+    expect(trySmartDefault('döner', menu, menuMatch)?.id).toBe('s1');
+    expect(classifyMenuMatch('döner', menu, menuMatch).type).toBe('unique');
+    expect(classifyMenuMatch('döner', menu, menuMatch).item.id).toBe('s1');
+  });
+
+  test('owner kebap default does not override explicit dürüm', () => {
+    const menu = [
+      { id: 'dur', name: 'Enes Kebap Special Dürüm Huhn', price: 9.5, available: true },
+      { id: 's1', name: 'Kebap Sandwich Huhn', price: 7.5, available: true },
+    ];
+    const menuMatch = {
+      defaults: { stemDefaults: { kebap: 's1', doner: 's1' } },
+    };
+    expect(classifyMenuMatch('dürüm', menu, menuMatch).item.id).toBe('dur');
+  });
 });
 
 describe('classifyMenuMatch with smart defaults', () => {

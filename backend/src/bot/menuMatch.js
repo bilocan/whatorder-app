@@ -210,7 +210,7 @@ function applyPizzaSizePreference(items, dishName, menuMatch = null) {
 
 function finishAmbiguous(rawName, items, menuMatch = null) {
   if (!isCategorySubmenuQuery(rawName, items, menuMatch)) {
-    const picked = trySmartDefault(rawName, items);
+    const picked = trySmartDefault(rawName, items, menuMatch);
     if (picked) return { type: 'unique', item: picked };
   }
   return {

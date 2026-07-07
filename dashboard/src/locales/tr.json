@@ -18,6 +18,7 @@
     "optionGroups": "Özelleştirmeler",
     "learnedPhrases": "İfadeler",
     "intentPlayground": "Botu eğit",
+    "intentDefaults": "Intent varsayılanları",
     "settings": "Ayarlar",
     "admin": "Admin",
     "adminMap": "Harita",
@@ -759,5 +760,30 @@
     "loading": "Harita yükleniyor…",
     "error": "Restoranlar yüklenemedi.",
     "empty": "Henüz koordinatlı restoran yok."
+  },
+  "intentDefaults": {
+    "title": "Intent varsayılanları",
+    "subtitle": "Müşteri belirsiz sipariş verdiğinde bot, uzun liste yerine bu ürünleri önerir.",
+    "pizzaTitle": "Pizza boyutu",
+    "pizzaHint": "Müşteri Familien veya büyük boy demediğinde kullanılır.",
+    "pizzaCategory": "Varsayılan pizza kategorisi",
+    "kebabTitle": "Kebap / Döner",
+    "kebabHint": "Müşteri döner, kebap vb. demeden varyant belirtmediğinde varsayılan ürün.",
+    "kebabItem": "Varsayılan kebap ürünü",
+    "stems": "Şunlar için geçerli",
+    "testPhrase": "Test ifadesi",
+    "test": "Test",
+    "testing": "Test ediliyor…",
+    "save": "Varsayılanları kaydet",
+    "saving": "Kaydediliyor…",
+    "saved": "Kaydedildi",
+    "saveError": "Kaydetme başarısız",
+    "unsaved": "Kaydedilmemiş değişiklikler",
+    "outcome": {
+      "proposal": "Öneri",
+      "disambiguation": "Seçim listesi",
+      "no_match": "Eşleşme yok",
+      "error": "Hata"
+    }
   }
 }

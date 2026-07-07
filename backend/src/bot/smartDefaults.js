@@ -172,12 +172,49 @@ function pickKebabDefault(candidates, rawName) {
   return null;
 }
 
-function trySmartDefault(rawName, candidates) {
+const STEM_DEFAULT_EXCLUSIONS = {
+  kebap: ['durum', 'dürüm', 'special', 'box', 'falafel', 'pizza'],
+  kebab: ['durum', 'dürüm', 'special', 'box', 'falafel', 'pizza'],
+  doner: ['box', 'pizza', 'durum', 'dürüm', 'special', 'falafel'],
+  döner: ['box', 'pizza', 'durum', 'dürüm', 'special', 'falafel'],
+};
+
+function dishConflictsWithStemDefault(dish, stem) {
+  const exclusions = STEM_DEFAULT_EXCLUSIONS[norm(stem)] ?? [];
+  return exclusions.some(v => containsWord(dish, v));
+}
+
+function pickOwnerStemDefault(rawName, candidates, menuMatch) {
+  const stemDefaults = menuMatch?.defaults?.stemDefaults;
+  if (!stemDefaults || typeof stemDefaults !== 'object') return null;
+
+  const dish = norm(extractDishNameForMatch(rawName) || rawName);
+  const expanded = new Set(expandNeedle(dish));
+  expanded.add(dish);
+
+  for (const [stem, itemId] of Object.entries(stemDefaults)) {
+    if (!itemId) continue;
+    const stemNorm = norm(stem);
+    if (dishConflictsWithStemDefault(dish, stem)) continue;
+    const matches = expanded.has(stemNorm)
+      || dish === stemNorm
+      || containsWord(dish, stemNorm);
+    if (!matches) continue;
+    const found = (candidates ?? []).find(c => c.id === itemId);
+    if (found) return found;
+  }
+  return null;
+}
+
+function trySmartDefault(rawName, candidates, menuMatch = null) {
   const list = (candidates ?? []).filter(c => c?.id && c?.name);
   if (list.length <= 1) return list[0] ?? null;
 
   const marked = pickMarkedDefault(list);
   if (marked) return marked;
+
+  const ownerStem = pickOwnerStemDefault(rawName, list, menuMatch);
+  if (ownerStem) return ownerStem;
 
   if (isDrinkQuery(rawName, list)) {
     return pickStandardDrinkSize(list, rawName);
@@ -197,6 +234,7 @@ function trySmartDefault(rawName, candidates) {
 
 module.exports = {
   trySmartDefault,
+  pickOwnerStemDefault,
   isDrinkQuery,
   isDrinkStem,
   isKebabQuery,
