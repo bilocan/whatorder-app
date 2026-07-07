@@ -28,6 +28,7 @@ module.exports = {
 
   itemAdded: (qty, name, count, total) => `✅ ${qty}× ${name} eklendi.\n🛒 ${count} ürün · €${total}`,
   itemsAdded: (addedQty, count, total) => `✅ ${addedQty} ürün eklendi.\n🛒 ${count} ürün · €${total}`,
+  itemsAddedList: (lines, count, total) => `✅ ${lines} eklendi.\n🛒 ${count} ürün · €${total}`,
   itemRemoved: (name, count, total) => `✅ ${name} çıkarıldı.\n🛒 ${count} ürün · €${total}`,
   itemsRemoved: (removedQty, count, total) => `✅ ${removedQty} ürün çıkarıldı.\n🛒 ${count} ürün · €${total}`,
   qtyUpdated: (name, qty, count, total) => `✅ ${name} → ${qty}×\n🛒 ${count} ürün · €${total}`,

@@ -240,13 +240,14 @@ function parseOptionReply(id) {
   return { groupId: rest.slice(0, sep), optionId: rest.slice(sep + 1) };
 }
 
-function newCustomizeState({ queue, readyBasket, unitMode = null, unitIndex = 1 }) {
+function newCustomizeState({ queue, readyBasket, unitMode = null, unitIndex = 1, originalBasket = null }) {
   const item = queue[0];
   return {
     queue,
     groupIdx: 0,
     selections: {},
     readyBasket,
+    originalBasket,
     unitMode,
     unitIndex,
     unitTotal: item.qty,
@@ -357,8 +358,8 @@ function lineForBasket(session, { name, qty, price }) {
   return toBasketLine({ name, qty, price }, session.pendingIntentNote);
 }
 
-async function finishCustomization({ from, session, lang, businessId, readyBasket }) {
-  const beforeBasket = session.basket ?? [];
+async function finishCustomization({ from, session, lang, businessId, readyBasket, originalBasket = null }) {
+  const beforeBasket = originalBasket ?? session.basket ?? [];
   await setSession(from, buildSessionWrite(session, {
     state: 'browsing',
     language: lang,
@@ -375,13 +376,13 @@ async function finishCustomization({ from, session, lang, businessId, readyBaske
   });
 }
 
-async function startNextItem(from, session, lang, businessId, queue, readyBasket) {
+async function startNextItem(from, session, lang, businessId, queue, readyBasket, originalBasket = null) {
   if (!queue.length) {
-    await finishCustomization({ from, session, lang, businessId, readyBasket });
+    await finishCustomization({ from, session, lang, businessId, readyBasket, originalBasket });
     return;
   }
   const item = queue[0];
-  let ic = newCustomizeState({ queue, readyBasket });
+  let ic = newCustomizeState({ queue, readyBasket, originalBasket });
 
   if (item.prefilledSelections) {
     ic.selections = { ...item.prefilledSelections };
@@ -437,7 +438,7 @@ async function completeCurrentUnit({ from, session, lang, businessId, ic, select
     return;
   }
 
-  await startNextItem(from, session, lang, businessId, ic.queue.slice(1), readyBasket);
+  await startNextItem(from, session, lang, businessId, ic.queue.slice(1), readyBasket, ic.originalBasket);
 }
 
 async function advanceCustomization({ from, session, lang, businessId, selections }) {
@@ -482,13 +483,13 @@ async function applyPerUnitModifiersFromText({ from, session, lang, businessId, 
     })]);
   }
 
-  await startNextItem(from, session, lang, businessId, ic.queue.slice(1), readyBasket);
+  await startNextItem(from, session, lang, businessId, ic.queue.slice(1), readyBasket, ic.originalBasket);
 }
 
 async function startIntentCustomization({ from, session, lang, businessId, basket, simpleItems, customizeItems }) {
   const linesToAdd = tagLinesWithNote(simpleItems, session.pendingIntentNote, lang);
   const readyBasket = mergeIntoBasket(basket, linesToAdd);
-  await startNextItem(from, session, lang, businessId, customizeItems, readyBasket);
+  await startNextItem(from, session, lang, businessId, customizeItems, readyBasket, basket);
 }
 
 async function handleIntentCustomize({ from, session, lang, businessId, type, text, id }) {

@@ -28,6 +28,7 @@ module.exports = {
 
   itemAdded: (qty, name, count, total) => `✅ ${qty}× ${name} hinzugefügt.\n🛒 ${count} Artikel · €${total}`,
   itemsAdded: (addedQty, count, total) => `✅ ${addedQty} Artikel hinzugefügt.\n🛒 ${count} Artikel · €${total}`,
+  itemsAddedList: (lines, count, total) => `✅ ${lines} hinzugefügt.\n🛒 ${count} Artikel · €${total}`,
   itemRemoved: (name, count, total) => `✅ ${name} entfernt.\n🛒 ${count} Artikel · €${total}`,
   itemsRemoved: (removedQty, count, total) => `✅ ${removedQty} Artikel entfernt.\n🛒 ${count} Artikel · €${total}`,
   qtyUpdated: (name, qty, count, total) => `✅ ${name} → ${qty}×\n🛒 ${count} Artikel · €${total}`,

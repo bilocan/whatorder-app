@@ -272,8 +272,8 @@ function buildPostAddBody(lang, basket, { qty, name, addedLines, reorder } = {})
     return t('itemAdded', lang, line.qty, formatBasketItemLabel(line), count, total);
   }
   if (addedLines?.length > 1) {
-    const addedQty = addedLines.reduce((s, i) => s + i.qty, 0);
-    return t('itemsAdded', lang, addedQty, count, total);
+    const linesSummary = addedLines.map(l => `${l.qty}× ${formatBasketItemLabel(l)}`).join(', ');
+    return t('itemsAddedList', lang, linesSummary, count, total);
   }
   if (qty != null && name != null) {
     return t('itemAdded', lang, qty, name, count, total);
