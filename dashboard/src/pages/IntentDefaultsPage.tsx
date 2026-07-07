@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   collection, doc, getDoc, onSnapshot, query, where,
 } from 'firebase/firestore';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -73,7 +74,7 @@ function TestRow({
   onTest: () => void;
   testing: boolean;
   result: TestResult | null;
-  t: (key: string) => string;
+  t: TFunction;
 }) {
   const status = result ? outcomeLabel(result.outcome) : null;
   const statusColor = status === 'pass' ? '#16a34a' : status === 'warn' ? '#d97706' : '#dc2626';
