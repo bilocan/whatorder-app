@@ -37,75 +37,14 @@ function isKebabQuery(rawName) {
 
 const EXPLICIT_SIZE_RE = /\b(0[,.]33\s*l?|0[,.]5\s*l?|1[,.]?0?\s*l|33\s*cl|50\s*cl|330\s*ml|500\s*ml|0[,.]25\s*l?|liter|litre|gross|groß|large|xl|pint)\b/i;
 
-const STANDARD_DRINK_SIZE_RE = /\b(0[,.]33\s*l?|0[,.]5\s*l?|33\s*cl|330\s*ml)/i;
-
 function hasExplicitDrinkSize(text) {
   return EXPLICIT_SIZE_RE.test(norm(text ?? ''));
-}
-
-function isDrinkQuery(rawName, candidates) {
-  const dish = norm(extractDishNameForMatch(rawName) || rawName);
-  if (DRINK_STEMS.some(stem => containsWord(dish, stem) || dish === stem)) return true;
-  if (queryExpandsToStem(dish, DRINK_STEMS)) return true;
-  if (!candidates?.length) return false;
-  return candidates.every(c => {
-    const cat = norm(c.category ?? '');
-    return cat === 'drinks' || cat === 'getranke' || cat === 'getränke' || cat === 'icecek' || cat === 'içecek';
-  });
-}
-
-/** Parse approximate volume in litres from an item name (for tie-breaking). */
-function parseVolumeLitres(name) {
-  const n = norm(name);
-  const ml = n.match(/\b(\d{2,4})\s*ml\b/);
-  if (ml) return parseInt(ml[1], 10) / 1000;
-  const cl = n.match(/\b(\d{2,3})\s*cl\b/);
-  if (cl) return parseInt(cl[1], 10) / 100;
-  const dec = n.match(/\b0[,.](\d{2})\s*l?\b/);
-  if (dec) return parseInt(dec[1], 10) / 100;
-  const oneL = n.match(/\b1[,.]?0?\s*l\b/);
-  if (oneL) return 1;
-  return null;
 }
 
 function pickMarkedDefault(candidates) {
   const marked = (candidates ?? []).filter(c => c.defaultVariant === true || c.isDefault === true);
   if (marked.length === 1) return marked[0];
   return null;
-}
-
-function pickStandardDrinkSize(candidates, rawName) {
-  const list = candidates ?? [];
-  if (!list.length) return null;
-
-  if (hasExplicitDrinkSize(rawName)) {
-    const dish = norm(extractDishNameForMatch(rawName) || rawName);
-    const sized = list.filter(c => {
-      const n = norm(c.name);
-      if (/0[,.]33|33\s*cl|330\s*ml/.test(dish) && STANDARD_DRINK_SIZE_RE.test(n)) return true;
-      if (/0[,.]5|50\s*cl|500\s*ml/.test(dish) && /0[,.]5|50\s*cl|500\s*ml/.test(n)) return true;
-      if (/1[,.]?0?\s*l/.test(dish) && /1[,.]?0?\s*l/.test(n)) return true;
-      return false;
-    });
-    if (sized.length === 1) return sized[0];
-    if (sized.length > 1) return pickBySmallestVolume(sized);
-    return null;
-  }
-
-  const standard = list.filter(c => STANDARD_DRINK_SIZE_RE.test(norm(c.name)));
-  if (standard.length === 1) return standard[0];
-  if (standard.length > 1) return pickBySmallestVolume(standard);
-
-  return pickBySmallestVolume(list);
-}
-
-function pickBySmallestVolume(candidates) {
-  const withVol = candidates
-    .map(c => ({ c, vol: parseVolumeLitres(c.name) }))
-    .filter(x => x.vol != null)
-    .sort((a, b) => a.vol - b.vol || a.c.price - b.c.price);
-  if (withVol.length) return withVol[0].c;
-  return [...candidates].sort((a, b) => Number(a.price) - Number(b.price))[0];
 }
 
 /**
@@ -216,10 +155,6 @@ function trySmartDefault(rawName, candidates, menuMatch = null) {
   const ownerStem = pickOwnerStemDefault(rawName, list, menuMatch);
   if (ownerStem) return ownerStem;
 
-  if (isDrinkQuery(rawName, list)) {
-    return pickStandardDrinkSize(list, rawName);
-  }
-
   if (isKebabQuery(rawName) && shouldApplyKebabDefault(rawName, list)) {
     return pickKebabDefault(list, rawName);
   }
@@ -235,10 +170,8 @@ function trySmartDefault(rawName, candidates, menuMatch = null) {
 module.exports = {
   trySmartDefault,
   pickOwnerStemDefault,
-  isDrinkQuery,
   isDrinkStem,
   isKebabQuery,
   hasExplicitDrinkSize,
-  pickStandardDrinkSize,
   PIZZA_GENERIC_WORDS,
 };

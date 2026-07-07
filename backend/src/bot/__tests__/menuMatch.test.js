@@ -158,12 +158,18 @@ const EISTEE_MENU = [
 ];
 
 describe('classifyMenuMatch — ice tea synonyms', () => {
-  test('icetea and ice tea resolve via eistee stem', () => {
+  test('icetea and ice tea stay ambiguous without owner stemDefaults', () => {
     for (const phrase of ['icetea', 'ice tea']) {
       const result = classifyMenuMatch(phrase, EISTEE_MENU);
-      expect(result.type).toBe('unique');
-      expect(result.item.name).toBe('Eistee Pfirsich 0.33L');
+      expect(result.type).toBe('ambiguous');
     }
+  });
+
+  test('icetea resolves via owner stemDefaults', () => {
+    const menuMatch = {
+      defaults: { stemDefaults: { icetea: 'e1', 'ice tea': 'e1', eistee: 'e1' } },
+    };
+    expect(classifyMenuMatch('icetea', EISTEE_MENU, menuMatch).item.name).toBe('Eistee Pfirsich 0.33L');
   });
 
   test('peach ice tea resolves via item aliases', () => {

@@ -2,20 +2,24 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   collection, doc, getDoc, onSnapshot, query, where,
 } from 'firebase/firestore';
-import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { previewIntentPhrase } from '../lib/intentPhrasesApi';
 import {
   buildStemDefaultsForKebab,
+  customStemsFromDefaults,
+  drinkItemsFromMenu,
   kebabItemIdFromStemDefaults,
   kebabItemsFromMenu,
   mergeMenuMatchDefaults,
   outcomeLabel,
   pizzaCategoriesFromMenu,
   saveMenuMatch,
+  serializeCustomStems,
+  SUGGESTED_DRINK_STEMS,
 } from '../lib/intentDefaults';
+import type { CustomStemEntry } from '../lib/intentDefaults';
 import type { MenuItem, MenuMatch } from '../types';
 
 const cardStyle: React.CSSProperties = {
@@ -53,6 +57,14 @@ const btnSecondary: React.CSSProperties = {
   border: '1px solid #ddd',
 };
 
+const btnDanger: React.CSSProperties = {
+  ...btnSecondary,
+  color: '#dc2626',
+  borderColor: '#fecaca',
+  padding: '0.35rem 0.6rem',
+  fontSize: '0.8rem',
+};
+
 type TestResult = {
   outcome: string;
   matched: string[];
@@ -74,7 +86,7 @@ function TestRow({
   onTest: () => void;
   testing: boolean;
   result: TestResult | null;
-  t: TFunction;
+  t: (key: string) => string;
 }) {
   const status = result ? outcomeLabel(result.outcome) : null;
   const statusColor = status === 'pass' ? '#16a34a' : status === 'warn' ? '#d97706' : '#dc2626';
@@ -111,6 +123,60 @@ function TestRow({
   );
 }
 
+function ItemSelect({
+  items,
+  value,
+  onChange,
+  drinkItems,
+  t,
+}: {
+  items: MenuItem[];
+  value: string;
+  onChange: (id: string) => void;
+  drinkItems: MenuItem[];
+  t: (key: string) => string;
+}) {
+  const drinkIds = new Set(drinkItems.map((i) => i.id));
+  const drinks = items.filter((i) => drinkIds.has(i.id));
+  const rest = items.filter((i) => !drinkIds.has(i.id));
+
+  return (
+    <select
+      style={inputStyle}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">—</option>
+      {drinks.length > 0 && (
+        <optgroup label={t('intentDefaults.customDrinksGroup')}>
+          {drinks.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+              {' '}
+              (€
+              {item.price.toFixed(2)}
+              )
+            </option>
+          ))}
+        </optgroup>
+      )}
+      {rest.length > 0 && (
+        <optgroup label={t('intentDefaults.customOtherGroup')}>
+          {rest.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+              {' '}
+              (€
+              {item.price.toFixed(2)}
+              )
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </select>
+  );
+}
+
 export default function IntentDefaultsPage() {
   const { t } = useTranslation();
   const { businessId } = useAuth();
@@ -118,20 +184,34 @@ export default function IntentDefaultsPage() {
   const [menuMatch, setMenuMatch] = useState<MenuMatch | null>(null);
   const [pizzaCategory, setPizzaCategory] = useState('');
   const [kebabItemId, setKebabItemId] = useState('');
+  const [customStems, setCustomStems] = useState<CustomStemEntry[]>([]);
   const [savedPizza, setSavedPizza] = useState('');
   const [savedKebab, setSavedKebab] = useState('');
+  const [savedCustomStems, setSavedCustomStems] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [pizzaTestPhrase, setPizzaTestPhrase] = useState('Eine Pizza Margarita und eine spinati');
   const [kebabTestPhrase, setKebabTestPhrase] = useState('2 döner');
+  const [customTestPhrase, setCustomTestPhrase] = useState('eine cola');
   const [pizzaTestResult, setPizzaTestResult] = useState<TestResult | null>(null);
   const [kebabTestResult, setKebabTestResult] = useState<TestResult | null>(null);
+  const [customTestResult, setCustomTestResult] = useState<TestResult | null>(null);
   const [testingPizza, setTestingPizza] = useState(false);
   const [testingKebab, setTestingKebab] = useState(false);
+  const [testingCustom, setTestingCustom] = useState(false);
 
   const pizzaCategories = useMemo(() => pizzaCategoriesFromMenu(menuItems), [menuItems]);
   const kebabItems = useMemo(() => kebabItemsFromMenu(menuItems), [menuItems]);
+  const drinkItems = useMemo(() => drinkItemsFromMenu(menuItems), [menuItems]);
 
-  const dirty = pizzaCategory !== savedPizza || kebabItemId !== savedKebab;
+  const customDirty = serializeCustomStems(customStems) !== savedCustomStems;
+  const dirty = pizzaCategory !== savedPizza || kebabItemId !== savedKebab || customDirty;
+
+  const usedStems = useMemo(
+    () => new Set(customStems.map((r) => r.stem.trim().toLowerCase()).filter(Boolean)),
+    [customStems],
+  );
+
+  const suggestedStemsAvailable = SUGGESTED_DRINK_STEMS.filter((s) => !usedStems.has(s));
 
   useEffect(() => {
     if (!businessId) return;
@@ -149,6 +229,9 @@ export default function IntentDefaultsPage() {
         setKebabItemId(kb);
         setSavedKebab(kb);
       }
+      const custom = customStemsFromDefaults(mm?.defaults?.stemDefaults);
+      setCustomStems(custom);
+      setSavedCustomStems(serializeCustomStems(custom));
     });
   }, [businessId]);
 
@@ -176,6 +259,25 @@ export default function IntentDefaultsPage() {
     }
   }, [kebabItems, savedKebab]);
 
+  function addCustomStem(stem = '', itemId = '') {
+    setCustomStems((prev) => [...prev, { stem, itemId }]);
+  }
+
+  function updateCustomStem(index: number, patch: Partial<CustomStemEntry>) {
+    setCustomStems((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
+  function removeCustomStem(index: number) {
+    setCustomStems((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function quickAddStem(stem: string) {
+    const defaultItem = drinkItems.find((i) => /0[,.]33|33\s*cl|330\s*ml/i.test(i.name))
+      ?? drinkItems.find((i) => new RegExp(stem, 'i').test(i.name))
+      ?? drinkItems[0];
+    addCustomStem(stem, defaultItem?.id ?? '');
+  }
+
   async function runTest(phrase: string, setter: (r: TestResult | null) => void, setLoading: (v: boolean) => void) {
     if (!businessId || !phrase.trim()) return;
     setLoading(true);
@@ -198,11 +300,12 @@ export default function IntentDefaultsPage() {
     if (!businessId) return;
     setSaveStatus('saving');
     try {
-      const next = mergeMenuMatchDefaults(menuMatch, pizzaCategory, kebabItemId || null);
+      const next = mergeMenuMatchDefaults(menuMatch, pizzaCategory, kebabItemId || null, customStems);
       await saveMenuMatch(businessId, next);
       setMenuMatch(next);
       setSavedPizza(pizzaCategory);
       setSavedKebab(kebabItemId);
+      setSavedCustomStems(serializeCustomStems(customStems));
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch {
@@ -279,6 +382,106 @@ export default function IntentDefaultsPage() {
           onTest={() => runTest(kebabTestPhrase, setKebabTestResult, setTestingKebab)}
           testing={testingKebab}
           result={kebabTestResult}
+          t={t}
+        />
+      </div>
+
+      <div style={cardStyle}>
+        <h2 style={{ margin: '0 0 0.35rem', fontSize: '1rem' }}>{t('intentDefaults.customTitle')}</h2>
+        <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: '#666' }}>
+          {t('intentDefaults.customHint')}
+        </p>
+
+        {customStems.length === 0 && (
+          <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: '#888' }}>
+            {t('intentDefaults.customEmpty')}
+          </p>
+        )}
+
+        {customStems.map((row, index) => (
+          <div
+            key={`stem-${index}`}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(100px, 1fr) minmax(160px, 2fr) auto',
+              gap: '0.5rem',
+              alignItems: 'end',
+              marginBottom: '0.5rem',
+            }}
+          >
+            <div>
+              {index === 0 && (
+                <label style={{ fontSize: '0.8rem', color: '#444', display: 'block', marginBottom: '0.25rem' }}>
+                  {t('intentDefaults.customStem')}
+                </label>
+              )}
+              <input
+                style={inputStyle}
+                value={row.stem}
+                placeholder={t('intentDefaults.customStemPlaceholder')}
+                onChange={(e) => updateCustomStem(index, { stem: e.target.value })}
+              />
+            </div>
+            <div>
+              {index === 0 && (
+                <label style={{ fontSize: '0.8rem', color: '#444', display: 'block', marginBottom: '0.25rem' }}>
+                  {t('intentDefaults.customItem')}
+                </label>
+              )}
+              <ItemSelect
+                items={menuItems}
+                drinkItems={drinkItems}
+                value={row.itemId}
+                onChange={(id) => updateCustomStem(index, { itemId: id })}
+                t={t}
+              />
+            </div>
+            <button
+              type="button"
+              style={{ ...btnDanger, marginBottom: index === 0 ? 0 : undefined }}
+              onClick={() => removeCustomStem(index)}
+              aria-label={t('intentDefaults.customRemove')}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+          <button type="button" style={btnSecondary} onClick={() => addCustomStem()}>
+            {t('intentDefaults.customAdd')}
+          </button>
+        </div>
+
+        {suggestedStemsAvailable.length > 0 && drinkItems.length > 0 && (
+          <div style={{ marginTop: '0.75rem' }}>
+            <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.35rem' }}>
+              {t('intentDefaults.customQuickAdd')}
+            </div>
+            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+              {suggestedStemsAvailable.map((stem) => (
+                <button
+                  key={stem}
+                  type="button"
+                  style={{ ...btnSecondary, padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                  onClick={() => quickAddStem(stem)}
+                >
+                  +
+                  {' '}
+                  {stem}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <TestRow
+          label={t('intentDefaults.testPhrase')}
+          phrase={customTestPhrase}
+          onPhraseChange={setCustomTestPhrase}
+          onTest={() => runTest(customTestPhrase, setCustomTestResult, setTestingCustom)}
+          testing={testingCustom}
+          result={customTestResult}
           t={t}
         />
       </div>

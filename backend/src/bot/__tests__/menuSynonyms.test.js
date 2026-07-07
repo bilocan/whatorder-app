@@ -71,8 +71,11 @@ describe('classifyMenuMatch with synonyms', () => {
     expect(matchMenuItem('Döner', KEBAP_MENU)?.name).toMatch(/Kebap/);
   });
 
-  test('bare cola defaults to 0.33L without disambiguation', () => {
-    const result = classifyMenuMatch('cola', KEBAP_MENU);
+  test('bare cola resolves via owner stemDefaults', () => {
+    const menuMatch = {
+      defaults: { stemDefaults: { cola: 'c1', kola: 'c1' } },
+    };
+    const result = classifyMenuMatch('cola', KEBAP_MENU, menuMatch);
     expect(result.type).toBe('unique');
     expect(result.item.name).toBe('Coca Cola 0.33L');
   });

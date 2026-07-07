@@ -6,6 +6,12 @@ const COLA_MENU = [
   { id: 'c2', name: 'Coca Cola 0.5L', price: 3.5, available: true },
 ];
 
+const COLA_STEM_MATCH = {
+  defaults: {
+    stemDefaults: { cola: 'c1', kola: 'c1', coke: 'c1' },
+  },
+};
+
 const KEBAB_MENU = [
   { id: 'p1', name: 'Pizza Kebap Huhn (33cm)', price: 15.9, available: true },
   { id: 's1', name: 'Kebap Sandwich Huhn', price: 7.5, available: true },
@@ -14,17 +20,24 @@ const KEBAB_MENU = [
 ];
 
 describe('trySmartDefault — drinks', () => {
-  test('bare cola picks 0.33L (Austria default)', () => {
-    expect(trySmartDefault('cola', COLA_MENU)?.id).toBe('c1');
-    expect(trySmartDefault('ein Cola', COLA_MENU)?.id).toBe('c1');
+  test('bare cola stays ambiguous without owner stemDefaults', () => {
+    expect(trySmartDefault('cola', COLA_MENU)).toBeNull();
+    expect(classifyMenuMatch('cola', COLA_MENU).type).toBe('ambiguous');
   });
 
-  test('explicit 0.5L picks large', () => {
-    expect(trySmartDefault('Cola 0.5L', COLA_MENU)?.id).toBe('c2');
+  test('owner stemDefaults resolve bare cola to configured SKU', () => {
+    expect(trySmartDefault('cola', COLA_MENU, COLA_STEM_MATCH)?.id).toBe('c1');
+    expect(trySmartDefault('ein Cola', COLA_MENU, COLA_STEM_MATCH)?.id).toBe('c1');
+    const result = classifyMenuMatch('cola', COLA_MENU, COLA_STEM_MATCH);
+    expect(result.type).toBe('unique');
+    expect(result.item.id).toBe('c1');
+  });
+
+  test('hasExplicitDrinkSize detects size in phrase', () => {
     expect(hasExplicitDrinkSize('cola 0,5')).toBe(true);
   });
 
-  test('menu defaultVariant overrides size heuristic', () => {
+  test('menu defaultVariant overrides when multiple drink SKUs match', () => {
     const menu = [
       { id: 'c1', name: 'Coca Cola 0.33L', price: 2.9, available: true },
       { id: 'c2', name: 'Coca Cola 0.5L', price: 3.5, available: true, defaultVariant: true },
@@ -88,12 +101,6 @@ describe('trySmartDefault — kebab', () => {
 });
 
 describe('classifyMenuMatch with smart defaults', () => {
-  test('cola resolves to 0.33L without disambiguation list', () => {
-    const result = classifyMenuMatch('cola', COLA_MENU);
-    expect(result.type).toBe('unique');
-    expect(result.item.name).toBe('Coca Cola 0.33L');
-  });
-
   test('explicit Coca Cola 0.33L SKU resolves without disambiguation', () => {
     const menu = [
       { id: 'c1', name: 'Coca Cola 0.33L', price: 2.9, available: true },
@@ -101,7 +108,7 @@ describe('classifyMenuMatch with smart defaults', () => {
       { id: 'c3', name: 'Coca Cola 1.5L', price: 5.5, available: true },
       { id: 'c4', name: 'Coca Cola Light 0.33L', price: 2.9, available: true },
     ];
-    expect(trySmartDefault('Coca Cola 0.33L', menu)?.id).toBe('c1');
+    expect(trySmartDefault('Coca Cola 0.33L', menu)).toBeNull();
     const result = classifyMenuMatch('Coca Cola 0.33L', menu);
     expect(result.type).toBe('unique');
     expect(result.item.id).toBe('c1');
