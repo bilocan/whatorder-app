@@ -181,53 +181,17 @@ describe('Browsing state: list_reply item selection', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ textMenuIndex: expect.any(Array) }));
   });
 
-  test('item with https:// photoUrl sends image before qty buttons', async () => {
+  test('item selection shows qty buttons without sending product image', async () => {
     const photoUrl = 'https://firebasestorage.googleapis.com/v0/b/bucket/o/doner.jpg?alt=media';
     getMenu.mockResolvedValue([{ ...MENU[0], photoUrl }]);
-    resolvePhotoUrl.mockReturnValue(photoUrl);
-    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
-
-    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'item_item_1' }));
-
-    expect(sendImage).toHaveBeenCalledWith(FROM, { url: photoUrl });
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([expect.objectContaining({ id: 'qty_1' })]),
-    }));
-  });
-
-  test('item with gs:// photoUrl converts URL and sends image', async () => {
-    const resolvedUrl = 'https://firebasestorage.googleapis.com/v0/b/my-bucket/o/menu%2Fdoner.jpg?alt=media';
-    getMenu.mockResolvedValue([{ ...MENU[0], photoUrl: 'gs://my-bucket/menu/doner.jpg' }]);
-    resolvePhotoUrl.mockReturnValue(resolvedUrl);
-    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
-
-    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'item_item_1' }));
-
-    expect(sendImage).toHaveBeenCalledWith(FROM, { url: resolvedUrl });
-  });
-
-  test('item without photoUrl does not send image', async () => {
-    // resolvePhotoUrl returns null by default (set in beforeEach)
     getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
 
     await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'item_item_1' }));
 
     expect(sendImage).not.toHaveBeenCalled();
-  });
-
-  test('image send failure is non-fatal — qty buttons still shown', async () => {
-    const photoUrl = 'https://example.com/img.jpg';
-    getMenu.mockResolvedValue([{ ...MENU[0], photoUrl }]);
-    resolvePhotoUrl.mockReturnValue(photoUrl);
-    sendImage.mockRejectedValue(new Error('network error'));
-    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
-
-    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'item_item_1' }));
-
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: expect.arrayContaining([expect.objectContaining({ id: 'qty_1' })]),
     }));
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'selecting' }));
   });
 });
 

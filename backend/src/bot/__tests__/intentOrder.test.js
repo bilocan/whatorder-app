@@ -14,7 +14,7 @@ jest.mock('../../lib/llm', () => ({
 
 const { setSession } = require('../sessionStore');
 const { getMenuContext, resolvePhotoUrl } = require('../menuService');
-const { sendButtonMessage, sendImage } = require('../../lib/whatsapp');
+const { sendButtonMessage } = require('../../lib/whatsapp');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../../lib/llm');
 const { tryTextIntentOrder } = require('../intentOrder');
 
@@ -27,7 +27,6 @@ beforeEach(() => {
   jest.clearAllMocks();
   getMenuContext.mockResolvedValue({ menu: MENU, menuMatch: null, menuTokenIndex: null });
   sendButtonMessage.mockResolvedValue('msg_1');
-  sendImage.mockResolvedValue('msg_img');
   setSession.mockResolvedValue();
   resolvePhotoUrl.mockImplementation(url => url ?? null);
 });
@@ -129,7 +128,7 @@ describe('tryTextIntentOrder', () => {
     expect(body).toMatch(/1x Döner/);
   });
 
-  test('sends a photo for matched items that have one', async () => {
+  test('does not send product images for matched items', async () => {
     getMenuContext.mockResolvedValue({
       menu: [
         { id: 'item_1', name: 'Döner', price: 8.50, photoUrl: 'https://cdn.example.com/doner.jpg' },
@@ -150,26 +149,10 @@ describe('tryTextIntentOrder', () => {
     });
 
     expect(handled).toBe(true);
-    expect(sendImage).toHaveBeenCalledTimes(1);
-    expect(sendImage).toHaveBeenCalledWith('+43699000001', {
-      url: 'https://cdn.example.com/doner.jpg',
-      caption: 'Döner',
-    });
-  });
-
-  test('sends no photo when no matched item has one', async () => {
-    const handled = await tryTextIntentOrder({
-      from: '+43699000001',
-      session: { state: 'browsing', language: 'en', basket: [] },
-      lang: 'en',
-      businessId: 'biz_test',
-      basket: [],
-      text: '2x Döner + Ayran',
-      norm: '2x döner + ayran',
-    });
-
-    expect(handled).toBe(true);
-    expect(sendImage).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(
+      '+43699000001',
+      expect.objectContaining({ buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_confirm' })]) }),
+    );
   });
 
   test('proposal body does not contain unmatched section when all items match', async () => {
