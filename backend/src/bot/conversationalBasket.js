@@ -240,7 +240,9 @@ async function tryConversationalBasketText({
     menuTokenIndex,
   });
 
-  if (parsed.outcome === 'llm_failed') return 'llm_failed';
+  // Non-empty basket: fall through so tryTextIntentOrder can show suggestions.
+  // Empty basket: no basket to mutate anyway, propagate failure upward.
+  if (parsed.outcome === 'llm_failed') return basket?.length ? false : 'llm_failed';
 
   if (shouldFallThroughToIntentOrder(basket, parsed, foodText)) return false;
 

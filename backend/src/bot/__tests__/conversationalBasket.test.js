@@ -403,12 +403,26 @@ describe('tryBasketUndo edge cases', () => {
 });
 
 describe('tryConversationalBasketText branches', () => {
-  test('returns llm_failed when parse reports outage', async () => {
+  test('returns false (not llm_failed) when parse fails and basket is non-empty', async () => {
+    // Non-empty basket: fall through so tryTextIntentOrder can show suggestions.
     parseBasketOps.mockResolvedValue({ outcome: 'llm_failed' });
     const handled = await tryConversationalBasketText({
       ...BASE,
-      text: '2 döner',
-      norm: '2 döner',
+      text: '1 kalp kebap',
+      norm: '1 kalp kebap',
+      business: { conversationalBasket: true },
+    });
+    expect(handled).toBe(false);
+  });
+
+  test('returns llm_failed when parse fails and basket is empty', async () => {
+    // Empty basket: no items to mutate, signal failure upward.
+    parseBasketOps.mockResolvedValue({ outcome: 'llm_failed' });
+    const handled = await tryConversationalBasketText({
+      ...BASE,
+      basket: [],
+      text: '1 kalp kebap',
+      norm: '1 kalp kebap',
       business: { conversationalBasket: true },
     });
     expect(handled).toBe('llm_failed');
