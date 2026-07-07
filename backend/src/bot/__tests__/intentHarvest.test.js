@@ -22,13 +22,33 @@ describe('intentHarvest', () => {
     expect(parsePhrasesTxt('# comment\n\nein Cola\n')).toEqual(['ein Cola']);
   });
   test('isDefaultGreen accepts rules proposal with matched SKUs', async () => {
-    const menuMatch = buildMenuMatchIndex(FIXTURE_MENU);
+    const menuMatch = {
+      ...buildMenuMatchIndex(FIXTURE_MENU),
+      defaults: {
+        ...buildMenuMatchIndex(FIXTURE_MENU).defaults,
+        stemDefaults: {
+          ...(buildMenuMatchIndex(FIXTURE_MENU).defaults?.stemDefaults ?? {}),
+          cola: 'cola',
+          kola: 'cola',
+        },
+      },
+    };
     const result = await evaluateIntent('ein Cola', { menu: FIXTURE_MENU, menuMatch });
     expect(isDefaultGreen(result)).toBe(true);
   });
 
   test('evaluateHarvestPhrase uses expect when provided', async () => {
-    const menuMatch = buildMenuMatchIndex(FIXTURE_MENU);
+    const menuMatch = {
+      ...buildMenuMatchIndex(FIXTURE_MENU),
+      defaults: {
+        ...buildMenuMatchIndex(FIXTURE_MENU).defaults,
+        stemDefaults: {
+          ...(buildMenuMatchIndex(FIXTURE_MENU).defaults?.stemDefaults ?? {}),
+          cola: 'cola',
+          kola: 'cola',
+        },
+      },
+    };
     const evalCtx = {
       evaluate: (text) => evaluateIntent(text, { menu: FIXTURE_MENU, menuMatch }),
     };

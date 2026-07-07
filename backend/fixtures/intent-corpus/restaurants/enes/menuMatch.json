@@ -1,5 +1,17 @@
 {
   "version": 1,
+  "defaults": {
+    "pizzaCategory": "Pizza 33cm",
+    "stemDefaults": {
+      "doner": "enes-kebap-sandwich-huhn",
+      "döner": "enes-kebap-sandwich-huhn",
+      "kebap": "enes-kebap-sandwich-huhn",
+      "kebab": "enes-kebap-sandwich-huhn",
+      "cola": "enes-getr-cola-033",
+      "kola": "enes-getr-cola-033",
+      "coke": "enes-getr-cola-033"
+    }
+  },
   "categories": {
     "Beilagen": {
       "normalized": "beilagen",

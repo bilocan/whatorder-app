@@ -1,4 +1,5 @@
 import i18n from 'i18next';
+import type { TFunction } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import de from './locales/de.json';
 import en from './locales/en.json';
@@ -29,5 +30,8 @@ export function setLanguage(lang: string) {
   i18n.changeLanguage(lang);
   localStorage.setItem(STORAGE_KEY, lang);
 }
+
+/** Use when passing `t` to helpers or child components — supports i18next options (defaultValue, interpolation). */
+export type DashboardT = TFunction;
 
 export default i18n;
