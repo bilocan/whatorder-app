@@ -157,11 +157,19 @@ function isPizzaQuery(dishName) {
     || n.includes('grosse pizza') || n.includes('große pizza') || n.includes('family pizza');
 }
 
-function filterCandidatesForQuery(items, dishName) {
+function getOwnerDefaultPizzaCategory(menuMatch) {
+  const cat = menuMatch?.defaults?.pizzaCategory;
+  return typeof cat === 'string' && cat.trim() ? cat.trim() : null;
+}
+
+function filterCandidatesForQuery(items, dishName, menuMatch = null) {
   if (!items.length) return items;
 
+  items = applyPizzaSizePreference(items, dishName, menuMatch);
+
   if (isPizzaQuery(dishName)) {
-    return applyPizzaSizePreference(items, dishName);
+    const pizzaOnly = items.filter(isPizzaMenuItem);
+    return pizzaOnly.length ? pizzaOnly : items;
   }
 
   // Kebap/döner without "pizza" — never default to pizza kebap SKUs
@@ -174,19 +182,30 @@ function filterCandidatesForQuery(items, dishName) {
   return items;
 }
 
-/** Austria: default pizza is ~33 cm; customers say Familienpizza for the large size. */
-function applyPizzaSizePreference(items, dishName) {
+/** Owner-configured via menuMatch.defaults.pizzaCategory; fallback excludes Familien rows. */
+function applyPizzaSizePreference(items, dishName, menuMatch = null) {
   if (!items.length) return items;
   const pizzaItems = items.filter(isPizzaMenuItem);
   if (!pizzaItems.length) return items;
 
+  const nonPizza = items.filter(i => !isPizzaMenuItem(i));
+  let preferredPizza;
+
   if (wantsFamilienPizza(dishName)) {
-    const fam = pizzaItems.filter(isFamilienMenuItem);
-    return fam.length ? fam : items;
+    preferredPizza = pizzaItems.filter(isFamilienMenuItem);
+    if (!preferredPizza.length) preferredPizza = pizzaItems;
+  } else {
+    const ownerCategory = getOwnerDefaultPizzaCategory(menuMatch);
+    if (ownerCategory) {
+      preferredPizza = pizzaItems.filter(i => String(i.category ?? '').trim() === ownerCategory);
+    }
+    if (!preferredPizza?.length) {
+      const standard = pizzaItems.filter(i => !isFamilienMenuItem(i));
+      preferredPizza = standard.length ? standard : pizzaItems;
+    }
   }
 
-  const standard = pizzaItems.filter(i => !isFamilienMenuItem(i));
-  return standard.length ? standard : items;
+  return [...nonPizza, ...preferredPizza];
 }
 
 function finishAmbiguous(rawName, items, menuMatch = null) {
@@ -250,7 +269,7 @@ function classifyMenuMatch(rawName, menuItems, menuMatch = null, menuTokenIndex 
         const n = norm(label);
         return dishWords.every(w => wordMatchesInText(w, n));
       })
-    )), dishName);
+    )), dishName, menuMatch);
     if (wordHits.length === 1) return { type: 'unique', item: wordHits[0] };
     if (wordHits.length > 1) {
       const scored = wordHits
@@ -269,7 +288,7 @@ function classifyMenuMatch(rawName, menuItems, menuMatch = null, menuTokenIndex 
   const stemNeedles = needlesForStemMatch(needles, dishName);
   const stemHits = filterCandidatesForQuery(available.filter(item => (
     itemStemMatchesNeedles(item, stemNeedles)
-  )), dishName);
+  )), dishName, menuMatch);
   if (stemHits.length > 1) {
     return finishAmbiguous(rawName, stemHits, menuMatch);
   }
@@ -286,6 +305,7 @@ function classifyMenuMatch(rawName, menuItems, menuMatch = null, menuTokenIndex 
       .sort((a, b) => b.score - a.score)
       .map(x => x.item),
     dishName,
+    menuMatch,
   ).map(item => ({
     item,
     score: scoreItemForNeedle(item, needles),

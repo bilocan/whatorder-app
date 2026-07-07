@@ -13,3 +13,22 @@ ein dürüm und ein kebap bitte und jeweils ayran
 ich kriege ein schnitzel teller mit pommes und eis tee pfirsich
 gib mir ein burger und cola bitte
 hamburger und cola dazu bitte
+
+# Wave B — owner top orders (already green in pilot.json, not yet in harvest list)
+lahmacun cola
+ein lahmacun und zwei cola bitte
+Eine pide mit Eier und gouda
+iki doner bir ayran
+
+# Wave C — modifier / edge shapes
+zwei döner einer mit allem einer ohne zwiebel
+Zum Mitnehmen zwei Hühner kebap Sandwich mit allem einer ohne zwiebel
+ein falafel dürüm und ayran bitte
+
+# Loop 1b — 2026-07-08 tier-1 expand
+ich hätte gerne ein dürüm mit tomaten und salad und zwiebel ohne sose zum trinken cola
+Hallo ich hätte einen Kebab mit allem und Schaf und ein Eimer bitte
+
+# Loop 1b — 2026-07-08 tick-1 tier-4/5 expand
+zwei Hühner Kebab und jeweils einer ayran bitte
+Eine Pizza Margarita und eine spinati

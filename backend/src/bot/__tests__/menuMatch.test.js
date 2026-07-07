@@ -241,3 +241,54 @@ describe('classifyMenuMatch — Enes spinaci / spinachi typos', () => {
     expect(result.item.name).toBe('Schnitzel Teller');
   });
 });
+
+const ENES_SPINATI_MENU = [
+  { id: 'pide', name: 'Pide Spinat', price: 10.9, available: true, category: 'Pide' },
+  {
+    id: 'p33',
+    name: 'Pizza Spinachi (33cm)',
+    price: 13.9,
+    available: true,
+    category: 'Pizza 33cm',
+    aliases: ['pizza spinaci', 'pizza spinati'],
+  },
+  {
+    id: 'p50',
+    name: 'Pizza Spinachi (Familien-Pizza 50cm)',
+    price: 18.5,
+    available: true,
+    category: 'Familien-Pizza 50cm',
+    aliases: ['pizza spinati familien pizza'],
+  },
+];
+
+const ENES_MENU_MATCH = {
+  version: 1,
+  defaults: { pizzaCategory: 'Pizza 33cm' },
+  categories: {},
+};
+
+describe('classifyMenuMatch — owner default pizza category', () => {
+  test('bare spinati drops familien size when owner default is Pizza 33cm', () => {
+    const result = classifyMenuMatch('spinati', ENES_SPINATI_MENU, ENES_MENU_MATCH);
+    expect(result.type).toBe('ambiguous');
+    expect(result.items.map(i => i.id).sort()).toEqual(['p33', 'pide']);
+  });
+
+  test('owner can point default at familien category', () => {
+    const famDefault = { defaults: { pizzaCategory: 'Familien-Pizza 50cm' }, categories: {} };
+    const result = classifyMenuMatch('spinati', ENES_SPINATI_MENU, famDefault);
+    expect(result.type).toBe('ambiguous');
+    expect(result.items.map(i => i.id).sort()).toEqual(['p50', 'pide']);
+  });
+
+  test('Familienpizza in phrase still selects familien SKUs', () => {
+    const menu = [
+      { id: 'p33', name: 'Pizza Margherita (33cm)', price: 12.9, available: true, category: 'Pizza 33cm' },
+      { id: 'p50', name: 'Pizza Margherita (Familien-Pizza 50cm)', price: 18, available: true, category: 'Familien-Pizza 50cm' },
+    ];
+    const result = classifyMenuMatch('Familienpizza Margherita', menu, ENES_MENU_MATCH);
+    expect(result.type).toBe('unique');
+    expect(result.item.id).toBe('p50');
+  });
+});

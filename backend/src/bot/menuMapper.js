@@ -136,6 +136,20 @@ function suggestCategoryAliases(categoryName) {
   return [...aliases].sort((a, b) => a.localeCompare(b));
 }
 
+/** Owner default pizza category when the customer omits size (e.g. "Pizza 33cm"). */
+function suggestDefaultPizzaCategory(menuItems) {
+  const grouped = groupMenuByCategory(menuItems);
+  const pizzaCats = [...grouped.keys()].filter((cat) => {
+    if (cat === 'other') return false;
+    return normalizeMenuLabel(cat).includes('pizza');
+  });
+  const standard = pizzaCats.filter((cat) => (
+    !/\bfamilien\b/i.test(cat)
+    && !/\b(4[5-9]|5\d|60)\s*cm\b/i.test(cat)
+  ));
+  return standard.find((cat) => /\b33\s*cm\b/i.test(cat)) ?? standard[0] ?? null;
+}
+
 /**
  * Build `businesses/{bid}.menuMatch` from live menu rows.
  * Manual aliases on the business doc are merged when rebuilding.
@@ -157,8 +171,15 @@ function buildMenuMatchIndex(menuItems, existingMenuMatch = null) {
     };
   }
 
+  const defaults = { ...(existingMenuMatch?.defaults ?? {}) };
+  if (!defaults.pizzaCategory) {
+    const suggested = suggestDefaultPizzaCategory(menuItems);
+    if (suggested) defaults.pizzaCategory = suggested;
+  }
+
   return {
     version: 1,
+    ...(defaults.pizzaCategory ? { defaults } : {}),
     categories,
   };
 }
@@ -170,6 +191,7 @@ module.exports = {
   tokensOf,
   scoreCategoryMatch,
   suggestCategoryAliases,
+  suggestDefaultPizzaCategory,
   buildMenuMatchIndex,
   groupMenuByCategory,
 };

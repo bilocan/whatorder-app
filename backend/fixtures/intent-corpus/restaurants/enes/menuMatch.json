@@ -1,5 +1,8 @@
 {
   "version": 1,
+  "defaults": {
+    "pizzaCategory": "Pizza 33cm"
+  },
   "categories": {
     "Beilagen": {
       "normalized": "beilagen",
