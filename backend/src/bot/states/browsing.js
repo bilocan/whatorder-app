@@ -1,9 +1,9 @@
 const { setSession, patchSession } = require('../sessionStore');
-const { sendText, sendButtonMessage, sendImage } = require('../../lib/whatsapp');
+const { sendText, sendButtonMessage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
 const { sendMenu, sendMenuPage, sendCatalog, groupMenuByCategory, decodeCategory, buildPostAddBody, postAddBasketButtons, sendBasketView } = require('../botHelpers');
 const { parseBasketRemove, parseBasketRemoveDisambig, applyBasketRemove, buildBasketRemoveAmbiguousText } = require('../basketEdit');
-const { getMenu, getBusinessInfo, getMenuContext, resolvePhotoUrl } = require('../menuService');
+const { getMenu, getBusinessInfo, getMenuContext } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 const { tryTextIntentOrder, handleIntentButtons, isIntentConfirmText } = require('../intentOrder');
 const { normIng } = require('../intentMatcher');
@@ -351,10 +351,6 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
     if (!item) {
       await openCatalog(from, session, lang, businessId);
       return;
-    }
-    const photoUrl = resolvePhotoUrl(item.photoUrl);
-    if (photoUrl) {
-      try { await sendImage(from, { url: photoUrl }); } catch { /* non-fatal */ }
     }
     const qtyId = await sendButtonMessage(from, {
       body: t('qtyBody', lang, item.name, item.price.toFixed(2)),
