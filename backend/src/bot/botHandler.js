@@ -20,6 +20,7 @@ const {
   tryHandlePostOrderMessage,
   isHumanHandoffButton,
   handleHumanHandoffButton,
+  handlePostOrderCancelButton,
 } = require('./postOrder');
 
 // Restaurant switch only — "start"/"starten" are fresh-start at the current venue (see isFreshStartCommand).
@@ -151,6 +152,30 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     && !!session.businessId;
   const sessionExpiredForPicker = isMulti && isIdleBrowsing && lastActive
     && (Date.now() - lastActive.getTime() > SESSION_TTL_MS);
+
+  // Post-order action buttons must work even in multi-restaurant mode where session.businessId
+  // is null after order placement. Intercept before the restaurant-picker early return.
+  if (type === 'button_reply' && (id === 'btn_post_cancel' || id === 'btn_post_reorder' || id === 'btn_post_restaurant')) {
+    const postLang = session.language || 'de';
+    const postBid = session.pendingAmendBusinessId || session.businessId || routing.defaultBusinessId || routing.businessIds[0];
+    if (id === 'btn_post_cancel') {
+      await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid });
+      return;
+    }
+    if (id === 'btn_post_restaurant' && isMulti) {
+      const phoneNumberId = session.whatsappPhoneNumberId || null;
+      await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [] });
+      try {
+        await sendText(from, t('multiWelcomeBody', postLang), phoneNumberId);
+        const locId = await sendLocationRequest(from, t('locationRequestBody', postLang));
+        if (locId) await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [locId] });
+      } catch { /* ignore — awaiting_location handler will show picker on next message */ }
+      return;
+    }
+    const postInfo = await getBusinessInfo(postBid);
+    await startRestaurantBrowsing({ from, session: { ...session, basket: [] }, lang: postLang, businessId: postBid, type, text, norm, businessName: postInfo.name });
+    return;
+  }
 
   // First message OR multi-restaurant with no restaurant selected yet OR TTL expired
   // (skip if already in selecting_restaurant — let the state machine handle the reply)

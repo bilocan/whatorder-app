@@ -16,7 +16,10 @@ jest.mock('../settlementConfig', () => ({
   computeHoldEndsAt: jest.fn((d, c) => new Date(d.getTime() + (c?.holdDays ?? 7) * 86400000)),
   computeExpectedPayoutAt: jest.fn((d) => new Date(d.getTime() + 86400000)),
 }));
-jest.mock('../whatsapp', () => ({ sendText: jest.fn().mockResolvedValue('msg_1') }));
+jest.mock('../whatsapp', () => ({
+  sendText: jest.fn().mockResolvedValue('msg_1'),
+  sendButtonMessage: jest.fn().mockResolvedValue('msg_2'),
+}));
 jest.mock('../whatsappReturn', () => ({
   ...jest.requireActual('../whatsappReturn'),
   resolveWhatsAppReturnPhoneDigits: jest.fn().mockResolvedValue('436601234567'),
@@ -28,7 +31,7 @@ jest.mock('../templates', () => ({ t: jest.fn((_k, _lang, shortId) => `paid:${sh
 const { ordersRef, stripeEventRef } = require('../collections');
 const { getStripe } = require('../stripe');
 const { getFeeConfig, calcFeeCents } = require('../feeConfig');
-const { sendText } = require('../whatsapp');
+const { sendText, sendButtonMessage } = require('../whatsapp');
 const {
   createCheckoutSessionForOrder,
   handleCheckoutSessionCompleted,
@@ -143,6 +146,9 @@ describe('handleCheckoutSessionCompleted', () => {
       settlementStatus: 'pending',
     }));
     expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123', 'prod_phone_id');
+    expect(sendButtonMessage).toHaveBeenCalledWith('+431234', expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_post_cancel' })]),
+    }), 'prod_phone_id');
     expect(mockOrderUpdate).toHaveBeenCalledTimes(2);
     expect(mockOrderUpdate.mock.calls[1][0]).toEqual({ paymentNotifiedAt: 'TS' });
   });
@@ -166,6 +172,9 @@ describe('handleCheckoutSessionCompleted', () => {
     expect(mockOrderUpdate).toHaveBeenCalledTimes(1);
     expect(mockOrderUpdate.mock.calls[0][0]).toEqual({ paymentNotifiedAt: 'TS' });
     expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123', 'prod_phone_id');
+    expect(sendButtonMessage).toHaveBeenCalledWith('+431234', expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_post_cancel' })]),
+    }), 'prod_phone_id');
   });
 
   test('skips when payment already notified', async () => {

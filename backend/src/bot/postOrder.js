@@ -1,23 +1,17 @@
 const { patchSession } = require('./sessionStore');
-const { sendText, sendButtonMessage } = require('../lib/whatsapp');
+const { sendText } = require('../lib/whatsapp');
 const { t } = require('./templates');
-const { getBusinessInfo, getMenuContext } = require('./menuService');
+const { getBusinessInfo } = require('./menuService');
+const { startRestaurantBrowsing } = require('./reorder');
 const { looksLikeOrderText } = require('./intentParser');
-const { parseBasketOps } = require('./basketOps');
-const { formatBasketItemsText } = require('./botHelpers');
 const { isConversationalBasket } = require('./featureFlags');
 const { detectOrderStatusQuestion } = require('./orderStatusDetect');
 const {
   getOrder,
-  amendOrderAddItems,
   cancelOrder,
   getLastOrderForCustomer,
 } = require('./orderService');
 
-const AMEND_WINDOW_MS = 15 * 60 * 1000;
-// How long after placing an order typed order text is still treated as a modify
-// attempt (→ call-restaurant when the amend window is closed). Beyond this,
-// order text is a new order and the stale amend context must not swallow it.
 const POST_ORDER_CONTEXT_MS = 60 * 60 * 1000;
 const HANDOFF_FAILURE_THRESHOLD = 2;
 const HANDOFF_BUTTON_ID = 'btn_human_handoff';
@@ -31,6 +25,7 @@ const CANCEL_ORDER_RE = /\b(stornier(?:en|e)?|cancel(?:\s+(?:my\s+)?order)?|best
 
 const POST_ORDER_CLEAR_PATCH = {
   pendingAmendOrderId: undefined,
+  pendingAmendBusinessId: undefined,
   pendingAmendPlacedAt: undefined,
 };
 
@@ -44,19 +39,18 @@ function looksLikePostOrderModify(text, norm) {
   return detectCancelOrderRequest(text, norm) || looksLikeOrderText(text, norm);
 }
 
-function isAmendWindowOpen(order, placedAtMs) {
-  if (!order || order.status !== 'pending') return false;
-  if (!placedAtMs) return false;
-  return Date.now() - placedAtMs < AMEND_WINDOW_MS;
+// Customer can self-serve cancel only before the owner starts preparing.
+function canCustomerCancel(order) {
+  return order.status === 'pending' || order.status === 'approved';
+}
+
+function isCashOrder(order) {
+  return order.paymentMethod !== 'stripe';
 }
 
 function isPostOrderContextExpired(placedAtMs) {
   if (!placedAtMs) return true;
   return Date.now() - placedAtMs > POST_ORDER_CONTEXT_MS;
-}
-
-function isCashOrder(order) {
-  return order.paymentMethod !== 'stripe';
 }
 
 function orderShortId(orderId) {
@@ -113,15 +107,11 @@ async function notifyOwnerHandoff({ businessId, order, customerPhone, customerNa
   try {
     const info = await getBusinessInfo(businessId);
     if (!info?.alertPhone) return;
-    const basketSummary = (session.basket ?? []).length
-      ? formatBasketItemsText(session.basket, { numbered: false, mergeIdentical: true })
-      : '(empty)';
     const ownerMsg = [
       '🔔 Customer needs help',
       '',
       `Customer: ${customerName || 'WhatsApp Customer'} (${customerPhone})`,
       `State: ${session.state ?? 'browsing'}`,
-      `Basket: ${basketSummary}`,
       order ? `Last order: #${orderShortId(order.id)} (${order.status})` : 'Last order: none',
       `Message: "${(lastMessage ?? '').slice(0, 200)}"`,
     ].join('\n');
@@ -140,6 +130,53 @@ async function tryReplyOrderStatus({ from, session, lang, businessId, text }) {
   return true;
 }
 
+// Handles the "Stornieren" button tap and text-based cancel ("stornieren", "iptal" etc.)
+async function handlePostOrderCancelButton({ from, session, lang, businessId }) {
+  const phoneNumberId = session.whatsappPhoneNumberId || null;
+
+  if (!session.pendingAmendOrderId) {
+    await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
+    return true;
+  }
+
+  const order = await getOrder(businessId, session.pendingAmendOrderId);
+  if (!order) {
+    await clearPostOrderSession(from, session);
+    await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
+    return true;
+  }
+
+  // Stripe orders need a refund — hand off to restaurant.
+  if (!isCashOrder(order)) {
+    await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
+    return true;
+  }
+
+  if (canCustomerCancel(order)) {
+    await cancelOrder(businessId, order.id);
+    // transitionOrder already sends orderCancelled template to the customer.
+    await clearPostOrderSession(from, session, { consecutiveParseFailures: 0 });
+    const info = await getBusinessInfo(businessId);
+    await startRestaurantBrowsing({
+      from,
+      session: { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [], whatsappPhoneNumberId: phoneNumberId },
+      lang,
+      businessId,
+      type: 'button_reply',
+      text: undefined,
+      norm: '',
+      businessName: info.name,
+    });
+    return true;
+  }
+
+  // Order is already preparing or later — too late for self-serve cancel.
+  const info = await getBusinessInfo(businessId);
+  const phone = info.alertPhone || info.phone || null;
+  await sendText(from, t('postOrderCancelTooLate', lang, info.name, phone), phoneNumberId);
+  return true;
+}
+
 async function tryHandlePostOrderMessage({
   from, session, lang, businessId, text, norm, contactName,
 }) {
@@ -148,80 +185,25 @@ async function tryHandlePostOrderMessage({
 
   const placedAtMs = session.pendingAmendPlacedAt ?? null;
   const isCancelRequest = detectCancelOrderRequest(text, norm);
+
+  // Stale context (> 1 hour): treat order text as a new order, not post-order.
   if (!isCancelRequest && isPostOrderContextExpired(placedAtMs)) {
     await clearPostOrderSession(from, session);
     return false;
   }
 
-  const phoneNumberId = session.whatsappPhoneNumberId || null;
-  const order = await getOrder(businessId, session.pendingAmendOrderId);
-  if (!order) {
-    await clearPostOrderSession(from, session);
-    return false;
-  }
-
-  const windowOpen = isAmendWindowOpen(order, placedAtMs);
-  const info = await getBusinessInfo(businessId);
-  const convoOn = isConversationalBasket(info);
-
   if (isCancelRequest) {
-    if (windowOpen && isCashOrder(order) && convoOn) {
-      await cancelOrder(businessId, order.id);
-      await clearPostOrderSession(from, session, { consecutiveParseFailures: 0 });
-      return true;
-    }
-    await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
-    return true;
+    return handlePostOrderCancelButton({ from, session, lang, businessId });
   }
 
-  if (!isCashOrder(order) || !convoOn) {
-    await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
-    return true;
-  }
-
-  if (!windowOpen) {
-    await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
-    return true;
-  }
-
-  const { menu, menuMatch, menuTokenIndex } = await getMenuContext(businessId);
-  const parsed = await parseBasketOps(text, {
-    basket: order.items ?? [],
-    businessId,
-    phone: from,
-    menu,
-    menuMatch,
-    menuTokenIndex,
-  });
-
-  if (parsed.outcome !== 'ops' || !parsed.ops?.length) {
-    await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
-    return true;
-  }
-
-  const addOps = parsed.ops.filter(op => op.type === 'add');
-  if (!addOps.length || addOps.length !== parsed.ops.length) {
-    await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
-    return true;
-  }
-
-  const { applied } = await amendOrderAddItems(businessId, order.id, addOps.map(op => op.item));
-  if (!applied?.length) {
-    await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
-    return true;
-  }
-
-  const updated = await getOrder(businessId, order.id);
-  const itemLines = formatBasketItemsText(updated.items, { numbered: false, mergeIdentical: true });
-  await sendText(
-    from,
-    t('postOrderAmended', lang, orderShortId(order.id), itemLines, updated.total.toFixed(2)),
-    phoneNumberId,
-  );
+  // Order text after placement (not a cancel) → call restaurant.
+  const phoneNumberId = session.whatsappPhoneNumberId || null;
+  await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
   return true;
 }
 
 async function recordParseFailure({ from, session, lang, businessId, text, contactName }) {
+  const { sendButtonMessage } = require('../lib/whatsapp');
   const info = await getBusinessInfo(businessId);
   if (!isConversationalBasket(info)) return false;
 
@@ -276,16 +258,16 @@ function isHumanHandoffButton(id) {
 }
 
 module.exports = {
-  AMEND_WINDOW_MS,
   POST_ORDER_CONTEXT_MS,
   HANDOFF_BUTTON_ID,
   detectCancelOrderRequest,
   looksLikePostOrderModify,
-  isAmendWindowOpen,
+  canCustomerCancel,
   isPostOrderContextExpired,
   isHumanHandoffButton,
   tryReplyOrderStatus,
   tryHandlePostOrderMessage,
+  handlePostOrderCancelButton,
   recordParseFailure,
   resetParseFailures,
   handleHumanHandoffButton,

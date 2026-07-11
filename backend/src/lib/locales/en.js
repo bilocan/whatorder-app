@@ -146,6 +146,13 @@ module.exports = {
   humanHandoffOffer: () => 'I am having trouble understanding. Would you like the restaurant to reply to you?',
   humanHandoffBtn: () => 'Get help',
   humanHandoffConfirmed: () => 'Got it. The restaurant has been notified and will get back to you.',
+  postOrderOptions: () => 'What would you like to do?',
+  postCancelBtn: () => 'Cancel order',
+  postReorderBtn: () => 'Reorder',
+  postRestaurantBtn: () => 'Choose restaurant',
+  postOrderCancelTooLate: (name, phone) => phone
+    ? `Your order is already being prepared. To make changes, please call ${name}: ${phone}`
+    : `Your order is already being prepared. Please contact ${name} directly.`,
 
   askOrderType: (fee) => `How would you like to receive your order?\n\nDelivery fee: €${Number(fee).toFixed(2)}`,
   pickupBtn: () => 'Pickup',

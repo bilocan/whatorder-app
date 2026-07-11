@@ -2,27 +2,27 @@ jest.mock('../sessionStore');
 jest.mock('../../lib/whatsapp');
 jest.mock('../templates');
 jest.mock('../menuService');
-jest.mock('../basketOps');
 jest.mock('../orderService');
 jest.mock('../featureFlags');
+jest.mock('../reorder');
 
 const { patchSession } = require('../sessionStore');
 const { sendText, sendButtonMessage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
-const { getBusinessInfo, getMenuContext } = require('../menuService');
-const { parseBasketOps } = require('../basketOps');
+const { getBusinessInfo } = require('../menuService');
 const {
   getOrder,
-  amendOrderAddItems,
   cancelOrder,
   getLastOrderForCustomer,
 } = require('../orderService');
 const { isConversationalBasket } = require('../featureFlags');
+const { startRestaurantBrowsing } = require('../reorder');
 const {
-  isAmendWindowOpen,
+  canCustomerCancel,
   detectCancelOrderRequest,
   tryReplyOrderStatus,
   tryHandlePostOrderMessage,
+  handlePostOrderCancelButton,
   recordParseFailure,
   isHumanHandoffButton,
 } = require('../postOrder');
@@ -43,21 +43,24 @@ beforeEach(() => {
     conversationalBasket: true,
   });
   isConversationalBasket.mockReturnValue(true);
+  startRestaurantBrowsing.mockResolvedValue(undefined);
 });
 
-describe('isAmendWindowOpen', () => {
-  test('open for pending order within window', () => {
-    const placedAt = Date.now() - 60_000;
-    expect(isAmendWindowOpen({ status: 'pending' }, placedAt)).toBe(true);
+describe('canCustomerCancel', () => {
+  test('allows cancel when pending', () => {
+    expect(canCustomerCancel({ status: 'pending' })).toBe(true);
   });
 
-  test('closed after owner accepts', () => {
-    expect(isAmendWindowOpen({ status: 'approved' }, Date.now())).toBe(false);
+  test('allows cancel when approved (before preparing)', () => {
+    expect(canCustomerCancel({ status: 'approved' })).toBe(true);
   });
 
-  test('closed after window expires', () => {
-    const placedAt = Date.now() - 20 * 60 * 1000;
-    expect(isAmendWindowOpen({ status: 'pending' }, placedAt)).toBe(false);
+  test('blocks cancel when preparing', () => {
+    expect(canCustomerCancel({ status: 'preparing' })).toBe(false);
+  });
+
+  test('blocks cancel when ready', () => {
+    expect(canCustomerCancel({ status: 'ready' })).toBe(false);
   });
 });
 
@@ -102,73 +105,57 @@ describe('tryReplyOrderStatus', () => {
   });
 });
 
-describe('tryHandlePostOrderMessage', () => {
+describe('handlePostOrderCancelButton', () => {
   const baseSession = {
     pendingAmendOrderId: ORDER_ID,
     pendingAmendPlacedAt: Date.now(),
     whatsappPhoneNumberId: null,
   };
 
-  test('cancels cash order in amend window', async () => {
-    getOrder.mockResolvedValue({
-      id: ORDER_ID,
-      status: 'pending',
-      paymentMethod: 'cash',
-      items: [{ name: 'Döner', qty: 1, price: 8 }],
-    });
+  test('cancels cash order when pending and offers reorder', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'pending', paymentMethod: 'cash' });
     cancelOrder.mockResolvedValue(undefined);
 
-    const handled = await tryHandlePostOrderMessage({
-      from: FROM,
-      session: baseSession,
-      lang: 'de',
-      businessId: BIZ,
-      text: 'stornieren',
-      norm: 'stornieren',
+    const handled = await handlePostOrderCancelButton({
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ,
     });
 
     expect(handled).toBe(true);
     expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID);
     expect(patchSession).toHaveBeenCalled();
+    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({ from: FROM, businessId: BIZ }));
   });
 
-  test('directs card orders to call restaurant', async () => {
-    getOrder.mockResolvedValue({
-      id: ORDER_ID,
-      status: 'pending',
-      paymentMethod: 'stripe',
-      items: [],
-    });
+  test('cancels cash order when approved (before preparing) and offers reorder', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'approved', paymentMethod: 'cash' });
+    cancelOrder.mockResolvedValue(undefined);
 
-    const handled = await tryHandlePostOrderMessage({
-      from: FROM,
-      session: baseSession,
-      lang: 'de',
-      businessId: BIZ,
-      text: 'noch ein ayran',
-      norm: 'noch ein ayran',
+    const handled = await handlePostOrderCancelButton({
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ,
     });
 
     expect(handled).toBe(true);
-    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCallRestaurant', null);
-    expect(amendOrderAddItems).not.toHaveBeenCalled();
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID);
+    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({ from: FROM, businessId: BIZ }));
   });
 
-  test('bare iptal post-order routes to call-restaurant when window closed', async () => {
-    getOrder.mockResolvedValue({
-      id: ORDER_ID,
-      status: 'approved',
-      paymentMethod: 'cash',
-      items: [],
+  test('sends too-late message when already preparing', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'preparing', paymentMethod: 'cash' });
+
+    const handled = await handlePostOrderCancelButton({
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ,
     });
 
-    const handled = await tryHandlePostOrderMessage({
-      from: FROM,
-      session: baseSession,
-      lang: 'tr',
-      businessId: BIZ,
-      text: 'iptal',
-      norm: 'iptal',
+    expect(handled).toBe(true);
+    expect(cancelOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLate', null);
+  });
+
+  test('routes stripe order to call-restaurant (no self-serve refund)', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'pending', paymentMethod: 'stripe' });
+
+    const handled = await handlePostOrderCancelButton({
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ,
     });
 
     expect(handled).toBe(true);
@@ -176,67 +163,97 @@ describe('tryHandlePostOrderMessage', () => {
     expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCallRestaurant', null);
   });
 
-  test('flag off directs cash amend-window add-ons to call restaurant', async () => {
-    isConversationalBasket.mockReturnValue(false);
-    getOrder.mockResolvedValue({
-      id: ORDER_ID,
-      status: 'pending',
-      paymentMethod: 'cash',
-      items: [{ name: 'Döner', qty: 1, price: 8 }],
+  test('falls back gracefully when no pendingAmendOrderId', async () => {
+    const handled = await handlePostOrderCancelButton({
+      from: FROM, session: { whatsappPhoneNumberId: null }, lang: 'de', businessId: BIZ,
     });
 
+    expect(handled).toBe(true);
+    expect(cancelOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCallRestaurant', null);
+  });
+});
+
+describe('tryHandlePostOrderMessage', () => {
+  const baseSession = {
+    pendingAmendOrderId: ORDER_ID,
+    pendingAmendPlacedAt: Date.now(),
+    whatsappPhoneNumberId: null,
+  };
+
+  test('cancels cash pending order on stornieren text', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'pending', paymentMethod: 'cash' });
+    cancelOrder.mockResolvedValue(undefined);
+
     const handled = await tryHandlePostOrderMessage({
-      from: FROM,
-      session: baseSession,
-      lang: 'de',
-      businessId: BIZ,
-      text: 'noch ein ayran',
-      norm: 'noch ein ayran',
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ,
+      text: 'stornieren', norm: 'stornieren',
+    });
+
+    expect(handled).toBe(true);
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID);
+  });
+
+  test('cancels cash approved order on iptal text', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'approved', paymentMethod: 'cash' });
+    cancelOrder.mockResolvedValue(undefined);
+
+    const handled = await tryHandlePostOrderMessage({
+      from: FROM, session: baseSession, lang: 'tr', businessId: BIZ,
+      text: 'iptal', norm: 'iptal',
+    });
+
+    expect(handled).toBe(true);
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID);
+  });
+
+  test('order text after placement routes to call-restaurant (no add-on)', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'pending', paymentMethod: 'cash' });
+
+    const handled = await tryHandlePostOrderMessage({
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ,
+      text: 'noch ein ayran', norm: 'noch ein ayran',
+    });
+
+    expect(handled).toBe(true);
+    expect(cancelOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCallRestaurant', null);
+  });
+
+  test('stripe order text routes to call-restaurant', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'pending', paymentMethod: 'stripe' });
+
+    const handled = await tryHandlePostOrderMessage({
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ,
+      text: 'noch ein ayran', norm: 'noch ein ayran',
     });
 
     expect(handled).toBe(true);
     expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCallRestaurant', null);
-    expect(amendOrderAddItems).not.toHaveBeenCalled();
-    expect(parseBasketOps).not.toHaveBeenCalled();
   });
 
-  test('amends cash order with parsed add-ons', async () => {
-    getOrder
-      .mockResolvedValueOnce({
-        id: ORDER_ID,
-        status: 'pending',
-        paymentMethod: 'cash',
-        items: [{ name: 'Döner', qty: 1, price: 8 }],
-      })
-      .mockResolvedValueOnce({
-        id: ORDER_ID,
-        status: 'pending',
-        paymentMethod: 'cash',
-        items: [
-          { name: 'Döner', qty: 1, price: 8 },
-          { name: 'Ayran', qty: 1, price: 2.5 },
-        ],
-        total: 10.5,
-      });
-    getMenuContext.mockResolvedValue({ menu: [], menuMatch: null, menuTokenIndex: null });
-    parseBasketOps.mockResolvedValue({
-      outcome: 'ops',
-      ops: [{ type: 'add', item: { name: 'Ayran', qty: 1, price: 2.5 } }],
-    });
-    amendOrderAddItems.mockResolvedValue({ applied: [{ name: 'Ayran', qty: 1, price: 2.5 }], total: 10.5 });
+  test('returns false and clears session when context expired (> 1h)', async () => {
+    const staleSession = {
+      ...baseSession,
+      pendingAmendPlacedAt: Date.now() - 2 * 60 * 60 * 1000,
+    };
 
     const handled = await tryHandlePostOrderMessage({
-      from: FROM,
-      session: baseSession,
-      lang: 'de',
-      businessId: BIZ,
-      text: 'noch ein ayran',
-      norm: 'noch ein ayran',
+      from: FROM, session: staleSession, lang: 'de', businessId: BIZ,
+      text: 'noch ein ayran', norm: 'noch ein ayran',
     });
 
-    expect(handled).toBe(true);
-    expect(amendOrderAddItems).toHaveBeenCalled();
-    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderAmended', null);
+    expect(handled).toBe(false);
+    expect(patchSession).toHaveBeenCalled();
+    expect(cancelOrder).not.toHaveBeenCalled();
+  });
+
+  test('returns false when no pendingAmendOrderId', async () => {
+    const handled = await tryHandlePostOrderMessage({
+      from: FROM, session: {}, lang: 'de', businessId: BIZ,
+      text: 'stornieren', norm: 'stornieren',
+    });
+    expect(handled).toBe(false);
   });
 });
 

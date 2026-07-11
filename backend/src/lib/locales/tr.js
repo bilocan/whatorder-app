@@ -146,6 +146,13 @@ module.exports = {
   humanHandoffOffer: () => 'Anlamakta zorlanıyorum. Restoranın size dönmesini ister misiniz?',
   humanHandoffBtn: () => 'Yardım iste',
   humanHandoffConfirmed: () => 'Tamam. Restoran bilgilendirildi, size dönecek.',
+  postOrderOptions: () => 'Ne yapmak istersin?',
+  postCancelBtn: () => 'İptal et',
+  postReorderBtn: () => 'Tekrar sipariş',
+  postRestaurantBtn: () => 'Restoran seç',
+  postOrderCancelTooLate: (name, phone) => phone
+    ? `Siparişiniz hazırlanmaya başlandı. Değişiklik için lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz hazırlanmaya başlandı. Lütfen ${name} ile iletişime geçin.`,
 
   askOrderType: (fee) => `Siparişinizi nasıl almak istersiniz?\n\nTeslimat ücreti: €${Number(fee).toFixed(2)}`,
   pickupBtn: () => 'Gel Al',
