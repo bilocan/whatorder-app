@@ -343,6 +343,22 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
+  test('flag on — no_match in awaiting_name falls through to name handler (not "nicht auf der Karte")', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'awaiting_name', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      pickupTime: '14:30',
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+    customersRef.mockReturnValue({ doc: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) }) });
+
+    await handleMessage(ROUTING, msg({ text: 'Maria' }));
+
+    expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringMatching(/nicht auf der Karte|no_match/i));
+    expect(createOrder).not.toHaveBeenCalled();
+  });
+
   test('bare digit 1 in confirming does not place order', async () => {
     getSession.mockResolvedValue({
       language: 'de', state: 'confirming', businessId: BIZ,
