@@ -602,9 +602,15 @@ async function gateCheckoutTextInput(ctx) {
       }
     }
 
-    const opResult = await tryCheckoutBasketOp({
-      from, session: liveSession, lang, businessId, basket, text, norm, business: info,
-    });
+    // In awaiting_name, only run basket op for strong order text ("noch ein cola", "2 döner", etc.).
+    // Plain names (no qty/remove/modifier signals) skip basket op and fall through to the
+    // isCheckoutOnlySegment slot check and the name handler.
+    const skipBasketOp = liveSession.state === 'awaiting_name' && !isStrongOrderText(text, norm);
+    const opResult = skipBasketOp
+      ? { handled: false }
+      : await tryCheckoutBasketOp({
+          from, session: liveSession, lang, businessId, basket, text, norm, business: info,
+        });
 
     if (opResult.handled === 'llm_failed' || opResult.handled === 'no_match') {
       const foodText = stripCheckoutSlotsFromOrderText(text) || text;
