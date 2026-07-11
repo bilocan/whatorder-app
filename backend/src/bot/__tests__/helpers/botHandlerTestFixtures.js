@@ -71,7 +71,8 @@ const BEILAGEN_WITH_CHILI = {
   ],
 };
 
-const BIZ_INFO = { name: 'Döner Palace', avgPrepTime: 20, catalogId: 'cat_123', alertPhone: '+43699123456', address: 'Musterstrasse 1, 1010 Wien', botLanguage: 'de' };
+// Legacy browse-first suites opt out explicitly; conversational tests override to true in beforeEach.
+const BIZ_INFO = { name: 'Döner Palace', avgPrepTime: 20, catalogId: 'cat_123', alertPhone: '+43699123456', address: 'Musterstrasse 1, 1010 Wien', botLanguage: 'de', conversationalBasket: false };
 
 function mockCustomerProfile(data) {
   customersRef.mockReturnValue({
