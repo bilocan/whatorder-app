@@ -178,6 +178,49 @@ function branchSyncState(devAhead, masterAhead) {
   return 'in-sync';
 }
 
+/**
+ * Decide whether master is safe to release from and whether a post-release
+ * master → dev back-merge is useful.
+ *
+ * Commit counts lie after merge commits: a promote merge leaves master +1,
+ * a back-merge leaves dev +1. Use ancestry + tree equality instead.
+ */
+function assessReleaseBranches({ devInMaster, masterInDev, contentSynced }) {
+  if (!devInMaster && !masterInDev && !contentSynced) {
+    return {
+      ready: false,
+      reason: 'diverged',
+      needsPromote: true,
+      needsPostReleaseSync: false,
+    };
+  }
+
+  if (devInMaster) {
+    return {
+      ready: true,
+      reason: 'promoted',
+      needsPromote: false,
+      needsPostReleaseSync: !masterInDev && !contentSynced,
+    };
+  }
+
+  if (contentSynced) {
+    return {
+      ready: true,
+      reason: 'content-synced',
+      needsPromote: false,
+      needsPostReleaseSync: false,
+    };
+  }
+
+  return {
+    ready: false,
+    reason: 'needs-promote',
+    needsPromote: true,
+    needsPostReleaseSync: false,
+  };
+}
+
 function readUnreleasedOrThrow(vaultRootDir) {
   const filePath = unreleasedPath(vaultRootDir);
   if (!fs.existsSync(filePath)) {
@@ -222,7 +265,76 @@ function rotateVaultRelease(vaultRootDir, tag, { dryRun = false } = {}) {
   };
 }
 
+function printNextSteps(title, steps) {
+  if (!steps.length) return;
+  console.log(`\n--- ${title} ---`);
+  steps.forEach((step, index) => {
+    console.log(`  ${index + 1}. ${step}`);
+  });
+}
+
+const RELEASE_OVERVIEW_STEPS = [
+  'Run `npm run release` — checks branches (may open a **dev → master** promote PR if needed)',
+  'If a promote PR was opened: merge it when CI is green, then run `npm run release` again',
+  'Confirm vault changelog rotation + GitHub Release — triggers prod deploy (Cloud Run + Hosting)',
+  'Wait for **Release to Production** workflow + prod `/health` check',
+  'If a **master → dev** sync PR was opened: merge it when CI is green (keeps dev current for the next feature)',
+];
+
+function printReleaseOverview() {
+  printNextSteps('Release workflow (overview)', RELEASE_OVERVIEW_STEPS);
+}
+
+function nextStepsForPromoteRequired({ prUrl, dryRun } = {}) {
+  const steps = [];
+  if (prUrl) {
+    steps.push(`Merge the promote PR: ${prUrl}`);
+  } else if (dryRun) {
+    steps.push('Merge the **dev → master** promote PR when CI is green');
+  } else {
+    steps.push('Merge the **dev → master** promote PR when CI is green');
+  }
+  steps.push('Re-run: `npm run release`');
+  steps.push('(Optional preview first: `npm run release -- --dry-run`)');
+  printNextSteps('Next steps', steps);
+}
+
+function nextStepsForReleaseComplete({ tag, syncPrUrl, needsPostReleaseSync }) {
+  const steps = [
+    `Prod deploy triggered for **${tag}** — dashboard: https://whatorder-fire-prod.web.app`,
+    `Backend health: ${PROD_HEALTH_URL}`,
+  ];
+  if (needsPostReleaseSync && syncPrUrl) {
+    steps.push(`Merge the sync PR: ${syncPrUrl}`);
+    steps.push('Then branch new work from `dev` as usual');
+  } else if (needsPostReleaseSync) {
+    steps.push('Merge the **master → dev** sync PR when CI is green');
+  } else {
+    steps.push('Branches already aligned — start the next feature branch from `dev`');
+  }
+  printNextSteps('Release complete — what to do next', steps);
+}
+
+function nextStepsForDiverged() {
+  printNextSteps('Next steps', [
+    'Resolve the divergence locally (merge or rebase — team choice)',
+    'Push fixed `dev` and/or `master`, then run `npm run release` again',
+  ]);
+}
+
+function nextStepsForDryRunComplete({ wouldPromote, tag }) {
+  if (wouldPromote) {
+    nextStepsForPromoteRequired({ dryRun: true });
+    return;
+  }
+  printNextSteps('Dry run OK — to ship for real', [
+    `Run: \`npm run release\`${tag ? ` (will use tag ${tag})` : ''}`,
+    'Confirm vault commit + GitHub Release when prompted (or pass `--yes`)',
+    'Watch the **Release to Production** GitHub Action until green',
+  ]);
+}
 function printHelp() {
+  printReleaseOverview();
   console.log(`Usage: npm run release [-- options]
 
 Ship production by publishing a GitHub Release from master, rotating the vault
@@ -237,14 +349,6 @@ Options:
   --skip-vault-push    Rotate vault files locally but do not commit/push vault
   --skip-watch         Do not wait on the Release to Production GitHub Action
   --help, -h           Show this help
-
-Flow:
-  1. Ensure dev is merged into master (opens promote PR if needed)
-  2. Rotate vault releases/unreleased.md → releases/<tag>.md
-  3. Commit + push vault on master
-  4. gh release create (triggers prod deploy via release.yml)
-  5. Watch deploy + prod /health
-  6. Open master → dev sync PR if master is ahead of dev
 
 Docs: whatorder-vault/Projects/WhatOrder/specs/dev-workflow-guide.md
 `);
@@ -268,7 +372,14 @@ module.exports = {
   buildReleasedMarkdown,
   buildFreshUnreleasedTemplate,
   branchSyncState,
+  assessReleaseBranches,
   readUnreleasedOrThrow,
   rotateVaultRelease,
   printHelp,
+  printReleaseOverview,
+  printNextSteps,
+  nextStepsForPromoteRequired,
+  nextStepsForReleaseComplete,
+  nextStepsForDiverged,
+  nextStepsForDryRunComplete,
 };
