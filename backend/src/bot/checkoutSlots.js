@@ -3,14 +3,12 @@ const { isConversationalBasket } = require('./featureFlags');
 const { tokensOf } = require('./menuMapper');
 
 const PAY_CARD = new Set(['karte', 'card', 'kart', 'kredi', 'kartı', 'kartim', 'kreditkarte']);
-const PAY_CASH = new Set(['bar', 'cash', 'nakit', 'bargeld']);
 const ORDER_PICKUP = new Set(['abholen', 'pickup', 'selbstabholung', 'gel al', 'abholung']);
 const ORDER_DELIVERY = new Set(['lieferung', 'delivery', 'lieferservice', 'teslimat', 'paket']);
 
 function parsePaymentKeyword(norm) {
   const token = (norm ?? '').trim();
   if (PAY_CARD.has(token)) return 'card';
-  if (PAY_CASH.has(token)) return 'cash';
   return null;
 }
 
@@ -36,7 +34,7 @@ function normalizeSegment(text) {
 // Tokens that must never count as "food" even when a menu item name contains
 // them — checkout keywords and German/TR function words.
 const NON_FOOD_TOKENS = new Set([
-  ...PAY_CARD, ...PAY_CASH, ...ORDER_PICKUP, ...ORDER_DELIVERY,
+  ...PAY_CARD, ...ORDER_PICKUP, ...ORDER_DELIVERY,
   'liefern', 'lieferung', 'lieferservice', 'delivery', 'teslimat', 'paket',
   'abholen', 'mitnehmen', 'abholung', 'takeaway',
   'mit', 'und', 'oder', 'ohne', 'der', 'die', 'das', 'ein', 'eine', 'zum', 'zur', 'von',
@@ -71,9 +69,7 @@ function segmentHasFoodToken(segment, menuTokens) {
 function parsePaymentFromSegment(segment, segNorm) {
   const tokenPay = parsePaymentKeyword(segNorm.trim());
   if (tokenPay === 'card') return 'stripe';
-  if (tokenPay === 'cash') return 'cash';
   if (/\b(?:mit\s+)?(?:karte|kart|kredi\s+kart(?:i|ı)?|card)\b/i.test(segment)) return 'stripe';
-  if (/\b(?:mit\s+)?(?:bar|nakit|cash|bargeld)\b/i.test(segment)) return 'cash';
   return null;
 }
 
@@ -131,7 +127,6 @@ function stripInlineCheckoutPhrases(segment) {
   s = s.replace(/\s*,?\s*\b(?:zum\s+)?(?:liefern|lieferung|lieferservice|delivery|teslimat|paket(?:\s*servis)?)\b/gi, '');
   s = s.replace(/\s*,?\s*\b(?:zum\s+)?(?:abholen|mitnehmen|pickup|abholung|gel\s+al|takeaway|to\s+go)\b/gi, '');
   s = s.replace(/\s*,?\s*\b(?:mit\s+)?(?:karte|kart|kredi\s+kart(?:i|ı)?|card)\b/gi, '');
-  s = s.replace(/\s*,?\s*\b(?:mit\s+)?(?:bar|nakit|cash|bargeld)\b/gi, '');
   s = s.replace(/\s*,?\s*\b(?:ich\s+(?:hei[ßs]e|bin)|mein\s+name\s+ist|name\s+ist)\s+[^,;]+/gi, '');
   s = s.replace(/\s*,?\s*\b(?:notiz|anmerkung|bemerkung|note)\s*:\s*[^,;]+/gi, '');
   return s.replace(/\s+/g, ' ').trim();
@@ -162,7 +157,7 @@ function stripCheckoutSlotsFromOrderText(text, menuTokens = null) {
 
 /**
  * Rule-based checkout slot extraction (M3 step 1).
- * @returns {{ orderType?: string, deliveryAddress?: string, customerName?: string, specialRequests?: string, pendingPaymentMethod?: string }}
+ * @returns {{ orderType?: string, deliveryAddress?: string, customerName?: string, specialRequests?: string }}
  */
 function extractCheckoutSlotsRules(text, _norm, menuTokens = null) {
   const slots = {};
@@ -189,11 +184,6 @@ function extractCheckoutSlotsRules(text, _norm, menuTokens = null) {
       if (orderType) slots.orderType = orderType;
     }
 
-    if (!slots.pendingPaymentMethod) {
-      const pay = parsePaymentFromSegment(segment, segNorm);
-      if (pay) slots.pendingPaymentMethod = pay;
-    }
-
     if (!slots.deliveryAddress && looksLikeAddressSegment(segment, menuTokens)) {
       slots.deliveryAddress = extractAddressFromSegment(segment);
     }
@@ -202,11 +192,6 @@ function extractCheckoutSlotsRules(text, _norm, menuTokens = null) {
   if (!slots.orderType) {
     if (DELIVERY_PHRASE_RE.test(text)) slots.orderType = 'delivery';
     else if (PICKUP_PHRASE_RE.test(text)) slots.orderType = 'pickup';
-  }
-
-  if (!slots.pendingPaymentMethod) {
-    const pay = parsePaymentFromSegment(text, normalizeSegment(text));
-    if (pay) slots.pendingPaymentMethod = pay;
   }
 
   return slots;
@@ -225,9 +210,6 @@ function mergeCheckoutSlots(session, slots) {
   if (slots.specialRequests != null && slots.specialRequests !== '' && !merged.specialRequests) {
     merged.specialRequests = slots.specialRequests;
   }
-  if (slots.pendingPaymentMethod && !merged.pendingPaymentMethod) {
-    merged.pendingPaymentMethod = slots.pendingPaymentMethod;
-  }
   return merged;
 }
 
@@ -237,7 +219,6 @@ function slotsToSessionPatch(slots) {
   if (slots.deliveryAddress) patch.deliveryAddress = slots.deliveryAddress;
   if (slots.customerName) patch.customerName = slots.customerName;
   if (slots.specialRequests) patch.specialRequests = slots.specialRequests;
-  if (slots.pendingPaymentMethod) patch.pendingPaymentMethod = slots.pendingPaymentMethod;
   return patch;
 }
 

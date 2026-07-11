@@ -7,7 +7,7 @@ const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { isAcceptingOrders } = require('../lib/presence');
 const { getBusinessesInfo, sendRestaurantPicker, presentRestaurantPickerForLocation } = require('./botHelpers');
 const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/restaurant');
-const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming, handleAwaitingPaymentMethod } = require('./states/checkout');
+const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
 const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
@@ -29,7 +29,6 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsi
 // Greeting while stuck in checkout → fresh menu/reorder, not "type YES or NO" (empty basket only)
 const GREETING_FRESH_START_STATES = new Set([
   'confirming',
-  'awaiting_payment_method',
   'awaiting_name',
   'awaiting_order_type',
   'awaiting_delivery_address',
@@ -51,7 +50,6 @@ const STATE_HANDLERS = {
   awaiting_delivery_address:        handleAwaitingDeliveryAddress,
   awaiting_name:                    handleAwaitingName,
   confirming:                       handleConfirming,
-  awaiting_payment_method:          handleAwaitingPaymentMethod,
   awaiting_confirm_note:            handleAwaitingConfirmNote,
 };
 

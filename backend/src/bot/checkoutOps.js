@@ -20,7 +20,6 @@ const { t } = require('./templates');
 const { buildBasketRemoveAmbiguousText } = require('./basketEdit');
 
 const PAY_CARD = new Set(['karte', 'card', 'kart', 'kredi', 'kartı', 'kartim', 'kreditkarte']);
-const PAY_CASH = new Set(['bar', 'cash', 'nakit', 'bargeld']);
 const ORDER_PICKUP = new Set(['abholen', 'pickup', 'selbstabholung', 'gel al', 'abholung']);
 const ORDER_DELIVERY = new Set(['lieferung', 'delivery', 'lieferservice', 'teslimat', 'paket']);
 
@@ -28,7 +27,6 @@ const ORDER_DELIVERY = new Set(['lieferung', 'delivery', 'lieferservice', 'tesli
 const BARE_DIGIT_CLARIFY_STATES = new Set([
   'awaiting_name',
   'awaiting_order_type',
-  'awaiting_payment_method',
   'awaiting_confirm_note',
   'confirming',
 ]);
@@ -42,7 +40,6 @@ const CHECKOUT_BASKET_OP_STATES = new Set([
 function parsePaymentKeyword(norm) {
   const token = (norm ?? '').trim();
   if (PAY_CARD.has(token)) return 'card';
-  if (PAY_CASH.has(token)) return 'cash';
   return null;
 }
 
