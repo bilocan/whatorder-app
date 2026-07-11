@@ -15,7 +15,7 @@ feature/* ──PR──▶ dev ──auto-deploy──▶ TEST (whatorder-fire)
 - Direct pushes to `dev` and `master` are blocked (PRs only, CI checks required).
 - PRs into `master` are only accepted from `dev` (enforced by the *Master merge guard* check).
 - Merging to `master` deploys nothing; production ships when a GitHub Release is published:
-  `gh release create v2026.07.0 --target master --generate-notes`
+  `npm run release` (see vault `Projects/WhatOrder/specs/dev-workflow-guide.md`)
 
 Full workflow: vault `Projects/WhatOrder/specs/dev-workflow-guide.md`; infra details: `specs/environments-and-branching.md`.
 

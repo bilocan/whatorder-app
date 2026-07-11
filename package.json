@@ -21,7 +21,9 @@
     "intent:ship": "npm run intent:ship --prefix backend --",
     "intent:harvest": "npm run intent:harvest --prefix backend --",
     "env:pull": "node scripts/env-pull.js",
-    "env:push": "node scripts/env-push.js"
+    "env:push": "node scripts/env-push.js",
+    "release": "node scripts/release.js",
+    "test:release-lib": "node --test scripts/lib/__tests__/releaseLib.test.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
