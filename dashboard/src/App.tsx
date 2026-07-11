@@ -21,6 +21,7 @@ import EarningsPage from './pages/admin/EarningsPage';
 import SelectRestaurantPage from './pages/SelectRestaurantPage';
 import LearnedPhrasesPage from './pages/LearnedPhrasesPage';
 import IntentPlaygroundPage from './pages/IntentPlaygroundPage';
+import IntentDefaultsPage from './pages/IntentDefaultsPage';
 
 const PUBLIC_MAP_ORIGIN = 'https://whatorder.at';
 
@@ -58,6 +59,7 @@ export default function App() {
               <Route path="option-groups" element={<OptionGroupsPage />} />
               <Route path="learned-phrases" element={<LearnedPhrasesPage />} />
               <Route path="intent-playground" element={<IntentPlaygroundPage />} />
+              <Route path="intent-defaults" element={<IntentDefaultsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="admin" element={<AdminGuard><RestaurantsPage /></AdminGuard>} />
               <Route path="admin/map" element={<AdminGuard><AdminRestaurantMapPage /></AdminGuard>} />

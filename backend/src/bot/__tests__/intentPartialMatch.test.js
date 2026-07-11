@@ -20,13 +20,22 @@ describe('intentPartialMatch', () => {
 
   test('isPartialBlobTrap when cola matches but döner is in utterance', () => {
     const text = 'a kola un döner bitti';
-    const intent = parseIntent(text);
-    const { matched, unmatched } = matchIntentToMenu(intent, MENU);
-    expect(matched).toHaveLength(1);
-    expect(matched[0].name).toMatch(/Cola/i);
-    expect(unmatched).toHaveLength(0);
+    const intent = {
+      parsedBy: 'rules',
+      items: [{ name: 'a kola un döner bitti', qty: 1 }],
+    };
+    const matched = [{ name: 'Coca Cola 0.33L', qty: 1, menuItemId: 'c1' }];
     expect(isPartialBlobTrap(text, intent, matched)).toBe(true);
-    expect(shouldRetryIntentWithLlm(text, intent, matched, unmatched)).toBe(true);
+    expect(shouldRetryIntentWithLlm(text, intent, matched, [])).toBe(true);
+  });
+
+  test('mixed drink+food blob opens disambiguation without owner drink defaults', () => {
+    const text = 'a kola un döner bitti';
+    const intent = parseIntent(text);
+    const { matched, disambiguation } = matchIntentToMenu(intent, MENU);
+    expect(matched).toHaveLength(0);
+    expect(disambiguation?.candidates?.length).toBeGreaterThan(1);
+    expect(shouldRetryIntentWithLlm(text, intent, matched, [])).toBe(true);
   });
 
   test('shouldRetryIntentWithLlm when rules left unmatched lines', () => {

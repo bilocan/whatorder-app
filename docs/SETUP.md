@@ -19,6 +19,10 @@ feature/* ──PR──▶ dev ──auto-deploy──▶ TEST (whatorder-fire)
 
 Full workflow: vault `Projects/WhatOrder/specs/dev-workflow-guide.md`; infra details: `specs/environments-and-branching.md`.
 
+## Cursor loop prompts
+
+Recurring agent checks (intent harvest, CI, prod cutover smoke): vault `Projects/WhatOrder/notes/loop-engineering-playbook.md`. Paste a block into Cursor as `/loop 20m …` while working in an active session.
+
 ## Environment variables
 
 Secrets are synced from GCP Secret Manager (`whatorder-fire`) — no manual `.env` editing:

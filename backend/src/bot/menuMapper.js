@@ -136,6 +136,39 @@ function suggestCategoryAliases(categoryName) {
   return [...aliases].sort((a, b) => a.localeCompare(b));
 }
 
+/** Owner default pizza category when the customer omits size (e.g. "Pizza 33cm"). */
+function suggestDefaultPizzaCategory(menuItems) {
+  const grouped = groupMenuByCategory(menuItems);
+  const pizzaCats = [...grouped.keys()].filter((cat) => {
+    if (cat === 'other') return false;
+    return normalizeMenuLabel(cat).includes('pizza');
+  });
+  const standard = pizzaCats.filter((cat) => (
+    !/\bfamilien\b/i.test(cat)
+    && !/\b(4[5-9]|5\d|60)\s*cm\b/i.test(cat)
+  ));
+  return standard.find((cat) => /\b33\s*cm\b/i.test(cat)) ?? standard[0] ?? null;
+}
+
+const KEBAB_STEM_KEYS = ['doner', 'döner', 'kebap', 'kebab'];
+
+/** Suggest stem → menuItemId map for bare kebap/döner orders. */
+function suggestStemDefaults(menuItems, existingStemDefaults = null) {
+  if (existingStemDefaults && Object.keys(existingStemDefaults).length) {
+    return existingStemDefaults;
+  }
+  const stems = {};
+  const kebabItems = (menuItems ?? []).filter((i) => (
+    i.available !== false && normalizeMenuLabel(i.category ?? '').includes('kebap')
+  ));
+  const sandwich = kebabItems.find((i) => /sandwich/i.test(norm(i.name)));
+  if (!sandwich?.id) return stems;
+  for (const stem of KEBAB_STEM_KEYS) {
+    stems[stem] = sandwich.id;
+  }
+  return stems;
+}
+
 /**
  * Build `businesses/{bid}.menuMatch` from live menu rows.
  * Manual aliases on the business doc are merged when rebuilding.
@@ -157,8 +190,20 @@ function buildMenuMatchIndex(menuItems, existingMenuMatch = null) {
     };
   }
 
+  const defaults = { ...(existingMenuMatch?.defaults ?? {}) };
+  if (!defaults.pizzaCategory) {
+    const suggested = suggestDefaultPizzaCategory(menuItems);
+    if (suggested) defaults.pizzaCategory = suggested;
+  }
+  if (!defaults.stemDefaults || !Object.keys(defaults.stemDefaults).length) {
+    const suggestedStems = suggestStemDefaults(menuItems, defaults.stemDefaults);
+    if (Object.keys(suggestedStems).length) defaults.stemDefaults = suggestedStems;
+  }
+
+  const hasDefaults = defaults.pizzaCategory || (defaults.stemDefaults && Object.keys(defaults.stemDefaults).length);
   return {
     version: 1,
+    ...(hasDefaults ? { defaults } : {}),
     categories,
   };
 }
@@ -170,6 +215,8 @@ module.exports = {
   tokensOf,
   scoreCategoryMatch,
   suggestCategoryAliases,
+  suggestDefaultPizzaCategory,
+  suggestStemDefaults,
   buildMenuMatchIndex,
   groupMenuByCategory,
 };

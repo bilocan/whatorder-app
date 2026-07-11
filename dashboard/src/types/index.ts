@@ -93,7 +93,7 @@ export interface MenuItem {
   name: string;
   description: string;
   price: number;
-  category: 'mains' | 'sides' | 'drinks';
+  category: 'mains' | 'sides' | 'drinks' | string;
   photoUrl?: string;
   available: boolean;
   /** Reusable library group ids assigned to this item */
@@ -134,6 +134,28 @@ export interface Business {
   botLanguage?: 'de' | 'tr' | 'en';
   paymentEnabled?: boolean;
   imageUrl?: string;
+  menuMatch?: MenuMatch;
+}
+
+export interface MenuMatchCategory {
+  normalized: string;
+  collapsed: string;
+  aliases: string[];
+  itemCount: number;
+}
+
+export interface MenuMatchDefaults {
+  /** Menu category for pizza when customer omits size (e.g. Pizza 33cm). */
+  pizzaCategory?: string;
+  /** stem → menuItemId for bare orders (döner, kebap, …). */
+  stemDefaults?: Record<string, string>;
+}
+
+export interface MenuMatch {
+  version: number;
+  defaults?: MenuMatchDefaults;
+  categories: Record<string, MenuMatchCategory>;
+  updatedAt?: Timestamp | string | null;
 }
 
 export interface PhoneRouting {
