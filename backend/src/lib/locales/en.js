@@ -62,11 +62,7 @@ module.exports = {
       ? `🚚 Delivery to: ${deliveryAddress}`
       : `⏱️ Ready around ${pickupTime}`;
     const notesLine = notes ? `\n📝 Note: ${notes}` : '';
-    const paymentLine = paymentMethod === 'stripe'
-      ? '\n💳 Payment: Card'
-      : paymentMethod === 'cash'
-        ? '\n💰 Payment: Cash'
-        : '';
+    const paymentLine = paymentMethod === 'stripe' ? '\n💳 Payment: Card' : '';
     return `✅ Almost done!\n\n👤 ${name}\n💶 Total: €${total}\n${detail}${paymentLine}${notesLine}\n\nTap below to confirm or edit.`;
   },
   confirmListHeader: () => 'Review order',
@@ -91,32 +87,27 @@ module.exports = {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Delivery to: ${deliveryAddress}` : `Ready by: ${pickupTime}`;
-    const paymentLine = paymentMethod === 'stripe'
-      ? 'Payment: Card 💳'
-      : paymentMethod === 'cash'
-        ? 'Payment: Cash 💰'
-        : null;
-    const detailBlock = [detail, paymentLine].filter(Boolean).join('\n');
-    return `✅ Order #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nTotal: €${total}\n${detailBlock}\n\nThanks, ${customerName}! 🙏`;
+    return `✅ Order #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nTotal: €${total}\n${detail}\n\nThanks, ${customerName}! 🙏`;
   },
   checkoutCancelled: () => 'Order cancelled.',
-  askPaymentMethod: (total) => `How would you like to pay?\n\nTotal: €${total}`,
-  payCardBtn: () => 'Card 💳',
-  payCashBtn: () => 'Cash 💰',
   cancelOrderBtn: () => 'Cancel',
-  choosePaymentMethod: () => 'Please tap Card or Cash to continue.',
   checkoutNameNotOrder: () => 'That sounds like an order, not a name. What name should we put on the order?',
   checkoutDigitClarify: () => 'Did you mean a line number from your basket? Type item names or use the confirm button.',
   checkoutBasketUpdated: (basketText) => `✅ Basket updated.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'That sounds like an order. Please enter your delivery address, or add items via the basket first.',
   payNowBtn: () => 'Pay now 💳',
-  paymentLink: (shortId, itemLines, total) => `Order #${shortId} placed.\n\n${itemLines}\n\nTotal: €${total}\n\nTap the button below to pay securely.`,
+  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress) => {
+    const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
+    const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
+    const detail = deliveryAddress ? `Delivery to: ${deliveryAddress}` : null;
+    return `Order #${shortId} placed.\n\n${restaurantBlock}\n\n${itemLines}\n\nTotal: €${total}${detail ? `\n${detail}` : ''}\n\nTap the button below to pay securely.`;
+  },
   paymentLinkFailed: (shortId) => `Order #${shortId} was created but the payment link failed. Please contact the restaurant or try again.`,
   paymentConfirmed: (shortId) => `✅ Payment received for order #${shortId}. We'll notify you when it's ready. Thank you! 🙏`,
   paymentReturnSuccessTitle: () => 'Payment received',
   paymentReturnCancelTitle: () => 'Payment cancelled',
   paymentReturnSuccessNoLink: () => 'You can close this page and return to WhatsApp.',
-  paymentReturnCancelNoLink: () => 'Return to WhatsApp to retry or choose cash on pickup.',
+  paymentReturnCancelNoLink: () => 'Return to WhatsApp to retry your payment.',
   paymentReturnRedirecting: () => 'Returning to WhatsApp…',
   paymentReturnButton: () => 'Return to WhatsApp',
   paymentReturnFallbackLink: () => 'Tap here if the button does not work.',

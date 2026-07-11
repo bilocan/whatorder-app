@@ -27,24 +27,18 @@ describe('checkoutSlots', () => {
   });
 
   describe('extractCheckoutSlotsRules', () => {
-    test('front-loaded delivery, address, and card payment', () => {
+    test('front-loaded delivery and address', () => {
       const slots = extractCheckoutSlotsRules(
-        'zwei Döner zum Liefern, Musterstraße 1, mit Karte',
-        'zwei doner zum liefern, musterstrasse 1, mit karte',
+        'zwei Döner zum Liefern, Musterstraße 1',
+        'zwei doner zum liefern, musterstrasse 1',
       );
       expect(slots.orderType).toBe('delivery');
       expect(slots.deliveryAddress).toBe('Musterstraße 1');
-      expect(slots.pendingPaymentMethod).toBe('stripe');
     });
 
     test('pickup phrase', () => {
       const slots = extractCheckoutSlotsRules('zum Abholen bitte', 'zum abholen bitte');
       expect(slots.orderType).toBe('pickup');
-    });
-
-    test('cash payment keyword', () => {
-      const slots = extractCheckoutSlotsRules('bar zahlen', 'bar zahlen');
-      expect(slots.pendingPaymentMethod).toBe('cash');
     });
 
     test('customer name phrase', () => {
@@ -66,7 +60,7 @@ describe('checkoutSlots', () => {
 
   describe('stripCheckoutSlotsFromOrderText', () => {
     test('front-loaded phrase leaves food-only text for intent parse', () => {
-      expect(stripCheckoutSlotsFromOrderText('2 döner zum liefern, Hauptstraße 5, bar')).toBe('2 döner');
+      expect(stripCheckoutSlotsFromOrderText('2 döner zum liefern, Hauptstraße 5')).toBe('2 döner');
     });
 
     test('inline delivery phrase stripped from single segment', () => {
@@ -74,7 +68,7 @@ describe('checkoutSlots', () => {
     });
 
     test('checkout-only segments removed', () => {
-      expect(stripCheckoutSlotsFromOrderText('Hauptstraße 5, bar')).toBe('');
+      expect(stripCheckoutSlotsFromOrderText('Hauptstraße 5, zum Liefern')).toBe('');
     });
 
     test('food text unchanged when no checkout slots', () => {
@@ -90,7 +84,7 @@ describe('checkoutSlots', () => {
     });
 
     test('real address still stripped with menu tokens', () => {
-      expect(stripCheckoutSlotsFromOrderText('2 döner, Hauptstraße 5, bar', ENES_MENU_TOKENS)).toBe('2 döner');
+      expect(stripCheckoutSlotsFromOrderText('2 döner, Hauptstraße 5', ENES_MENU_TOKENS)).toBe('2 döner');
     });
   });
 
@@ -111,11 +105,10 @@ describe('checkoutSlots', () => {
     test('does not overwrite existing session fields', () => {
       const merged = mergeCheckoutSlots(
         { orderType: 'pickup', customerName: 'Anna' },
-        { orderType: 'delivery', customerName: 'Bob', pendingPaymentMethod: 'cash' },
+        { orderType: 'delivery', customerName: 'Bob' },
       );
       expect(merged.orderType).toBe('pickup');
       expect(merged.customerName).toBe('Anna');
-      expect(merged.pendingPaymentMethod).toBe('cash');
     });
   });
 

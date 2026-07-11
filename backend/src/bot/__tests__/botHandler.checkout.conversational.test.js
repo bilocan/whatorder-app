@@ -373,25 +373,6 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/Zeilennummer|line number/i));
   });
 
-  test('karte text in awaiting_payment_method places card order', async () => {
-    getBusinessInfo.mockResolvedValue({
-      ...BIZ_INFO,
-      paymentEnabled: true,
-      deliveryEnabled: false,
-    });
-    getSession.mockResolvedValue({
-      language: 'de', state: 'awaiting_payment_method', businessId: BIZ,
-      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
-      customerName: 'Max',
-      orderType: 'pickup',
-      pickupTime: '14:30',
-    });
-
-    await handleMessage(ROUTING, msg({ text: 'karte' }));
-
-    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({ paymentMethod: 'stripe' }));
-  });
-
   test('abholen text in awaiting_order_type selects pickup', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true });
     getSession.mockResolvedValue({
@@ -450,7 +431,6 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       conversationalBasket: true,
       deliveryEnabled: true,
       deliveryFee: 2.5,
-      paymentEnabled: true,
     });
     getSession.mockResolvedValue({
       language: 'de', state: 'browsing', businessId: BIZ,
@@ -458,7 +438,6 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       orderType: 'delivery',
       deliveryAddress: 'Hauptstraße 5',
       customerName: 'Max',
-      pendingPaymentMethod: 'cash',
       pickupTime: '14:30',
       prepMins: 20,
     });
@@ -470,14 +449,12 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       orderType: 'delivery',
       deliveryAddress: 'Hauptstraße 5',
       customerName: 'Max',
-      pendingPaymentMethod: 'cash',
     }));
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_order_type' }));
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_delivery_address' }));
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_name' }));
-    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_payment_method' }));
     expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      body: expect.stringMatching(/Zahlung: Bar/),
+      body: expect.stringMatching(/Fast fertig|Almost done/),
     }));
   });
 
@@ -493,7 +470,6 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       language: 'de', state: 'browsing', businessId: BIZ,
       basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
       orderType: 'delivery',
-      pendingPaymentMethod: 'cash',
       pickupTime: '14:30',
       prepMins: 20,
     });
@@ -508,10 +484,9 @@ describe('Checkout state: M3 slot-filling checkout', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringMatching(/Name/i));
   });
 
-  test('pendingPaymentMethod cash — btn_place_order skips payment prompt and receipt shows Bar', async () => {
+  test('btn_place_order in confirming places order directly — no payment method step', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,
-      paymentEnabled: true,
       deliveryEnabled: true,
       deliveryFee: 2.5,
     });
@@ -521,7 +496,6 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       orderType: 'delivery',
       deliveryAddress: 'Hauptstraße 5',
       customerName: 'Max',
-      pendingPaymentMethod: 'cash',
       pickupTime: '14:30',
       prepMins: 20,
     });
@@ -533,11 +507,6 @@ describe('Checkout state: M3 slot-filling checkout', () => {
     expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringMatching(/Zahlungsart|payment/i),
     }));
-    expect(sendText).toHaveBeenCalledWith(
-      FROM,
-      expect.stringMatching(/Zahlung: Bar 💰/),
-      expect.anything(),
-    );
   });
 
   test('flag on — checkout-only text persists slots without treating address as food', async () => {
@@ -547,12 +516,11 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
     });
 
-    await handleMessage(ROUTING, msg({ text: 'zum Liefern, Hauptstraße 5, bar' }));
+    await handleMessage(ROUTING, msg({ text: 'zum Liefern, Hauptstraße 5' }));
 
     expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       orderType: 'delivery',
       deliveryAddress: 'Hauptstraße 5',
-      pendingPaymentMethod: 'cash',
     }), expect.anything());
     expect(patchSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       basket: expect.arrayContaining([expect.objectContaining({ name: 'Hauptstraße 5' })]),

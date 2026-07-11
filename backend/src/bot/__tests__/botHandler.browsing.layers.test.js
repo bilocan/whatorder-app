@@ -150,12 +150,11 @@ describe('Browsing state: conversational basket (Tier 5)', () => {
       language: 'de', state: 'browsing', businessId: BIZ, basket: [],
     });
 
-    await handleMessage(ROUTING, msg({ text: '2 döner zum Liefern, Hauptstraße 5, bar' }));
+    await handleMessage(ROUTING, msg({ text: '2 döner zum Liefern, Hauptstraße 5' }));
 
     expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       orderType: 'delivery',
       deliveryAddress: 'Hauptstraße 5',
-      pendingPaymentMethod: 'cash',
     }), expect.anything());
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('Döner'),
