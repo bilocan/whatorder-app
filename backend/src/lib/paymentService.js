@@ -118,8 +118,7 @@ async function handleCheckoutSessionCompleted(session) {
     });
     // Best-effort: send post-order action buttons. Failure is logged but does not
     // block the primary notification or cause a duplicate text on retry.
-    console.log(`[stripe] sending post-order buttons to ${order.customerPhone} phoneNumberId=${phoneNumberId} lang=${lang}`);
-    const btnWamid = await sendButtonMessage(order.customerPhone, {
+    await sendButtonMessage(order.customerPhone, {
       body: t('postOrderOptions', lang),
       buttons: [
         { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
@@ -127,7 +126,6 @@ async function handleCheckoutSessionCompleted(session) {
         { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
       ],
     }, phoneNumberId);
-    console.log(`[stripe] post-order buttons sent wamid=${btnWamid}`);
   } catch (err) {
     const msg = err.name === 'WhatsAppRoutingError'
       ? err.message
