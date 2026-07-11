@@ -77,6 +77,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     businessId: isMulti ? null : businessId,
     pendingDeleteIds: [],
     pendingAmendOrderId: orderId,
+    pendingAmendBusinessId: businessId,
     pendingAmendPlacedAt: Date.now(),
     consecutiveParseFailures: 0,
   });
@@ -103,6 +104,14 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
   }
 
   await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, paymentMethod, info.alertPhone || null, info.address || null), phoneNumberId);
+  await sendButtonMessage(from, {
+    body: t('postOrderOptions', lang),
+    buttons: [
+      { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
+      { id: 'btn_post_reorder',    title: t('postReorderBtn', lang) },
+      { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
+    ],
+  }, phoneNumberId);
 }
 
 async function getKnownName(phone, businessId) {

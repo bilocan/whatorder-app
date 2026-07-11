@@ -130,42 +130,22 @@ describe('M4 post-order routing', () => {
     );
   });
 
-  test('cash add-on in amend window amends order', async () => {
+  test('order text after placement routes to call-restaurant (add-on removed)', async () => {
     getSession.mockResolvedValue(POST_ORDER_SESSION);
-    getOrder
-      .mockResolvedValueOnce({
-        id: ORDER_ID,
-        status: 'pending',
-        paymentMethod: 'cash',
-        items: [{ name: 'Döner', qty: 1, price: 8.5 }],
-      })
-      .mockResolvedValueOnce({
-        id: ORDER_ID,
-        status: 'pending',
-        paymentMethod: 'cash',
-        items: [
-          { name: 'Döner', qty: 1, price: 8.5 },
-          { name: 'Ayran', qty: 1, price: 2 },
-        ],
-        total: 10.5,
-      });
-    amendOrderAddItems.mockResolvedValue({
-      applied: [{ name: 'Ayran', qty: 1, price: 2 }],
-      total: 10.5,
+    getOrder.mockResolvedValue({
+      id: ORDER_ID,
+      status: 'pending',
+      paymentMethod: 'cash',
+      items: [{ name: 'Döner', qty: 1, price: 8.5 }],
     });
 
     await handleMessage(ROUTING, msg({ text: 'noch ein ayran' }));
 
-    expect(amendOrderAddItems).toHaveBeenCalledWith(BIZ, ORDER_ID, expect.any(Array));
+    expect(amendOrderAddItems).not.toHaveBeenCalled();
     expect(sendText).toHaveBeenCalledWith(
       FROM,
-      expect.stringContaining('456789'),
+      expect.stringContaining(BIZ_INFO.alertPhone),
       'test_phone_id',
-    );
-    expect(sendText).not.toHaveBeenCalledWith(
-      BIZ_INFO.alertPhone,
-      expect.stringMatching(/amended \(add-on\)/),
-      expect.anything(),
     );
   });
 

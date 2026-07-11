@@ -59,6 +59,9 @@ async function tryOfferReorder({ from, session, lang, businessId, basket, busine
     basket,
     pendingReorderItems: matched,
     pendingReorderUnmatched: unmatched.length ? unmatched : undefined,
+    pendingAmendOrderId: undefined,
+    pendingAmendBusinessId: undefined,
+    pendingAmendPlacedAt: undefined,
   }, session);
 
   const msgId = await sendButtonMessage(from, {
@@ -118,6 +121,14 @@ async function handleReorderButtons({ from, session, lang, businessId, basket, i
 
 // Layer 0–1 entry: menu keyword → catalog; intent → disambiguate/confirm; reorder → offer; else order entry prompt.
 async function startRestaurantBrowsing({ from, session, lang, businessId, type, text, norm, businessName }) {
+  // Any fresh browse clears the post-order amend context so subsequent food text is treated as a new order.
+  if (session.pendingAmendOrderId) {
+    await patchSession(from, {
+      pendingAmendOrderId: undefined,
+      pendingAmendBusinessId: undefined,
+      pendingAmendPlacedAt: undefined,
+    }, session);
+  }
   const freshSession = {
     ...session,
     state: 'browsing',

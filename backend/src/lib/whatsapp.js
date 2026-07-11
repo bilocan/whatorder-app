@@ -99,7 +99,7 @@ async function sendListMessage(to, { header, body, footer, buttonLabel, sections
 }
 
 // buttons: [{ id, title }] — max 3
-async function sendButtonMessage(to, { body, footer, buttons }) {
+async function sendButtonMessage(to, { body, footer, buttons }, phoneNumberId) {
   const normalized = normalizePhone(to);
   const safeButtons = (buttons ?? []).map(b => ({
     id: b.id,
@@ -117,7 +117,7 @@ async function sendButtonMessage(to, { body, footer, buttons }) {
     },
   };
   if (footer) interactive.footer = { text: footer };
-  return send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive });
+  return send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive }, phoneNumberId);
 }
 
 // Opens url in the device browser — use instead of pasting long URLs in message body.

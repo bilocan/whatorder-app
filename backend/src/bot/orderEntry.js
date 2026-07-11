@@ -36,6 +36,9 @@ async function sendOrderEntryPrompt({ from, session, lang, businessId, basket = 
     basket,
     menuSearchActive: false,
     pendingDeleteIds: msgId ? [msgId] : [],
+    pendingAmendOrderId: undefined,
+    pendingAmendBusinessId: undefined,
+    pendingAmendPlacedAt: undefined,
   }, session);
   return true;
 }

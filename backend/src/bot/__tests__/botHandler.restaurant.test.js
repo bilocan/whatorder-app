@@ -366,7 +366,11 @@ describe('Multi-restaurant: order confirmed sends receipt and resets session', (
       basket: [],
     }));
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Döner Palace'), 'test_phone_id');
-    expect(sendButtonMessage).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(
+      FROM,
+      expect.objectContaining({ buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_post_cancel' })]) }),
+      'test_phone_id',
+    );
   });
 
   test('receipt text includes the order short ID', async () => {
@@ -382,7 +386,11 @@ describe('Multi-restaurant: order confirmed sends receipt and resets session', (
     await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Confirm ✅' }));
 
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'), 'test_phone_id');
-    expect(sendButtonMessage).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(
+      FROM,
+      expect.objectContaining({ buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_post_cancel' })]) }),
+      'test_phone_id',
+    );
   });
 });
 
