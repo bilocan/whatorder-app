@@ -1,10 +1,13 @@
 /**
  * Per-business bot feature flags (Firestore `businesses/{bid}` fields).
- * Default off — callers must gate new behavior behind these helpers.
+ * Conversational basket is the default ordering mode; set `conversationalBasket: false`
+ * on a business doc to opt out to legacy browse-first paths. Legacy paths remain
+ * in code until a later cleanup — only the default changed.
  */
 
 function isConversationalBasket(business) {
-  return business?.conversationalBasket === true;
+  if (!business) return false;
+  return business.conversationalBasket !== false;
 }
 
 module.exports = {

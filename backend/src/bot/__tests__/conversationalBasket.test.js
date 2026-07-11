@@ -95,7 +95,7 @@ describe('tryConversationalBasketText', () => {
     const handled = await tryConversationalBasketText({
       ...BASE,
       text: 'cola raus',
-      business: { name: 'Test' },
+      business: { name: 'Test', conversationalBasket: false },
     });
     expect(handled).toBe(false);
     expect(patchSession).not.toHaveBeenCalled();
@@ -372,7 +372,7 @@ describe('tryBasketUndo edge cases', () => {
 
   test('returns false when flag is off', async () => {
     expect(await tryBasketUndo({
-      ...BASE, norm: 'undo', business: { name: 'Test' },
+      ...BASE, norm: 'undo', business: { name: 'Test', conversationalBasket: false },
     })).toBe(false);
   });
 
