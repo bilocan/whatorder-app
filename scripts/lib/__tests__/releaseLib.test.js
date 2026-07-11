@@ -10,6 +10,7 @@ const {
   buildReleasedMarkdown,
   buildFreshUnreleasedTemplate,
   branchSyncState,
+  assessReleaseBranches,
   normalizeTag,
   rotateVaultRelease,
   vaultReleasesDir,
@@ -84,6 +85,38 @@ test('branchSyncState', () => {
   assert.equal(branchSyncState(3, 0), 'dev-ahead');
   assert.equal(branchSyncState(0, 2), 'master-ahead');
   assert.equal(branchSyncState(1, 1), 'diverged');
+});
+
+test('assessReleaseBranches allows promoted master even when master is commit-ahead', () => {
+  const result = assessReleaseBranches({
+    devInMaster: true,
+    masterInDev: false,
+    contentSynced: false,
+  });
+  assert.equal(result.ready, true);
+  assert.equal(result.reason, 'promoted');
+  assert.equal(result.needsPostReleaseSync, true);
+});
+
+test('assessReleaseBranches allows content-synced dev after back-merge', () => {
+  const result = assessReleaseBranches({
+    devInMaster: false,
+    masterInDev: true,
+    contentSynced: true,
+  });
+  assert.equal(result.ready, true);
+  assert.equal(result.reason, 'content-synced');
+  assert.equal(result.needsPostReleaseSync, false);
+});
+
+test('assessReleaseBranches blocks unpromoted dev work', () => {
+  const result = assessReleaseBranches({
+    devInMaster: false,
+    masterInDev: true,
+    contentSynced: false,
+  });
+  assert.equal(result.ready, false);
+  assert.equal(result.reason, 'needs-promote');
 });
 
 test('rotateVaultRelease writes release file and resets unreleased', () => {

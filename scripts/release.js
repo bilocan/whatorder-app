@@ -21,9 +21,16 @@ const {
   parseReleaseArgs,
   suggestNextTag,
   normalizeTag,
+  assessReleaseBranches,
   branchSyncState,
   rotateVaultRelease,
   printHelp,
+  printReleaseOverview,
+  printNextSteps,
+  nextStepsForPromoteRequired,
+  nextStepsForReleaseComplete,
+  nextStepsForDiverged,
+  nextStepsForDryRunComplete,
 } = require('./lib/releaseLib');
 const { confirm } = require('./lib/gcloudSecrets');
 
@@ -74,6 +81,39 @@ function branchCounts(appRootDir) {
   return {
     masterAhead: Number.parseInt(masterAheadRaw, 10) || 0,
     devAhead: Number.parseInt(devAheadRaw, 10) || 0,
+  };
+}
+
+function isAncestor(appRootDir, ancestor, descendant) {
+  const result = runInDir(
+    appRootDir,
+    'git',
+    ['merge-base', '--is-ancestor', ancestor, descendant],
+    { allowFailure: true },
+  );
+  return result.status === 0;
+}
+
+function isContentSynced(appRootDir) {
+  const masterTree = runInDir(appRootDir, 'git', ['rev-parse', 'origin/master^{tree}']).stdout.trim();
+  const devTree = runInDir(appRootDir, 'git', ['rev-parse', 'origin/dev^{tree}']).stdout.trim();
+  return masterTree === devTree;
+}
+
+function inspectBranches(appRootDir) {
+  const counts = branchCounts(appRootDir);
+  const devInMaster = isAncestor(appRootDir, 'origin/dev', 'origin/master');
+  const masterInDev = isAncestor(appRootDir, 'origin/master', 'origin/dev');
+  const contentSynced = isContentSynced(appRootDir);
+  const assessment = assessReleaseBranches({ devInMaster, masterInDev, contentSynced });
+
+  return {
+    counts,
+    devInMaster,
+    masterInDev,
+    contentSynced,
+    assessment,
+    syncLabel: branchSyncState(counts.devAhead, counts.masterAhead),
   };
 }
 
@@ -164,45 +204,56 @@ function createSyncPr(appRootDir, tag, { dryRun }) {
 
 async function ensureBranchesReady(appRootDir, flags) {
   gitFetch(appRootDir);
-  const counts = branchCounts(appRootDir);
-  const sync = branchSyncState(counts.devAhead, counts.masterAhead);
+  const branch = inspectBranches(appRootDir);
+  const { counts, assessment } = branch;
 
   logStep('Branch sync check');
-  console.log(`  origin/dev vs origin/master: dev +${counts.devAhead}, master +${counts.masterAhead} (${sync})`);
+  console.log(
+    `  origin/dev vs origin/master: dev +${counts.devAhead}, master +${counts.masterAhead} (${branch.syncLabel})`,
+  );
+  console.log(`  content synced: ${branch.contentSynced ? 'yes' : 'no'} | release gate: ${assessment.reason}`);
 
-  if (sync === 'diverged') {
-    throw new Error(
-      'dev and master have diverged. Resolve manually (merge/rebase), then re-run release.',
-    );
+  if (counts.masterAhead > 0 && assessment.ready) {
+    console.log('  Note: master ahead of dev is normal after a promote merge — not blocking release.');
   }
 
-  if (counts.masterAhead > 0 && !flags.skipSync) {
-    logStep('Master is ahead of dev — sync PR required before release');
-    createSyncPr(appRootDir, '(pre-release)', flags);
-    if (!flags.dryRun) {
-      throw new Error(
-        'Merge the master → dev sync PR first so dev is not behind master, then re-run release.',
-      );
+  if (assessment.ready) {
+    if (flags.skipPromote || flags.skipSync) {
+      console.log('  Warning: branch checks relaxed via --skip-promote / --skip-sync');
     }
-    return false;
-  }
-
-  if (counts.devAhead > 0 && !flags.skipPromote) {
-    logStep('Dev is ahead of master — promote required before release');
-    createPromotePr(appRootDir, flags);
     if (!flags.dryRun) {
-      throw new Error(
-        'Merge the dev → master promote PR first, then re-run release.',
-      );
+      printNextSteps('Ready to ship — this run will', [
+        'Rotate vault `releases/unreleased.md` → `releases/<tag>.md` and push vault `master`',
+        'Publish GitHub Release on `master` (triggers prod deploy)',
+        'Watch **Release to Production** + check prod `/health`',
+        'Open a **master → dev** sync PR afterward if needed',
+      ]);
     }
-    return false;
+    return { ready: true, assessment, promotePrUrl: null };
   }
 
-  if (sync !== 'in-sync' && (flags.skipPromote || flags.skipSync)) {
-    console.log('  Warning: branch skew ignored via --skip-promote / --skip-sync');
+  if (assessment.reason === 'diverged') {
+    nextStepsForDiverged();
+    throw new Error('dev and master have diverged — resolve manually, then re-run release.');
   }
 
-  return true;
+  if (assessment.needsPromote && !flags.skipPromote) {
+    logStep('Dev has unpromoted work — promote required before release');
+    const pr = createPromotePr(appRootDir, flags);
+    const prUrl = pr?.url || null;
+    nextStepsForPromoteRequired({ prUrl, dryRun: flags.dryRun });
+    if (!flags.dryRun) {
+      throw new Error('Stopped — complete the steps above, then re-run npm run release.');
+    }
+    return { ready: false, assessment, promotePrUrl: prUrl, needsPromote: true };
+  }
+
+  if (flags.skipPromote) {
+    console.log('  Warning: releasing with unpromoted dev work (--skip-promote)');
+    return { ready: true, assessment, promotePrUrl: null };
+  }
+
+  return { ready: false, assessment, promotePrUrl: null };
 }
 
 function ensureVaultRepo(vaultRootDir) {
@@ -367,14 +418,17 @@ async function main() {
   }
 
   ensureGh();
+  printReleaseOverview();
 
   const root = appRoot();
   const vault = vaultRoot(root);
   ensureVaultRepo(vault);
 
-  const branchesReady = await ensureBranchesReady(root, flags);
-  if (!branchesReady && flags.dryRun) {
-    console.log('\nDry run stops here — merge branch PRs, then re-run without --dry-run.');
+  const branchGate = await ensureBranchesReady(root, flags);
+  if (!branchGate.ready && flags.dryRun) {
+    if (!branchGate.needsPromote) {
+      nextStepsForPromoteRequired({ dryRun: true });
+    }
     return;
   }
 
@@ -393,24 +447,35 @@ async function main() {
   await verifyProdHealth(flags);
   firestoreRulesReminder(root);
 
+  let syncPrUrl = null;
+  let needsPostReleaseSync = false;
   if (!flags.skipSync && !flags.dryRun) {
     gitFetch(root);
-    const counts = branchCounts(root);
-    if (counts.masterAhead > 0) {
+    const post = inspectBranches(root);
+    needsPostReleaseSync = post.assessment.needsPostReleaseSync;
+    if (needsPostReleaseSync) {
       logStep('Post-release branch sync');
-      createSyncPr(root, tag, flags);
-    } else {
-      console.log('\nDev and master are in sync — no post-release sync PR needed.');
+      const pr = createSyncPr(root, tag, flags);
+      syncPrUrl = pr?.url || null;
     }
   }
 
-  console.log('\nRelease flow complete.');
   if (flags.dryRun) {
+    nextStepsForDryRunComplete({ wouldPromote: false, tag });
     console.log('\nDry run only — no vault writes, PRs, or release published.');
+    return;
   }
+
+  nextStepsForReleaseComplete({ tag, syncPrUrl, needsPostReleaseSync });
 }
 
 main().catch((err) => {
   console.error(`\n[release] ${err.message}`);
+  if (!/complete the steps above/i.test(err.message)) {
+    printNextSteps('Tip', [
+      'Run `npm run release -- --help` for the full numbered workflow',
+      'Preview without changes: `npm run release -- --dry-run`',
+    ]);
+  }
   process.exit(1);
 });
