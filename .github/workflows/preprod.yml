@@ -93,6 +93,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify Preproduction environment config
+        run: |
+          if [ -z "${{ vars.GCP_PROJECT }}" ]; then
+            echo "::error::Preproduction environment is missing variable GCP_PROJECT (set to whatorder-fire-prod — copy from Production environment)."
+            exit 1
+          fi
+          if [ -z "${{ secrets.WIF_PROVIDER }}" ] || [ -z "${{ secrets.WIF_SERVICE_ACCOUNT }}" ]; then
+            echo "::error::Preproduction environment is missing WIF_PROVIDER or WIF_SERVICE_ACCOUNT secrets (copy from Production)."
+            exit 1
+          fi
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -131,6 +142,21 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify Preproduction environment config
+        run: |
+          if [ -z "${{ vars.GCP_PROJECT }}" ]; then
+            echo "::error::Preproduction environment is missing variable GCP_PROJECT (set to whatorder-fire-prod — copy from Production environment)."
+            exit 1
+          fi
+          if [ -z "${{ vars.FIREBASE_HOSTING_SA }}" ]; then
+            echo "::error::Preproduction environment is missing variable FIREBASE_HOSTING_SA (copy from Production environment)."
+            exit 1
+          fi
+          if [ -z "${{ secrets.WIF_PROVIDER }}" ]; then
+            echo "::error::Preproduction environment is missing WIF_PROVIDER secret (copy from Production)."
+            exit 1
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
