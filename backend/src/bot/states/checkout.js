@@ -577,9 +577,10 @@ async function gateCheckoutTextInput(ctx) {
       }
     }
 
-    // awaiting_confirm_note: any text is a free-form order note, not a product search.
+    // awaiting_confirm_note / confirming: weak free text is a note, not a product search.
     // awaiting_name: only run basket op for strong order text ("noch ein cola", "2 döner", etc.).
     const skipBasketOp = liveSession.state === 'awaiting_confirm_note'
+      || (liveSession.state === 'confirming' && !isStrongOrderText(text, norm))
       || (liveSession.state === 'awaiting_name' && !isStrongOrderText(text, norm));
     const opResult = skipBasketOp
       ? { handled: false }
@@ -877,6 +878,13 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
       const { menuId } = await sendCatalog(from, lang, businessId, t('checkoutCancelled', lang));
       await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: menuId ? [menuId] : [] });
     }
+    return;
+  }
+
+  // Free text on the confirm screen (without tapping Add note) — e.g. "kola kalt bitte".
+  if (type === 'text' && norm.length > 0) {
+    const newSession = { ...session, specialRequests: text.trim() };
+    await transitionToConfirming(from, newSession, lang, businessId, basket, session.customerName);
     return;
   }
 

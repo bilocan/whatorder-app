@@ -311,11 +311,35 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
       whatsappPhoneNumberId: 'test_phone_id',
     });
 
-    await handleMessage(ROUTING, msg({ text: 'xyz gibberish order' }));
+    await handleMessage(ROUTING, msg({ text: '2x unicorn burger' }));
 
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/xyz gibberish order/i));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/unicorn burger/i));
     expect(patchSession).toHaveBeenCalledWith(FROM, { consecutiveParseFailures: 1 }, expect.anything());
     expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('flag on — confirming saves product-like text as note without Add note button', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Coca Cola 0.33L', qty: 1, price: 2.9 }],
+      customerName: 'Bilal aygün',
+      pickupTime: '14:30',
+      orderType: 'delivery',
+      deliveryAddress: 'hippgasse 11',
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'kola kalt bitte' }));
+
+    expect(tryCheckoutBasketOp).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      specialRequests: 'kola kalt bitte',
+    }));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/kola kalt bitte/i),
+    }));
   });
 
   test('flag on — awaiting_confirm_note saves product-like text as note (not menu search)', async () => {
