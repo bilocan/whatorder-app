@@ -5,7 +5,7 @@ const { getFeeConfig, calcFeeCents } = require('./feeConfig');
 const { getSettlementConfig, computeHoldEndsAt, computeExpectedPayoutAt } = require('./settlementConfig');
 const { resolveWhatsAppReturnPhoneDigits, waMeUrl, resolvePaymentLang } = require('./whatsappReturn');
 const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('./whatsappRouting');
-const { sendText } = require('./whatsapp');
+const { sendText, sendButtonMessage } = require('./whatsapp');
 const { t } = require('./templates');
 
 function paymentBaseUrl() {
@@ -116,6 +116,16 @@ async function handleCheckoutSessionCompleted(session) {
     await orderRef.update({
       paymentNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    // Best-effort: send post-order action buttons. Failure is logged but does not
+    // block the primary notification or cause a duplicate text on retry.
+    await sendButtonMessage(order.customerPhone, {
+      body: t('postOrderOptions', lang),
+      buttons: [
+        { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
+        { id: 'btn_post_reorder',    title: t('postReorderBtn', lang) },
+        { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
+      ],
+    }, phoneNumberId);
   } catch (err) {
     const msg = err.name === 'WhatsAppRoutingError'
       ? err.message

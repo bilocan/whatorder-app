@@ -71,6 +71,7 @@ function stripPolitePrefix(text) {
 
 function stripContinuationPrefix(text) {
   return (text ?? '')
+    .replace(/^\s*noch\s+(\d+)\s+/i, '$1 ')
     .replace(/^\s*noch\s+(?:ein|eine|einen|einer|dazu)\s+/i, '')
     .replace(/^\s*(?:auch|nochmal)\s+(?:ein|eine|einen|einer)\s+/i, '')
     .trim();

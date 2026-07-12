@@ -19,6 +19,7 @@ const intentPhrasesRouter = require('./routes/intentPhrases');
 const mapsPreviewRouter = require('./routes/mapsPreview');
 const mapsRestaurantsRouter = require('./routes/mapsRestaurants');
 const mapsConfigRouter = require('./routes/mapsConfig');
+const { getBuildInfo } = require('./lib/buildInfo');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,8 +38,16 @@ app.use('/webhooks/whatsapp', whatsappJson, webhookRouter);
 app.use(express.json());
 app.use((req, _res, next) => { console.log(`[express] ${req.method} ${req.url}`); next(); });
 
+function versionPayload() {
+  return getBuildInfo();
+}
+
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date() });
+  res.json({ status: 'OK', timestamp: new Date().toISOString(), ...versionPayload() });
+});
+
+app.get('/version', (req, res) => {
+  res.json(versionPayload());
 });
 
 app.use(chatRouter);

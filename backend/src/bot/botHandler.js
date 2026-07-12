@@ -7,7 +7,7 @@ const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { isAcceptingOrders } = require('../lib/presence');
 const { getBusinessesInfo, sendRestaurantPicker, presentRestaurantPickerForLocation } = require('./botHelpers');
 const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/restaurant');
-const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming, handleAwaitingPaymentMethod } = require('./states/checkout');
+const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
 const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
@@ -20,6 +20,7 @@ const {
   tryHandlePostOrderMessage,
   isHumanHandoffButton,
   handleHumanHandoffButton,
+  handlePostOrderCancelButton,
 } = require('./postOrder');
 
 // Restaurant switch only — "start"/"starten" are fresh-start at the current venue (see isFreshStartCommand).
@@ -28,7 +29,6 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h safety net for abandoned browsi
 // Greeting while stuck in checkout → fresh menu/reorder, not "type YES or NO" (empty basket only)
 const GREETING_FRESH_START_STATES = new Set([
   'confirming',
-  'awaiting_payment_method',
   'awaiting_name',
   'awaiting_order_type',
   'awaiting_delivery_address',
@@ -50,7 +50,6 @@ const STATE_HANDLERS = {
   awaiting_delivery_address:        handleAwaitingDeliveryAddress,
   awaiting_name:                    handleAwaitingName,
   confirming:                       handleConfirming,
-  awaiting_payment_method:          handleAwaitingPaymentMethod,
   awaiting_confirm_note:            handleAwaitingConfirmNote,
 };
 
@@ -151,6 +150,30 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     && !!session.businessId;
   const sessionExpiredForPicker = isMulti && isIdleBrowsing && lastActive
     && (Date.now() - lastActive.getTime() > SESSION_TTL_MS);
+
+  // Post-order action buttons must work even in multi-restaurant mode where session.businessId
+  // is null after order placement. Intercept before the restaurant-picker early return.
+  if (type === 'button_reply' && (id === 'btn_post_cancel' || id === 'btn_post_reorder' || id === 'btn_post_restaurant')) {
+    const postLang = session.language || 'de';
+    const postBid = session.pendingAmendBusinessId || session.businessId || routing.defaultBusinessId || routing.businessIds[0];
+    if (id === 'btn_post_cancel') {
+      await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid });
+      return;
+    }
+    if (id === 'btn_post_restaurant' && isMulti) {
+      const phoneNumberId = session.whatsappPhoneNumberId || null;
+      await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [] });
+      try {
+        await sendText(from, t('multiWelcomeBody', postLang), phoneNumberId);
+        const locId = await sendLocationRequest(from, t('locationRequestBody', postLang));
+        if (locId) await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [locId] });
+      } catch { /* ignore — awaiting_location handler will show picker on next message */ }
+      return;
+    }
+    const postInfo = await getBusinessInfo(postBid);
+    await startRestaurantBrowsing({ from, session: { ...session, basket: [] }, lang: postLang, businessId: postBid, type, text, norm, businessName: postInfo.name });
+    return;
+  }
 
   // First message OR multi-restaurant with no restaurant selected yet OR TTL expired
   // (skip if already in selecting_restaurant — let the state machine handle the reply)

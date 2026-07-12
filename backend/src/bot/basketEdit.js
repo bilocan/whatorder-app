@@ -34,11 +34,13 @@ function basketLineMatchesName(item, rawName) {
   if (!needle) return false;
   const label = norm(formatBasketItemLabel(item));
   const base = norm(parseBasketItemName(item).baseName);
+  const note = norm((item.note ?? '').trim());
   return label === needle
     || label.includes(needle)
     || needle.includes(label)
     || base.includes(needle)
-    || needle.includes(base);
+    || needle.includes(base)
+    || (note && (note.includes(needle) || needle.includes(note)));
 }
 
 function findMatchingLineIndices(basket, rawName) {

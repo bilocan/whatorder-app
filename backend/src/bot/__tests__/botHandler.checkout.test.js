@@ -165,7 +165,7 @@ describe('Cancel flow', () => {
 });
 
 describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
-  test('order confirmed → browsing state + plain text confirmation (no button message)', async () => {
+  test('order confirmed → browsing state + receipt + post-order action buttons', async () => {
     getSession.mockResolvedValue({
       language: 'en',
       state: 'confirming',
@@ -181,7 +181,11 @@ describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'), 'test_phone_id');
-    expect(sendButtonMessage).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(
+      FROM,
+      expect.objectContaining({ buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_post_cancel' })]) }),
+      'test_phone_id',
+    );
   });
 
   test('order cancelled → browsing state + catalog (no button message)', async () => {

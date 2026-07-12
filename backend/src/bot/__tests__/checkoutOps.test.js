@@ -84,8 +84,8 @@ beforeEach(() => {
 describe('checkoutOps keywords', () => {
   test('parsePaymentKeyword', () => {
     expect(parsePaymentKeyword('karte')).toBe('card');
-    expect(parsePaymentKeyword('bar')).toBe('cash');
-    expect(parsePaymentKeyword('nakit')).toBe('cash');
+    expect(parsePaymentKeyword('bar')).toBe(null);
+    expect(parsePaymentKeyword('nakit')).toBe(null);
     expect(parsePaymentKeyword('hamza')).toBe(null);
   });
 

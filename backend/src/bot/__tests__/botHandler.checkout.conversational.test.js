@@ -311,11 +311,92 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
       whatsappPhoneNumberId: 'test_phone_id',
     });
 
-    await handleMessage(ROUTING, msg({ text: 'xyz gibberish order' }));
+    await handleMessage(ROUTING, msg({ text: '2x unicorn burger' }));
 
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/xyz gibberish order/i));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/unicorn burger/i));
     expect(patchSession).toHaveBeenCalledWith(FROM, { consecutiveParseFailures: 1 }, expect.anything());
     expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('flag on — noch ein cola on confirming adds to basket (not saved as note)', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getMenuContext.mockResolvedValue({
+      menu: [
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'c1', name: 'Cola', price: 2.5, available: true },
+      ],
+      menuMatch: require('../menuMapper').buildMenuMatchIndex([
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'c1', name: 'Cola', price: 2.5, available: true },
+      ]),
+      menuTokenIndex: null,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.50 },
+        { name: 'Cola', qty: 1, price: 2.50 },
+      ],
+      customerName: 'Max',
+      orderType: 'pickup',
+      pickupTime: '14:30',
+      prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'noch ein cola' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: expect.arrayContaining([
+        expect.objectContaining({ name: 'Cola', qty: 2 }),
+      ]),
+    }), expect.anything());
+    const noteWrite = setSession.mock.calls.find(([, data]) => data.specialRequests === 'noch ein cola');
+    expect(noteWrite).toBeUndefined();
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+
+  test('flag on — confirming saves product-like text as note without Add note button', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Coca Cola 0.33L', qty: 1, price: 2.9 }],
+      customerName: 'Bilal aygün',
+      pickupTime: '14:30',
+      orderType: 'delivery',
+      deliveryAddress: 'hippgasse 11',
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'kola kalt bitte' }));
+
+    expect(tryCheckoutBasketOp).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      specialRequests: 'kola kalt bitte',
+    }));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/kola kalt bitte/i),
+    }));
+  });
+
+  test('flag on — awaiting_confirm_note saves product-like text as note (not menu search)', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'awaiting_confirm_note', businessId: BIZ,
+      basket: [{ name: 'Coca Cola 0.33L', qty: 1, price: 2.9 }],
+      customerName: 'Ali',
+      pickupTime: '14:30',
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'kola soğuk olsun' }));
+
+    expect(tryCheckoutBasketOp).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      specialRequests: 'kola soğuk olsun',
+    }));
+    expect(sendListMessage).toHaveBeenCalled();
   });
 
   test('flag on — second no_match on confirming offers human handoff', async () => {
@@ -343,6 +424,22 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
+  test('flag on — no_match in awaiting_name falls through to name handler (not "nicht auf der Karte")', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'awaiting_name', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      pickupTime: '14:30',
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+    customersRef.mockReturnValue({ doc: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) }) });
+
+    await handleMessage(ROUTING, msg({ text: 'Maria' }));
+
+    expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringMatching(/nicht auf der Karte|no_match/i));
+    expect(createOrder).not.toHaveBeenCalled();
+  });
+
   test('bare digit 1 in confirming does not place order', async () => {
     getSession.mockResolvedValue({
       language: 'de', state: 'confirming', businessId: BIZ,
@@ -355,25 +452,6 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/Zeilennummer|line number/i));
-  });
-
-  test('karte text in awaiting_payment_method places card order', async () => {
-    getBusinessInfo.mockResolvedValue({
-      ...BIZ_INFO,
-      paymentEnabled: true,
-      deliveryEnabled: false,
-    });
-    getSession.mockResolvedValue({
-      language: 'de', state: 'awaiting_payment_method', businessId: BIZ,
-      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
-      customerName: 'Max',
-      orderType: 'pickup',
-      pickupTime: '14:30',
-    });
-
-    await handleMessage(ROUTING, msg({ text: 'karte' }));
-
-    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({ paymentMethod: 'stripe' }));
   });
 
   test('abholen text in awaiting_order_type selects pickup', async () => {
@@ -434,7 +512,6 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       conversationalBasket: true,
       deliveryEnabled: true,
       deliveryFee: 2.5,
-      paymentEnabled: true,
     });
     getSession.mockResolvedValue({
       language: 'de', state: 'browsing', businessId: BIZ,
@@ -442,7 +519,6 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       orderType: 'delivery',
       deliveryAddress: 'Hauptstraße 5',
       customerName: 'Max',
-      pendingPaymentMethod: 'cash',
       pickupTime: '14:30',
       prepMins: 20,
     });
@@ -454,14 +530,12 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       orderType: 'delivery',
       deliveryAddress: 'Hauptstraße 5',
       customerName: 'Max',
-      pendingPaymentMethod: 'cash',
     }));
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_order_type' }));
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_delivery_address' }));
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_name' }));
-    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_payment_method' }));
     expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      body: expect.stringMatching(/Zahlung: Bar/),
+      body: expect.stringMatching(/Fast fertig|Almost done/),
     }));
   });
 
@@ -477,7 +551,6 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       language: 'de', state: 'browsing', businessId: BIZ,
       basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
       orderType: 'delivery',
-      pendingPaymentMethod: 'cash',
       pickupTime: '14:30',
       prepMins: 20,
     });
@@ -492,10 +565,9 @@ describe('Checkout state: M3 slot-filling checkout', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringMatching(/Name/i));
   });
 
-  test('pendingPaymentMethod cash — btn_place_order skips payment prompt and receipt shows Bar', async () => {
+  test('btn_place_order in confirming places order directly — no payment method step', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,
-      paymentEnabled: true,
       deliveryEnabled: true,
       deliveryFee: 2.5,
     });
@@ -505,7 +577,6 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       orderType: 'delivery',
       deliveryAddress: 'Hauptstraße 5',
       customerName: 'Max',
-      pendingPaymentMethod: 'cash',
       pickupTime: '14:30',
       prepMins: 20,
     });
@@ -517,11 +588,6 @@ describe('Checkout state: M3 slot-filling checkout', () => {
     expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringMatching(/Zahlungsart|payment/i),
     }));
-    expect(sendText).toHaveBeenCalledWith(
-      FROM,
-      expect.stringMatching(/Zahlung: Bar 💰/),
-      expect.anything(),
-    );
   });
 
   test('flag on — checkout-only text persists slots without treating address as food', async () => {
@@ -531,12 +597,11 @@ describe('Checkout state: M3 slot-filling checkout', () => {
       basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
     });
 
-    await handleMessage(ROUTING, msg({ text: 'zum Liefern, Hauptstraße 5, bar' }));
+    await handleMessage(ROUTING, msg({ text: 'zum Liefern, Hauptstraße 5' }));
 
     expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       orderType: 'delivery',
       deliveryAddress: 'Hauptstraße 5',
-      pendingPaymentMethod: 'cash',
     }), expect.anything());
     expect(patchSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       basket: expect.arrayContaining([expect.objectContaining({ name: 'Hauptstraße 5' })]),

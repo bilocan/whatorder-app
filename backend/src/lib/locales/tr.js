@@ -62,11 +62,7 @@ module.exports = {
       ? `🚚 Teslimat adresi: ${deliveryAddress}`
       : `⏱️ Hazır saat: ~${pickupTime}`;
     const notesLine = notes ? `\n📝 Not: ${notes}` : '';
-    const paymentLine = paymentMethod === 'stripe'
-      ? '\n💳 Ödeme: Kart'
-      : paymentMethod === 'cash'
-        ? '\n💰 Ödeme: Nakit'
-        : '';
+    const paymentLine = paymentMethod === 'stripe' ? '\n💳 Ödeme: Kart' : '';
     return `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nOnaylamak veya düzenlemek için aşağıya dokunun.`;
   },
   confirmListHeader: () => 'Siparişi kontrol et',
@@ -91,32 +87,27 @@ module.exports = {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Teslimat: ${deliveryAddress}` : `Hazır: ${pickupTime}`;
-    const paymentLine = paymentMethod === 'stripe'
-      ? 'Ödeme: Kart 💳'
-      : paymentMethod === 'cash'
-        ? 'Ödeme: Nakit 💰'
-        : null;
-    const detailBlock = [detail, paymentLine].filter(Boolean).join('\n');
-    return `✅ Sipariş #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}\n${detailBlock}\n\nTeşekkürler, ${customerName}! 🙏`;
+    return `✅ Sipariş #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}\n${detail}\n\nTeşekkürler, ${customerName}! 🙏`;
   },
   checkoutCancelled: () => 'Sipariş iptal edildi.',
-  askPaymentMethod: (total) => `Nasıl ödemek istersiniz?\n\nToplam: €${total}`,
-  payCardBtn: () => 'Kart 💳',
-  payCashBtn: () => 'Nakit 💰',
   cancelOrderBtn: () => 'İptal',
-  choosePaymentMethod: () => 'Lütfen Kart veya Nakit seçin.',
   checkoutNameNotOrder: () => 'Bu bir sipariş gibi görünüyor, isim değil. Sipariş için adınız nedir?',
   checkoutDigitClarify: () => 'Sepetteki bir satır numarasını mı kastettiniz? Ürün adı yazın veya onay düğmesini kullanın.',
   checkoutBasketUpdated: (basketText) => `✅ Sepet güncellendi.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'Bu bir sipariş gibi görünüyor. Lütfen teslimat adresinizi girin veya önce sepete ürün ekleyin.',
   payNowBtn: () => 'Ödeme yap 💳',
-  paymentLink: (shortId, itemLines, total) => `Sipariş #${shortId} alındı.\n\n${itemLines}\n\nToplam: €${total}\n\nÖdemek için aşağıdaki düğmeye dokunun.`,
+  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress) => {
+    const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
+    const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
+    const detail = deliveryAddress ? `Teslimat: ${deliveryAddress}` : null;
+    return `Sipariş #${shortId} alındı.\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}${detail ? `\n${detail}` : ''}\n\nÖdemek için aşağıdaki düğmeye dokunun.`;
+  },
   paymentLinkFailed: (shortId) => `Sipariş #${shortId} oluşturuldu ancak ödeme bağlantısı başarısız oldu. Lütfen restoranla iletişime geçin.`,
   paymentConfirmed: (shortId) => `✅ Sipariş #${shortId} için ödeme alındı. Hazır olunca haber vereceğiz. Teşekkürler! 🙏`,
   paymentReturnSuccessTitle: () => 'Ödeme alındı',
   paymentReturnCancelTitle: () => 'Ödeme iptal edildi',
   paymentReturnSuccessNoLink: () => 'Bu sayfayı kapatabilir ve WhatsApp\'a dönebilirsiniz.',
-  paymentReturnCancelNoLink: () => 'Tekrar denemek veya nakit ödemek için WhatsApp\'a dönün.',
+  paymentReturnCancelNoLink: () => 'Tekrar denemek için WhatsApp\'a dönün.',
   paymentReturnRedirecting: () => 'WhatsApp\'a dönülüyor…',
   paymentReturnButton: () => 'WhatsApp\'a dön',
   paymentReturnFallbackLink: () => 'Düğme çalışmazsa buraya dokunun.',
@@ -146,6 +137,13 @@ module.exports = {
   humanHandoffOffer: () => 'Anlamakta zorlanıyorum. Restoranın size dönmesini ister misiniz?',
   humanHandoffBtn: () => 'Yardım iste',
   humanHandoffConfirmed: () => 'Tamam. Restoran bilgilendirildi, size dönecek.',
+  postOrderOptions: () => 'Ne yapmak istersin?',
+  postCancelBtn: () => 'İptal et',
+  postReorderBtn: () => 'Tekrar sipariş',
+  postRestaurantBtn: () => 'Restoran seç',
+  postOrderCancelTooLate: (name, phone) => phone
+    ? `Siparişiniz hazırlanmaya başlandı. Değişiklik için lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz hazırlanmaya başlandı. Lütfen ${name} ile iletişime geçin.`,
 
   askOrderType: (fee) => `Siparişinizi nasıl almak istersiniz?\n\nTeslimat ücreti: €${Number(fee).toFixed(2)}`,
   pickupBtn: () => 'Gel Al',

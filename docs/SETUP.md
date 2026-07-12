@@ -61,4 +61,6 @@ cd dashboard && npm test
 cd dashboard && npx tsc --noEmit && npx eslint src --max-warnings 0
 ```
 
-Health check: `curl http://localhost:3000/health` → `{"status":"OK","timestamp":"..."}`
+Health check: `curl http://localhost:3000/health` → includes `status`, `timestamp`, `environment`, `version`, `gitSha`, `firebaseProject`
+
+Version only: `curl http://localhost:3000/version` → build metadata without liveness fields. Cloud Run Test/Prod set `DEPLOY_ENV`, `GIT_SHA`, `APP_VERSION` at deploy time.

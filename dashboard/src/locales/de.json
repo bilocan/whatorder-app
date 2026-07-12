@@ -537,6 +537,19 @@
     "pauseDelivery": "Lieferung pausieren",
     "resumeDelivery": "Lieferung fortsetzen"
   },
+  "buildInfo": {
+    "env": {
+      "local": "Lokal",
+      "test": "Test",
+      "production": "Prod",
+      "unknown": "Unbekannt"
+    },
+    "devApi": "Dev-API",
+    "backend": "Backend",
+    "backendUnreachable": "Backend nicht erreichbar",
+    "mismatch": "Frontend- und Backend-Umgebung unterscheiden sich",
+    "copyHint": "Klicken zum Kopieren der Build-Infos"
+  },
   "admin": {
     "phoneLine": {
       "label": "WhatsApp-Leitung",

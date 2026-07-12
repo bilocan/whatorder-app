@@ -13,7 +13,6 @@ const { isConversationalBasket } = require('../featureFlags');
 const { tryBasketUndo } = require('../conversationalBasket');
 const { isBasketUndoPhrase, detectBotCommandAsync, BOT_COMMAND } = require('../botCommands');
 const {
-  parsePaymentKeyword,
   parseOrderTypeKeyword,
   isBareCheckoutDigit,
   tryCheckoutBasketOp,
@@ -77,6 +76,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     businessId: isMulti ? null : businessId,
     pendingDeleteIds: [],
     pendingAmendOrderId: orderId,
+    pendingAmendBusinessId: businessId,
     pendingAmendPlacedAt: Date.now(),
     consecutiveParseFailures: 0,
   });
@@ -91,7 +91,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
       });
       await ordersRef(businessId).doc(orderId).update({ paymentStripeSessionId: sessionId });
       await sendCtaUrlMessage(from, {
-        body: t('paymentLink', lang, shortId, itemLines, total.toFixed(2)),
+        body: t('paymentLink', lang, shortId, itemLines, total.toFixed(2), info.name, info.alertPhone || null, info.address || null, isDelivery ? (session.deliveryAddress || null) : null),
         buttonLabel: t('payNowBtn', lang),
         url,
       }, phoneNumberId);
@@ -103,6 +103,14 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
   }
 
   await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, paymentMethod, info.alertPhone || null, info.address || null), phoneNumberId);
+  await sendButtonMessage(from, {
+    body: t('postOrderOptions', lang),
+    buttons: [
+      { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
+      { id: 'btn_post_reorder',    title: t('postReorderBtn', lang) },
+      { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
+    ],
+  }, phoneNumberId);
 }
 
 async function getKnownName(phone, businessId) {
@@ -341,7 +349,7 @@ async function sendConfirmList(from, session, lang, businessId, basket, name) {
   }
   return sendListMessage(from, {
     header: t('confirmListHeader', lang),
-    body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null, session.specialRequests || null, session.pendingPaymentMethod ?? null),
+    body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null, session.specialRequests || null, isPaymentEnabled(info) ? 'stripe' : null),
     buttonLabel: t('confirmListBtn', lang),
     sections: [{ title: t('confirmListSection', lang), rows }],
   });
@@ -364,20 +372,6 @@ async function transitionToConfirming(from, session, lang, businessId, basket, n
 
   const confirmId = await sendConfirmList(from, session, lang, businessId, basket, name);
   await setSession(from, { ...session, state: 'confirming', customerName: name, pendingDeleteIds: confirmId ? [confirmId] : [] });
-}
-
-async function transitionToPaymentMethod(from, session, lang, businessId, basket) {
-  const info = await getBusinessInfo(businessId);
-  const { total } = orderTotals(basket, session, info);
-  const msgId = await sendButtonMessage(from, {
-    body: t('askPaymentMethod', lang, total.toFixed(2)),
-    buttons: [
-      { id: 'btn_pay_card', title: t('payCardBtn', lang) },
-      { id: 'btn_pay_cash', title: t('payCashBtn', lang) },
-      { id: 'btn_cancel_order', title: t('cancelOrderBtn', lang) },
-    ],
-  });
-  await setSession(from, { ...session, state: 'awaiting_payment_method', pendingDeleteIds: msgId ? [msgId] : [] });
 }
 
 // Returns rows array when known addresses exist (lat/lng or saved profile address), null to skip picker.
@@ -450,9 +444,6 @@ async function reshowCheckoutPrompt(ctx, session, basket) {
       await setSession(from, { ...session, basket, pendingDeleteIds: msgId ? [msgId] : [] });
       return;
     }
-    case 'awaiting_payment_method':
-      await transitionToPaymentMethod(from, { ...session, basket }, lang, businessId, basket);
-      return;
     case 'confirming':
       await transitionToConfirming(from, { ...session, basket }, lang, businessId, basket, session.customerName);
       return;
@@ -526,22 +517,6 @@ async function gateCheckoutTextInput(ctx) {
     return true;
   }
 
-  if (liveSession.state === 'awaiting_payment_method') {
-    const pay = parsePaymentKeyword(norm);
-    if (pay === 'card') {
-      await handleAwaitingPaymentMethod({
-        ...ctx, type: 'button_reply', id: 'btn_pay_card',
-      });
-      return true;
-    }
-    if (pay === 'cash') {
-      await handleAwaitingPaymentMethod({
-        ...ctx, type: 'button_reply', id: 'btn_pay_cash',
-      });
-      return true;
-    }
-  }
-
   if (liveSession.state === 'awaiting_order_type') {
     const orderType = parseOrderTypeKeyword(norm);
     if (orderType === 'pickup') {
@@ -602,9 +577,16 @@ async function gateCheckoutTextInput(ctx) {
       }
     }
 
-    const opResult = await tryCheckoutBasketOp({
-      from, session: liveSession, lang, businessId, basket, text, norm, business: info,
-    });
+    // awaiting_confirm_note / confirming: weak free text is a note, not a product search.
+    // awaiting_name: only run basket op for strong order text ("noch ein cola", "2 döner", etc.).
+    const skipBasketOp = liveSession.state === 'awaiting_confirm_note'
+      || (liveSession.state === 'confirming' && !isStrongOrderText(text, norm))
+      || (liveSession.state === 'awaiting_name' && !isStrongOrderText(text, norm));
+    const opResult = skipBasketOp
+      ? { handled: false }
+      : await tryCheckoutBasketOp({
+          from, session: liveSession, lang, businessId, basket, text, norm, business: info,
+        });
 
     if (opResult.handled === 'llm_failed' || opResult.handled === 'no_match') {
       const foodText = stripCheckoutSlotsFromOrderText(text) || text;
@@ -880,19 +862,7 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
   if (isConfirm) {
     const info = await getBusinessInfo(businessId);
     if (isPaymentEnabled(info)) {
-      if (session.pendingPaymentMethod === 'stripe') {
-        await placeOrderAndNotify({
-          from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'stripe',
-        });
-        return;
-      }
-      if (session.pendingPaymentMethod === 'cash') {
-        await placeOrderAndNotify({
-          from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'cash',
-        });
-        return;
-      }
-      await transitionToPaymentMethod(from, session, lang, businessId, basket);
+      await placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'stripe' });
       return;
     }
     logPaymentSkipped(businessId, info);
@@ -911,33 +881,14 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
     return;
   }
 
+  // Free text on the confirm screen (without tapping Add note) — e.g. "kola kalt bitte".
+  if (type === 'text' && norm.length > 0) {
+    const newSession = { ...session, specialRequests: text.trim() };
+    await transitionToConfirming(from, newSession, lang, businessId, basket, session.customerName);
+    return;
+  }
+
   await transitionToConfirming(from, session, lang, businessId, basket, session.customerName);
-}
-
-async function handleAwaitingPaymentMethod({ from, contactName, session, lang, businessId, basket, isMulti, type, id, text, norm }) {
-  if (type === 'text' && await gateCheckoutTextInput({
-    from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
-  })) return;
-
-  if (type === 'button_reply' && id === 'btn_pay_card') {
-    await placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'stripe' });
-    return;
-  }
-  if (type === 'button_reply' && id === 'btn_pay_cash') {
-    await placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'cash' });
-    return;
-  }
-  if (type === 'button_reply' && id === 'btn_cancel_order') {
-    if (isMulti) {
-      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: [] });
-      await sendText(from, t('checkoutCancelled', lang));
-    } else {
-      const { menuId } = await sendCatalog(from, lang, businessId, t('checkoutCancelled', lang));
-      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: menuId ? [menuId] : [] });
-    }
-    return;
-  }
-  await sendText(from, t('choosePaymentMethod', lang));
 }
 
 module.exports = {
@@ -947,7 +898,6 @@ module.exports = {
   handleAwaitingDeliveryAddress,
   handleAwaitingName,
   handleConfirming,
-  handleAwaitingPaymentMethod,
   resumeDeliveryCheckout,
   showDeliveryBasketGate,
   proceedFromConfirmedBasket,

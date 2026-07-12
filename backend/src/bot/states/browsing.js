@@ -572,6 +572,12 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
     }
   }
 
+  // Stale proposal after items were committed to basket (e.g. Sepete ekle) — drop before edits.
+  if (type === 'text' && text?.trim() && session.pendingIntentItems?.length && basket.length) {
+    await patchSession(from, INTENT_PROPOSAL_CLEAR, session);
+    session = { ...session, ...INTENT_PROPOSAL_CLEAR };
+  }
+
   // Text: short edits / confirm while a proposal is pending (ohne ayran, cola, Hinzufügen)
   if (type === 'text' && text?.trim() && session.pendingIntentItems?.length) {
     if (isIntentConfirmText(text, lang)) {

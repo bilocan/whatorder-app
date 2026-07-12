@@ -57,6 +57,42 @@ async function tryLearnedRemoveIntent({
   const pending = session.pendingIntentItems ?? [];
   const label = targets.map((t) => t.name).join(', ');
 
+  // Committed basket takes precedence over a stale pending proposal.
+  if (basket.length) {
+    const next = removeFromBasket(basket, targets);
+    if (!next) {
+      await sendOrderEntryPrompt({
+        from, session, lang, businessId, basket,
+        bodyOverride: t('proposalEditNotFound', lang, label),
+      });
+      return true;
+    }
+    if (next.ambiguous) {
+      const linesText = buildBasketRemoveAmbiguousText(basket, next.indices);
+      await sendText(from, t('basketRemoveAmbiguous', lang, linesText, next.indices.length));
+      return true;
+    }
+    recordLearnedIntentHit(businessId, text);
+    await patchSession(from, {
+      basket: next,
+      pendingIntentItems: undefined,
+      unmatchedIntentItems: undefined,
+      disambiguation: undefined,
+    }, session);
+    if (!next.length) {
+      await sendOrderEntryPrompt({
+        from, session, lang, businessId, basket: next,
+        bodyOverride: t('basketEmpty', lang),
+      });
+      return true;
+    }
+    await sendButtonMessage(from, {
+      body: `${t('basketHeader', lang)}\n\n${formatBasketItemsText(next, { numbered: true })}`,
+      buttons: postAddBasketButtons(lang),
+    });
+    return true;
+  }
+
   if (pending.length) {
     const next = removeFromProposal(pending, targets);
     if (!next) {
@@ -82,36 +118,6 @@ async function tryLearnedRemoveIntent({
     await intentOrderApi().sendIntentProposal({
       from, session, lang, businessId, basket,
       matched: next, unmatched: session.unmatchedIntentItems ?? [],
-    });
-    return true;
-  }
-
-  if (basket.length) {
-    const next = removeFromBasket(basket, targets);
-    if (!next) {
-      await sendOrderEntryPrompt({
-        from, session, lang, businessId, basket,
-        bodyOverride: t('proposalEditNotFound', lang, label),
-      });
-      return true;
-    }
-    if (next.ambiguous) {
-      const linesText = buildBasketRemoveAmbiguousText(basket, next.indices);
-      await sendText(from, t('basketRemoveAmbiguous', lang, linesText, next.indices.length));
-      return true;
-    }
-    recordLearnedIntentHit(businessId, text);
-    await patchSession(from, { basket: next }, session);
-    if (!next.length) {
-      await sendOrderEntryPrompt({
-        from, session, lang, businessId, basket: next,
-        bodyOverride: t('basketEmpty', lang),
-      });
-      return true;
-    }
-    await sendButtonMessage(from, {
-      body: `${t('basketHeader', lang)}\n\n${formatBasketItemsText(next, { numbered: true })}`,
-      buttons: postAddBasketButtons(lang),
     });
     return true;
   }

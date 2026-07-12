@@ -5,7 +5,8 @@ const {
   parseBasketRemove,
 } = require('./basketEdit');
 const { findAddedLines } = require('./botHelpers');
-const { norm } = require('./menuMatch');
+const { norm, matchMenuItem } = require('./menuMatch');
+const { parseIntent } = require('./intentParser');
 const {
   parseIntentAsync,
   looksLikeOrderText,
@@ -308,8 +309,23 @@ function matchedToAddOps(matched) {
   }));
 }
 
+function findBasketIndicesForProduct(basket, productName, menu = []) {
+  const indices = findMatchingLineIndices(basket, productName);
+  if (indices.length) return indices;
+
+  const menuItem = menu.length ? matchMenuItem(productName, menu) : undefined;
+  if (!menuItem) return [];
+
+  const out = [];
+  basket.forEach((line, i) => {
+    if (line.menuItemId && line.menuItemId === menuItem.id) out.push(i);
+    else if (findMatchingLineIndices([line], menuItem.name).length) out.push(i);
+  });
+  return out;
+}
+
 /** Qty-aware learned/structural remove targets → sequential basket ops. */
-function removeTargetsToOps(basket, targets) {
+function removeTargetsToOps(basket, targets, menu = []) {
   const ops = [];
   let current = cloneBasket(basket);
 
@@ -321,21 +337,26 @@ function removeTargetsToOps(basket, targets) {
     // note 'kola'), trust the name match over the potentially-stale learned mapping.
     let effectiveTarget = target;
     if (!target.removeAll && target.menuItemId && target.rawName) {
-      if (findMatchingLineIndices(current, target.rawName).length > 0) {
+      if (findBasketIndicesForProduct(current, target.rawName, menu).length > 0) {
         effectiveTarget = { ...target, menuItemId: undefined };
       }
     }
+
+    const productName = effectiveTarget.rawName || effectiveTarget.name;
 
     // When multiple basket lines match this target and we're removing fewer than all
     // of them, we can't pick one arbitrarily. Return null so parseBasketOps falls
     // through to the basketEditOps (name-based) path for disambiguation.
     if (!target.removeAll) {
-      const matchCount = current.filter(line => lineMatchesTarget(line, effectiveTarget)).length;
+      const matchCount = findBasketIndicesForProduct(current, productName, menu).length;
       if (matchCount > 1 && remaining < matchCount) return null;
     }
 
     while (remaining > 0) {
-      const idx = current.findIndex(line => lineMatchesTarget(line, effectiveTarget));
+      const indices = findBasketIndicesForProduct(current, productName, menu);
+      const idx = indices.length === 1
+        ? indices[0]
+        : current.findIndex(line => lineMatchesTarget(line, effectiveTarget));
       if (idx < 0) return null;
 
       const lineQty = Math.max(1, Number(current[idx].qty) || 1);
@@ -383,7 +404,7 @@ function emptyParseResult(outcome, extra = {}) {
 }
 
 /** Basket-local qty/remove edits (proposalEdit patterns + mach N …). */
-function parseBasketEditOps(text, basket) {
+function parseBasketEditOps(text, basket, menu = []) {
   if (!basket.length || !text?.trim()) return null;
 
   const trimmed = text.trim();
@@ -393,7 +414,7 @@ function parseBasketEditOps(text, basket) {
   if (machMatch) {
     const qty = parseQtyWord(machMatch[2]);
     const fragment = machMatch[3].trim();
-    if (qty && findMatchingLineIndices(basket, fragment).length >= 1) {
+    if (qty && findBasketIndicesForProduct(basket, fragment, menu).length >= 1) {
       return [{
         type: 'setQty',
         target: { kind: 'name', fragment },
@@ -405,8 +426,28 @@ function parseBasketEditOps(text, basket) {
   const edit = parseProposalEdit(trimmed, normalized);
   if (!edit) return null;
 
-  if (edit.type === 'remove' && findMatchingLineIndices(basket, edit.rawName).length) {
-    return [{ type: 'remove', target: { kind: 'name', fragment: edit.rawName } }];
+  if (edit.type === 'remove') {
+    const inner = parseIntent(edit.rawName);
+    if (inner.items.length === 1) {
+      const productName = inner.items[0].name;
+      const removeQty = Math.min(99, Math.max(1, inner.items[0].qty ?? 1));
+      const explicitQty = /^\d+\s+/i.test(edit.rawName.trim());
+      const indices = findBasketIndicesForProduct(basket, productName, menu);
+      if (indices.length === 1) {
+        const lineQty = Math.max(1, Number(basket[indices[0]].qty) || 1);
+        if (explicitQty && removeQty < lineQty) {
+          return [{
+            type: 'setQty',
+            target: { kind: 'index', index: indices[0] + 1 },
+            qty: lineQty - removeQty,
+          }];
+        }
+        return [{ type: 'remove', target: { kind: 'name', fragment: productName } }];
+      }
+    }
+    if (findMatchingLineIndices(basket, edit.rawName).length) {
+      return [{ type: 'remove', target: { kind: 'name', fragment: edit.rawName } }];
+    }
   }
 
   if (edit.type === 'set_qty') {
@@ -416,11 +457,9 @@ function parseBasketEditOps(text, basket) {
     }
   }
 
+  // Plain "N product" (no set verb) always adds via tier-A intent — never setQty overwrite.
   if (edit.type === 'maybe_set_qty') {
-    const indices = findMatchingLineIndices(basket, edit.rawName);
-    if (indices.length >= 1) {
-      return [{ type: 'setQty', target: { kind: 'name', fragment: edit.rawName }, qty: edit.qty }];
-    }
+    return null;
   }
 
   return null;
@@ -483,7 +522,7 @@ async function parseBasketOps(text, ctx = {}) {
     return emptyParseResult('low_confidence', { ...base, intent });
   }
 
-  const basketEditOps = parseBasketEditOps(trimmed, basket);
+  const basketEditOps = parseBasketEditOps(trimmed, basket, menu);
 
   if (intent.items.length && intent.operation === 'remove') {
     // For learned-intent removes only: prefer direct basket name match (basketEditOps)
@@ -507,7 +546,7 @@ async function parseBasketOps(text, ctx = {}) {
     }
 
     const targets = learnedRemoveTargets(intent);
-    const ops = removeTargetsToOps(basket, targets);
+    const ops = removeTargetsToOps(basket, targets, menu);
     if (ops?.length) {
       return {
         ...base,
