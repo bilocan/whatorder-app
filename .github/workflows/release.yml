@@ -67,11 +67,16 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: |
           if [ -z "$VITE_API_URL" ]; then
-            echo "::warning::VITE_API_URL not set on Preproduction environment — skipping SHA check"
+            echo "::warning::VITE_API_URL not set on Preproduction — skipping SHA check"
             exit 0
           fi
           BODY=$(curl -sf "${VITE_API_URL%/}/version")
           echo "$BODY"
+          ENV=$(echo "$BODY" | jq -r '.environment // empty')
+          if [ "$ENV" = "production" ]; then
+            echo "::error::VITE_API_URL on Preproduction points at live prod backend (environment=production). It must be the pre service: https://whatorder-backend-pre-87472938058.europe-west3.run.app"
+            exit 1
+          fi
           EXPECTED="${GITHUB_SHA:0:7}"
           ACTUAL=$(echo "$BODY" | jq -r '.gitSha // empty')
           if [ "$ACTUAL" != "$EXPECTED" ]; then
