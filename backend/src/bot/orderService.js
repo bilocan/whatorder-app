@@ -72,7 +72,7 @@ const STATUS_NOTIFY_KEY = {
   cancelled:  'orderCancelled',
 };
 
-async function createOrder(businessId, { customerPhone, customerName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus, whatsappPhoneNumberId }) {
+async function createOrder(businessId, { customerPhone, customerName, restaurantName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus, whatsappPhoneNumberId }) {
   const ref = ordersRef(businessId).doc();
   const resolvedName = customerName || 'WhatsApp Customer';
   const phone = normalizeCustomerPhone(customerPhone) || customerPhone;
@@ -81,6 +81,7 @@ async function createOrder(businessId, { customerPhone, customerName, items, tot
     customerId: phone,
     customerPhone: phone,
     customerName: resolvedName,
+    restaurantName: restaurantName || null,
     items,
     total,
     language: language || 'en',
