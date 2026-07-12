@@ -184,7 +184,7 @@ describe('parseIntentAsync', () => {
     const r = await parseIntentAsync('ayrani cikar', { phone: '+442', businessId: 'biz1' });
     expect(r.operation).toBe('remove');
     expect(r.parsedBy).toBe('rules');
-    expect(r.items).toEqual([{ name: 'ayrani', qty: 1 }]);
+    expect(r.items).toEqual([{ name: 'ayrani', qty: 1, removeAll: true }]);
     expect(parseOrderIntentWithLlm).not.toHaveBeenCalled();
   });
 

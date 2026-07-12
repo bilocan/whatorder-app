@@ -537,6 +537,19 @@
     "pauseDelivery": "Teslimatı durdur",
     "resumeDelivery": "Teslimatı devam ettir"
   },
+  "buildInfo": {
+    "env": {
+      "local": "Yerel",
+      "test": "Test",
+      "production": "Prod",
+      "unknown": "Bilinmiyor"
+    },
+    "devApi": "Dev API",
+    "backend": "Backend",
+    "backendUnreachable": "Backend'e ulaşılamıyor",
+    "mismatch": "Frontend ve backend ortamları farklı",
+    "copyHint": "Build bilgisini kopyalamak için tıklayın"
+  },
   "admin": {
     "phoneLine": {
       "label": "WhatsApp hattı",

@@ -19,6 +19,9 @@ vi.mock('../components/RestaurantSwitcher', () => ({
 vi.mock('../components/AdminPhoneLineSwitcher', () => ({
   default: () => <div data-testid="admin-phone-line-switcher" />,
 }))
+vi.mock('../components/BuildInfoPanel', () => ({
+  default: () => <div data-testid="build-info-panel" />,
+}))
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
   onSnapshot: vi.fn(() => vi.fn()),

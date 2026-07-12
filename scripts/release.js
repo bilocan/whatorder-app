@@ -384,9 +384,13 @@ function verifyProdHealth({ dryRun }) {
   }
 
   return fetch(PROD_HEALTH_URL)
-    .then((res) => {
+    .then(async (res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      console.log(`  OK: ${PROD_HEALTH_URL}`);
+      const body = await res.json().catch(() => ({}));
+      const versionLine = body.version
+        ? ` (${body.environment ?? '?'} · ${body.version}${body.gitSha ? ` · ${body.gitSha}` : ''})`
+        : '';
+      console.log(`  OK: ${PROD_HEALTH_URL}${versionLine}`);
     })
     .catch((err) => {
       console.error(`  FAIL: ${PROD_HEALTH_URL} (${err.message})`);

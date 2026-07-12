@@ -86,6 +86,46 @@ beforeEach(resetBotHandlerMocks);
 afterEach(clearBotHandlerEnv);
 
 describe('Browsing state: conversational basket (Tier 5)', () => {
+  test('flag on — cola raus with stale pending proposal edits basket not proposal', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getMenuContext.mockResolvedValue({
+      menu: [
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'c1', name: 'Cola', price: 2.5, available: true },
+        { id: 'a1', name: 'Ayran', price: 2, available: true },
+      ],
+      menuMatch: require('../menuMapper').buildMenuMatchIndex([
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'c1', name: 'Cola', price: 2.5, available: true },
+        { id: 'a1', name: 'Ayran', price: 2, available: true },
+      ]),
+      menuTokenIndex: null,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.50 },
+        { name: 'Cola', qty: 1, price: 2.50 },
+      ],
+      pendingIntentItems: [
+        { name: 'Döner', qty: 2, menuItemId: 'd1', price: 8.5 },
+        { name: 'Ayran', qty: 1, menuItemId: 'a1', price: 2 },
+      ],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'cola raus' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      pendingIntentItems: undefined,
+    }), expect.anything());
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_intent_confirm' }),
+      ]),
+    }));
+  });
+
   test('flag on — ohne ayran removes from committed basket without Entfernen tap', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
     getSession.mockResolvedValue({

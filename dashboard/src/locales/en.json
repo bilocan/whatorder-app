@@ -537,6 +537,19 @@
     "pauseDelivery": "Pause delivery",
     "resumeDelivery": "Resume delivery"
   },
+  "buildInfo": {
+    "env": {
+      "local": "Local",
+      "test": "Test",
+      "production": "Prod",
+      "unknown": "Unknown"
+    },
+    "devApi": "Dev API",
+    "backend": "Backend",
+    "backendUnreachable": "Backend unreachable",
+    "mismatch": "Frontend and backend environments differ",
+    "copyHint": "Click to copy build info"
+  },
   "admin": {
     "phoneLine": {
       "label": "WhatsApp line",

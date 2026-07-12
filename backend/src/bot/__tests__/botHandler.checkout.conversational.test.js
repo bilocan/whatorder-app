@@ -311,11 +311,92 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
       whatsappPhoneNumberId: 'test_phone_id',
     });
 
-    await handleMessage(ROUTING, msg({ text: 'xyz gibberish order' }));
+    await handleMessage(ROUTING, msg({ text: '2x unicorn burger' }));
 
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/xyz gibberish order/i));
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/unicorn burger/i));
     expect(patchSession).toHaveBeenCalledWith(FROM, { consecutiveParseFailures: 1 }, expect.anything());
     expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('flag on — noch ein cola on confirming adds to basket (not saved as note)', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getMenuContext.mockResolvedValue({
+      menu: [
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'c1', name: 'Cola', price: 2.5, available: true },
+      ],
+      menuMatch: require('../menuMapper').buildMenuMatchIndex([
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'c1', name: 'Cola', price: 2.5, available: true },
+      ]),
+      menuTokenIndex: null,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.50 },
+        { name: 'Cola', qty: 1, price: 2.50 },
+      ],
+      customerName: 'Max',
+      orderType: 'pickup',
+      pickupTime: '14:30',
+      prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'noch ein cola' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: expect.arrayContaining([
+        expect.objectContaining({ name: 'Cola', qty: 2 }),
+      ]),
+    }), expect.anything());
+    const noteWrite = setSession.mock.calls.find(([, data]) => data.specialRequests === 'noch ein cola');
+    expect(noteWrite).toBeUndefined();
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+
+  test('flag on — confirming saves product-like text as note without Add note button', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Coca Cola 0.33L', qty: 1, price: 2.9 }],
+      customerName: 'Bilal aygün',
+      pickupTime: '14:30',
+      orderType: 'delivery',
+      deliveryAddress: 'hippgasse 11',
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'kola kalt bitte' }));
+
+    expect(tryCheckoutBasketOp).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      specialRequests: 'kola kalt bitte',
+    }));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/kola kalt bitte/i),
+    }));
+  });
+
+  test('flag on — awaiting_confirm_note saves product-like text as note (not menu search)', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'awaiting_confirm_note', businessId: BIZ,
+      basket: [{ name: 'Coca Cola 0.33L', qty: 1, price: 2.9 }],
+      customerName: 'Ali',
+      pickupTime: '14:30',
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'kola soğuk olsun' }));
+
+    expect(tryCheckoutBasketOp).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      specialRequests: 'kola soğuk olsun',
+    }));
+    expect(sendListMessage).toHaveBeenCalled();
   });
 
   test('flag on — second no_match on confirming offers human handoff', async () => {

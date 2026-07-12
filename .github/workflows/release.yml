@@ -67,6 +67,10 @@ jobs:
           region: europe-west3
           image: europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }}
           flags: --min-instances=1 --allow-unauthenticated
+          env_vars: |
+            DEPLOY_ENV=production
+            GIT_SHA=${{ github.sha }}
+            APP_VERSION=${{ github.event.release.tag_name }}
 
   deploy-dashboard:
     name: Deploy Dashboard to Firebase Hosting (prod)
@@ -104,6 +108,9 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
           VITE_WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.VITE_WHATSAPP_PHONE_NUMBER_ID }}
+          VITE_DEPLOY_ENV: production
+          VITE_GIT_SHA: ${{ github.sha }}
+          VITE_APP_VERSION: ${{ github.event.release.tag_name }}
 
       # Keyless hosting deploy: firebase-tools picks up the WIF credentials
       # exported by google-github-actions/auth (GOOGLE_APPLICATION_CREDENTIALS).

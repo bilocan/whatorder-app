@@ -577,10 +577,11 @@ async function gateCheckoutTextInput(ctx) {
       }
     }
 
-    // In awaiting_name, only run basket op for strong order text ("noch ein cola", "2 döner", etc.).
-    // Plain names (no qty/remove/modifier signals) skip basket op and fall through to the
-    // isCheckoutOnlySegment slot check and the name handler.
-    const skipBasketOp = liveSession.state === 'awaiting_name' && !isStrongOrderText(text, norm);
+    // awaiting_confirm_note / confirming: weak free text is a note, not a product search.
+    // awaiting_name: only run basket op for strong order text ("noch ein cola", "2 döner", etc.).
+    const skipBasketOp = liveSession.state === 'awaiting_confirm_note'
+      || (liveSession.state === 'confirming' && !isStrongOrderText(text, norm))
+      || (liveSession.state === 'awaiting_name' && !isStrongOrderText(text, norm));
     const opResult = skipBasketOp
       ? { handled: false }
       : await tryCheckoutBasketOp({
@@ -877,6 +878,13 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
       const { menuId } = await sendCatalog(from, lang, businessId, t('checkoutCancelled', lang));
       await setSession(from, { state: 'browsing', language: lang, basket: [], businessId, pendingDeleteIds: menuId ? [menuId] : [] });
     }
+    return;
+  }
+
+  // Free text on the confirm screen (without tapping Add note) — e.g. "kola kalt bitte".
+  if (type === 'text' && norm.length > 0) {
+    const newSession = { ...session, specialRequests: text.trim() };
+    await transitionToConfirming(from, newSession, lang, businessId, basket, session.customerName);
     return;
   }
 
