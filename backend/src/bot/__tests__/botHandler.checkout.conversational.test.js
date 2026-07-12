@@ -318,6 +318,26 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
+  test('flag on — awaiting_confirm_note saves product-like text as note (not menu search)', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'awaiting_confirm_note', businessId: BIZ,
+      basket: [{ name: 'Coca Cola 0.33L', qty: 1, price: 2.9 }],
+      customerName: 'Ali',
+      pickupTime: '14:30',
+      whatsappPhoneNumberId: 'test_phone_id',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'kola soğuk olsun' }));
+
+    expect(tryCheckoutBasketOp).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      specialRequests: 'kola soğuk olsun',
+    }));
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+
   test('flag on — second no_match on confirming offers human handoff', async () => {
     tryCheckoutBasketOp.mockResolvedValueOnce({ handled: 'no_match' });
 

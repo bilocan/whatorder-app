@@ -577,10 +577,10 @@ async function gateCheckoutTextInput(ctx) {
       }
     }
 
-    // In awaiting_name, only run basket op for strong order text ("noch ein cola", "2 döner", etc.).
-    // Plain names (no qty/remove/modifier signals) skip basket op and fall through to the
-    // isCheckoutOnlySegment slot check and the name handler.
-    const skipBasketOp = liveSession.state === 'awaiting_name' && !isStrongOrderText(text, norm);
+    // awaiting_confirm_note: any text is a free-form order note, not a product search.
+    // awaiting_name: only run basket op for strong order text ("noch ein cola", "2 döner", etc.).
+    const skipBasketOp = liveSession.state === 'awaiting_confirm_note'
+      || (liveSession.state === 'awaiting_name' && !isStrongOrderText(text, norm));
     const opResult = skipBasketOp
       ? { handled: false }
       : await tryCheckoutBasketOp({
