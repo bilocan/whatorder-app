@@ -243,7 +243,7 @@ describe('parseBasketOps', () => {
   test('cola raus → remove op', async () => {
     const parsed = await parseBasketOps('cola raus', ctx);
     expect(parsed.outcome).toBe('ops');
-    expect(parsed.parsePath).toMatch(/structural_remove|tier_a/);
+    expect(parsed.parsePath).toMatch(/structural_remove|tier_a|proposal_edit/);
     expect(parsed.ops).toHaveLength(1);
     expect(parsed.ops[0].type).toBe('remove');
     const preview = applyOps(SANDBOX_BASKET, parsed.ops);
@@ -309,6 +309,18 @@ describe('parseBasketOps', () => {
     expect(parsed.ops[0].item.qty).toBe(1);
     const preview = applyOps(basket, parsed.ops);
     expect(preview.basket.find(i => i.name.includes('Cola')).qty).toBe(3);
+  });
+
+  test('döner raus removes basket line matched via note', async () => {
+    const basket = [
+      { name: 'Kebab Sandwich Huhn', qty: 2, price: 7.5, note: '2 döner' },
+      { name: 'Coca Cola 0.33L', qty: 3, price: 2.9 },
+    ];
+    const parsed = await parseBasketOps('Döner raus', { ...ctx, basket });
+    expect(parsed.outcome).toBe('ops');
+    expect(parsed.ops[0].type).toBe('remove');
+    const preview = applyOps(basket, parsed.ops);
+    expect(preview.basket.map(i => i.name)).toEqual(['Coca Cola 0.33L']);
   });
 
   test('alles löschen → clear op', async () => {

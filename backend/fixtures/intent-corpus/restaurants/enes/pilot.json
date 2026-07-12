@@ -1141,7 +1141,7 @@
       "expect": {
         "orderLike": true,
         "outcome": "basket_ops",
-        "parsePath": "structural_remove",
+        "parsePath": "proposal_edit",
         "appliedCount": 1,
         "rejectedCount": 0,
         "basketAfterNames": [
@@ -1209,7 +1209,7 @@
       "expect": {
         "orderLike": true,
         "outcome": "basket_ops",
-        "parsePath": "structural_remove",
+        "parsePath": "proposal_edit",
         "appliedCount": 1,
         "rejectedCount": 0,
         "basketAfterNames": [

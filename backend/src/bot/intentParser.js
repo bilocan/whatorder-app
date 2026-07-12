@@ -5,7 +5,7 @@ const { repairIntentItems } = require('./menuLlmRepair');
 const { lookupLearnedIntent, normalizeOperation, persistReboundLearnedItems } = require('./intentLearning');
 const { learnedItemIdsChanged } = require('./intentLearningRebind');
 const { intentLearnKey, stripImperativePrefix } = require('./intentNormalize');
-const { detectRemovePhrase } = require('./intentRemoveDetect');
+const { detectRemovePhrase, REMOVE_SUFFIX_RE } = require('./intentRemoveDetect');
 const { shouldRejectStaleLearnedHit } = require('./intentPartialMatch');
 const { isBotCommandPhrase } = require('./botCommands');
 const {
@@ -550,6 +550,7 @@ function toIntentResult(items, partySize, rawText, parsedBy, confidence, operati
       qty: i.qty ?? 1,
       ...(i.menuItemId ? { menuItemId: i.menuItemId } : {}),
       ...(i.selections ? { selections: i.selections } : {}),
+      ...(i.removeAll ? { removeAll: true } : {}),
     })),
     partySize,
     rawText,
@@ -786,7 +787,11 @@ async function parseIntentAsync(text, {
   if (structural?.rawName) {
     const inner = parseIntent(structural.rawName);
     if (inner.items.length) {
-      return toIntentResult(inner.items, inner.partySize, rawText, 'rules', 1, 'remove');
+      const suffixRemove = REMOVE_SUFFIX_RE.test(rawText.trim());
+      const items = suffixRemove
+        ? inner.items.map(i => ({ ...i, removeAll: true }))
+        : inner.items;
+      return toIntentResult(items, inner.partySize, rawText, 'rules', 1, 'remove');
     }
   }
 
