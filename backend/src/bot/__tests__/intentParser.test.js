@@ -203,6 +203,20 @@ describe('parseIntent', () => {
     expect(r.items).toEqual([{ name: 'kola', qty: 1 }]);
   });
 
+  test('1 kola raus keeps qty for partial remove (no removeAll)', async () => {
+    const { parseIntentAsync } = require('../intentParser');
+    const r = await parseIntentAsync('1 kola raus', { phone: '+1', rulesOnly: true });
+    expect(r.operation).toBe('remove');
+    expect(r.items).toEqual([{ name: 'kola', qty: 1 }]);
+    expect(r.items[0].removeAll).toBeUndefined();
+  });
+
+  test('cola raus suffix sets removeAll for drop-whole-line', async () => {
+    const { parseIntentAsync } = require('../intentParser');
+    const r = await parseIntentAsync('cola raus', { phone: '+1', rulesOnly: true });
+    expect(r.items).toEqual([{ name: 'cola', qty: 1, removeAll: true }]);
+  });
+
   test('pide mit eier und gouda stays one line (mit-ingredient und)', () => {
     const r = parseIntent('Eine pide mit Eier und gouda');
     expect(r.items).toEqual([{ name: 'pide mit Eier und gouda', qty: 1 }]);
