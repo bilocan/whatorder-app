@@ -365,6 +365,20 @@ describe('Delivery flow: awaiting_delivery_address', () => {
     }));
   });
 
+  test('conversationalBasket: typed address is saved as deliveryAddress, not treated as menu search', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true, deliveryEnabled: true });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_delivery_address', orderType: 'delivery' });
+
+    await handleMessage(ROUTING, msg({ text: 'Lavaterstrasse 3, Wien' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+      deliveryAddress: 'Lavaterstrasse 3, Wien',
+    }));
+    expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('menüde yok'));
+    expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('not on the menu'));
+  });
+
   test('empty text re-prompts for address without changing state', async () => {
     getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_delivery_address', orderType: 'delivery' });
 
