@@ -70,9 +70,7 @@ export default function IncomePage() {
 
   const totalRevenue = periodOrders.reduce((s, o) => s + o.total, 0);
   const cardPaid = periodOrders.filter((o) => o.paymentMethod === 'stripe' && o.paymentStatus === 'paid').reduce((s, o) => s + o.total, 0);
-  const cashPending = totalRevenue - cardPaid;
   const cardPct = totalRevenue ? (cardPaid / totalRevenue) * 100 : 0;
-  const cashPct = totalRevenue ? (cashPending / totalRevenue) * 100 : 0;
   const refunds = periodOrders.filter((o) => o.paymentStatus === 'refunded').reduce((s, o) => s + o.total, 0);
   const stripeAttempts = periodOrders.filter((o) => o.paymentMethod === 'stripe');
   const failedAttempts = stripeAttempts.filter((o) => o.paymentStatus === 'failed').length;
@@ -161,11 +159,7 @@ export default function IncomePage() {
           <span>{t('income.paidCard')}</span>
           <span>€{cardPaid.toFixed(2)} ({cardPct.toFixed(0)}%)</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '1rem', color: '#6b7280', marginBottom: '0.5rem' }}>
-          <span>{t('income.cashPending')}</span>
-          <span>€{cashPending.toFixed(2)} ({cashPct.toFixed(0)}%)</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
           <span>{t('income.recentRefunds')}</span>
           <span>€{refunds.toFixed(2)}</span>
         </div>

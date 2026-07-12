@@ -382,7 +382,6 @@
     "analyticsTitle": "Payment Analytics",
     "totalRevenue": "Total Revenue",
     "paidCard": "Paid (Card)",
-    "cashPending": "Cash Pending",
     "recentRefunds": "Recent Refunds",
     "failureRate": "Payment Failure Rate",
     "breakdown": "Breakdown",
@@ -390,7 +389,7 @@
     "feeLabel": "Fee: €{{fee}}",
     "settlement": {
       "title": "Card payouts",
-      "hint": "Net from card orders after the WhatOrder fee. Cash orders are not settled through WhatOrder.",
+      "hint": "Net from card orders after the WhatOrder fee.",
       "pending": "Pending payout",
       "paidOut": "Paid out"
     },
@@ -541,6 +540,7 @@
     "env": {
       "local": "Local",
       "test": "Test",
+      "preproduction": "Preprod",
       "production": "Prod",
       "unknown": "Unknown"
     },

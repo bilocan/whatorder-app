@@ -54,6 +54,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
   const orderId = await createOrder(businessId, {
     customerPhone: from,
     customerName: session.customerName || contactName || null,
+    restaurantName: info.name || null,
     items: basket,
     total: subtotal,
     language: lang,
@@ -104,7 +105,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
 
   await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, paymentMethod, info.alertPhone || null, info.address || null), phoneNumberId);
   await sendButtonMessage(from, {
-    body: t('postOrderOptions', lang),
+    body: t('postOrderOptions', lang, info.name),
     buttons: [
       { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
       { id: 'btn_post_reorder',    title: t('postReorderBtn', lang) },
@@ -579,7 +580,10 @@ async function gateCheckoutTextInput(ctx) {
 
     // awaiting_confirm_note / confirming: weak free text is a note, not a product search.
     // awaiting_name: only run basket op for strong order text ("noch ein cola", "2 döner", etc.).
+    // awaiting_delivery_address*: typed text is always the address, never a menu search.
     const skipBasketOp = liveSession.state === 'awaiting_confirm_note'
+      || liveSession.state === 'awaiting_delivery_address'
+      || liveSession.state === 'awaiting_delivery_address_choice'
       || (liveSession.state === 'confirming' && !isStrongOrderText(text, norm))
       || (liveSession.state === 'awaiting_name' && !isStrongOrderText(text, norm));
     const opResult = skipBasketOp

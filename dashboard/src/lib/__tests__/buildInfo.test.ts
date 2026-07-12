@@ -18,6 +18,10 @@ describe('envBadgeColors', () => {
   it('maps test to amber styling', () => {
     expect(envBadgeColors('test').background).toBe('#ffedd5');
   });
+
+  it('maps preproduction to purple styling', () => {
+    expect(envBadgeColors('preproduction').background).toBe('#ede9fe');
+  });
 });
 
 describe('environmentsMismatch', () => {

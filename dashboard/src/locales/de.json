@@ -382,7 +382,6 @@
     "analyticsTitle": "Zahlungsanalyse",
     "totalRevenue": "Gesamtumsatz",
     "paidCard": "Bezahlt (Karte)",
-    "cashPending": "Bar ausstehend",
     "recentRefunds": "Erstattungen",
     "failureRate": "Fehlerquote",
     "breakdown": "Aufschlüsselung",
@@ -390,7 +389,7 @@
     "feeLabel": "Gebühr: €{{fee}}",
     "settlement": {
       "title": "Kartenauszahlungen",
-      "hint": "Netto aus Kartenzahlungen nach WhatOrder-Gebühr. Barbestellungen werden nicht über WhatOrder ausgezahlt.",
+      "hint": "Netto aus Kartenzahlungen nach WhatOrder-Gebühr.",
       "pending": "Ausstehende Auszahlung",
       "paidOut": "Ausgezahlt"
     },
@@ -541,6 +540,7 @@
     "env": {
       "local": "Lokal",
       "test": "Test",
+      "preproduction": "Preprod",
       "production": "Prod",
       "unknown": "Unbekannt"
     },

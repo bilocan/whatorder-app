@@ -23,7 +23,7 @@ async function buildOrderEntryButtons(lang, businessId) {
   return buttons.slice(0, 3);
 }
 
-async function sendOrderEntryPrompt({ from, session, lang, businessId, basket = [], bodyOverride }) {
+async function sendOrderEntryPrompt({ from, session, lang, businessId, basket = [], bodyOverride, fresh = false }) {
   const buttons = await buildOrderEntryButtons(lang, businessId);
   const msgId = await sendButtonMessage(from, {
     body: bodyOverride ?? t('orderEntryBody', lang),
@@ -39,6 +39,7 @@ async function sendOrderEntryPrompt({ from, session, lang, businessId, basket = 
     pendingAmendOrderId: undefined,
     pendingAmendBusinessId: undefined,
     pendingAmendPlacedAt: undefined,
+    ...(fresh ? { specialRequests: undefined } : {}),
   }, session);
   return true;
 }

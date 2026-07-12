@@ -382,7 +382,6 @@
     "analyticsTitle": "Ödeme Analizi",
     "totalRevenue": "Toplam Gelir",
     "paidCard": "Ödendi (Kart)",
-    "cashPending": "Nakit Bekliyor",
     "recentRefunds": "İadeler",
     "failureRate": "Ödeme Hata Oranı",
     "breakdown": "Detaylar",
@@ -390,7 +389,7 @@
     "feeLabel": "Ücret: €{{fee}}",
     "settlement": {
       "title": "Kart ödemeleri",
-      "hint": "WhatOrder ücreti sonrası kart siparişlerinden net tutar. Nakit siparişler WhatOrder üzerinden ödenmez.",
+      "hint": "WhatOrder ücreti sonrası kart siparişlerinden net tutar.",
       "pending": "Bekleyen ödeme",
       "paidOut": "Ödendi"
     },
@@ -541,6 +540,7 @@
     "env": {
       "local": "Yerel",
       "test": "Test",
+      "preproduction": "Preprod",
       "production": "Prod",
       "unknown": "Bilinmiyor"
     },
