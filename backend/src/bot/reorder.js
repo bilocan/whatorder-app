@@ -62,6 +62,7 @@ async function tryOfferReorder({ from, session, lang, businessId, basket, busine
     pendingAmendOrderId: undefined,
     pendingAmendBusinessId: undefined,
     pendingAmendPlacedAt: undefined,
+    specialRequests: undefined,
   }, session);
 
   const msgId = await sendButtonMessage(from, {
@@ -149,6 +150,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
       textMenuIndex,
       textMenuCategory,
       menuId,
+      specialRequests: undefined,
     });
     return;
   }
@@ -161,7 +163,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
   if (type === 'text' && isFreshStartCommand(norm)) {
     if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName })) return;
     await sendOrderEntryPrompt({
-      from, session: freshSession, lang, businessId, basket: [],
+      from, session: freshSession, lang, businessId, basket: [], fresh: true,
       ...(businessName ? { bodyOverride: greetingPrefix + t('orderEntryBody', lang) } : {}),
     });
     return;
@@ -174,7 +176,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
     if (handled === true) return;
     if (handled === 'llm_failed') {
       await sendOrderEntryPrompt({
-        from, session: freshSession, lang, businessId, basket: [],
+        from, session: freshSession, lang, businessId, basket: [], fresh: true,
         bodyOverride: greetingPrefix + t('intentParseFailed', lang),
       });
       return;
@@ -189,7 +191,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
   if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName })) return;
 
   await sendOrderEntryPrompt({
-    from, session: freshSession, lang, businessId, basket: [],
+    from, session: freshSession, lang, businessId, basket: [], fresh: true,
     ...(businessName ? { bodyOverride: greetingPrefix + t('orderEntryBody', lang) } : {}),
   });
 }

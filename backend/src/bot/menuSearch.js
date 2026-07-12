@@ -69,6 +69,7 @@ async function sendSearchPrompt({ from, session, lang, businessId, basket }) {
     businessId,
     basket,
     menuSearchActive: true,
+    specialRequests: undefined,
   }, session);
 
   const { sendButtonMessage } = require('../lib/whatsapp');
