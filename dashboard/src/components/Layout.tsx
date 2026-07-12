@@ -9,7 +9,7 @@ import { AdminPhoneLineProvider } from '../contexts/AdminPhoneLineContext';
 import BrandLogo from './BrandLogo';
 import { usePresence, toggleOrdersOpen, toggleDeliveryOpen } from '../hooks/usePresence';
 import { useNewOrderAlert } from '../hooks/useNewOrderAlert';
-import { API_URL } from '../lib/apiUrl';
+import BuildInfoPanel from './BuildInfoPanel';
 
 const BASE_TITLE = document.title;
 
@@ -42,10 +42,6 @@ function LayoutContent() {
     : '#22c55e';
 
   function closeMenu() { setMenuOpen(false); }
-
-  const devApiHint = import.meta.env.DEV
-    ? (API_URL ? API_URL : 'localhost:3000 (Vite proxy)')
-    : null;
 
   return (
     <div className="layout-root">
@@ -175,11 +171,7 @@ function LayoutContent() {
           </div>
         )}
 
-        {devApiHint && (
-          <div style={{ margin: '0 0 0.75rem', padding: '0.45rem 0.6rem', background: '#fef3c7', borderRadius: 6, fontSize: '0.72rem', color: '#92400e', lineHeight: 1.35 }}>
-            Dev API → {devApiHint}
-          </div>
-        )}
+        <BuildInfoPanel />
 
         <LanguageSwitcher />
         <div style={{ marginBottom: '0.5rem' }}>
