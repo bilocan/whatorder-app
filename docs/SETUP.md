@@ -9,13 +9,15 @@ Full day-1 onboarding lives in the vault: `whatorder-vault/Onboarding/developer-
 ```
 feature/* ──PR──▶ dev ──auto-deploy──▶ TEST (whatorder-fire)
                    │
-                   └──PR (dev only)──▶ master ──gh release──▶ PROD (whatorder-fire-prod)
+                   └──PR (dev only)──▶ master ──auto-deploy──▶ PREPROD (whatorder-fire-prod)
+                                              │
+                                              └──gh release──▶ PROD (promote same SHA)
 ```
 
 - Direct pushes to `dev` and `master` are blocked (PRs only, CI checks required).
 - PRs into `master` are only accepted from `dev` (enforced by the *Master merge guard* check).
-- Merging to `master` deploys nothing; production ships when a GitHub Release is published:
-  `npm run release` (see vault `Projects/WhatOrder/specs/dev-workflow-guide.md`)
+- Merging to `master` deploys **Preprod** (`pre.whatorder.at`). Production ships when a GitHub Release is published (promotes the same image SHA):
+  `npm run release` (see vault `Projects/WhatOrder/notes/deploy-test-to-prod.md`)
 
 Full workflow: vault `Projects/WhatOrder/specs/dev-workflow-guide.md`; infra details: `specs/environments-and-branching.md`.
 

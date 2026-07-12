@@ -15,6 +15,8 @@ const readline = require('readline');
 
 const {
   PROD_HEALTH_URL,
+  PREPROD_VERSION_URL,
+  PREPROD_WORKFLOW_NAME,
   RELEASE_WORKFLOW_NAME,
   appRoot,
   vaultRoot,
@@ -223,8 +225,9 @@ async function ensureBranchesReady(appRootDir, flags) {
     }
     if (!flags.dryRun) {
       printNextSteps('Ready to ship — this run will', [
+        'Check preprod /version SHA matches master (unless --skip-preprod-check)',
         'Rotate vault `releases/unreleased.md` → `releases/<tag>.md` and push vault `master`',
-        'Publish GitHub Release on `master` (triggers prod deploy)',
+        'Publish GitHub Release on `master` (promotes preprod image to live prod)',
         'Watch **Release to Production** + check prod `/health`',
         'Open a **master → dev** sync PR afterward if needed',
       ]);
@@ -371,6 +374,40 @@ function watchReleaseWorkflow(appRootDir, flags) {
   runInDir(appRootDir, 'gh', ['run', 'watch', String(runs[0].databaseId)], { inherit: true });
 }
 
+async function verifyPreprodSha(appRootDir, flags) {
+  if (flags.skipPreprodCheck) {
+    console.log('  Skipping preprod check (--skip-preprod-check)');
+    return;
+  }
+
+  logStep('Preprod SHA check');
+  const masterResult = runInDir(appRootDir, 'git', ['rev-parse', 'origin/master']);
+  const expected = masterResult.stdout.trim().slice(0, 7);
+  console.log(`  Expected master HEAD: ${expected}`);
+
+  if (flags.dryRun) {
+    console.log(`  Would GET ${PREPROD_VERSION_URL}`);
+    return;
+  }
+
+  if (typeof fetch !== 'function') {
+    console.log(`  Manual check: ${PREPROD_VERSION_URL} → gitSha should be ${expected}`);
+    return;
+  }
+
+  const res = await fetch(PREPROD_VERSION_URL);
+  if (!res.ok) throw new Error(`Preprod /version HTTP ${res.status}`);
+  const body = await res.json().catch(() => ({}));
+  const actual = body.gitSha || '';
+  if (actual !== expected) {
+    throw new Error(
+      `Preprod serves ${actual || '(none)'} but master is ${expected}. `
+      + `Wait for **${PREPROD_WORKFLOW_NAME}** on master, or re-run it.`,
+    );
+  }
+  console.log(`  OK: preprod serves ${actual}`);
+}
+
 function verifyProdHealth({ dryRun }) {
   logStep('Prod health check');
   if (dryRun) {
@@ -439,6 +476,8 @@ async function main() {
   const tags = listReleaseTags(root);
   const tag = normalizeTag(flags.tag) || suggestNextTag(tags);
   logStep(`Release tag: ${tag}`);
+
+  await verifyPreprodSha(root, flags);
 
   const rotation = rotateVaultRelease(vault, tag, { dryRun: flags.dryRun });
   console.log(`  Vault: ${rotation.releasedFile}`);

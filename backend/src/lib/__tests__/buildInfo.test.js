@@ -17,6 +17,20 @@ describe('getBuildInfo', () => {
   });
 
   it('returns explicit Cloud Run metadata', () => {
+    process.env.DEPLOY_ENV = 'preproduction';
+    process.env.GIT_SHA = 'abc1234567890';
+    process.env.APP_VERSION = 'pre-abc1234567890';
+    process.env.FIREBASE_PROJECT_ID = 'whatorder-fire-prod';
+
+    expect(getBuildInfo()).toEqual({
+      environment: 'preproduction',
+      version: 'pre-abc1234567890',
+      gitSha: 'abc1234',
+      firebaseProject: 'whatorder-fire-prod',
+    });
+  });
+
+  it('returns explicit Cloud Run metadata for test', () => {
     process.env.DEPLOY_ENV = 'test';
     process.env.GIT_SHA = 'abc1234567890';
     process.env.APP_VERSION = 'dev-abc1234567890';

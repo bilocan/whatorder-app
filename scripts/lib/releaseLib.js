@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const PROD_HEALTH_URL = 'https://whatorder-backend-87472938058.europe-west3.run.app/health';
+const PREPROD_VERSION_URL = 'https://whatorder-backend-pre-87472938058.europe-west3.run.app/version';
+const PREPROD_WORKFLOW_NAME = 'Deploy to Preproduction';
 const RELEASE_WORKFLOW_NAME = 'Release to Production';
 
 function appRoot(startDir = __dirname) {
@@ -33,6 +35,7 @@ function parseReleaseArgs(argv) {
     skipSync: false,
     skipVaultPush: false,
     skipWatch: false,
+    skipPreprodCheck: false,
     help: false,
   };
 
@@ -44,6 +47,7 @@ function parseReleaseArgs(argv) {
     else if (arg === '--skip-sync') flags.skipSync = true;
     else if (arg === '--skip-vault-push') flags.skipVaultPush = true;
     else if (arg === '--skip-watch') flags.skipWatch = true;
+    else if (arg === '--skip-preprod-check') flags.skipPreprodCheck = true;
     else if (arg === '--tag' && argv[i + 1]) flags.tag = argv[++i];
     else if (arg === '--help' || arg === '-h') flags.help = true;
   }
@@ -274,11 +278,13 @@ function printNextSteps(title, steps) {
 }
 
 const RELEASE_OVERVIEW_STEPS = [
-  'Run `npm run release` — checks branches (may open a **dev → master** promote PR if needed)',
-  'If a promote PR was opened: merge it when CI is green, then run `npm run release` again',
-  'Confirm vault changelog rotation + GitHub Release — triggers prod deploy (Cloud Run + Hosting)',
-  'Wait for **Release to Production** workflow + prod `/health` check',
-  'If a **master → dev** sync PR was opened: merge it when CI is green (keeps dev current for the next feature)',
+  'Verify changes on **Test** (`whatorder-fire.web.app`) after merging feature PRs into `dev`',
+  'Run `npm run release` — opens **dev → master** promote PR if needed',
+  'Merge promote PR when CI is green → **Deploy to Preproduction** runs on `master`',
+  'Smoke-test on **Preprod** (`pre.whatorder.at`) — prod-parity config, sandbox webhooks only',
+  'Re-run `npm run release` — rotates vault changelog + publishes GitHub Release',
+  'Release **promotes the same image SHA** to live prod (no backend rebuild)',
+  'Merge **master → dev** sync PR if opened',
 ];
 
 function printReleaseOverview() {
@@ -294,6 +300,8 @@ function nextStepsForPromoteRequired({ prUrl, dryRun } = {}) {
   } else {
     steps.push('Merge the **dev → master** promote PR when CI is green');
   }
+  steps.push('Wait for **Deploy to Preproduction** workflow to finish on `master`');
+  steps.push(`Smoke-test Preprod: https://pre.whatorder.at (guide: vault notes/deploy-test-to-prod.md)`);
   steps.push('Re-run: `npm run release`');
   steps.push('(Optional preview first: `npm run release -- --dry-run`)');
   printNextSteps('Next steps', steps);
@@ -301,8 +309,9 @@ function nextStepsForPromoteRequired({ prUrl, dryRun } = {}) {
 
 function nextStepsForReleaseComplete({ tag, syncPrUrl, needsPostReleaseSync }) {
   const steps = [
-    `Prod deploy triggered for **${tag}** — dashboard: https://whatorder-fire-prod.web.app`,
+    `Prod deploy promoted for **${tag}** — dashboard: https://whatorder-fire-prod.web.app`,
     `Backend health: ${PROD_HEALTH_URL}`,
+    'If this was a go-live release, run the cutover checklist in vault `specs/environments-and-branching`',
   ];
   if (needsPostReleaseSync && syncPrUrl) {
     steps.push(`Merge the sync PR: ${syncPrUrl}`);
@@ -348,14 +357,17 @@ Options:
   --skip-sync          Do not create master → dev sync PR after release
   --skip-vault-push    Rotate vault files locally but do not commit/push vault
   --skip-watch         Do not wait on the Release to Production GitHub Action
+  --skip-preprod-check Skip preprod /version SHA check before publishing release
   --help, -h           Show this help
 
-Docs: whatorder-vault/Projects/WhatOrder/specs/dev-workflow-guide.md
+Docs: whatorder-vault/Projects/WhatOrder/notes/deploy-test-to-prod.md
 `);
 }
 
 module.exports = {
   PROD_HEALTH_URL,
+  PREPROD_VERSION_URL,
+  PREPROD_WORKFLOW_NAME,
   RELEASE_WORKFLOW_NAME,
   appRoot,
   vaultRoot,

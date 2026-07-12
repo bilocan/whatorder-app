@@ -1,10 +1,12 @@
-name: CI
+name: Deploy to Preproduction
+
+# Preprod = prod-parity release candidate. Push to master (after dev → master
+# promote PR) builds once and deploys to pre surfaces in whatorder-fire-prod.
+# Production release promotes the same image SHA — see release.yml.
 
 on:
   push:
-    branches: [master, dev]
-  pull_request:
-    branches: [master, dev]
+    branches: [master]
 
 jobs:
   backend:
@@ -27,22 +29,6 @@ jobs:
         working-directory: backend
         run: npm test -- --coverage
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./backend/coverage/lcov.info
-          flags: backend
-          fail_ci_if_error: false
-
-  # Intent corpus eval — separate job so PR checks show "Intent Corpus Eval" explicitly.
-  # Rules-only (no LLM API). Builtin + Enes pilot golden phrases.
-  #
-  # To disable if this gate blocks merges while corpus stabilizes:
-  #   1. Add `if: false` on the job below (or comment out the whole intent-corpus job).
-  #   2. Change deploy-backend `needs` from [backend, intent-corpus] to `backend` only —
-  #      otherwise deploy is skipped when this job is skipped.
-  # Jest still runs intentEval.test.js inside Backend Tests as a lighter backup.
   intent-corpus:
     name: Intent Corpus Eval
     runs-on: ubuntu-latest
@@ -95,37 +81,11 @@ jobs:
         working-directory: dashboard
         run: npm test
 
-  # Enforces the promotion flow: master only accepts PRs whose source branch is
-  # dev. Required status check in the "master — release branch" ruleset, so a PR
-  # from any other branch cannot be merged. Feature branches merge into dev.
-  master-merge-guard:
-    name: Master merge guard (dev only)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.base_ref == 'master'
-
-    steps:
-      - name: Fail unless source branch is dev
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          echo "PR: $HEAD_REF -> master"
-          if [ "$HEAD_REF" != "dev" ]; then
-            echo "::error::PRs into master are only allowed from dev. Merge into dev first; dev promotes to master."
-            exit 1
-          fi
-
-  # Continuous deployment to TEST only: push to dev → Test (whatorder-fire).
-  # Merges to master deploy Preprod (see preprod.yml). Production ships when a
-  # GitHub Release is published (see release.yml — promotes the same image SHA).
-  # Environment variables (GCP_PROJECT, FIREBASE_HOSTING_SA) and secrets
-  # (WIF_PROVIDER, WIF_SERVICE_ACCOUNT, VITE_*) live on the environments in
-  # GitHub repo settings; repo-level secrets act as the Test fallback.
-  deploy-backend:
-    name: Deploy Backend to Cloud Run
+  deploy-backend-pre:
+    name: Deploy Backend to Cloud Run (preprod)
     runs-on: ubuntu-latest
     needs: [backend, intent-corpus]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    environment: Test
+    environment: Preproduction
     permissions:
       contents: read
       id-token: write
@@ -147,25 +107,24 @@ jobs:
           docker build -t europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }} backend/
           docker push europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }}
 
-      - name: Deploy to Cloud Run
+      - name: Deploy to Cloud Run (pre service)
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           project_id: ${{ vars.GCP_PROJECT }}
-          service: whatorder-backend
+          service: whatorder-backend-pre
           region: europe-west3
           image: europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }}
-          flags: --min-instances=1 --allow-unauthenticated
+          flags: --min-instances=0 --allow-unauthenticated
           env_vars: |
-            DEPLOY_ENV=test
+            DEPLOY_ENV=preproduction
             GIT_SHA=${{ github.sha }}
-            APP_VERSION=dev-${{ github.sha }}
+            APP_VERSION=pre-${{ github.sha }}
 
-  deploy-dashboard:
-    name: Deploy Dashboard to Firebase Hosting
+  deploy-dashboard-pre:
+    name: Deploy Dashboard to Firebase Hosting (preprod)
     runs-on: ubuntu-latest
     needs: dashboard
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    environment: Test
+    environment: Preproduction
     permissions:
       contents: read
       id-token: write
@@ -176,8 +135,6 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          # 24.17 breaks firebase-tools JWT token exchange (Premature close).
-          # https://github.com/firebase/firebase-tools/issues/10692
           node-version: '24.16.0'
 
       - name: Install dependencies
@@ -197,19 +154,15 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
           VITE_WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.VITE_WHATSAPP_PHONE_NUMBER_ID }}
-          VITE_DEPLOY_ENV: test
+          VITE_DEPLOY_ENV: preproduction
           VITE_GIT_SHA: ${{ github.sha }}
-          VITE_APP_VERSION: dev-${{ github.sha }}
+          VITE_APP_VERSION: pre-${{ github.sha }}
 
-      # Keyless hosting deploy: firebase-tools picks up the WIF credentials
-      # exported by google-github-actions/auth (GOOGLE_APPLICATION_CREDENTIALS).
-      # whatorder-fire-prod enforces iam.disableServiceAccountKeyCreation, so
-      # the JSON-key based FirebaseExtended/action-hosting-deploy can't be used.
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ vars.FIREBASE_HOSTING_SA }}
 
-      - name: Deploy to Firebase Hosting (test site)
-        run: npx firebase-tools@15.22.1 deploy --only hosting:whatorder-fire --project ${{ vars.GCP_PROJECT }}
+      - name: Deploy to Firebase Hosting (pre site)
+        run: npx firebase-tools@15.22.1 deploy --only hosting:whatorder-pre --project ${{ vars.GCP_PROJECT }}
