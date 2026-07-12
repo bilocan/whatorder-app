@@ -104,16 +104,15 @@ describe('IncomePage', () => {
     mockOnSnapshot.mockImplementation(() => vi.fn())
   })
 
-  it('shows today-only card vs cash analytics by default, including unpaid card orders in the total', async () => {
+  it('shows today-only card analytics by default, including unpaid card orders in the total', async () => {
     mockOrders(ORDERS)
     renderPage()
 
     // today: o1 (stripe paid, 10) + o2 (cash, 5) + o3 (stripe failed, 7) = 22 total.
     // The failed card order must still count toward the total (matches Earned+Pending),
-    // it just isn't "Paid (Card)" — it falls into the cash/unconfirmed bucket.
+    // it just isn't "Paid (Card)".
     expect(await screen.findByText('€22.00')).toBeInTheDocument()
     expect(screen.getByText('€10.00 (45%)')).toBeInTheDocument()
-    expect(screen.getByText('€12.00 (55%)')).toBeInTheDocument()
     // one of two stripe attempts today failed -> 50% failure rate
     expect(screen.getByText('50.0%')).toBeInTheDocument()
   })
@@ -128,7 +127,6 @@ describe('IncomePage', () => {
     // week adds o4 (stripe paid, 12): total = 22 + 12 = 34; card paid = 10 + 12 = 22
     expect(await screen.findByText('€34.00')).toBeInTheDocument()
     expect(screen.getByText('€22.00 (65%)')).toBeInTheDocument()
-    expect(screen.getByText('€12.00 (35%)')).toBeInTheDocument()
     // 8-day-old cash order must not be included
     expect(screen.queryByText('Too Old')).not.toBeInTheDocument()
   })
