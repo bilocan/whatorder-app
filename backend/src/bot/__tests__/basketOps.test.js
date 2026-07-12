@@ -272,6 +272,16 @@ describe('parseBasketOps', () => {
     expect(preview.basket.find(i => i.name === 'Ayran').qty).toBe(2);
   });
 
+  test('plain 3 cola adds to existing cart instead of overwriting', async () => {
+    const basket = [{ name: 'Cola', qty: 6, price: 2.5 }];
+    const parsed = await parseBasketOps('3 cola', { ...ctx, basket });
+    expect(parsed.outcome).toBe('ops');
+    expect(parsed.ops[0].type).toBe('add');
+    expect(parsed.ops[0].item.qty).toBe(3);
+    const preview = applyOps(basket, parsed.ops);
+    expect(preview.basket.find(i => i.name === 'Cola').qty).toBe(9);
+  });
+
   test('alles löschen → clear op', async () => {
     const parsed = await parseBasketOps('alles löschen', ctx);
     expect(parsed.outcome).toBe('ops');

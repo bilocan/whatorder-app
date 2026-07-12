@@ -416,11 +416,9 @@ function parseBasketEditOps(text, basket) {
     }
   }
 
+  // Plain "N product" (no set verb) always adds via tier-A intent — never setQty overwrite.
   if (edit.type === 'maybe_set_qty') {
-    const indices = findMatchingLineIndices(basket, edit.rawName);
-    if (indices.length >= 1) {
-      return [{ type: 'setQty', target: { kind: 'name', fragment: edit.rawName }, qty: edit.qty }];
-    }
+    return null;
   }
 
   return null;
