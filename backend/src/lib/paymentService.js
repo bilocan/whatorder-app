@@ -119,7 +119,7 @@ async function handleCheckoutSessionCompleted(session) {
     // Best-effort: send post-order action buttons. Failure is logged but does not
     // block the primary notification or cause a duplicate text on retry.
     await sendButtonMessage(order.customerPhone, {
-      body: t('postOrderOptions', lang),
+      body: t('postOrderOptions', lang, order.restaurantName || null),
       buttons: [
         { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
         { id: 'btn_post_reorder',    title: t('postReorderBtn', lang) },
