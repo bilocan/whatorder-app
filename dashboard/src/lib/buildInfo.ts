@@ -1,4 +1,4 @@
-export type DeployEnv = 'local' | 'test' | 'production' | 'unknown';
+export type DeployEnv = 'local' | 'test' | 'preproduction' | 'production' | 'unknown';
 
 export type BuildInfo = {
   environment: DeployEnv;
@@ -9,7 +9,13 @@ export type BuildInfo = {
 
 function readDeployEnv(): DeployEnv {
   const raw = import.meta.env.VITE_DEPLOY_ENV as string | undefined;
-  if (raw === 'local' || raw === 'test' || raw === 'production' || raw === 'unknown') {
+  if (
+    raw === 'local'
+    || raw === 'test'
+    || raw === 'preproduction'
+    || raw === 'production'
+    || raw === 'unknown'
+  ) {
     return raw;
   }
   if (import.meta.env.DEV) return 'local';
@@ -39,6 +45,8 @@ export function envBadgeColors(env: DeployEnv): { background: string; color: str
       return { background: '#fef3c7', color: '#92400e' };
     case 'test':
       return { background: '#ffedd5', color: '#c2410c' };
+    case 'preproduction':
+      return { background: '#ede9fe', color: '#5b21b6' };
     case 'production':
       return { background: '#ecfdf5', color: '#047857' };
     default:

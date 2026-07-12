@@ -540,6 +540,7 @@
     "env": {
       "local": "Local",
       "test": "Test",
+      "preproduction": "Preprod",
       "production": "Prod",
       "unknown": "Unknown"
     },
