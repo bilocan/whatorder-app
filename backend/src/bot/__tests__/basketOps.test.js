@@ -304,6 +304,16 @@ describe('parseBasketOps', () => {
     expect(preview.basket[0].qty).toBe(1);
   });
 
+  test('3 cola raus removes entire line when explicit qty matches line qty', async () => {
+    const basket = [{ name: 'Coca Cola 0.33L', qty: 3, price: 2.9 }];
+    const menu = [{ id: 'c1', name: 'Coca Cola 0.33L', price: 2.9, category: 'Drinks' }];
+    const menuMatch = buildMenuMatchIndex(menu);
+    const parsed = await parseBasketOps('3 cola raus', { basket, menu, menuMatch, rulesOnly: true });
+    expect(parsed.outcome).toBe('ops');
+    const preview = applyOps(basket, parsed.ops);
+    expect(preview.basket).toEqual([]);
+  });
+
   test('1 kola raus removes one cola via menu synonym match', async () => {
     const basket = [{ name: 'Coca Cola 0.33L', qty: 3, price: 2.9 }];
     const menu = [{ id: 'c1', name: 'Coca Cola 0.33L', price: 2.9, category: 'Drinks', aliases: ['kola'] }];

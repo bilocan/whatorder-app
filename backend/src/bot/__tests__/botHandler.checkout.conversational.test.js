@@ -318,6 +318,43 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
+  test('flag on — noch ein cola on confirming adds to basket (not saved as note)', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
+    getMenuContext.mockResolvedValue({
+      menu: [
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'c1', name: 'Cola', price: 2.5, available: true },
+      ],
+      menuMatch: require('../menuMapper').buildMenuMatchIndex([
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'c1', name: 'Cola', price: 2.5, available: true },
+      ]),
+      menuTokenIndex: null,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [
+        { name: 'Döner', qty: 1, price: 8.50 },
+        { name: 'Cola', qty: 1, price: 2.50 },
+      ],
+      customerName: 'Max',
+      orderType: 'pickup',
+      pickupTime: '14:30',
+      prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'noch ein cola' }));
+
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: expect.arrayContaining([
+        expect.objectContaining({ name: 'Cola', qty: 2 }),
+      ]),
+    }), expect.anything());
+    const noteWrite = setSession.mock.calls.find(([, data]) => data.specialRequests === 'noch ein cola');
+    expect(noteWrite).toBeUndefined();
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+
   test('flag on — confirming saves product-like text as note without Add note button', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
     getSession.mockResolvedValue({
