@@ -193,6 +193,16 @@ describe('parseIntent', () => {
     expect(r.items).toEqual([{ name: 'kebap mit allem und scharf', qty: 1 }]);
   });
 
+  test('noch 3 cola preserves quantity after continuation prefix', () => {
+    const r = parseIntent('noch 3 cola');
+    expect(r.items).toEqual([{ name: 'cola', qty: 3 }]);
+  });
+
+  test('1 kola daha strips TR daha suffix before parse', () => {
+    const r = parseIntent('1 kola daha');
+    expect(r.items).toEqual([{ name: 'kola', qty: 1 }]);
+  });
+
   test('pide mit eier und gouda stays one line (mit-ingredient und)', () => {
     const r = parseIntent('Eine pide mit Eier und gouda');
     expect(r.items).toEqual([{ name: 'pide mit Eier und gouda', qty: 1 }]);

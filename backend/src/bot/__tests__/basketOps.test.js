@@ -282,6 +282,35 @@ describe('parseBasketOps', () => {
     expect(preview.basket.find(i => i.name === 'Cola').qty).toBe(9);
   });
 
+  test('noch 3 cola → add 3 more (not 1)', async () => {
+    const basket = [{ name: 'Cola', qty: 1, price: 2.5 }];
+    const parsed = await parseBasketOps('noch 3 cola', { ...ctx, basket });
+    expect(parsed.outcome).toBe('ops');
+    expect(parsed.ops[0].type).toBe('add');
+    expect(parsed.ops[0].item.qty).toBe(3);
+    const preview = applyOps(basket, parsed.ops);
+    expect(preview.basket.find(i => i.name === 'Cola').qty).toBe(4);
+  });
+
+  test('1 kola daha → add 1 more cola (TR daha suffix)', async () => {
+    const basket = [{ name: 'Coca Cola 0.33L', qty: 2, price: 2.9 }];
+    const menu = [
+      { id: 'c1', name: 'Coca Cola 0.33L', price: 2.9, category: 'Drinks' },
+    ];
+    const menuMatch = buildMenuMatchIndex(menu);
+    const parsed = await parseBasketOps('1 kola daha', {
+      basket,
+      menu,
+      menuMatch,
+      rulesOnly: true,
+    });
+    expect(parsed.outcome).toBe('ops');
+    expect(parsed.ops[0].type).toBe('add');
+    expect(parsed.ops[0].item.qty).toBe(1);
+    const preview = applyOps(basket, parsed.ops);
+    expect(preview.basket.find(i => i.name.includes('Cola')).qty).toBe(3);
+  });
+
   test('alles löschen → clear op', async () => {
     const parsed = await parseBasketOps('alles löschen', ctx);
     expect(parsed.outcome).toBe('ops');

@@ -57,12 +57,20 @@ function stripPolitePrefix(text) {
     .trim();
 }
 
-/** "noch ein kebap" / "noch dazu zwei cola" → strip leading continuation */
+/** "noch ein kebap" / "noch 3 cola" / "noch dazu zwei cola" → strip leading continuation */
 function stripContinuationPrefix(text) {
   return (text ?? '')
+    .replace(/^\s*noch\s+(\d+)\s+/i, '$1 ')
     .replace(/^\s*noch\s+(?:ein|eine|einen|einer|dazu)\s+/i, '')
     .replace(/^\s*(?:auch|nochmal)\s+(?:ein|eine|einen|einer)\s+/i, '')
     .trim();
+}
+
+/** TR "1 kola daha" / "kola daha" → strip trailing daha before product lookup */
+function stripTurkishDahaSuffix(text) {
+  const trimmed = (text ?? '').trim();
+  const m = trimmed.match(/^(.+?)\s+daha\s*$/i);
+  return m ? m[1].trim() : trimmed;
 }
 
 function attachOrphanModifierFragment(items, fragment) {
@@ -560,6 +568,7 @@ function parseIntent(text) {
   stripped = stripOrderTypePrefix(stripped);
   stripped = stripPolitePrefix(stripped);
   stripped = stripContinuationPrefix(stripped);
+  stripped = stripTurkishDahaSuffix(stripped);
   stripped = stripImperativePrefix(stripped);
 
   const jeweils = extractJeweilsDrink(stripped);
@@ -657,6 +666,7 @@ function rulesParseQuality(text) {
   stripped = stripOrderTypePrefix(stripped);
   stripped = stripPolitePrefix(stripped);
   stripped = stripContinuationPrefix(stripped);
+  stripped = stripTurkishDahaSuffix(stripped);
   stripped = stripImperativePrefix(stripped);
 
   const jeweils = extractJeweilsDrink(stripped);
