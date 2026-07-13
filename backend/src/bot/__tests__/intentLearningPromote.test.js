@@ -4,16 +4,19 @@ const mockBatchUpdate = jest.fn();
 const mockBatchCommit = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('../../lib/firebase', () => {
-  const firestoreFn = jest.fn(() => ({
-    batch: () => ({
-      update: mockBatchUpdate,
-      commit: mockBatchCommit,
-    }),
-  }));
+  const firestoreFn = jest.fn();
   firestoreFn.FieldValue = {
     serverTimestamp: jest.fn(() => ({ _ts: true })),
   };
-  return { admin: { firestore: firestoreFn } };
+  return {
+    admin: { firestore: firestoreFn },
+    db: {
+      batch: () => ({
+        update: mockBatchUpdate,
+        commit: mockBatchCommit,
+      }),
+    },
+  };
 });
 
 jest.mock('../../lib/collections', () => ({

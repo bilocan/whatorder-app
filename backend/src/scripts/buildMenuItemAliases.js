@@ -9,7 +9,7 @@
  */
 
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.local') });
-const { admin } = require('../lib/firebase');
+const { admin, db } = require('../lib/firebase');
 const { menuRef } = require('../lib/collections');
 const { suggestItemAliases } = require('../bot/menuItemAliases');
 
@@ -52,7 +52,8 @@ async function main() {
   }
 
   for (let i = 0; i < updates.length; i += BATCH_SIZE) {
-    const batch = admin.firestore().batch();
+    // db.batch() so batch and menuRef target the same (possibly named) database
+    const batch = db.batch();
     updates.slice(i, i + BATCH_SIZE).forEach(({ id, aliases }) => {
       batch.update(menuRef(businessId).doc(id), {
         aliases,

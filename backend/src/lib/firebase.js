@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { getFirestore } = require('firebase-admin/firestore');
 
 if (!admin.apps.length) {
   let credential;
@@ -19,7 +20,11 @@ if (!admin.apps.length) {
   admin.initializeApp({ credential, projectId: process.env.FIREBASE_PROJECT_ID });
 }
 
-const db = admin.firestore();
+// Preprod runs against the named "preprod" database in the prod project so
+// release candidates can never touch live customer data. Unset = (default).
+const db = process.env.FIRESTORE_DATABASE_ID
+  ? getFirestore(admin.app(), process.env.FIRESTORE_DATABASE_ID)
+  : admin.firestore();
 // grpc-js is broken on Node.js 24 — use REST as a workaround.
 // Node.js 22 (Cloud Run) uses gRPC natively, which handles reconnections
 // correctly and avoids the "Premature close" error on idle Cloud Run instances.
