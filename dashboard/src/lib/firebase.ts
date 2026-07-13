@@ -14,6 +14,10 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-export const db = getFirestore(app);
+// Preprod builds set VITE_FIRESTORE_DATABASE_ID=preprod so the dashboard reads
+// the same isolated database as the pre backend. Unset = (default) database.
+export const db = import.meta.env.VITE_FIRESTORE_DATABASE_ID
+  ? getFirestore(app, import.meta.env.VITE_FIRESTORE_DATABASE_ID)
+  : getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);

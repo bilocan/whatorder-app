@@ -1,4 +1,4 @@
-const { admin } = require('../lib/firebase');
+const { admin, db } = require('../lib/firebase');
 const { intentLearningRef, menuRef } = require('../lib/collections');
 const { norm, tokensOf } = require('./menuMapper');
 const { MAX_ITEM_ALIASES } = require('./menuItemAliases');
@@ -115,7 +115,9 @@ async function maybePromoteLearnedAliases(businessId, docId, textKey, items) {
   if (!groups.length) return { promoted: false, reason: 'no_candidates' };
 
   const promotedAliases = [];
-  const batch = admin.firestore().batch();
+  // db.batch(), not admin.firestore().batch() — refs come from db, which may
+  // point at a named database (FIRESTORE_DATABASE_ID); instances must match.
+  const batch = db.batch();
   let writes = 0;
 
   for (const group of groups) {

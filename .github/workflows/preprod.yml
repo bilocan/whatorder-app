@@ -22,7 +22,7 @@ jobs:
           node-version: '24'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
         working-directory: backend
 
       - name: Run backend tests with coverage
@@ -42,7 +42,7 @@ jobs:
           node-version: '24'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
         working-directory: backend
 
       - name: Builtin corpus (rules-only)
@@ -67,7 +67,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: dashboard
-        run: npm install
+        run: npm ci
 
       - name: TypeScript + build
         working-directory: dashboard
@@ -118,6 +118,10 @@ jobs:
           docker build -t europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }} backend/
           docker push europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }}
 
+      # --service-account pins the runtime SA to the same account live prod
+      # uses, so preprod exercises identical IAM (its main reason to exist).
+      # FIRESTORE_DATABASE_ID isolates preprod writes into the named "preprod"
+      # database in whatorder-fire-prod — never the live (default) database.
       - name: Deploy to Cloud Run (pre service)
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -125,11 +129,12 @@ jobs:
           service: whatorder-backend-pre
           region: europe-west3
           image: europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }}
-          flags: --min-instances=0 --allow-unauthenticated
+          flags: --min-instances=0 --allow-unauthenticated --service-account=87472938058-compute@developer.gserviceaccount.com
           env_vars: |
             DEPLOY_ENV=preproduction
             GIT_SHA=${{ github.sha }}
             APP_VERSION=pre-${{ github.sha }}
+            FIRESTORE_DATABASE_ID=preprod
 
   deploy-dashboard-pre:
     name: Deploy Dashboard to Firebase Hosting (preprod)
@@ -165,7 +170,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: dashboard
-        run: npm install
+        run: npm ci
 
       - name: Build dashboard
         working-directory: dashboard
@@ -183,6 +188,7 @@ jobs:
           VITE_DEPLOY_ENV: preproduction
           VITE_GIT_SHA: ${{ github.sha }}
           VITE_APP_VERSION: pre-${{ github.sha }}
+          VITE_FIRESTORE_DATABASE_ID: preprod
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2

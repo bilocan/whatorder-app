@@ -76,7 +76,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: backend
-        run: npm install
+        run: npm ci
 
       - name: Firestore reset (cleanup + infra import + smoke)
         working-directory: backend
