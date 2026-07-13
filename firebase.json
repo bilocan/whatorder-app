@@ -23,16 +23,29 @@
       ],
       "headers": [
         {
-          "source": "**/*.@(js|css)",
+          "source": "**",
           "headers": [
-            { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            }
           ]
         },
         {
-          "source": "**",
+          "source": "**/*.@(js|css)",
           "headers": [
-            { "key": "X-Frame-Options", "value": "DENY" },
-            { "key": "X-Content-Type-Options", "value": "nosniff" }
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=31536000, immutable"
+            }
           ]
         }
       ]
@@ -53,16 +66,29 @@
       ],
       "headers": [
         {
-          "source": "**/*.@(js|css)",
+          "source": "**",
           "headers": [
-            { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            }
           ]
         },
         {
-          "source": "**",
+          "source": "**/*.@(js|css)",
           "headers": [
-            { "key": "X-Frame-Options", "value": "DENY" },
-            { "key": "X-Content-Type-Options", "value": "nosniff" }
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=31536000, immutable"
+            }
           ]
         }
       ]
@@ -83,16 +109,29 @@
       ],
       "headers": [
         {
-          "source": "**/*.@(js|css)",
+          "source": "**",
           "headers": [
-            { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            }
           ]
         },
         {
-          "source": "**",
+          "source": "**/*.@(js|css)",
           "headers": [
-            { "key": "X-Frame-Options", "value": "DENY" },
-            { "key": "X-Content-Type-Options", "value": "nosniff" }
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=31536000, immutable"
+            }
           ]
         }
       ]
