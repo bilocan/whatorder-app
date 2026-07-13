@@ -168,6 +168,9 @@ function buildFreshUnreleasedTemplate() {
     tags: '[whatorder, releases]',
   })}# Unreleased
 
+> [!info] When to log
+> Append at **task done** (\`full\` / \`app\` / \`vault\`), not at \`npm run release\`. What goes where: [[releases/README|releases/README]].
+
 ## User-visible
 
 ## Internal
@@ -232,7 +235,10 @@ function readUnreleasedOrThrow(vaultRootDir) {
   }
   const content = fs.readFileSync(filePath, 'utf8');
   if (!extractUserVisibleNotes(content)) {
-    throw new Error('Vault unreleased.md has no User-visible entries — add release notes before shipping.');
+    throw new Error(
+      'Vault unreleased.md has no User-visible entries — add release notes at task done before shipping. '
+      + 'See whatorder-vault/Projects/WhatOrder/releases/README.md',
+    );
   }
   return content;
 }
