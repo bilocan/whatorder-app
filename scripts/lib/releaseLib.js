@@ -36,6 +36,7 @@ function parseReleaseArgs(argv) {
     skipVaultPush: false,
     skipWatch: false,
     skipPreprodCheck: false,
+    promoteOnly: false,
     help: false,
   };
 
@@ -48,6 +49,7 @@ function parseReleaseArgs(argv) {
     else if (arg === '--skip-vault-push') flags.skipVaultPush = true;
     else if (arg === '--skip-watch') flags.skipWatch = true;
     else if (arg === '--skip-preprod-check') flags.skipPreprodCheck = true;
+    else if (arg === '--promote-only') flags.promoteOnly = true;
     else if (arg === '--tag' && argv[i + 1]) flags.tag = argv[++i];
     else if (arg === '--help' || arg === '-h') flags.help = true;
   }
@@ -289,11 +291,11 @@ function printNextSteps(title, steps) {
 
 const RELEASE_OVERVIEW_STEPS = [
   'Verify changes on **Test** (`whatorder-fire.web.app`) after merging feature PRs into `dev`',
-  'Run `npm run release` — opens **dev → master** promote PR if needed',
+  'Run `npm run release:promote` — opens **dev → master** promote PR if needed (pass 1; never ships)',
   'Merge promote PR when CI is green → **Deploy to Preproduction** runs on `master`',
   'Smoke-test on **Preprod** (`pre.whatorder.at`) — prod-parity config, sandbox webhooks only',
-  'Re-run `npm run release` — rotates vault changelog + publishes GitHub Release',
-  'Release **promotes the same image SHA** to live prod (no backend rebuild)',
+  'Run `npm run release` — rotates vault changelog + publishes GitHub Release (pass 2)',
+  'Release **promotes the same backend image SHA** to live prod (dashboard rebuilds separately)',
   'Merge **master → dev** sync PR if opened',
 ];
 
@@ -341,6 +343,15 @@ function nextStepsForDiverged() {
   ]);
 }
 
+function nextStepsForPromoteOnlyAlreadyDone() {
+  printNextSteps('Already promoted — next steps', [
+    'Smoke Preprod: https://pre.whatorder.at (Phase 3 checklist in deploy guide)',
+    'Fill vault `releases/unreleased.md` if not done at task done',
+    'Ship: `npm run release` (pass 2 — vault + GitHub Release)',
+    'Preview ship: `npm run release:dry-run`',
+  ]);
+}
+
 function nextStepsForDryRunComplete({ wouldPromote, tag }) {
   if (wouldPromote) {
     nextStepsForPromoteRequired({ dryRun: true });
@@ -369,6 +380,7 @@ Options:
   --skip-vault-push    Rotate vault files locally but do not commit/push vault
   --skip-watch         Do not wait on the Release to Production GitHub Action
   --skip-preprod-check Skip preprod /version SHA check before publishing release
+  --promote-only       Pass 1 only — open dev → master PR; never ship
   --help, -h           Show this help
 
 Docs: whatorder-vault/Projects/WhatOrder/notes/deploy-test-to-prod.md
@@ -406,5 +418,6 @@ module.exports = {
   nextStepsForPromoteRequired,
   nextStepsForReleaseComplete,
   nextStepsForDiverged,
+  nextStepsForPromoteOnlyAlreadyDone,
   nextStepsForDryRunComplete,
 };

@@ -4,6 +4,7 @@
  *
  * Usage:
  *   npm run release
+ *   npm run release:promote
  *   npm run release:dry-run
  *   npm run release -- --dry-run
  *   npm run release -- --tag v2026.07.0 --yes
@@ -34,6 +35,7 @@ const {
   nextStepsForPromoteRequired,
   nextStepsForReleaseComplete,
   nextStepsForDiverged,
+  nextStepsForPromoteOnlyAlreadyDone,
   nextStepsForDryRunComplete,
 } = require('./lib/releaseLib');
 const { confirm } = require('./lib/gcloudSecrets');
@@ -222,11 +224,17 @@ async function ensureBranchesReady(appRootDir, flags) {
   }
 
   if (assessment.ready) {
+    if (flags.promoteOnly) {
+      logStep('Promote check');
+      console.log('  Nothing to promote — origin/master already has dev\'s work.');
+      nextStepsForPromoteOnlyAlreadyDone();
+      return { ready: false, assessment, promotePrUrl: null, alreadyPromoted: true };
+    }
     if (flags.skipPromote || flags.skipSync) {
       console.log('  Warning: branch checks relaxed via --skip-promote / --skip-sync');
     }
     if (!flags.dryRun) {
-      printNextSteps('Ready to ship — this run will', [
+      printNextSteps('Pass 2 — ship to production (this run will)', [
         'Check preprod /version SHA matches master (unless --skip-preprod-check)',
         'Rotate vault `releases/unreleased.md` → `releases/<tag>.md` and push vault `master`',
         'Publish GitHub Release on `master` (promotes preprod image to live prod)',
@@ -234,7 +242,7 @@ async function ensureBranchesReady(appRootDir, flags) {
         'Open a **master → dev** sync PR afterward if needed',
       ]);
     }
-    return { ready: true, assessment, promotePrUrl: null };
+    return { ready: true, assessment, promotePrUrl: null, shippingPass: true };
   }
 
   if (assessment.reason === 'diverged') {
@@ -498,11 +506,26 @@ async function main() {
   ensureVaultRepo(vault);
 
   const branchGate = await ensureBranchesReady(root, flags);
+  if (branchGate.alreadyPromoted) {
+    return;
+  }
   if (!branchGate.ready && flags.dryRun) {
     if (!branchGate.needsPromote) {
       nextStepsForPromoteRequired({ dryRun: true });
     }
     return;
+  }
+  if (!branchGate.ready) {
+    return;
+  }
+
+  if (!flags.dryRun && !flags.yes && branchGate.shippingPass) {
+    logStep('Preprod smoke required');
+    console.log('  master already contains dev\'s work — this is pass 2 (ship to prod).');
+    const ok = awaitConfirm('Preprod smoke done for this commit? Continue with production release?');
+    if (!ok) {
+      throw new Error('Release cancelled — complete Phase 3 preprod smoke, then re-run npm run release.');
+    }
   }
 
   const tags = listReleaseTags(root);
