@@ -237,36 +237,40 @@ function readUnreleasedOrThrow(vaultRootDir) {
   return content;
 }
 
-function rotateVaultRelease(vaultRootDir, tag, { dryRun = false } = {}) {
+function planVaultRelease(vaultRootDir, tag) {
   const source = readUnreleasedOrThrow(vaultRootDir);
   const releaseDate = formatReleaseDate();
-  const released = buildReleasedMarkdown(source, tag, releaseDate);
-  const fresh = buildFreshUnreleasedTemplate();
+  const releasedMarkdown = buildReleasedMarkdown(source, tag, releaseDate);
+  const freshMarkdown = buildFreshUnreleasedTemplate();
   const releasedFile = releasedPath(vaultRootDir, tag);
   const unreleasedFile = unreleasedPath(vaultRootDir);
-
-  if (dryRun) {
-    return {
-      releasedFile,
-      unreleasedFile,
-      releaseNotes: extractUserVisibleNotes(source),
-      releaseDate,
-    };
-  }
-
-  if (fs.existsSync(releasedFile)) {
-    throw new Error(`Vault release file already exists: ${releasedFile}`);
-  }
-
-  fs.writeFileSync(releasedFile, released, 'utf8');
-  fs.writeFileSync(unreleasedFile, fresh, 'utf8');
 
   return {
     releasedFile,
     unreleasedFile,
+    releasedMarkdown,
+    freshMarkdown,
     releaseNotes: extractUserVisibleNotes(source),
     releaseDate,
   };
+}
+
+function applyVaultRelease(plan) {
+  if (fs.existsSync(plan.releasedFile)) {
+    throw new Error(`Vault release file already exists: ${plan.releasedFile}`);
+  }
+
+  fs.writeFileSync(plan.releasedFile, plan.releasedMarkdown, 'utf8');
+  fs.writeFileSync(plan.unreleasedFile, plan.freshMarkdown, 'utf8');
+}
+
+/** @deprecated Use planVaultRelease + applyVaultRelease; kept for tests */
+function rotateVaultRelease(vaultRootDir, tag, { dryRun = false } = {}) {
+  const plan = planVaultRelease(vaultRootDir, tag);
+  if (!dryRun) {
+    applyVaultRelease(plan);
+  }
+  return plan;
 }
 
 function printNextSteps(title, steps) {
@@ -303,7 +307,7 @@ function nextStepsForPromoteRequired({ prUrl, dryRun } = {}) {
   steps.push('Wait for **Deploy to Preproduction** workflow to finish on `master`');
   steps.push(`Smoke-test Preprod: https://pre.whatorder.at (guide: vault notes/deploy-test-to-prod.md)`);
   steps.push('Re-run: `npm run release`');
-  steps.push('(Optional preview first: `npm run release -- --dry-run`)');
+  steps.push('(Optional preview first: `npm run release:dry-run`)');
   printNextSteps('Next steps', steps);
 }
 
@@ -352,6 +356,7 @@ changelog, and opening PRs to keep dev and master aligned.
 Options:
   --tag <vYYYY.MM.N>   Release tag (default: next tag for current month)
   --dry-run            Print plan only; no file writes, PRs, or release
+                       (npm: use \`npm run release:dry-run\` or \`npm run release -- --dry-run\`)
   --yes, -y            Skip confirmation prompts
   --skip-promote       Do not require/create dev → master promote PR
   --skip-sync          Do not create master → dev sync PR after release
@@ -386,6 +391,8 @@ module.exports = {
   branchSyncState,
   assessReleaseBranches,
   readUnreleasedOrThrow,
+  planVaultRelease,
+  applyVaultRelease,
   rotateVaultRelease,
   printHelp,
   printReleaseOverview,

@@ -4,6 +4,7 @@
  *
  * Usage:
  *   npm run release
+ *   npm run release:dry-run
  *   npm run release -- --dry-run
  *   npm run release -- --tag v2026.07.0 --yes
  */
@@ -25,7 +26,8 @@ const {
   normalizeTag,
   assessReleaseBranches,
   branchSyncState,
-  rotateVaultRelease,
+  planVaultRelease,
+  applyVaultRelease,
   printHelp,
   printReleaseOverview,
   printNextSteps,
@@ -274,7 +276,31 @@ function vaultGitStatus(vaultRootDir) {
   return result.stdout.trim();
 }
 
-async function commitAndPushVault(vaultRootDir, tag, { dryRun, skipVaultPush, yes }) {
+async function commitAndPushVault(vaultRootDir, rotation, tag, { dryRun, skipVaultPush, yes }) {
+  logStep('Vault changelog');
+  console.log(`  Release file: ${rotation.releasedFile}`);
+  console.log(`  Reset: ${rotation.unreleasedFile}`);
+
+  if (dryRun) {
+    console.log(`  Would write ${path.basename(rotation.releasedFile)} and reset unreleased.md`);
+    console.log(`  Would commit vault: chore(release): rotate changelog for ${tag}`);
+    console.log('  Would push vault: origin master');
+    return;
+  }
+
+  if (skipVaultPush) {
+    console.log('  Applying vault rotation locally only (--skip-vault-push). Commit manually on vault master.');
+    applyVaultRelease(rotation);
+    return;
+  }
+
+  if (!yes) {
+    const ok = awaitConfirm(`Rotate vault changelog and push for ${tag}?`);
+    if (!ok) throw new Error('Vault commit cancelled.');
+  }
+
+  applyVaultRelease(rotation);
+
   logStep('Vault git commit');
   const dirty = vaultGitStatus(vaultRootDir);
   if (!dirty) {
@@ -283,22 +309,6 @@ async function commitAndPushVault(vaultRootDir, tag, { dryRun, skipVaultPush, ye
   }
 
   console.log(dirty);
-
-  if (skipVaultPush) {
-    console.log('  Skipping vault commit/push (--skip-vault-push). Commit manually on vault master.');
-    return;
-  }
-
-  if (!dryRun && !yes) {
-    const ok = awaitConfirm(`Commit and push vault release log for ${tag}?`);
-    if (!ok) throw new Error('Vault commit cancelled.');
-  }
-
-  if (dryRun) {
-    console.log(`  Would commit vault: chore(release): rotate changelog for ${tag}`);
-    console.log('  Would push vault: origin master');
-    return;
-  }
 
   runInDir(vaultRootDir, 'git', ['checkout', 'master']);
   runInDir(vaultRootDir, 'git', ['pull', 'origin', 'master']);
@@ -320,20 +330,21 @@ function tagExists(appRootDir, tag) {
 async function createGithubRelease(appRootDir, tag, notes, { dryRun, yes }) {
   logStep(`GitHub Release ${tag}`);
 
-  if (tagExists(appRootDir, tag)) {
-    throw new Error(`Tag ${tag} already exists locally. Pick another tag or delete the old release.`);
-  }
-
-  const notesFile = path.join(os.tmpdir(), `whatorder-release-${tag}.md`);
-  fs.writeFileSync(notesFile, notes, 'utf8');
-
   if (dryRun) {
+    const notesFile = path.join(os.tmpdir(), `whatorder-release-${tag}.md`);
     console.log(`  Would run: gh release create ${tag} --target master --notes-file ${notesFile}`);
     console.log('  Notes preview:\n');
     console.log(notes.split('\n').slice(0, 20).join('\n'));
     if (notes.split('\n').length > 20) console.log('  ...');
     return;
   }
+
+  if (tagExists(appRootDir, tag)) {
+    throw new Error(`Tag ${tag} already exists locally. Pick another tag or delete the old release.`);
+  }
+
+  const notesFile = path.join(os.tmpdir(), `whatorder-release-${tag}.md`);
+  fs.writeFileSync(notesFile, notes, 'utf8');
 
   if (!yes) {
     const ok = awaitConfirm(`Publish GitHub Release ${tag} to production?`);
@@ -478,6 +489,10 @@ async function main() {
   ensureGh();
   printReleaseOverview();
 
+  if (flags.dryRun) {
+    console.log('\n*** DRY RUN — no vault writes, PRs, tags, or GitHub Release ***\n');
+  }
+
   const root = appRoot();
   const vault = vaultRoot(root);
   ensureVaultRepo(vault);
@@ -495,13 +510,15 @@ async function main() {
   const previousTag = latestReleaseTag(root);
   logStep(`Release tag: ${tag}`);
 
+  if (!flags.dryRun && tagExists(root, tag)) {
+    throw new Error(`Tag ${tag} already exists locally. Pick another tag or delete the old release.`);
+  }
+
   await verifyPreprodSha(root, flags);
 
-  const rotation = rotateVaultRelease(vault, tag, { dryRun: flags.dryRun });
-  console.log(`  Vault: ${rotation.releasedFile}`);
-  console.log(`  Fresh: ${rotation.unreleasedFile}`);
+  const rotation = planVaultRelease(vault, tag);
 
-  await commitAndPushVault(vault, tag, flags);
+  await commitAndPushVault(vault, rotation, tag, flags);
 
   await createGithubRelease(root, tag, rotation.releaseNotes, flags);
   watchReleaseWorkflow(root, flags);
@@ -535,7 +552,7 @@ main().catch((err) => {
   if (!/complete the steps above/i.test(err.message)) {
     printNextSteps('Tip', [
       'Run `npm run release -- --help` for the full numbered workflow',
-      'Preview without changes: `npm run release -- --dry-run`',
+      'Preview without changes: `npm run release:dry-run`',
     ]);
   }
   process.exit(1);
