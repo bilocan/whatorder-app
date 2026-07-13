@@ -390,6 +390,9 @@ function watchReleaseWorkflow(appRootDir, flags) {
   }
 
   console.log(`  ${runs[0].url}`);
+  console.log('  Waiting on `gh run watch` until **Release to Production** finishes (~1–2 min).');
+  console.log('  Stop waiting: Ctrl+C — release is already published; check the URL above in GitHub Actions.');
+  console.log('  Skip watch next time: npm run release -- --skip-watch');
   runInDir(appRootDir, 'gh', ['run', 'watch', String(runs[0].databaseId)], { inherit: true });
 }
 
@@ -567,7 +570,7 @@ async function main() {
     return;
   }
 
-  nextStepsForReleaseComplete({ tag, syncPrUrl, needsPostReleaseSync });
+  nextStepsForReleaseComplete({ tag, syncPrUrl, needsPostReleaseSync, skipWatch: flags.skipWatch });
 }
 
 main().catch((err) => {
