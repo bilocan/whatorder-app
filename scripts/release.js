@@ -4,6 +4,8 @@
  *
  * Usage:
  *   npm run release
+ *   npm run release:promote
+ *   npm run release:dry-run
  *   npm run release -- --dry-run
  *   npm run release -- --tag v2026.07.0 --yes
  */
@@ -25,13 +27,15 @@ const {
   normalizeTag,
   assessReleaseBranches,
   branchSyncState,
-  rotateVaultRelease,
+  planVaultRelease,
+  applyVaultRelease,
   printHelp,
   printReleaseOverview,
   printNextSteps,
   nextStepsForPromoteRequired,
   nextStepsForReleaseComplete,
   nextStepsForDiverged,
+  nextStepsForPromoteOnlyAlreadyDone,
   nextStepsForDryRunComplete,
 } = require('./lib/releaseLib');
 const { confirm } = require('./lib/gcloudSecrets');
@@ -220,11 +224,17 @@ async function ensureBranchesReady(appRootDir, flags) {
   }
 
   if (assessment.ready) {
+    if (flags.promoteOnly) {
+      logStep('Promote check');
+      console.log('  Nothing to promote — origin/master already has dev\'s work.');
+      nextStepsForPromoteOnlyAlreadyDone();
+      return { ready: false, assessment, promotePrUrl: null, alreadyPromoted: true };
+    }
     if (flags.skipPromote || flags.skipSync) {
       console.log('  Warning: branch checks relaxed via --skip-promote / --skip-sync');
     }
     if (!flags.dryRun) {
-      printNextSteps('Ready to ship — this run will', [
+      printNextSteps('Pass 2 — ship to production (this run will)', [
         'Check preprod /version SHA matches master (unless --skip-preprod-check)',
         'Rotate vault `releases/unreleased.md` → `releases/<tag>.md` and push vault `master`',
         'Publish GitHub Release on `master` (promotes preprod image to live prod)',
@@ -232,7 +242,7 @@ async function ensureBranchesReady(appRootDir, flags) {
         'Open a **master → dev** sync PR afterward if needed',
       ]);
     }
-    return { ready: true, assessment, promotePrUrl: null };
+    return { ready: true, assessment, promotePrUrl: null, shippingPass: true };
   }
 
   if (assessment.reason === 'diverged') {
@@ -274,7 +284,31 @@ function vaultGitStatus(vaultRootDir) {
   return result.stdout.trim();
 }
 
-async function commitAndPushVault(vaultRootDir, tag, { dryRun, skipVaultPush, yes }) {
+async function commitAndPushVault(vaultRootDir, rotation, tag, { dryRun, skipVaultPush, yes }) {
+  logStep('Vault changelog');
+  console.log(`  Release file: ${rotation.releasedFile}`);
+  console.log(`  Reset: ${rotation.unreleasedFile}`);
+
+  if (dryRun) {
+    console.log(`  Would write ${path.basename(rotation.releasedFile)} and reset unreleased.md`);
+    console.log(`  Would commit vault: chore(release): rotate changelog for ${tag}`);
+    console.log('  Would push vault: origin master');
+    return;
+  }
+
+  if (skipVaultPush) {
+    console.log('  Applying vault rotation locally only (--skip-vault-push). Commit manually on vault master.');
+    applyVaultRelease(rotation);
+    return;
+  }
+
+  if (!yes) {
+    const ok = awaitConfirm(`Rotate vault changelog and push for ${tag}?`);
+    if (!ok) throw new Error('Vault commit cancelled.');
+  }
+
+  applyVaultRelease(rotation);
+
   logStep('Vault git commit');
   const dirty = vaultGitStatus(vaultRootDir);
   if (!dirty) {
@@ -283,22 +317,6 @@ async function commitAndPushVault(vaultRootDir, tag, { dryRun, skipVaultPush, ye
   }
 
   console.log(dirty);
-
-  if (skipVaultPush) {
-    console.log('  Skipping vault commit/push (--skip-vault-push). Commit manually on vault master.');
-    return;
-  }
-
-  if (!dryRun && !yes) {
-    const ok = awaitConfirm(`Commit and push vault release log for ${tag}?`);
-    if (!ok) throw new Error('Vault commit cancelled.');
-  }
-
-  if (dryRun) {
-    console.log(`  Would commit vault: chore(release): rotate changelog for ${tag}`);
-    console.log('  Would push vault: origin master');
-    return;
-  }
 
   runInDir(vaultRootDir, 'git', ['checkout', 'master']);
   runInDir(vaultRootDir, 'git', ['pull', 'origin', 'master']);
@@ -320,20 +338,21 @@ function tagExists(appRootDir, tag) {
 async function createGithubRelease(appRootDir, tag, notes, { dryRun, yes }) {
   logStep(`GitHub Release ${tag}`);
 
-  if (tagExists(appRootDir, tag)) {
-    throw new Error(`Tag ${tag} already exists locally. Pick another tag or delete the old release.`);
-  }
-
-  const notesFile = path.join(os.tmpdir(), `whatorder-release-${tag}.md`);
-  fs.writeFileSync(notesFile, notes, 'utf8');
-
   if (dryRun) {
+    const notesFile = path.join(os.tmpdir(), `whatorder-release-${tag}.md`);
     console.log(`  Would run: gh release create ${tag} --target master --notes-file ${notesFile}`);
     console.log('  Notes preview:\n');
     console.log(notes.split('\n').slice(0, 20).join('\n'));
     if (notes.split('\n').length > 20) console.log('  ...');
     return;
   }
+
+  if (tagExists(appRootDir, tag)) {
+    throw new Error(`Tag ${tag} already exists locally. Pick another tag or delete the old release.`);
+  }
+
+  const notesFile = path.join(os.tmpdir(), `whatorder-release-${tag}.md`);
+  fs.writeFileSync(notesFile, notes, 'utf8');
 
   if (!yes) {
     const ok = awaitConfirm(`Publish GitHub Release ${tag} to production?`);
@@ -435,19 +454,36 @@ function verifyProdHealth({ dryRun }) {
     });
 }
 
-function firestoreRulesReminder(appRootDir) {
-  const rulesPath = path.join(appRootDir, 'firestore.rules');
-  if (!fs.existsSync(rulesPath)) return;
-
+// Most recent release tag reachable from origin/master. Must be read BEFORE
+// the new release tag is created, or it returns the tag being shipped.
+function latestReleaseTag(appRootDir) {
   const result = runInDir(
     appRootDir,
     'git',
-    ['log', '-1', '--format=%H', 'origin/master', '--', 'firestore.rules', 'firestore.indexes.json'],
+    ['describe', '--tags', '--abbrev=0', 'origin/master'],
+    { allowFailure: true },
+  );
+  return result.status === 0 ? result.stdout.trim() : null;
+}
+
+function firestoreRulesReminder(appRootDir, previousTag) {
+  const rulesPath = path.join(appRootDir, 'firestore.rules');
+  if (!fs.existsSync(rulesPath)) return;
+
+  // Only remind when rules/indexes actually changed since the previous
+  // release — an unconditional reminder gets tuned out and ignored.
+  const range = previousTag ? `${previousTag}..origin/master` : 'origin/master';
+  const result = runInDir(
+    appRootDir,
+    'git',
+    ['log', '-1', '--format=%H', range, '--', 'firestore.rules', 'firestore.indexes.json'],
     { allowFailure: true },
   );
   if (result.stdout.trim()) {
-    console.log('\nReminder: if firestore.rules or firestore.indexes.json changed, deploy manually:');
-    console.log('  npx firebase-tools deploy --only firestore -P prod');
+    const since = previousTag ? `since ${previousTag}` : 'in history (no previous release tag found)';
+    console.log(`\nfirestore.rules or firestore.indexes.json changed ${since} — deploy manually:`);
+    console.log('  npx firebase-tools deploy --only firestore -P prod   # (default) DB');
+    console.log('  npm run firestore:deploy-preprod                     # preprod DB');
   }
 }
 
@@ -461,34 +497,56 @@ async function main() {
   ensureGh();
   printReleaseOverview();
 
+  if (flags.dryRun) {
+    console.log('\n*** DRY RUN — no vault writes, PRs, tags, or GitHub Release ***\n');
+  }
+
   const root = appRoot();
   const vault = vaultRoot(root);
   ensureVaultRepo(vault);
 
   const branchGate = await ensureBranchesReady(root, flags);
+  if (branchGate.alreadyPromoted) {
+    return;
+  }
   if (!branchGate.ready && flags.dryRun) {
     if (!branchGate.needsPromote) {
       nextStepsForPromoteRequired({ dryRun: true });
     }
     return;
   }
+  if (!branchGate.ready) {
+    return;
+  }
+
+  if (!flags.dryRun && !flags.yes && branchGate.shippingPass) {
+    logStep('Preprod smoke required');
+    console.log('  master already contains dev\'s work — this is pass 2 (ship to prod).');
+    const ok = awaitConfirm('Preprod smoke done for this commit? Continue with production release?');
+    if (!ok) {
+      throw new Error('Release cancelled — complete Phase 3 preprod smoke, then re-run npm run release.');
+    }
+  }
 
   const tags = listReleaseTags(root);
   const tag = normalizeTag(flags.tag) || suggestNextTag(tags);
+  const previousTag = latestReleaseTag(root);
   logStep(`Release tag: ${tag}`);
+
+  if (!flags.dryRun && tagExists(root, tag)) {
+    throw new Error(`Tag ${tag} already exists locally. Pick another tag or delete the old release.`);
+  }
 
   await verifyPreprodSha(root, flags);
 
-  const rotation = rotateVaultRelease(vault, tag, { dryRun: flags.dryRun });
-  console.log(`  Vault: ${rotation.releasedFile}`);
-  console.log(`  Fresh: ${rotation.unreleasedFile}`);
+  const rotation = planVaultRelease(vault, tag);
 
-  await commitAndPushVault(vault, tag, flags);
+  await commitAndPushVault(vault, rotation, tag, flags);
 
   await createGithubRelease(root, tag, rotation.releaseNotes, flags);
   watchReleaseWorkflow(root, flags);
   await verifyProdHealth(flags);
-  firestoreRulesReminder(root);
+  firestoreRulesReminder(root, previousTag);
 
   let syncPrUrl = null;
   let needsPostReleaseSync = false;
@@ -517,7 +575,7 @@ main().catch((err) => {
   if (!/complete the steps above/i.test(err.message)) {
     printNextSteps('Tip', [
       'Run `npm run release -- --help` for the full numbered workflow',
-      'Preview without changes: `npm run release -- --dry-run`',
+      'Preview without changes: `npm run release:dry-run`',
     ]);
   }
   process.exit(1);

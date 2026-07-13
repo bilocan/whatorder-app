@@ -13,6 +13,11 @@ on:
   release:
     types: [published]
 
+# One production release at a time, never cancelled mid-flight.
+concurrency:
+  group: prod-release
+  cancel-in-progress: false
+
 jobs:
   guard:
     name: Release guard (tag on master)
@@ -67,8 +72,8 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: |
           if [ -z "$VITE_API_URL" ]; then
-            echo "::warning::VITE_API_URL not set on Preproduction — skipping SHA check"
-            exit 0
+            echo "::error::VITE_API_URL is not set on the Preproduction environment. This gate must not be skippable — set it to the pre backend URL (see deploy-test-to-prod guide)."
+            exit 1
           fi
           BODY=$(curl -sf "${VITE_API_URL%/}/version")
           echo "$BODY"
@@ -103,6 +108,11 @@ jobs:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
+      # --service-account pins the runtime SA so pre and prod always run with
+      # identical IAM — preprod's whole point is catching prod IAM gaps.
+      # Runtime config is declared here (same shape as preprod.yml, only
+      # BACKEND_URL / DEPLOY_ENV / no FIRESTORE_DATABASE_ID differ) with
+      # sensitive values as Secret Manager refs — no console-managed env vars.
       - name: Promote preprod image to live backend service
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -110,16 +120,49 @@ jobs:
           service: whatorder-backend
           region: europe-west3
           image: europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }}
-          flags: --min-instances=1 --allow-unauthenticated
+          flags: --min-instances=1 --allow-unauthenticated --service-account=87472938058-compute@developer.gserviceaccount.com
           env_vars: |
             DEPLOY_ENV=production
             GIT_SHA=${{ github.sha }}
             APP_VERSION=${{ github.event.release.tag_name }}
+            NODE_ENV=production
+            LOG_LEVEL=info
+            FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT }}
+            BACKEND_URL=https://whatorder-backend-87472938058.europe-west3.run.app
+            MAP_PUBLIC_URL=https://whatorder-fire.web.app
+            WHATSAPP_BUSINESS_ACCOUNT_ID=2622868251461145
+            WHATSAPP_PHONE_NUMBER_ID=1276715415516230
+            WHATSAPP_FLOW_ID=2216684979118924
+            WHATSAPP_RETURN_PHONE=+4368120575797
+            AI_INTENT_ENABLED=true
+            LLM_PROVIDER=google
+            LLM_MODEL=gemini-2.5-flash-lite
+            LLM_TIMEOUT_MS=8000
+          secrets: |
+            WHATSAPP_VERIFY_TOKEN=WHATSAPP_VERIFY_TOKEN:latest
+            WHATSAPP_ACCESS_TOKEN=WHATSAPP_ACCESS_TOKEN:latest
+            WHATSAPP_APP_SECRET=WHATSAPP_APP_SECRET:latest
+            FLOW_PRIVATE_KEY=FLOW_PRIVATE_KEY:latest
+            GEMINI_API_KEY=GEMINI_API_KEY:latest
+            STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest
+            STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest
+            GOOGLE_MAPS_API_KEY=GOOGLE_MAPS_API_KEY:latest
 
+      # Alias the promoted image with the release tag so Artifact Registry
+      # shows which SHA shipped as which release.
+      - name: Tag image with release tag in Artifact Registry
+        run: |
+          gcloud artifacts docker tags add \
+            europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }} \
+            europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.event.release.tag_name }}
+
+  # Gated on the same verify jobs as the backend promotion: if either check
+  # fails, neither surface ships — a dashboard-only deploy would put a frontend
+  # in prod whose backend was never promoted (version mismatch).
   deploy-dashboard:
     name: Deploy Dashboard to Firebase Hosting (prod)
     runs-on: ubuntu-latest
-    needs: guard
+    needs: [guard, verify-artifact, verify-preprod-sha]
     environment: Production
     permissions:
       contents: read
@@ -135,7 +178,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: dashboard
-        run: npm install
+        run: npm ci
 
       - name: Build dashboard (production labels, same commit)
         working-directory: dashboard

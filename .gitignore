@@ -44,6 +44,7 @@ Thumbs.db
 # Google Cloud
 *.json
 !package.json
+!package-lock.json
 !tsconfig.json
 !tsconfig.*.json
 !vercel.json
