@@ -8,6 +8,13 @@ on:
   push:
     branches: [master]
 
+# One preprod deploy at a time, in push order. Queued (not cancelled) so a
+# half-finished deploy is never aborted mid-flight; the release SHA gate
+# depends on preprod ending up on the latest master commit.
+concurrency:
+  group: preprod-deploy
+  cancel-in-progress: false
+
 jobs:
   backend:
     name: Backend Tests
@@ -19,7 +26,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '24.16.0'
 
       - name: Install dependencies
         run: npm ci
@@ -39,7 +46,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '24.16.0'
 
       - name: Install dependencies
         run: npm ci
@@ -63,7 +70,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '24.16.0'
 
       - name: Install dependencies
         working-directory: dashboard
@@ -81,10 +88,12 @@ jobs:
         working-directory: dashboard
         run: npm test
 
+  # Both deploys gate on ALL test jobs: preprod must never become a mismatched
+  # pair (new dashboard + old backend or vice versa) because one suite failed.
   deploy-backend-pre:
     name: Deploy Backend to Cloud Run (preprod)
     runs-on: ubuntu-latest
-    needs: [backend, intent-corpus]
+    needs: [backend, intent-corpus, dashboard]
     environment: Preproduction
     permissions:
       contents: read
@@ -136,10 +145,36 @@ jobs:
             APP_VERSION=pre-${{ github.sha }}
             FIRESTORE_DATABASE_ID=preprod
 
+      # Pre runtime env vars were copied from prod once and drift silently.
+      # Warn (don't fail) when the var NAMES diverge, ignoring the ones that
+      # legitimately differ. Values can't be compared (secrets), names can.
+      - name: Check env var parity with live prod backend
+        run: |
+          IGNORE='^(DEPLOY_ENV|GIT_SHA|APP_VERSION|FIRESTORE_DATABASE_ID|BACKEND_URL)$'
+          names() {
+            gcloud run services describe "$1" \
+              --region europe-west3 --project ${{ vars.GCP_PROJECT }} --format json \
+              | jq -r '.spec.template.spec.containers[0].env[]?.name' \
+              | grep -Ev "$IGNORE" | sort
+          }
+          names whatorder-backend > /tmp/prod-env-names
+          names whatorder-backend-pre > /tmp/pre-env-names
+          MISSING=$(comm -23 /tmp/prod-env-names /tmp/pre-env-names)
+          EXTRA=$(comm -13 /tmp/prod-env-names /tmp/pre-env-names)
+          if [ -n "$MISSING" ]; then
+            echo "::warning::Pre backend is missing prod env vars (preprod is not validating prod config): $(echo $MISSING | tr '\n' ' ')"
+          fi
+          if [ -n "$EXTRA" ]; then
+            echo "::warning::Pre backend has env vars prod lacks: $(echo $EXTRA | tr '\n' ' ')"
+          fi
+          if [ -z "$MISSING" ] && [ -z "$EXTRA" ]; then
+            echo "OK: pre and prod backend env var names match"
+          fi
+
   deploy-dashboard-pre:
     name: Deploy Dashboard to Firebase Hosting (preprod)
     runs-on: ubuntu-latest
-    needs: dashboard
+    needs: [backend, intent-corpus, dashboard]
     environment: Preproduction
     permissions:
       contents: read
@@ -198,3 +233,45 @@ jobs:
 
       - name: Deploy to Firebase Hosting (pre site)
         run: npx firebase-tools@15.22.1 deploy --only hosting:whatorder-pre --project ${{ vars.GCP_PROJECT }}
+
+  # Post-deploy smoke: assert the pre backend actually serves this commit.
+  # Uses the same VITE_API_URL secret as the release SHA gate, so a wrong or
+  # missing value surfaces here — on merge day — instead of at release time.
+  smoke:
+    name: Preprod smoke (version gate)
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-pre, deploy-dashboard-pre]
+    environment: Preproduction
+
+    steps:
+      - name: Verify /version serves this commit
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: |
+          if [ -z "$VITE_API_URL" ]; then
+            echo "::error::VITE_API_URL is not set on the Preproduction environment — the release workflow will hard-fail without it."
+            exit 1
+          fi
+          EXPECTED="${GITHUB_SHA:0:7}"
+          # min-instances=0: allow cold start + revision rollout to settle
+          for i in $(seq 1 10); do
+            BODY=$(curl -sf --max-time 30 "${VITE_API_URL%/}/version") && break
+            echo "attempt $i failed; retrying in 15s"
+            sleep 15
+          done
+          if [ -z "$BODY" ]; then
+            echo "::error::Pre backend /version unreachable after 10 attempts."
+            exit 1
+          fi
+          echo "$BODY"
+          ENV=$(echo "$BODY" | jq -r '.environment // empty')
+          ACTUAL=$(echo "$BODY" | jq -r '.gitSha // empty')
+          if [ "$ENV" != "preproduction" ]; then
+            echo "::error::Expected environment=preproduction, got '$ENV'. VITE_API_URL may point at the wrong service."
+            exit 1
+          fi
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::Pre backend serves gitSha '$ACTUAL', expected '$EXPECTED'."
+            exit 1
+          fi
+          echo "OK: preprod serves $EXPECTED (environment=preproduction)"

@@ -435,18 +435,34 @@ function verifyProdHealth({ dryRun }) {
     });
 }
 
-function firestoreRulesReminder(appRootDir) {
-  const rulesPath = path.join(appRootDir, 'firestore.rules');
-  if (!fs.existsSync(rulesPath)) return;
-
+// Most recent release tag reachable from origin/master. Must be read BEFORE
+// the new release tag is created, or it returns the tag being shipped.
+function latestReleaseTag(appRootDir) {
   const result = runInDir(
     appRootDir,
     'git',
-    ['log', '-1', '--format=%H', 'origin/master', '--', 'firestore.rules', 'firestore.indexes.json'],
+    ['describe', '--tags', '--abbrev=0', 'origin/master'],
+    { allowFailure: true },
+  );
+  return result.status === 0 ? result.stdout.trim() : null;
+}
+
+function firestoreRulesReminder(appRootDir, previousTag) {
+  const rulesPath = path.join(appRootDir, 'firestore.rules');
+  if (!fs.existsSync(rulesPath)) return;
+
+  // Only remind when rules/indexes actually changed since the previous
+  // release — an unconditional reminder gets tuned out and ignored.
+  const range = previousTag ? `${previousTag}..origin/master` : 'origin/master';
+  const result = runInDir(
+    appRootDir,
+    'git',
+    ['log', '-1', '--format=%H', range, '--', 'firestore.rules', 'firestore.indexes.json'],
     { allowFailure: true },
   );
   if (result.stdout.trim()) {
-    console.log('\nReminder: if firestore.rules or firestore.indexes.json changed, deploy manually:');
+    const since = previousTag ? `since ${previousTag}` : 'in history (no previous release tag found)';
+    console.log(`\nfirestore.rules or firestore.indexes.json changed ${since} — deploy manually:`);
     console.log('  npx firebase-tools deploy --only firestore -P prod');
   }
 }
@@ -475,6 +491,7 @@ async function main() {
 
   const tags = listReleaseTags(root);
   const tag = normalizeTag(flags.tag) || suggestNextTag(tags);
+  const previousTag = latestReleaseTag(root);
   logStep(`Release tag: ${tag}`);
 
   await verifyPreprodSha(root, flags);
@@ -488,7 +505,7 @@ async function main() {
   await createGithubRelease(root, tag, rotation.releaseNotes, flags);
   watchReleaseWorkflow(root, flags);
   await verifyProdHealth(flags);
-  firestoreRulesReminder(root);
+  firestoreRulesReminder(root, previousTag);
 
   let syncPrUrl = null;
   let needsPostReleaseSync = false;

@@ -13,6 +13,11 @@ on:
   release:
     types: [published]
 
+# One production release at a time, never cancelled mid-flight.
+concurrency:
+  group: prod-release
+  cancel-in-progress: false
+
 jobs:
   guard:
     name: Release guard (tag on master)
@@ -117,6 +122,14 @@ jobs:
             DEPLOY_ENV=production
             GIT_SHA=${{ github.sha }}
             APP_VERSION=${{ github.event.release.tag_name }}
+
+      # Alias the promoted image with the release tag so Artifact Registry
+      # shows which SHA shipped as which release.
+      - name: Tag image with release tag in Artifact Registry
+        run: |
+          gcloud artifacts docker tags add \
+            europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }} \
+            europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.event.release.tag_name }}
 
   # Gated on the same verify jobs as the backend promotion: if either check
   # fails, neither surface ships — a dashboard-only deploy would put a frontend
