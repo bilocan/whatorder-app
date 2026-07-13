@@ -23,7 +23,9 @@
     "env:pull": "node scripts/env-pull.js",
     "env:push": "node scripts/env-push.js",
     "release": "node scripts/release.js",
-    "test:release-lib": "node --test scripts/lib/__tests__/releaseLib.test.js"
+    "firestore:deploy-preprod": "node scripts/deploy-firestore-preprod.js",
+    "test:release-lib": "node --test scripts/lib/__tests__/releaseLib.test.js",
+    "test:firestore-deploy-lib": "node --test scripts/lib/__tests__/firestoreDeployLib.test.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

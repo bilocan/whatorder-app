@@ -463,7 +463,8 @@ function firestoreRulesReminder(appRootDir, previousTag) {
   if (result.stdout.trim()) {
     const since = previousTag ? `since ${previousTag}` : 'in history (no previous release tag found)';
     console.log(`\nfirestore.rules or firestore.indexes.json changed ${since} — deploy manually:`);
-    console.log('  npx firebase-tools deploy --only firestore -P prod');
+    console.log('  npx firebase-tools deploy --only firestore -P prod   # (default) DB');
+    console.log('  npm run firestore:deploy-preprod                     # preprod DB');
   }
 }
 

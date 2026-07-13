@@ -2,7 +2,7 @@ const {
   DEFAULT_GOLDEN_INFRA_BACKUP,
   MIN_INFRA_BACKUP_BYTES,
   DEFAULT_FIRESTORE_PROJECT,
-  FIRESTORE_DATABASE,
+  DEFAULT_FIRESTORE_DATABASE,
   INFRA_COLLECTION_IDS,
   backupsBucketFor,
   buildFirestoreImportArgs,
@@ -129,8 +129,21 @@ describe('buildFirestoreImportArgs', () => {
     expect(args).toEqual([
       'firestore', 'import', opts.gcsImportUri,
       `--project=${opts.project}`,
-      '--database', FIRESTORE_DATABASE,
+      '--database', DEFAULT_FIRESTORE_DATABASE,
     ]);
     expect(args.some((a) => a.startsWith('--collection-ids'))).toBe(false);
+  });
+
+  it('targets the named database from FIRESTORE_DATABASE_ID', () => {
+    process.env.FIRESTORE_DATABASE_ID = 'preprod';
+    try {
+      const opts = parseResetProductionArgs([]);
+      expect(opts.database).toBe('preprod');
+      const args = buildFirestoreImportArgs(opts);
+      expect(args).toContain('preprod');
+      expect(args).not.toContain('(default)');
+    } finally {
+      delete process.env.FIRESTORE_DATABASE_ID;
+    }
   });
 });

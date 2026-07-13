@@ -13,7 +13,7 @@ const DEFAULT_GOLDEN_INFRA_BACKUP = '2026-07-06-infra';
 const MIN_INFRA_BACKUP_BYTES = 10 * 1024;
 
 const DEFAULT_FIRESTORE_PROJECT = 'whatorder-fire';
-const FIRESTORE_DATABASE = '(default)';
+const DEFAULT_FIRESTORE_DATABASE = '(default)';
 
 /** Test and prod mirror the same layout: <project>-backups in the DB's region. */
 function backupsBucketFor(project) {
@@ -22,6 +22,12 @@ function backupsBucketFor(project) {
 
 function resolveFirestoreProject() {
   return process.env.FIREBASE_PROJECT_ID || DEFAULT_FIRESTORE_PROJECT;
+}
+
+// Named-DB support (e.g. preprod): the import targets this database, and the
+// cleanup/smoke child scripts inherit the env var through src/lib/firebase.js.
+function resolveFirestoreDatabase() {
+  return process.env.FIRESTORE_DATABASE_ID || DEFAULT_FIRESTORE_DATABASE;
 }
 
 const INFRA_COLLECTION_IDS = [
@@ -59,6 +65,7 @@ function parseResetProductionArgs(argv) {
   }
 
   const project = resolveFirestoreProject();
+  const database = resolveFirestoreDatabase();
   const bucket = backupsBucketFor(project);
 
   return {
@@ -69,6 +76,7 @@ function parseResetProductionArgs(argv) {
     skipSmoke,
     infraBackup,
     project,
+    database,
     gcsImportUri: `gs://${bucket}/manual/${infraBackup}`,
     metadataPath: `gs://${bucket}/manual/${infraBackup}/${infraBackup}.overall_export_metadata`,
     collectionIds: INFRA_COLLECTION_IDS.join(','),
@@ -192,7 +200,7 @@ function buildFirestoreImportArgs(opts) {
   return [
     'firestore', 'import', opts.gcsImportUri,
     `--project=${opts.project}`,
-    '--database', FIRESTORE_DATABASE,
+    '--database', opts.database,
   ];
 }
 
@@ -210,6 +218,7 @@ function runInfraImport(opts) {
 function printResetPlan(opts) {
   console.log('Firestore reset plan\n');
   console.log(`Project: ${opts.project}`);
+  console.log(`Database: ${opts.database}`);
   console.log(`Golden infra backup: ${opts.infraBackup}`);
   console.log(`GCS: ${opts.gcsImportUri}`);
   console.log(`Collection groups: ${opts.collectionIds}\n`);
@@ -239,11 +248,13 @@ module.exports = {
   DEFAULT_GOLDEN_INFRA_BACKUP,
   MIN_INFRA_BACKUP_BYTES,
   DEFAULT_FIRESTORE_PROJECT,
-  FIRESTORE_DATABASE,
+  DEFAULT_FIRESTORE_DATABASE,
   backupsBucketFor,
   resolveFirestoreProject,
+  resolveFirestoreDatabase,
   INFRA_COLLECTION_IDS,
   MANUAL_CHECKLIST,
+  spawnGcloud,
   parseResetProductionArgs,
   buildFirestoreImportArgs,
   parseDuTotalBytes,

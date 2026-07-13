@@ -131,6 +131,9 @@ jobs:
       # uses, so preprod exercises identical IAM (its main reason to exist).
       # FIRESTORE_DATABASE_ID isolates preprod writes into the named "preprod"
       # database in whatorder-fire-prod — never the live (default) database.
+      # Full runtime config is declared here (sensitive values as Secret
+      # Manager refs) so pre and prod cannot drift; cutover-sensitive values
+      # (MAP_PUBLIC_URL, WHATSAPP_* ids) change here, not in the console.
       - name: Deploy to Cloud Run (pre service)
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -144,6 +147,28 @@ jobs:
             GIT_SHA=${{ github.sha }}
             APP_VERSION=pre-${{ github.sha }}
             FIRESTORE_DATABASE_ID=preprod
+            NODE_ENV=production
+            LOG_LEVEL=info
+            FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT }}
+            BACKEND_URL=https://whatorder-backend-pre-87472938058.europe-west3.run.app
+            MAP_PUBLIC_URL=https://whatorder-fire.web.app
+            WHATSAPP_BUSINESS_ACCOUNT_ID=2622868251461145
+            WHATSAPP_PHONE_NUMBER_ID=1276715415516230
+            WHATSAPP_FLOW_ID=2216684979118924
+            WHATSAPP_RETURN_PHONE=+4368120575797
+            AI_INTENT_ENABLED=true
+            LLM_PROVIDER=google
+            LLM_MODEL=gemini-2.5-flash-lite
+            LLM_TIMEOUT_MS=8000
+          secrets: |
+            WHATSAPP_VERIFY_TOKEN=WHATSAPP_VERIFY_TOKEN:latest
+            WHATSAPP_ACCESS_TOKEN=WHATSAPP_ACCESS_TOKEN:latest
+            WHATSAPP_APP_SECRET=WHATSAPP_APP_SECRET:latest
+            FLOW_PRIVATE_KEY=FLOW_PRIVATE_KEY:latest
+            GEMINI_API_KEY=GEMINI_API_KEY:latest
+            STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest
+            STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest
+            GOOGLE_MAPS_API_KEY=GOOGLE_MAPS_API_KEY:latest
 
       # Pre runtime env vars were copied from prod once and drift silently.
       # Warn (don't fail) when the var NAMES diverge, ignoring the ones that
