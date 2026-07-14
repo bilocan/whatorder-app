@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import LanguageSwitcher from './LanguageSwitcher';
@@ -13,35 +13,68 @@ import BuildInfoPanel from './BuildInfoPanel';
 
 const BASE_TITLE = document.title;
 
+const MANAGEMENT_PATHS = [
+  '/option-groups',
+  '/intent-playground',
+  '/intent-defaults',
+  '/learned-phrases',
+  '/settings',
+];
+
+const mainNavItems = [
+  { to: '/orders', key: 'orders' },
+  { to: '/customers', key: 'customers' },
+  { to: '/menu', key: 'menu' },
+  { to: '/income', key: 'income' },
+] as const;
+
+const managementNavItems = [
+  { to: '/option-groups', key: 'optionGroups' },
+  { to: '/intent-playground', key: 'intentPlayground' },
+  { to: '/intent-defaults', key: 'intentDefaults' },
+  { to: '/learned-phrases', key: 'learnedPhrases' },
+  { to: '/settings', key: 'settings' },
+] as const;
+
 function LayoutContent() {
   const { t } = useTranslation();
+  const location = useLocation();
   const { user, businessId, isAdmin, signOut } = useAuth();
   const showTenantNav = !!businessId;
   const presence = usePresence(businessId);
   const { unseenCount } = useNewOrderAlert(businessId);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [managementOpen, setManagementOpen] = useState(() =>
+    MANAGEMENT_PATHS.some((path) => location.pathname.startsWith(path)),
+  );
 
   useEffect(() => {
     document.title = unseenCount > 0 ? `(${unseenCount}) ${BASE_TITLE}` : BASE_TITLE;
   }, [unseenCount]);
 
-  const navItems = [
-    { to: '/orders',    label: t('nav.orders') },
-    { to: '/customers', label: t('nav.customers') },
-    { to: '/income',    label: t('nav.income') },
-    { to: '/menu',      label: t('nav.menu') },
-    { to: '/option-groups', label: t('nav.optionGroups') },
-    { to: '/intent-playground', label: t('nav.intentPlayground') },
-    { to: '/intent-defaults', label: t('nav.intentDefaults') },
-    { to: '/learned-phrases', label: t('nav.learnedPhrases') },
-    { to: '/settings',  label: t('nav.settings') },
-  ];
+  useEffect(() => {
+    if (MANAGEMENT_PATHS.some((path) => location.pathname.startsWith(path))) {
+      setManagementOpen(true);
+    }
+  }, [location.pathname]);
+
+  const managementActive = MANAGEMENT_PATHS.some((path) => location.pathname.startsWith(path));
 
   const presenceDotColor = !presence?.isOnline ? '#ef4444'
     : !presence?.ordersOpen ? '#f59e0b'
     : '#22c55e';
 
   function closeMenu() { setMenuOpen(false); }
+
+  function navLinkStyle(isActive: boolean) {
+    return {
+      display: 'block',
+      padding: '0.5rem 0',
+      color: isActive ? '#000' : '#666',
+      fontWeight: isActive ? 600 : 400,
+      textDecoration: 'none',
+    } as const;
+  }
 
   return (
     <div className="layout-root">
@@ -73,22 +106,50 @@ function LayoutContent() {
         {showTenantNav && <RestaurantSwitcher />}
 
         <div style={{ flex: 1 }}>
-          {showTenantNav && navItems.map(({ to, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              onClick={closeMenu}
-              style={({ isActive }) => ({
-                display: 'block',
-                padding: '0.5rem 0',
-                color: isActive ? '#000' : '#666',
-                fontWeight: isActive ? 600 : 400,
-                textDecoration: 'none',
-              })}
-            >
-              {label}
-            </NavLink>
-          ))}
+          {showTenantNav && (
+            <>
+              {mainNavItems.map(({ to, key }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={closeMenu}
+                  style={({ isActive }) => navLinkStyle(isActive)}
+                >
+                  {t(`nav.${key}`)}
+                </NavLink>
+              ))}
+
+              <div className="nav-management">
+                <button
+                  type="button"
+                  className="nav-management-toggle"
+                  aria-expanded={managementOpen}
+                  onClick={() => setManagementOpen((open) => !open)}
+                  style={{
+                    color: managementActive ? '#000' : '#666',
+                    fontWeight: managementActive ? 600 : 500,
+                  }}
+                >
+                  <span>{t('nav.management')}</span>
+                  <span className={`nav-management-chevron${managementOpen ? ' open' : ''}`} aria-hidden>▾</span>
+                </button>
+                {managementOpen && (
+                  <div className="nav-management-items">
+                    {managementNavItems.map(({ to, key }) => (
+                      <NavLink
+                        key={to}
+                        to={to}
+                        onClick={closeMenu}
+                        style={({ isActive }) => navLinkStyle(isActive)}
+                      >
+                        {t(`nav.${key}`)}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
           {isAdmin && (
             <>
               <div style={{ borderTop: '1px solid #eee', margin: '0.75rem 0' }} />
