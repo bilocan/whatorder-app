@@ -59,6 +59,16 @@ export default function ParseSnapshot({
             {t('learnedPhrases.test.parsedBy', { source: displayPreview.parsedBy })}
           </>
         )}
+        {displayPreview.parsedBy === 'learned' && displayPreview.learnedFrom && (
+          <>
+            {' · '}
+            {displayPreview.learnedFrom === 'seed'
+              ? t('intentPlayground.learnedFrom.seed', {
+                release: learnedMeta?.seededInRelease ?? '—',
+              })
+              : t('intentPlayground.learnedFrom.firestore')}
+          </>
+        )}
       </div>
       {learnedMeta && (
         <div style={{

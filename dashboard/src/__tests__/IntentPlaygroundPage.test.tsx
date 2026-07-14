@@ -111,8 +111,9 @@ describe('IntentPlaygroundPage', () => {
     const teachBtn = screen.getByRole('button', { name: /teach bot|bot trainieren|botu eğit/i });
     expect(teachBtn).toBeDisabled();
 
+    // First combobox is the parse-source selector; SKU pickers come after it.
     const selects = screen.getAllByRole('combobox');
-    await user.selectOptions(selects[0], 'a1');
+    await user.selectOptions(selects[selects.length - 1], 'a1');
 
     await waitFor(() => {
       expect(teachBtn).not.toBeDisabled();
@@ -188,7 +189,9 @@ describe('IntentPlaygroundPage', () => {
     });
 
     // Correction line seeded with the picked SKU and disambiguation qty
-    const select = screen.getAllByRole('combobox')[0] as HTMLSelectElement;
+    // (first combobox is the parse-source selector; SKU picker is last)
+    const selects = screen.getAllByRole('combobox');
+    const select = selects[selects.length - 1] as HTMLSelectElement;
     expect(select.value).toBe('a1');
     expect((screen.getByLabelText(/quantity/i) as HTMLInputElement).value).toBe('2');
 

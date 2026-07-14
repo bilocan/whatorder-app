@@ -65,9 +65,42 @@ function buildSeedFile(byBusiness, { release = null, generatedAt = new Date().to
   return { generatedAt, release, businesses };
 }
 
+/**
+ * Compare two seed files (question: what shipped in/out this release?).
+ * @returns {{ added: string[], removed: string[], changed: string[] }} entries as "businessId :: textKey"
+ */
+function diffSeeds(oldSeed, newSeed) {
+  const flat = (seed) => {
+    const out = new Map();
+    for (const [businessId, entries] of Object.entries(seed?.businesses ?? {})) {
+      for (const [textKey, entry] of Object.entries(entries ?? {})) {
+        out.set(`${businessId} :: ${textKey}`, entry);
+      }
+    }
+    return out;
+  };
+  const before = flat(oldSeed);
+  const after = flat(newSeed);
+
+  const added = [...after.keys()].filter(k => !before.has(k)).sort();
+  const removed = [...before.keys()].filter(k => !after.has(k)).sort();
+  const changed = [...after.keys()]
+    .filter(k => before.has(k))
+    .filter(k => {
+      const a = before.get(k);
+      const b = after.get(k);
+      return JSON.stringify({ items: a.items, operation: a.operation })
+        !== JSON.stringify({ items: b.items, operation: b.operation });
+    })
+    .sort();
+
+  return { added, removed, changed };
+}
+
 module.exports = {
   PRIVACY_DIGIT_RUN_RE,
   eligibleSeedRow,
   seedEntryFromRow,
   buildSeedFile,
+  diffSeeds,
 };

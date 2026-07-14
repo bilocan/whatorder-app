@@ -62,6 +62,9 @@ async function evaluateIntent(text, options = {}) {
     menuTokenIndex = null,
     pendingItems = [],
     skipLearned = false,
+    // null = full pipeline; 'any' = only accept a learned replay;
+    // 'seed' = only accept a replay served from the baked seed.
+    learnedSource = null,
   } = options;
   const phone = options.phone ?? (llm ? sandboxPhoneForLlm() : 'sandbox');
 
@@ -94,6 +97,15 @@ async function evaluateIntent(text, options = {}) {
     skipLearned,
   });
   intent = applyJeweilsBasketContext(intent, basket);
+
+  if (learnedSource) {
+    const isLearned = intent?.parsedBy === 'learned';
+    const fromSeed = intent?.learnedFrom === 'seed';
+    if (!isLearned || (learnedSource === 'seed' && !fromSeed)) {
+      const outcome = learnedSource === 'seed' ? 'no_seed_match' : 'no_learned_match';
+      return { ...emptyResult(base, outcome), intent };
+    }
+  }
 
   if (!intent.items.length) {
     return { ...emptyResult(base, 'no_match'), intent };
@@ -338,6 +350,7 @@ function formatSandboxResult(result) {
   if (result.intent) {
     const conf = result.intent.confidence != null ? ` (confidence ${result.intent.confidence})` : '';
     lines.push(`parsedBy: ${result.intent.parsedBy}${conf}`);
+    if (result.intent.learnedFrom) lines.push(`learnedFrom: ${result.intent.learnedFrom}`);
     if (result.intent.llmFailed) lines.push('llmFailed: true');
     if (result.intent.partySize != null) lines.push(`partySize: ${result.intent.partySize}`);
     lines.push(`intent items: ${JSON.stringify(result.intent.items)}`);

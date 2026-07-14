@@ -2,6 +2,7 @@ const {
   eligibleSeedRow,
   seedEntryFromRow,
   buildSeedFile,
+  diffSeeds,
 } = require('../intentSeedExport');
 
 const MENU_IDS = new Set(['m1', 'm2']);
@@ -67,6 +68,36 @@ describe('seedEntryFromRow', () => {
       hitCount: 5,
     });
     expect(seedEntryFromRow('doc1', row({ operation: 'remove' })).operation).toBe('remove');
+  });
+});
+
+describe('diffSeeds', () => {
+  const entry = (name) => ({ docId: 'd', items: [{ name, qty: 1 }], operation: 'add' });
+
+  test('reports added, removed, and changed entries across businesses', () => {
+    const oldSeed = {
+      businesses: {
+        biz_a: { 'kept key': entry('Cola'), 'gone key': entry('Ayran') },
+        biz_b: { 'edited key': entry('Döner') },
+      },
+    };
+    const newSeed = {
+      businesses: {
+        biz_a: { 'kept key': entry('Cola'), 'new key': entry('Pide') },
+        biz_b: { 'edited key': entry('Döner Spezial') },
+      },
+    };
+    expect(diffSeeds(oldSeed, newSeed)).toEqual({
+      added: ['biz_a :: new key'],
+      removed: ['biz_a :: gone key'],
+      changed: ['biz_b :: edited key'],
+    });
+  });
+
+  test('tolerates empty or missing seeds', () => {
+    expect(diffSeeds(null, { businesses: {} })).toEqual({ added: [], removed: [], changed: [] });
+    expect(diffSeeds({ businesses: { b: { k: entry('X') } } }, null))
+      .toEqual({ added: [], removed: ['b :: k'], changed: [] });
   });
 });
 

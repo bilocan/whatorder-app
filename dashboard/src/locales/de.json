@@ -243,7 +243,9 @@
         "not_order": "Kein Bestelltext",
         "low_confidence": "Geringe Konfidenz",
         "remove": "Würde aus Warenkorb/Vorschlag entfernen",
-        "remove_failed": "Entfernen fehlgeschlagen (Artikel nicht im Warenkorb)"
+        "remove_failed": "Entfernen fehlgeschlagen (Artikel nicht im Warenkorb)",
+        "no_learned_match": "Keine gelernte Phrase passt",
+        "no_seed_match": "Keine App-Seed-Phrase passt"
       }
     }
   },
@@ -275,6 +277,19 @@
     "alreadyTrained": "Bereits trainiert ({{hits}}× genutzt).",
     "changePick": "Ändern",
     "defaultOption": "Standard",
+    "sourceLabel": "Testen mit",
+    "source": {
+      "app": "App (wie der Bot)",
+      "appLlm": "App + KI-Fallback",
+      "rules": "Nur Regeln",
+      "llm": "Nur KI",
+      "learned": "Nur Gelerntes",
+      "seed": "Nur App-Seed"
+    },
+    "learnedFrom": {
+      "seed": "aus App-Seed ({{release}})",
+      "firestore": "aus Live-Lernphrasen"
+    },
     "teachHint": {
       "needsParse": "Zuerst Analysieren klicken, dann die Korrektur prüfen.",
       "needsSku": "Wählen Sie für jede Zeile einen Artikel aus der Speisekarte.",

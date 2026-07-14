@@ -243,7 +243,9 @@
         "not_order": "Sipariş metni değil",
         "low_confidence": "Düşük güven",
         "remove": "Sepetten/öneriden çıkarır",
-        "remove_failed": "Çıkarma başarısız (ürün sepette yok)"
+        "remove_failed": "Çıkarma başarısız (ürün sepette yok)",
+        "no_learned_match": "Eşleşen öğrenilmiş ifade yok",
+        "no_seed_match": "Eşleşen uygulama seed ifadesi yok"
       }
     }
   },
@@ -275,6 +277,19 @@
     "alreadyTrained": "Zaten öğretildi ({{hits}}× kullanıldı).",
     "changePick": "Değiştir",
     "defaultOption": "Varsayılan",
+    "sourceLabel": "Şununla test et",
+    "source": {
+      "app": "Uygulama (bot gibi)",
+      "appLlm": "Uygulama + yapay zeka",
+      "rules": "Yalnızca kurallar",
+      "llm": "Yalnızca yapay zeka",
+      "learned": "Yalnızca öğrenilenler",
+      "seed": "Yalnızca uygulama seed'i"
+    },
+    "learnedFrom": {
+      "seed": "uygulama seed'inden ({{release}})",
+      "firestore": "canlı öğrenmelerden"
+    },
     "teachHint": {
       "needsParse": "Önce Ayrıştır'a tıklayın, sonra düzeltmeyi kontrol edin.",
       "needsSku": "Her satır için menüden bir ürün seçin.",
