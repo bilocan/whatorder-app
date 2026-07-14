@@ -1,5 +1,2313 @@
 {
-  "generatedAt": null,
-  "release": null,
-  "businesses": {}
+  "generatedAt": "2026-07-14T12:39:27.217Z",
+  "release": "test-seed",
+  "businesses": {
+    "biz_enes_kebap_9450w": {
+      "1 ayran": {
+        "docId": "a49d0c97627ab8ef18795a9c2b6adfa52df1c660",
+        "items": [
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 13
+      },
+      "1 cola": {
+        "docId": "3bcdb49fa41ad48774c1fa2e111ceed0967e06d3",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 7
+      },
+      "1 cola 1 kebap ohne zwiebel": {
+        "docId": "123dcf52a791028ebeb1242317ac888f0bc77538",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          },
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "ohne:zwiebel",
+            "rawName": "kebap ohne zwiebel"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 cola, 1 pide mit sucuk, 2 ayran": {
+        "docId": "593d2a156640c649c84402bf3043f51aa471bfc4",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          },
+          {
+            "name": "Pide mit Sucuk",
+            "qty": 1,
+            "menuItemId": "enes-pide-sucuk",
+            "modifierKey": "mit:sucuk",
+            "rawName": "pide mit Sucuk"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 2,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 doner": {
+        "docId": "55a79c0fcf8bfab5f8e60f75d3adef7e033dbe58",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner",
+            "rawName": "döner"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 2
+      },
+      "1 doner 2 cola": {
+        "docId": "3156ba0b02d5a947b69435ebfc648d2c29d9dac4",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner",
+            "rawName": "döner"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 doner mit allem": {
+        "docId": "8e607cc63e8e8f42ba42cfd21fd21b45456190a9",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "döner mit allem"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 doner mit allem, 1 cola": {
+        "docId": "786c7a734ae210a9018ac19568e1c5ccf83dafef",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "döner mit allem"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 doner mit allem, 2 kola": {
+        "docId": "e86a3d3f74e565c6c7fb68c7b4108c036b57ca2e",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "döner mit allem"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "kola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 doner ohne salad, 1 ayran": {
+        "docId": "f9d9f2b6b238fe8dc161ce4c5308f229d35a3af0",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "ohne:salad",
+            "rawName": "döner ohne Salad"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 doner ohne zwiebel": {
+        "docId": "bc5058a990602b2976c6c133558f10c15ae966ad",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "ohne:zwiebel",
+            "rawName": "döner ohne zwiebel"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 doner raus": {
+        "docId": "56316d72d6ac540bbfc8cd25ba22c89821b05800",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel",
+            "qty": 1
+          }
+        ],
+        "partySize": null,
+        "operation": "remove",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 doner sogansiz karisik . yaninda 1 kola istiyorum.": {
+        "docId": "1daf7642c493902a30ab0fb9a5360d327d405979",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner sogansiz karisik",
+            "rawName": "döner sogansız karısık",
+            "selections": {
+              "beilagen": [
+                "tomaten",
+                "salad",
+                "sauce"
+              ]
+            }
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "bir kola",
+            "rawName": "bır kola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "manual_correction",
+        "hitCount": 1
+      },
+      "1 doner, 1 ayran": {
+        "docId": "13e3bd5d4f6dc2c1e777d8ab4015c91c24bc5be7",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner",
+            "rawName": "döner"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 doner, 1 cola": {
+        "docId": "73fd3066174298a6896472b7c7d0fcff35859f57",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner",
+            "rawName": "döner"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "Cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 doner, 1 cola, 1 ayran": {
+        "docId": "ecc1e3bf053e8058c4bd63b8ae7f18923bac5a05",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner",
+            "rawName": "döner"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 durum": {
+        "docId": "b5f105f4eba5b64583ebbd9762bc353a79dd3161",
+        "items": [
+          {
+            "name": "Enes Kebap Special Dürüm Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-special-duerum",
+            "modifierKey": "durum",
+            "rawName": "dürüm"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 durum mit zwiebel, tomaten, salad ohne soße und 2 ayran": {
+        "docId": "d23837c0138a587d55e22e8292a5a7e70ee6aed2",
+        "items": [
+          {
+            "name": "Dürüm Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-duerum-huhn",
+            "modifierKey": "mit:salad,tomaten,zwiebel+ohne:soße",
+            "rawName": "dürüm mit zwiebel, tomaten, salad ohne Soße"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 2,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "mis ayran 0.25l",
+            "rawName": "Mis Ayran 0.25L"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "llm",
+        "hitCount": 1
+      },
+      "1 durum ohne tomaten": {
+        "docId": "a55ffd58e85c0cad2c3e21b94859c7895b5ca19b",
+        "items": [
+          {
+            "name": "Enes Kebap Special Dürüm Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-special-duerum",
+            "modifierKey": "ohne:tomaten",
+            "rawName": "dürüm ohne Tomaten"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 durum ohne zwiebel": {
+        "docId": "ffad65b7ca0eec6c688b4e8393d6ab2efd75fa29",
+        "items": [
+          {
+            "name": "Enes Kebap Special Dürüm Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-special-duerum",
+            "modifierKey": "ohne:zwiebel",
+            "rawName": "dürüm ohne zwiebel"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 durum sogansiz": {
+        "docId": "72bbd0956acafa91c3239b486a02ba1a674ac888",
+        "items": [
+          {
+            "name": "Enes Kebap Special Dürüm Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-special-duerum",
+            "modifierKey": "durum sogansiz",
+            "rawName": "dürüm sogansiz"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebab mit allem und 1 ayran": {
+        "docId": "2041000140544780f7666bd8b3746cdb042f7cc1",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "Kebab mit allem"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebab mit allem und einander zu": {
+        "docId": "0620e7165c22ad75644746549d079f194f8e85b5",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem+scharf",
+            "rawName": "Kebab mit allem und scharf"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "mis ayran 0.25l",
+            "rawName": "Mis Ayran 0.25L"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "llm",
+        "hitCount": 1
+      },
+      "1 kebab mit allem und schaf und 1 eimer": {
+        "docId": "f83b154330bdac48b53b5c691bbb5e87eb89db41",
+        "items": [
+          {
+            "name": "Kebab mit allem und scharf",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "rawName": "Kebab mit allem und scharf"
+          },
+          {
+            "name": "ayran",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "llm",
+        "hitCount": 1
+      },
+      "1 kebap": {
+        "docId": "22e599823f8b3dc6cab6e154ca56f40951a948e4",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "kebap",
+            "rawName": "kebap"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 3
+      },
+      "1 kebap mit allem": {
+        "docId": "aa23f015d1ff44c99a1e7897688e6cd59d397c3a",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "Kebap Mit allem"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 20
+      },
+      "1 kebap mit allem ohne soße": {
+        "docId": "75e9be53b253dd37d9b54dc11ce8677e1573c19c",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "ohne:soße",
+            "rawName": "kebap mit allem ohne Soße"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit allem und 1 kola": {
+        "docId": "0562d2321f2eff76d5958139a4787c0905e37b2f",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "kebap mit allem"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "kola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit allem und 2 cola": {
+        "docId": "b80c54b907c4d0e61e87e31e44bc010367a75a9d",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "kebap mit allem"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 2
+      },
+      "1 kebap mit allem und 2 cola, 1 pide mit sucuk": {
+        "docId": "766a757cb6742da9172f1e86701a070c7227d82f",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "kebap mit allem"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          },
+          {
+            "name": "Pide mit Sucuk",
+            "qty": 1,
+            "menuItemId": "enes-pide-sucuk",
+            "modifierKey": "mit:sucuk",
+            "rawName": "pide mit Sucuk"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit allem, 2 ayran": {
+        "docId": "6e1bd4d3d2d6ff8083710ea211e4e28bd7e1ae4f",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "kebap mit allem"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 2,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit allem, 2 cola": {
+        "docId": "e0a673fb1f745dfa459f89c3ab90065cdebd2298",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "kebap mit allem"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 2
+      },
+      "1 kebap mit allem, 3 ayran": {
+        "docId": "88a59a68512d80f2efd91f51359f42c9d64ebefb",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "kebap mit allem"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 3,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit allem, 3 cola, 2 ayran": {
+        "docId": "99b55aaab43da94fd56482ca2ac61d8f3cd5eb3b",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "kebap mit allem"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 3,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 2,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit tomaten und salad": {
+        "docId": "fbd84c547f5d98c86ae331c3023a81bf09b4dbf3",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:salad,tomaten",
+            "rawName": "kebap mit Tomaten und salad"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit tomaten, salad": {
+        "docId": "cea67bd1e86a7a80fdebbd01172fd4b85854f430",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:salad,tomaten",
+            "rawName": "Ein kebap mit Tomaten und salad"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit tomaten, salad und 1 ayran": {
+        "docId": "8f776628c0f2ba97a2c679aeec12b28d72b9573a",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:salad,tomaten",
+            "rawName": "kebap mit Tomaten und salad"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit tomaten, salad. 1 kebap mit allem. 2 kola , 2 ayran": {
+        "docId": "c013f507522a5fc3c6fc4c2f3304e20f811b2931",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "mit:allem",
+            "rawName": "kebap mit Tomaten und salad. Ein kebap mit allem. 2 kola"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 2,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit tomaten, zwiebel und salat und 2 kola , 1 ayran": {
+        "docId": "7e91e06ec20aacb7f48cfc2a16c21aa23ee713c2",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:salat,tomaten,zwiebel",
+            "rawName": "kebap mit Tomaten und zwiebel und salat"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "kola"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit tomaten, zwiebel, salad und 2 cola": {
+        "docId": "3a4d19a4591d283e660bb4317ae9798de3a756cb",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:salad,tomaten,zwiebel",
+            "rawName": "kebap mit Tomaten und zwiebel und salad"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap mit zwiebeln, tomaten und salat": {
+        "docId": "c813bde372b10846c264931b28e345ed4f9f0867",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:salat,tomaten,zwiebeln",
+            "rawName": "Ein kebap mit Zwiebeln und Tomaten und Salat"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap ohne salad": {
+        "docId": "fe0fc4beaee6bdc75b7e772fa2f606f0f077a57e",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "ohne:salad",
+            "rawName": "kebap ohne salad"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap ohne soße": {
+        "docId": "ef0146dc412677432316ff41dc7d408367489cee",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "ohne:soße",
+            "rawName": "kebap ohne soße"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap ohne zwiebel": {
+        "docId": "59c13c7b0f2fd786b6686e076a6b288b628e87f0",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "ohne:zwiebel",
+            "rawName": "kebap ohne Zwiebel"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap sogansiz": {
+        "docId": "7b38e713d73d927c5e7fd3a3c5aa9f3dade458cb",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "kebap sogansiz",
+            "rawName": "kebap sogansiz"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap sogansiz, 1 kola": {
+        "docId": "9c39c0e11a1c445a42433ed4ab041db7fac9bc30",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "coca cola 0.33l",
+            "rawName": "Coca Cola 0.33L"
+          },
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "selections": {
+              "kebap_beilagen": [
+                "tomaten",
+                "salad",
+                "sauce"
+              ]
+            }
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "manual_correction",
+        "hitCount": 1
+      },
+      "1 kebap, 2 cola": {
+        "docId": "86af0729d09a3be744d48d2431e613f83e69a4ef",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "kebap",
+            "rawName": "kebap"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kebap, 2 kola, 1 lahmacun": {
+        "docId": "d71a0881287bcb21bdcf4782622c2edb285d2ca0",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "kebap",
+            "rawName": "kebap"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "kola"
+          },
+          {
+            "name": "Lahmacun (1 Stueck)",
+            "qty": 1,
+            "menuItemId": "enes-pide-lahmacun",
+            "modifierKey": "lahmacun",
+            "rawName": "lahmacun"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 kola": {
+        "docId": "745787357b818c95903a6a6c63abf8bf444c6f02",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "kola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 pide mit sucuk": {
+        "docId": "f20b8b344a0dfa75bfb35b39c0346168353a7fd5",
+        "items": [
+          {
+            "name": "Pide mit Sucuk",
+            "qty": 1,
+            "menuItemId": "enes-pide-sucuk",
+            "modifierKey": "mit:sucuk",
+            "rawName": "pide mit Sucuk"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 pide mit sucuk 1 cola": {
+        "docId": "02b0ab540081e10dae543a534bc445110a11d300",
+        "items": [
+          {
+            "name": "Pide mit Sucuk",
+            "qty": 1,
+            "menuItemId": "enes-pide-sucuk",
+            "modifierKey": "mit:sucuk",
+            "rawName": "pide mit sucuk"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 pide mit sucuk, 2 ayran": {
+        "docId": "1070873a2c544cd69139b2abbe4198b3b2a88a6e",
+        "items": [
+          {
+            "name": "Pide mit Sucuk",
+            "qty": 1,
+            "menuItemId": "enes-pide-sucuk",
+            "modifierKey": "mit:sucuk",
+            "rawName": "pide mit sucuk"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 2,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 2
+      },
+      "1 pide mit sucuk, 2 cola": {
+        "docId": "309a60aec26d506b53bee0472e9bfd6bee5e1316",
+        "items": [
+          {
+            "name": "Pide mit Sucuk",
+            "qty": 1,
+            "menuItemId": "enes-pide-sucuk",
+            "modifierKey": "mit:sucuk",
+            "rawName": "pide mit sucuk"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 pizza della casa, 1 cola": {
+        "docId": "9307ad602cb86499e6d232c4d22361f8d1ff4654",
+        "items": [
+          {
+            "name": "Pizza della Casa (33cm)",
+            "qty": 1,
+            "menuItemId": "enes-pizza33-della-casa",
+            "modifierKey": "pizza della casa",
+            "rawName": "pizza della Casa"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "1 pizza mit salami und 1 kola": {
+        "docId": "580e3ce83c8b8ed20d9f695e3705838128aea120",
+        "items": [
+          {
+            "name": "Pizza Salami (33cm)",
+            "qty": 1,
+            "menuItemId": "enes-pizza33-salami",
+            "modifierKey": "pizza salami (33cm)",
+            "rawName": "Pizza Salami (33cm)"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "coca cola 0.33l",
+            "rawName": "Coca Cola 0.33L"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "manual_correction",
+        "hitCount": 1
+      },
+      "1 schnitzelteller mit pommes und 1 iran dazu": {
+        "docId": "aceb4a0c780e7adfa870a41a07579c70c233e768",
+        "items": [
+          {
+            "name": "Schnitzel Teller",
+            "qty": 1,
+            "menuItemId": "enes-schnitzel-teller",
+            "modifierKey": "mit:pommes",
+            "rawName": "schnitzelteller mit Pommes"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ein iran",
+            "rawName": "ein Iran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "llm",
+        "hitCount": 1
+      },
+      "1 spinat pizza": {
+        "docId": "d8bc9dc11b24aa25b21eff27628fcecc3609d8f9",
+        "items": [
+          {
+            "name": "Pizza Spinachi (33cm)",
+            "qty": 1,
+            "menuItemId": "enes-pizza33-spinachi",
+            "modifierKey": "spinat pizza",
+            "rawName": "spinat pizza"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "manual_correction",
+        "hitCount": 1
+      },
+      "1 tanede ayran": {
+        "docId": "d070dff901616b1b6f04c8db1c5761af82743836",
+        "items": [
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "tanede ayran",
+            "rawName": "tanede ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 ayran": {
+        "docId": "95af0a4b85b6f3115aeaca75bc1c7c7dcc51bca6",
+        "items": [
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 2,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 2
+      },
+      "2 baklava": {
+        "docId": "b3058433d6e44eea8fa11a80776955112e51b831",
+        "items": [
+          {
+            "name": "Baklava (2 Stueck)",
+            "qty": 2,
+            "menuItemId": "enes-dessert-baklava",
+            "modifierKey": "baklava",
+            "rawName": "baklava"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 cola": {
+        "docId": "4f236e1bdceb35d217c735bd610696ea6560db0c",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 5
+      },
+      "2 cola raus": {
+        "docId": "bc6c018d217ceda0b405fb0fe72856218f7840d8",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2
+          }
+        ],
+        "partySize": null,
+        "operation": "remove",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 doner": {
+        "docId": "a221f73fb63ea3b64f739aeb82c7d832aa602263",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner",
+            "rawName": "döner"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 14
+      },
+      "2 doner 1 ayran": {
+        "docId": "47576104e32b59646c954ae6b65ead8d71a3ec08",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner",
+            "rawName": "Döner"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 9
+      },
+      "2 doner 2 cola": {
+        "docId": "f613d81b7e5f0c82f85cd0ccff6a9d29090dc316",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner",
+            "rawName": "döner"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 doner 3 cola": {
+        "docId": "a8e3a70f7182ca126e02042feb91b4e9f8e8e441",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner",
+            "rawName": "döner"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 3,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 2
+      },
+      "2 doner mit allem": {
+        "docId": "bd9cd4cdf019edb87dbeda07e8d71404fb9b90d5",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "döner mit allem"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 2
+      },
+      "2 doner mit allem, 2 cola": {
+        "docId": "0c60341cee981af154899622d1db5fe71b4ed48b",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "döner mit allem"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 2
+      },
+      "2 doner mit allem, 3 kola": {
+        "docId": "4896cd71ac14012b525b93c537fdf274299c95b4",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "döner mit allem"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 3,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "kola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 doner mit allen 1 scharf": {
+        "docId": "c07055d24dd61ca63ce712d5ea60718e0f13672e",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem+scharf",
+            "rawName": "Döner mit allen eine scharf bitte"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 doner raus": {
+        "docId": "f3d129f9f33c6cb366f6ba6283226ddc87120efe",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel, Sauce",
+            "qty": 2
+          }
+        ],
+        "partySize": null,
+        "operation": "remove",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 doner und cola": {
+        "docId": "dcf7f3a10c9ba0bafd526d5f2f77302ddffe8eef",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner",
+            "rawName": "döner"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 huhner kebap 1 cola und 1 ayran": {
+        "docId": "b102b3c889a39085742928682684c8bf0b24ae5a",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "huhner kebap",
+            "rawName": "Hühner Kebap"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "Cola"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "Ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 huhnerkebab 1 mit allem und scharf andere nur gleich": {
+        "docId": "ea736a9e31d8bbbf0e4320bcadf318a0b895a609",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem+scharf",
+            "rawName": "Hühnerkebab mit allem und scharf"
+          },
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "huhnerkebab gleich",
+            "rawName": "Hühnerkebab gleich"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "llm",
+        "hitCount": 1
+      },
+      "2 kebab mit allem 1 scharf 1 ayran und 1 cola": {
+        "docId": "b29a207296b4ddd53152245608bca46d60e0798d",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem+scharf",
+            "rawName": "Kebab mit allem eine scharf"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "Cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 kebap 1 ayran 2 cola": {
+        "docId": "f466b0cbbf25cc365fb850891588a4ce605ec6e0",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "kebap",
+            "rawName": "kebap"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 kebap 1 mit allem und anderen nur tomaten und salad": {
+        "docId": "1b2b114344efa71a8abaca3815fa725ad2c19333",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "einen mit allem"
+          },
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "anderen nur tomaten und salad",
+            "rawName": "anderen nur Tomaten und salad"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "llm",
+        "hitCount": 1
+      },
+      "2 kebap 2 kola": {
+        "docId": "4a135f21d0408414b0f1d4ece5269353c7d966bf",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "kebap",
+            "rawName": "kebap"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "kola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 kebap mit allem": {
+        "docId": "79da85677a1bacb0e0badab7c5bc16c9ffdf8000",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 2,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "kebap mit allem"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 kola": {
+        "docId": "250ff0065f18f2e157d5200d9e5727f7c51bfe20",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "kola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 6
+      },
+      "2 kola noch bitte#": {
+        "docId": "9ab15837279e4db887115ab499f747e2a1442fee",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola noch bitte#",
+            "rawName": "kola noch bitte#"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 kola, 1 lahmacun": {
+        "docId": "447355cfd7647df90a0fe71679cb594ce4d2bca9",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 2,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "kola"
+          },
+          {
+            "name": "Lahmacun (1 Stueck)",
+            "qty": 1,
+            "menuItemId": "enes-pide-lahmacun",
+            "modifierKey": "lahmacun",
+            "rawName": "lahmacun"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "2 schnitzel sandwich": {
+        "docId": "fc52c6357d9119033e34ba75145907a3427d6fa4",
+        "items": [
+          {
+            "name": "Schnitzel Sandwich",
+            "qty": 2,
+            "menuItemId": "enes-schnitzel-sandwich",
+            "modifierKey": "schnitzel sandwich",
+            "rawName": "Schnitzel Sandwich"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "3 ayran": {
+        "docId": "059c8c291587b39d99851f8b5fad8f268aefc7ea",
+        "items": [
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 3,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "3 cola": {
+        "docId": "b5f1ba789bc325d9120815ef4721dde5048010d9",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 3,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 6
+      },
+      "3 doner mit allem": {
+        "docId": "170f489b42f9d468a37af2330e186ce8c630e42b",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 3,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "döner mit allem"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "3 kola": {
+        "docId": "261e060915ca7b92a955b43ceebc31bb34f2ff0b",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 3,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "kola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 3
+      },
+      "3k3bap": {
+        "docId": "57eb0df47dd12d9d49c4acaedf32eed53462cf9c",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 3,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "k3 bap",
+            "rawName": "k3 bap",
+            "selections": {
+              "kebap_beilagen": [
+                "tomaten",
+                "salad",
+                "zwiebel",
+                "sauce"
+              ]
+            }
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "manual_correction",
+        "hitCount": 1
+      },
+      "4 cola": {
+        "docId": "71bcadeb78eb90cd12c06c49573d21873df13d7c",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 4,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 2
+      },
+      "5 cola": {
+        "docId": "c4228791108af9be7beb42882eda9e1ecd318c87",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 5,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 4
+      },
+      "5 cola 3 ayran": {
+        "docId": "cd2f95c209a7b3f6b2f2cf14ceb7200be3ebb543",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 5,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "cola"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 3,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "ayran": {
+        "docId": "f7d2375b79782d1c537b78c12077e26ce4bef06c",
+        "items": [
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 6
+      },
+      "ayran cikar": {
+        "docId": "203ba793f4f5c770b5fe9be03b30d53ae0c9d2e9",
+        "items": [
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1
+          }
+        ],
+        "partySize": null,
+        "operation": "remove",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "ayran raus": {
+        "docId": "f9ddb5e625919f197f7bfe5a986ae95d2ed52326",
+        "items": [
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "rawName": "Mis Ayran 0.25L"
+          }
+        ],
+        "partySize": null,
+        "operation": "remove",
+        "source": "rules",
+        "hitCount": 2
+      },
+      "baklava ekle": {
+        "docId": "785d5daf81d9f3af54dea80804ba370c08427c3a",
+        "items": [
+          {
+            "name": "Baklava",
+            "qty": 1
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "llm",
+        "hitCount": 1
+      },
+      "cheeseburger cola baklava": {
+        "docId": "8a9f82eb604b85ceca4385ff252e61ad71a20dc0",
+        "items": [
+          {
+            "name": "Cheeseburger",
+            "qty": 1
+          },
+          {
+            "name": "Cola",
+            "qty": 1
+          },
+          {
+            "name": "baklava",
+            "qty": 1
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "llm",
+        "hitCount": 1
+      },
+      "cola": {
+        "docId": "42be22c266603b34e0931de4d85a66ac830546d6",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "cola",
+            "rawName": "Cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "cola iptal": {
+        "docId": "e0852b10b9bcc6f828d6162ebf5d681101ce6d6b",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "rawName": "Coca Cola 0.33L"
+          }
+        ],
+        "partySize": null,
+        "operation": "remove",
+        "source": "rules",
+        "hitCount": 4
+      },
+      "cola raus": {
+        "docId": "031ec14d527fcdceb845cc14505a91725fdba4c1",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033"
+          }
+        ],
+        "partySize": null,
+        "operation": "remove",
+        "source": "rules",
+        "hitCount": 7
+      },
+      "corba": {
+        "docId": "7ff0d6ae6e7153bbebb35ee16396148ecef26aaf",
+        "items": [
+          {
+            "name": "Linsensuppe",
+            "qty": 1,
+            "menuItemId": "enes-suppe-linse",
+            "modifierKey": "corba",
+            "rawName": "Corba"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "doner": {
+        "docId": "bb30b9c31cd13c0e4170cff1b117e6856806faf1",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "doner",
+            "rawName": "döner"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "doner mit allem": {
+        "docId": "816ef45d398b6ce4ffac379fb2a75ff7b86962a4",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "Döner mit allem"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "doner mit allem und ayran": {
+        "docId": "80891537e5074d8c05044df55c8235808fcaec8e",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "Döner mit allem"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "doner mit allem und kola": {
+        "docId": "10e99fa35372fe8f732ee62319289da4eb4bc0e8",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "mit:allem",
+            "rawName": "döner mit allem"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "kola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "durum huhn": {
+        "docId": "8cd90f19dc61a7452738165e8db00b4d7bcc69ab",
+        "items": [
+          {
+            "name": "Dürüm Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-duerum-huhn",
+            "modifierKey": "durum huhn",
+            "rawName": "Dürüm Huhn"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 2
+      },
+      "ein huhner doner und ne cola": {
+        "docId": "0cc64b26f9cdef473017c5586186e96347e44659",
+        "items": [
+          {
+            "name": "hühner döner",
+            "qty": 1
+          },
+          {
+            "name": "cola",
+            "qty": 1
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "llm",
+        "hitCount": 1
+      },
+      "hatte gern ein huhner doner und ne cola": {
+        "docId": "33e305f75fc13c5eb0e5de57b801219652aacc02",
+        "items": [
+          {
+            "name": "hühner döner",
+            "qty": 1
+          },
+          {
+            "name": "cola",
+            "qty": 1
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "llm",
+        "hitCount": 1
+      },
+      "ich bin hungrig. hatte gerne kebap essen": {
+        "docId": "217b7534f88282b113e8d1455e7d1e6f8091fb52",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "ich bin hungrig. hatte gerne kebap essen",
+            "rawName": "Ich bin hungrig. Hätte gerne Kebap essen"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "kebap entfernen": {
+        "docId": "e9a5c007a7461eaf13858fd9d771424d937492f8",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn — Tomaten, Salad",
+            "qty": 1
+          }
+        ],
+        "partySize": null,
+        "operation": "remove",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "kebap iptal": {
+        "docId": "191bac7d55a127d6b8f5fd4338088ab15bf5686e",
+        "items": [
+          {
+            "name": "Vegetarisches Sandwich",
+            "qty": 1,
+            "menuItemId": "enes-kebap-vegetarisch",
+            "rawName": "Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel, Sauce"
+          }
+        ],
+        "partySize": null,
+        "operation": "remove",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "kebap raus": {
+        "docId": "c1caeded4f016b2623103ef145194527080cc5ca",
+        "items": [
+          {
+            "name": "Vegetarisches Sandwich",
+            "qty": 1,
+            "menuItemId": "enes-kebap-vegetarisch",
+            "rawName": "Kebap Sandwich Huhn — Tomaten, Salad, Zwiebel"
+          }
+        ],
+        "partySize": null,
+        "operation": "remove",
+        "source": "rules",
+        "hitCount": 4
+      },
+      "kebap sandwich huhn": {
+        "docId": "d8a57bf93f8e41960bdd44f8be06286844be113c",
+        "items": [
+          {
+            "name": "Kebap Sandwich Huhn",
+            "qty": 1,
+            "menuItemId": "enes-kebap-sandwich-huhn",
+            "modifierKey": "kebap sandwich huhn",
+            "rawName": "Kebap Sandwich Huhn"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "kola": {
+        "docId": "9676b21cd39e0235714dbfd2a57e72ab320a445e",
+        "items": [
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "modifierKey": "kola",
+            "rawName": "Kola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "lahmacun cola": {
+        "docId": "3e4a9b5f09040c5aefe6f99899045e2b6e8ce005",
+        "items": [
+          {
+            "name": "Lahmacun (1 Stueck)",
+            "qty": 1,
+            "menuItemId": "enes-pide-lahmacun",
+            "rawName": "Lahmacun"
+          },
+          {
+            "name": "Coca Cola 0.33L",
+            "qty": 1,
+            "menuItemId": "enes-getr-cola-033",
+            "rawName": "cola"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "llm",
+        "hitCount": 1
+      },
+      "pizza spinachi ayran": {
+        "docId": "da938cfd29411881286a4897e4fba4de410aa07b",
+        "items": [
+          {
+            "name": "Pizza Spinachi (33cm)",
+            "qty": 1,
+            "menuItemId": "enes-pizza33-spinachi",
+            "modifierKey": "pizza spinachi (33cm)",
+            "rawName": "Pizza Spinachi (33cm)"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "mis ayran 0.25l",
+            "rawName": "Mis Ayran 0.25L"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "manual_correction",
+        "hitCount": 1
+      },
+      "pizza spinachi, ayran": {
+        "docId": "fe41245e1a5c4c34676e23525fa9d8cd7f138343",
+        "items": [
+          {
+            "name": "Pizza Spinachi (33cm)",
+            "qty": 1,
+            "menuItemId": "enes-pizza33-spinachi",
+            "modifierKey": "pizza spinachi",
+            "rawName": "Pizza spinachi"
+          },
+          {
+            "name": "Mis Ayran 0.25L",
+            "qty": 1,
+            "menuItemId": "enes-getr-ayran-025",
+            "modifierKey": "ayran",
+            "rawName": "ayran"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      },
+      "suppe": {
+        "docId": "c71d0298a76b97aaa753025570f3312e0bbfeb10",
+        "items": [
+          {
+            "name": "Linsensuppe",
+            "qty": 1,
+            "menuItemId": "enes-suppe-linse",
+            "modifierKey": "suppe",
+            "rawName": "Suppe"
+          }
+        ],
+        "partySize": null,
+        "operation": "add",
+        "source": "rules",
+        "hitCount": 1
+      }
+    }
+  }
 }
