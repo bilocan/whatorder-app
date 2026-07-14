@@ -1,16 +1,22 @@
 const crypto = require('crypto');
 const { admin } = require('../lib/firebase');
-const { intentLearningRef } = require('../lib/collections');
+const { intentLearningRef, seededIntentRef, seedOverridesRef } = require('../lib/collections');
 const { intentLearnKey, intentLearnKeyVariants } = require('./intentNormalize');
 const { levenshtein, maxTypoDistance } = require('./menuSynonyms');
 const { scheduleAliasPromotion } = require('./intentLearningPromote');
 const { learnedItemIdsChanged } = require('./intentLearningRebind');
 const { isPartialBlobTrap, countDistinctProductStems } = require('./intentPartialMatch');
+const { seedEnabled, seedEntriesForBusiness, seedEntryForKey } = require('./intentSeed');
 
 /** In-process L1: businessId → Map(textKey → intent payload). */
 const memoryByBusiness = new Map();
 /** businessId → whether all Firestore keys were loaded for fuzzy scan. */
 const fuzzyIndexLoaded = new Set();
+/** Businesses whose baked seed entries were copied into memory. */
+const seedHydrated = new Set();
+/** businessId → { keys: Set<textKey>, loadedAt } — corrections that shadow the seed. */
+const seedOverridesCache = new Map();
+const SEED_OVERRIDES_TTL_MS = 10 * 60 * 1000;
 
 const FUZZY_KEY_MAX_DIST = 3;
 const FUZZY_MIN_KEY_LEN = 8;
@@ -97,6 +103,86 @@ async function loadFuzzyIndexFromFirestore(businessId) {
     if (process.env.NODE_ENV !== 'test') {
       console.warn(`[intent-learning] fuzzy index load failed: ${err.message}`);
     }
+  }
+}
+
+/**
+ * Load the per-business seedOverrides doc (corrections/deletions that must
+ * shadow the baked seed). One read per business, cached with a TTL.
+ * @returns {Promise<{ keys: Set<string>, refreshed: boolean }>}
+ */
+async function loadSeedOverrides(businessId) {
+  const cached = seedOverridesCache.get(businessId);
+  if (cached && Date.now() - cached.loadedAt < SEED_OVERRIDES_TTL_MS) {
+    return { keys: cached.keys, refreshed: false };
+  }
+  let keys = cached?.keys ?? new Set();
+  try {
+    const snap = await seedOverridesRef(businessId).get();
+    const list = snap.exists ? snap.data()?.textKeys : null;
+    keys = new Set(Array.isArray(list) ? list.map(String) : []);
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(`[intent-seed] overrides load failed: ${err.message}`);
+    }
+  }
+  seedOverridesCache.set(businessId, { keys, loadedAt: Date.now() });
+  return { keys, refreshed: true };
+}
+
+/**
+ * L0: copy baked seed entries into the in-process memory cache, skipping
+ * overridden keys. Re-syncs whenever the overrides doc is (re)fetched, so a
+ * correction made on another instance takes effect within the TTL.
+ */
+async function ensureSeedHydrated(businessId) {
+  if (!businessId || !seedEnabled()) return;
+  const entries = seedEntriesForBusiness(businessId);
+  const textKeys = Object.keys(entries);
+  if (!textKeys.length) return;
+
+  const { keys: overridden, refreshed } = await loadSeedOverrides(businessId);
+  if (seedHydrated.has(businessId) && !refreshed) return;
+
+  for (const textKey of textKeys) {
+    if (overridden.has(textKey)) continue;
+    if (memoryGet(businessId, textKey)) continue;
+    const entry = entries[textKey];
+    const items = sanitizeItems(entry?.items);
+    if (!items.length) continue;
+    memorySet(businessId, textKey, {
+      items,
+      partySize: entry.partySize ?? null,
+      operation: normalizeOperation(entry.operation),
+      origin: 'seed',
+      docId: entry.docId ?? docIdForKey(textKey),
+    });
+  }
+
+  // Evict seeded entries that got overridden since hydration.
+  for (const textKey of overridden) {
+    if (memoryGet(businessId, textKey)?.origin === 'seed') {
+      memoryByBusiness.get(businessId)?.delete(textKey);
+    }
+  }
+  seedHydrated.add(businessId);
+}
+
+/** Record a correction/deletion of a seeded phrase so the baked entry stops replaying. */
+async function addSeedOverride(businessId, textKey, seedDocId) {
+  await seedOverridesRef(businessId).set({
+    textKeys: admin.firestore.FieldValue.arrayUnion(textKey),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  if (seedDocId) {
+    await seededIntentRef(businessId, seedDocId).set({
+      supersededAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+  const cached = seedOverridesCache.get(businessId);
+  if (cached) cached.keys.add(textKey);
+  if (memoryGet(businessId, textKey)?.origin === 'seed') {
+    memoryByBusiness.get(businessId)?.delete(textKey);
   }
 }
 
@@ -193,7 +279,38 @@ async function loadLearnedDoc(businessId, textKey) {
   }
 }
 
-function toLearnedMeta({ docId, textKey, data, items }) {
+/**
+ * A learning row may live in intentLearnings (live) or seededIntents
+ * (archived at release). Live wins — a correction shadows the seed.
+ */
+async function loadLearnedOrSeededDoc(businessId, textKey) {
+  const live = await loadLearnedDoc(businessId, textKey);
+  if (live) return live;
+
+  const entry = seedEntryForKey(businessId, textKey);
+  if (!entry?.docId) return null;
+  try {
+    const snap = await seededIntentRef(businessId, entry.docId).get();
+    if (!snap.exists) return null;
+    const data = snap.data();
+    const items = sanitizeItems(data?.items);
+    if (!items.length) return null;
+    return {
+      docId: entry.docId,
+      textKey: String(data.textKey ?? textKey),
+      data,
+      items,
+      seeded: true,
+    };
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(`[intent-learning] seeded doc load failed: ${err.message}`);
+    }
+    return null;
+  }
+}
+
+function toLearnedMeta({ docId, textKey, data, items, seeded }) {
   return {
     id: docId,
     textKey,
@@ -202,6 +319,7 @@ function toLearnedMeta({ docId, textKey, data, items }) {
     operation: normalizeOperation(data.operation),
     items,
     aliasesPromotedAt: data.aliasesPromotedAt ?? null,
+    ...(seeded ? { seeded: true, seededInRelease: data.seededInRelease ?? null } : {}),
   };
 }
 
@@ -211,12 +329,17 @@ async function persistReboundLearnedItems(businessId, textKey, items) {
   if (!sanitized.length) return;
 
   const docId = docIdForKey(textKey);
+  const cached = memoryGet(businessId, textKey);
+  // Rebinds of a seeded learning belong on its seededIntents archive doc —
+  // writing to intentLearnings would create a partial doc without textKey.
+  const ref = cached?.origin === 'seed'
+    ? seededIntentRef(businessId, cached.docId ?? docId)
+    : intentLearningRef(businessId, docId);
   try {
-    await intentLearningRef(businessId, docId).set({
+    await ref.set({
       items: sanitized,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
-    const cached = memoryGet(businessId, textKey);
     if (cached) {
       memorySet(businessId, textKey, { ...cached, items: sanitized });
     }
@@ -232,17 +355,18 @@ async function persistReboundLearnedItems(businessId, textKey, items) {
  */
 async function lookupLearnedMeta(businessId, rawText) {
   if (!businessId || !rawText?.trim()) return null;
+  await ensureSeedHydrated(businessId);
 
   const variants = intentLearnKeyVariants(rawText);
   for (const textKey of variants) {
-    const hit = await loadLearnedDoc(businessId, textKey);
+    const hit = await loadLearnedOrSeededDoc(businessId, textKey);
     if (hit) return toLearnedMeta(hit);
   }
 
   const canonical = intentLearnKey(rawText);
   for (const cachedKey of memoryKeys(businessId)) {
     if (keysAreFuzzyMatch(canonical, cachedKey)) {
-      const hit = await loadLearnedDoc(businessId, cachedKey);
+      const hit = await loadLearnedOrSeededDoc(businessId, cachedKey);
       if (hit) return toLearnedMeta(hit);
     }
   }
@@ -250,7 +374,7 @@ async function lookupLearnedMeta(businessId, rawText) {
   await loadFuzzyIndexFromFirestore(businessId);
   for (const cachedKey of memoryKeys(businessId)) {
     if (keysAreFuzzyMatch(canonical, cachedKey)) {
-      const hit = await loadLearnedDoc(businessId, cachedKey);
+      const hit = await loadLearnedOrSeededDoc(businessId, cachedKey);
       if (hit) return toLearnedMeta(hit);
     }
   }
@@ -263,6 +387,7 @@ async function lookupLearnedMeta(businessId, rawText) {
  */
 async function lookupLearnedIntent(businessId, rawText) {
   if (!businessId || !rawText?.trim()) return null;
+  await ensureSeedHydrated(businessId);
 
   const variants = intentLearnKeyVariants(rawText);
   for (const textKey of variants) {
@@ -289,6 +414,28 @@ function recordLearnedIntentHit(businessId, rawText) {
   if (!textKey) return;
 
   const docId = docIdForKey(textKey);
+  const cachedForKey = memoryGet(businessId, textKey);
+
+  // Seed-origin hits count on the seededIntents archive doc. A blind merge-set
+  // on intentLearnings would recreate stub docs (hitCount, no items) for every
+  // replay of a moved learning.
+  if (cachedForKey?.origin === 'seed') {
+    const seedDocId = cachedForKey.docId ?? docId;
+    void seededIntentRef(businessId, seedDocId).set({
+      hitCount: admin.firestore.FieldValue.increment(1),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true }).then(() => {
+      if (cachedForKey.items?.length && shouldPromoteAliases(cachedForKey.operation)) {
+        scheduleAliasPromotion(businessId, seedDocId, textKey, cachedForKey.items, { seeded: true });
+      }
+    }).catch(err => {
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(`[intent-learning] seeded hit save failed: ${err.message}`);
+      }
+    });
+    return;
+  }
+
   const ref = intentLearningRef(businessId, docId);
   void ref.set({
     hitCount: admin.firestore.FieldValue.increment(1),
@@ -430,6 +577,14 @@ async function saveOwnerIntentLearning(
 
   await ref.set(doc, { merge: true });
 
+  // If this phrase ships in the baked seed, record an override so the seed
+  // entry stops replaying (ignoreDisabled: must hold even while the kill
+  // switch is on, or re-enabling would resurrect the old mapping).
+  const seedEntry = seedEntryForKey(businessId, textKey, { ignoreDisabled: true });
+  if (seedEntry) {
+    await addSeedOverride(businessId, textKey, seedEntry.docId ?? null);
+  }
+
   return { id: docId, textKey, items: sanitized, operation: op, source };
 }
 
@@ -510,6 +665,8 @@ function commitBasketPendingLearning(pending) {
 function _resetIntentLearningMemory() {
   memoryByBusiness.clear();
   fuzzyIndexLoaded.clear();
+  seedHydrated.clear();
+  seedOverridesCache.clear();
 }
 
 module.exports = {
@@ -517,6 +674,8 @@ module.exports = {
   intentLearnKeyVariants,
   lookupLearnedIntent,
   lookupLearnedMeta,
+  ensureSeedHydrated,
+  addSeedOverride,
   persistReboundLearnedItems,
   rememberValidatedIntent,
   rememberValidatedLlmIntent,
@@ -526,5 +685,7 @@ module.exports = {
   saveManualIntentLearning,
   saveOwnerIntentLearning,
   normalizeOperation,
+  ensureSeedHydrated,
+  addSeedOverride,
   _resetIntentLearningMemory,
 };

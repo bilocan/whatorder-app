@@ -186,7 +186,10 @@
     },
     "status": {
       "promoted": "On menu aliases",
-      "cacheOnly": "Cache only"
+      "cacheOnly": "Cache only",
+      "seeded": "In app",
+      "seededRelease": "In app ({{release}})",
+      "overridden": "Disabled"
     },
     "time": {
       "justNow": "Just now",
@@ -197,6 +200,7 @@
       "title": "Delete learned phrase?",
       "message": "Remove “{{phrase}}” from learned phrases? The bot may ask AI or rules again next time.",
       "messagePromoted": "Remove “{{phrase}}” from learned phrases? Menu aliases are unchanged — edit the menu to remove promoted wording.",
+      "messageSeeded": "Disable “{{phrase}}”? It ships inside the app, so it is switched off instead of deleted and stays visible here as Disabled.",
       "confirm": "Delete"
     },
     "rowTest": "Test",
@@ -239,7 +243,9 @@
         "not_order": "Not order text",
         "low_confidence": "Low confidence",
         "remove": "Would remove from basket/proposal",
-        "remove_failed": "Remove failed (item not in basket)"
+        "remove_failed": "Remove failed (item not in basket)",
+        "no_learned_match": "No learned phrase matches",
+        "no_seed_match": "No baked seed phrase matches"
       }
     }
   },
@@ -271,6 +277,19 @@
     "alreadyTrained": "Already trained (used {{hits}}×).",
     "changePick": "Change",
     "defaultOption": "Default",
+    "sourceLabel": "Test with",
+    "source": {
+      "app": "App (like the bot)",
+      "appLlm": "App + AI fallback",
+      "rules": "Rules only",
+      "llm": "AI only",
+      "learned": "Learned only",
+      "seed": "Baked seed only"
+    },
+    "learnedFrom": {
+      "seed": "from app seed ({{release}})",
+      "firestore": "from live learnings"
+    },
     "teachHint": {
       "needsParse": "Click Parse first, then review your correction.",
       "needsSku": "Choose a menu item for each line.",

@@ -390,6 +390,9 @@ function watchReleaseWorkflow(appRootDir, flags) {
   }
 
   console.log(`  ${runs[0].url}`);
+  console.log('  Waiting on `gh run watch` until **Release to Production** finishes (~1–2 min).');
+  console.log('  Stop waiting: Ctrl+C — release is already published; check the URL above in GitHub Actions.');
+  console.log('  Skip watch next time: npm run release -- --skip-watch');
   runInDir(appRootDir, 'gh', ['run', 'watch', String(runs[0].databaseId)], { inherit: true });
 }
 
@@ -466,6 +469,46 @@ function latestReleaseTag(appRootDir) {
   return result.status === 0 ? result.stdout.trim() : null;
 }
 
+const SEED_MAX_AGE_DAYS = 14;
+
+// The Docker image bakes backend/src/data/intentLearnings.seed.json at the
+// preprod build, so a refresh only helps BEFORE the promote merge — surface
+// the state on every pass and nag when the snapshot is empty or stale.
+function intentSeedReminder(appRootDir) {
+  const seedPath = path.join(appRootDir, 'backend', 'src', 'data', 'intentLearnings.seed.json');
+  logStep('Intent seed (baked learnings)');
+
+  if (!fs.existsSync(seedPath)) {
+    console.log('  Seed file missing — the image will ship without baked learnings.');
+    return;
+  }
+
+  let seed;
+  try {
+    seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+  } catch {
+    console.log(`  Seed file unreadable (${seedPath}) — fix or regenerate before promoting.`);
+    return;
+  }
+
+  const count = Object.values(seed.businesses ?? {})
+    .reduce((n, entries) => n + Object.keys(entries ?? {}).length, 0);
+  const ageDays = seed.generatedAt
+    ? Math.floor((Date.now() - Date.parse(seed.generatedAt)) / 86400000)
+    : null;
+  console.log(
+    `  ${count} entr(ies) · release ${seed.release ?? '(none)'} · generated ${
+      ageDays === null ? 'never' : `${ageDays}d ago`}`,
+  );
+
+  if (!count || ageDays === null || ageDays > SEED_MAX_AGE_DAYS) {
+    console.log('  Snapshot is empty or stale — refresh before the promote merge:');
+    console.log('    cd backend && npm run intent:seed-export -- --release=<tag> --write');
+    console.log('    npm run intent:seed-verify   # gate: every entry must replay');
+    console.log('  Commit the seed diff so the preprod image build picks it up.');
+  }
+}
+
 function firestoreRulesReminder(appRootDir, previousTag) {
   const rulesPath = path.join(appRootDir, 'firestore.rules');
   if (!fs.existsSync(rulesPath)) return;
@@ -504,6 +547,8 @@ async function main() {
   const root = appRoot();
   const vault = vaultRoot(root);
   ensureVaultRepo(vault);
+
+  intentSeedReminder(root);
 
   const branchGate = await ensureBranchesReady(root, flags);
   if (branchGate.alreadyPromoted) {
@@ -567,7 +612,7 @@ async function main() {
     return;
   }
 
-  nextStepsForReleaseComplete({ tag, syncPrUrl, needsPostReleaseSync });
+  nextStepsForReleaseComplete({ tag, syncPrUrl, needsPostReleaseSync, skipWatch: flags.skipWatch });
 }
 
 main().catch((err) => {

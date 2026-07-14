@@ -338,21 +338,27 @@ function nextStepsForPromoteRequired({ prUrl, dryRun } = {}) {
   printNextSteps('Next steps', steps);
 }
 
-function nextStepsForReleaseComplete({ tag, syncPrUrl, needsPostReleaseSync }) {
-  const steps = [
-    `Prod deploy promoted for **${tag}** — dashboard: ${PROD_DASHBOARD_URL}`,
-    `Backend health: ${PROD_HEALTH_URL}`,
-    'If this was a go-live release, run the cutover checklist in vault `specs/environments-and-branching`',
+function nextStepsForReleaseComplete({ tag, syncPrUrl, needsPostReleaseSync, skipWatch = false }) {
+  console.log(`\n✅ Release ${tag} published — script finished.`);
+  if (skipWatch) {
+    console.log('   **Release to Production** running on GitHub — check Actions (used --skip-watch).');
+  } else {
+    console.log('   **Release to Production** finished (script waited on `gh run watch`).');
+  }
+  const followUps = [
+    `Verify prod dashboard: ${PROD_DASHBOARD_URL}`,
+    `Verify backend: ${PROD_HEALTH_URL}`,
   ];
   if (needsPostReleaseSync && syncPrUrl) {
-    steps.push(`Merge the sync PR: ${syncPrUrl}`);
-    steps.push('Then branch new work from `dev` as usual');
+    followUps.push(`Merge the sync PR (GitHub, not this script): ${syncPrUrl}`);
+    followUps.push('Then branch new work from `dev`');
   } else if (needsPostReleaseSync) {
-    steps.push('Merge the **master → dev** sync PR when CI is green');
+    followUps.push('Merge the **master → dev** sync PR on GitHub when CI is green');
   } else {
-    steps.push('Branches already aligned — start the next feature branch from `dev`');
+    followUps.push('Branches aligned — start the next feature branch from `dev`');
   }
-  printNextSteps('Release complete — what to do next', steps);
+  followUps.push('Go-live only: cutover checklist in vault `specs/environments-and-branching`');
+  printNextSteps('Optional follow-ups (outside this script)', followUps);
 }
 
 function nextStepsForDiverged() {
@@ -397,7 +403,7 @@ Options:
   --skip-promote       Do not require/create dev → master promote PR
   --skip-sync          Do not create master → dev sync PR after release
   --skip-vault-push    Rotate vault files locally but do not commit/push vault
-  --skip-watch         Do not wait on the Release to Production GitHub Action
+  --skip-watch         Do not block on \`gh run watch\` after publishing (or Ctrl+C during watch)
   --skip-preprod-check Skip preprod /version SHA check before publishing release
   --promote-only       Pass 1 only — open dev → master PR; never ship
   --help, -h           Show this help

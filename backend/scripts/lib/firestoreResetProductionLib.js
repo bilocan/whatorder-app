@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 /** Golden infra-only GCS folder under gs://<project>-backups/manual/ */
-const DEFAULT_GOLDEN_INFRA_BACKUP = '2026-07-06-infra';
+const DEFAULT_GOLDEN_INFRA_BACKUP = '2026-07-14-infra';
 
 /**
  * The 2026-06-27 exports were empty (316 bytes of metadata, zero documents) —
@@ -33,7 +33,9 @@ function resolveFirestoreDatabase() {
 const INFRA_COLLECTION_IDS = [
   'businesses',
   'menu',
+  'optionGroups',
   'intentLearnings',
+  'seededIntents',
   'phoneRouting',
   'owners',
   'admins',
@@ -232,7 +234,7 @@ function printResetPlan(opts) {
   else console.log('  3. (skip smoke)');
   console.log('  4. Manual checklist\n');
 
-  console.log('Keeps: businesses, menu, intentLearnings, routing, owners, admins, config');
+  console.log('Keeps: businesses, menu, optionGroups, intentLearnings, routing, owners, admins, config');
   console.log('Removes: orders, customers, sessions, processedMessages, stripeEvents');
   console.log('\nRe-run with --confirm to apply (not --dry-run).');
 }

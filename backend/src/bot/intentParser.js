@@ -773,7 +773,7 @@ async function parseIntentAsync(text, {
           void persistReboundLearnedItems(businessId, textKey, learnedItems);
         }
       }
-      return toIntentResult(
+      const result = toIntentResult(
         learnedItems,
         learned.partySize,
         rawText,
@@ -781,6 +781,9 @@ async function parseIntentAsync(text, {
         1,
         learned.operation,
       );
+      // Observability: seed hit-rate proves the baked-seed traffic win.
+      result.learnedFrom = learned.origin === 'seed' ? 'seed' : 'firestore';
+      return result;
     }
   }
 

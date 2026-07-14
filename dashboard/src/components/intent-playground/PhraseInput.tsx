@@ -1,14 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import type { IntentLearningOperation } from '../../types';
+import type { IntentPreviewSource } from '../../lib/intentPhrasesApi';
 import { btnSecondary, inputStyle } from './styles';
+
+const SOURCES: IntentPreviewSource[] = ['app', 'appLlm', 'rules', 'llm', 'learned', 'seed'];
 
 type PhraseInputProps = {
   phraseText: string;
   onPhraseTextChange: (value: string) => void;
   operation: IntentLearningOperation;
   onOperationChange: (op: IntentLearningOperation) => void;
-  useLlm: boolean;
-  onUseLlmChange: (llm: boolean) => void;
+  source: IntentPreviewSource;
+  onSourceChange: (source: IntentPreviewSource) => void;
   parsing: boolean;
   onParse: () => void;
 };
@@ -18,8 +21,8 @@ export default function PhraseInput({
   onPhraseTextChange,
   operation,
   onOperationChange,
-  useLlm,
-  onUseLlmChange,
+  source,
+  onSourceChange,
   parsing,
   onParse,
 }: PhraseInputProps) {
@@ -48,8 +51,16 @@ export default function PhraseInput({
           {parsing ? t('intentPlayground.parsing') : t('intentPlayground.parse')}
         </button>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}>
-          <input type="checkbox" checked={useLlm} onChange={(e) => onUseLlmChange(e.target.checked)} />
-          {t('learnedPhrases.add.useLlm')}
+          {t('intentPlayground.sourceLabel')}
+          <select
+            value={source}
+            onChange={(e) => onSourceChange(e.target.value as IntentPreviewSource)}
+            style={{ padding: '0.3rem 0.4rem', border: '1px solid #ddd', borderRadius: 6, fontSize: '0.85rem' }}
+          >
+            {SOURCES.map((s) => (
+              <option key={s} value={s}>{t(`intentPlayground.source.${s}`)}</option>
+            ))}
+          </select>
         </label>
       </div>
 

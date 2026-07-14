@@ -1,5 +1,5 @@
 const { admin, db } = require('../lib/firebase');
-const { intentLearningRef, menuRef } = require('../lib/collections');
+const { intentLearningRef, seededIntentRef, menuRef } = require('../lib/collections');
 const { norm, tokensOf } = require('./menuMapper');
 const { MAX_ITEM_ALIASES } = require('./menuItemAliases');
 
@@ -96,10 +96,13 @@ function filterPromotableAliases(candidates, itemName, existingAliases) {
  * After hitCount crosses threshold, persist useful phrases on menu item aliases[].
  * Fire-and-forget; never blocks the customer path.
  */
-async function maybePromoteLearnedAliases(businessId, docId, textKey, items) {
+async function maybePromoteLearnedAliases(businessId, docId, textKey, items, { seeded = false } = {}) {
   if (!businessId || !docId || !textKey?.trim()) return { promoted: false };
 
-  const learningRef = intentLearningRef(businessId, docId);
+  // Seeded learnings live in the seededIntents archive after the release move.
+  const learningRef = seeded
+    ? seededIntentRef(businessId, docId)
+    : intentLearningRef(businessId, docId);
   const snap = await learningRef.get();
   if (!snap.exists) return { promoted: false };
 
@@ -160,8 +163,8 @@ async function maybePromoteLearnedAliases(businessId, docId, textKey, items) {
   return { promoted: true, promotedAliases };
 }
 
-function scheduleAliasPromotion(businessId, docId, textKey, items) {
-  void maybePromoteLearnedAliases(businessId, docId, textKey, items).catch(err => {
+function scheduleAliasPromotion(businessId, docId, textKey, items, opts = {}) {
+  void maybePromoteLearnedAliases(businessId, docId, textKey, items, opts).catch(err => {
     if (process.env.NODE_ENV !== 'test') {
       console.warn(`[intent-learning] alias promote failed: ${err.message}`);
     }

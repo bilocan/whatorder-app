@@ -52,6 +52,7 @@ Thumbs.db
 !firestore.indexes.json
 !dashboard/src/locales/*.json
 !backend/fixtures/intent-corpus/**/*.json
+!backend/src/data/intentLearnings.seed.json
 
 # Firebase
 .firebase/

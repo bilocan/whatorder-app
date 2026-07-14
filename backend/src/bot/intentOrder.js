@@ -125,6 +125,12 @@ async function tryTextIntentOrder({ from, session, lang, businessId, basket, tex
   if (!intent.items.length) return false;
   if (intent.confidence != null && intent.confidence < 0.6) return false;
 
+  if (process.env.NODE_ENV !== 'test') {
+    // Seed hit-rate: grep `parsedBy=learned/seed` in Cloud Run logs.
+    const learnedTag = intent.parsedBy === 'learned' ? `/${intent.learnedFrom ?? 'firestore'}` : '';
+    console.info(`[intent] ${businessId} parsedBy=${intent.parsedBy}${learnedTag} items=${intent.items.length}`);
+  }
+
   if (intent.operation === 'remove') {
     return tryLearnedRemoveIntent({
       from, session, lang, businessId, basket, text, intent,

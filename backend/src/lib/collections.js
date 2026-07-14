@@ -64,6 +64,14 @@ const payoutRef = (payoutId) =>
 const intentLearningRef = (businessId, keyHash) =>
   businessRef(businessId).collection('intentLearnings').doc(keyHash);
 
+// businesses/{businessId}/seededIntents/{keyHash} — archive of learnings shipped in the app seed
+const seededIntentRef = (businessId, keyHash) =>
+  businessRef(businessId).collection('seededIntents').doc(keyHash);
+
+// businesses/{businessId}/config/seedOverrides → { textKeys: [] } — corrections that shadow the baked seed
+const seedOverridesRef = (businessId) =>
+  businessRef(businessId).collection('config').doc('seedOverrides');
+
 // commandLearnings/{keyHash} — global LLM-classified bot commands (view_basket, undo)
 const commandLearningRef = (keyHash) =>
   db.collection('commandLearnings').doc(keyHash);
@@ -81,5 +89,7 @@ module.exports = {
   payoutsRef,
   payoutRef,
   intentLearningRef,
+  seededIntentRef,
+  seedOverridesRef,
   commandLearningRef,
 };

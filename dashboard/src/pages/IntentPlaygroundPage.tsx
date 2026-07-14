@@ -13,6 +13,7 @@ import {
   previewIntentPhrase,
   saveIntentPhrase,
   type IntentPhrasePreview,
+  type IntentPreviewSource,
   type IntentCorrectionPayload,
 } from '../lib/intentPhrasesApi';
 import type { IntentLearningOperation, MenuItem } from '../types';
@@ -75,7 +76,7 @@ export default function IntentPlaygroundPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [phraseText, setPhraseText] = useState('');
   const [operation, setOperation] = useState<IntentLearningOperation>('add');
-  const [useLlm, setUseLlm] = useState(false);
+  const [source, setSource] = useState<IntentPreviewSource>('app');
   const [parseSnapshot, setParseSnapshot] = useState<IntentPhrasePreview | null>(null);
   const [initialDraft, setInitialDraft] = useState<DraftLine[]>([]);
   const [draft, setDraft] = useState<DraftLine[]>([]);
@@ -136,7 +137,7 @@ export default function IntentPlaygroundPage() {
   async function runPreview(
     text: string,
     lines: DraftLine[],
-    opts: { llm?: boolean; op?: IntentLearningOperation; isParse?: boolean } = {},
+    opts: { op?: IntentLearningOperation; isParse?: boolean } = {},
   ) {
     if (!businessId || !text.trim()) return;
     const inferred = inferPhraseOperation(text.trim());
@@ -152,7 +153,7 @@ export default function IntentPlaygroundPage() {
       : undefined;
 
     const result = await previewIntentPhrase(businessId, text.trim(), {
-      llm: opts.llm ?? useLlm,
+      source,
       operation: op,
       items: draftItems.length ? draftItems : undefined,
       sampleItems,
@@ -178,7 +179,7 @@ export default function IntentPlaygroundPage() {
           qty: i.removeAll ? Math.max(2, i.qty) : Math.max(2, i.qty + 1),
         }));
         const removeResult = await previewIntentPhrase(businessId, text.trim(), {
-          llm: opts.llm ?? useLlm,
+          source,
           operation: 'remove',
           items: nextDraftItems,
           sampleItems: nextSampleItems,
@@ -224,7 +225,7 @@ export default function IntentPlaygroundPage() {
     }, 400);
     return () => window.clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, phraseText, operation, useLlm, parseSnapshot]);
+  }, [draft, phraseText, operation, source, parseSnapshot]);
 
   const learnedMeta: IntentLearnedMeta | null | undefined = (
     preview?.learnedMeta ?? parseSnapshot?.learnedMeta
@@ -328,8 +329,8 @@ export default function IntentPlaygroundPage() {
         }}
         operation={operation}
         onOperationChange={setOperation}
-        useLlm={useLlm}
-        onUseLlmChange={setUseLlm}
+        source={source}
+        onSourceChange={setSource}
         parsing={parsing}
         onParse={() => void handleParse()}
       />

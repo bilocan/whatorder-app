@@ -97,6 +97,59 @@ describe('intentPhrases routes', () => {
     expect(res.status).toBe(400);
   });
 
+  test('POST preview maps source=seed to learnedSource without LLM', async () => {
+    evaluateIntent.mockResolvedValue({ outcome: 'no_seed_match', orderLike: true, intent: null, matched: [], unmatched: [] });
+    const res = await request(app)
+      .post('/api/businesses/biz_test/intent-phrases/preview')
+      .send({ text: '2 doner', source: 'seed' });
+    expect(res.status).toBe(200);
+    expect(res.body.outcome).toBe('no_seed_match');
+    expect(evaluateIntent).toHaveBeenCalledWith(
+      '2 doner',
+      expect.objectContaining({ learnedSource: 'seed', skipLearned: false, llm: false }),
+    );
+  });
+
+  test('POST preview maps source=rules to skipLearned', async () => {
+    evaluateIntent.mockResolvedValue({ outcome: 'proposal', orderLike: true, intent: { parsedBy: 'rules' }, matched: [], unmatched: [] });
+    await request(app)
+      .post('/api/businesses/biz_test/intent-phrases/preview')
+      .send({ text: '2 doner', source: 'rules', llm: true });
+    expect(evaluateIntent).toHaveBeenCalledWith(
+      '2 doner',
+      expect.objectContaining({ skipLearned: true, llm: false }),
+    );
+  });
+
+  test('POST preview passes learnedFrom and seeded meta through', async () => {
+    evaluateIntent.mockResolvedValue({
+      outcome: 'proposal',
+      orderLike: true,
+      intent: { parsedBy: 'learned', learnedFrom: 'seed' },
+      matched: [{ name: 'Döner', qty: 2, menuItemId: 'd1' }],
+      unmatched: [],
+    });
+    lookupLearnedMeta.mockResolvedValue({
+      id: 'hash1',
+      textKey: '2 doner',
+      hitCount: 7,
+      source: 'llm',
+      operation: 'add',
+      items: [{ menuItemId: 'd1', name: 'Döner', qty: 2 }],
+      aliasesPromotedAt: null,
+      seeded: true,
+      seededInRelease: 'v1.9.0',
+    });
+
+    const res = await request(app)
+      .post('/api/businesses/biz_test/intent-phrases/preview')
+      .send({ text: '2 doner', source: 'learned' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.learnedFrom).toBe('seed');
+    expect(res.body.learnedMeta).toMatchObject({ seeded: true, seededInRelease: 'v1.9.0' });
+  });
+
   test('POST preview applies remove draft when operation is remove', async () => {
     evaluateIntent.mockResolvedValue({
       outcome: 'proposal',
