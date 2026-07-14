@@ -32,6 +32,7 @@ vi.mock('react-router-dom', () => ({
     <a href={to}>{children}</a>
   ),
   Outlet: () => <div data-testid="outlet" />,
+  useLocation: () => ({ pathname: '/orders' }),
 }))
 
 function auth(overrides: object) {
@@ -62,5 +63,13 @@ describe('Layout nav visibility', () => {
     render(<Layout />)
     expect(screen.getByText('Orders')).toBeInTheDocument()
     expect(screen.getByText('Admin')).toBeInTheDocument()
+  })
+
+  it('groups secondary pages under Management', () => {
+    mockUseAuth.mockReturnValue(auth({ isAdmin: false, businessId: 'biz-1' }))
+    render(<Layout />)
+    expect(screen.getByText('Management')).toBeInTheDocument()
+    expect(screen.queryByText('Customizations')).not.toBeInTheDocument()
+    expect(screen.queryByText('Settings')).not.toBeInTheDocument()
   })
 })
