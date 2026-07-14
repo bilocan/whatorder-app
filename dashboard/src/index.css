@@ -84,6 +84,41 @@ body {
   margin-left: auto;
   margin-bottom: 0.25rem;
 }
+.nav-management {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #eee;
+}
+.nav-management-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.5rem 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+}
+.nav-management-chevron {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: #999;
+  transition: transform 0.15s ease;
+}
+.nav-management-chevron.open {
+  transform: rotate(180deg);
+}
+.nav-management-items {
+  padding-left: 0.75rem;
+  border-left: 2px solid #f0f0f0;
+  margin-left: 0.15rem;
+}
+.nav-management-items a {
+  font-size: 0.9rem;
+}
 
 @media (max-width: 640px) {
   .layout-root {
