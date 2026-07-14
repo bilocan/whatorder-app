@@ -186,7 +186,10 @@
     },
     "status": {
       "promoted": "On menu aliases",
-      "cacheOnly": "Cache only"
+      "cacheOnly": "Cache only",
+      "seeded": "In app",
+      "seededRelease": "In app ({{release}})",
+      "overridden": "Disabled"
     },
     "time": {
       "justNow": "Just now",
@@ -197,6 +200,7 @@
       "title": "Delete learned phrase?",
       "message": "Remove “{{phrase}}” from learned phrases? The bot may ask AI or rules again next time.",
       "messagePromoted": "Remove “{{phrase}}” from learned phrases? Menu aliases are unchanged — edit the menu to remove promoted wording.",
+      "messageSeeded": "Disable “{{phrase}}”? It ships inside the app, so it is switched off instead of deleted and stays visible here as Disabled.",
       "confirm": "Delete"
     },
     "rowTest": "Test",

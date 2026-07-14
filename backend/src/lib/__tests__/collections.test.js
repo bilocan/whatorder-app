@@ -13,6 +13,7 @@ const {
   businessRef, businessesCollectionRef, menuRef, optionGroupsRef, ordersRef, customersRef, phoneRoutingRef,
   ownerRef, adminRef, processedMessageRef, stripeEventRef, configRef,
   settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, commandLearningRef,
+  seededIntentRef, seedOverridesRef,
 } = require('../collections');
 
 beforeEach(() => {
@@ -153,6 +154,26 @@ describe('intentLearningRef', () => {
     expect(db.doc).toHaveBeenCalledWith('biz_test');
     expect(db.collection).toHaveBeenNthCalledWith(2, 'intentLearnings');
     expect(db.doc).toHaveBeenCalledWith('abc123');
+  });
+});
+
+describe('seededIntentRef', () => {
+  test('builds path: businesses/{id}/seededIntents/{keyHash}', () => {
+    seededIntentRef('biz_test', 'abc123');
+    expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
+    expect(db.doc).toHaveBeenCalledWith('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(2, 'seededIntents');
+    expect(db.doc).toHaveBeenCalledWith('abc123');
+  });
+});
+
+describe('seedOverridesRef', () => {
+  test('builds path: businesses/{id}/config/seedOverrides', () => {
+    seedOverridesRef('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
+    expect(db.doc).toHaveBeenCalledWith('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(2, 'config');
+    expect(db.doc).toHaveBeenCalledWith('seedOverrides');
   });
 });
 

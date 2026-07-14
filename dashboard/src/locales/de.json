@@ -186,7 +186,10 @@
     },
     "status": {
       "promoted": "In Menü-Aliassen",
-      "cacheOnly": "Nur Cache"
+      "cacheOnly": "Nur Cache",
+      "seeded": "In der App",
+      "seededRelease": "In der App ({{release}})",
+      "overridden": "Deaktiviert"
     },
     "time": {
       "justNow": "Gerade eben",
@@ -197,6 +200,7 @@
       "title": "Gelernte Phrase löschen?",
       "message": "„{{phrase}}“ entfernen? Beim nächsten Mal kann KI oder Regeln wieder greifen.",
       "messagePromoted": "„{{phrase}}“ aus dem Cache entfernen? Menü-Aliasse bleiben — im Menü bearbeiten, um die Formulierung zu entfernen.",
+      "messageSeeded": "„{{phrase}}“ deaktivieren? Die Phrase ist Teil der App und wird daher abgeschaltet statt gelöscht; sie bleibt hier als Deaktiviert sichtbar.",
       "confirm": "Löschen"
     },
     "rowTest": "Testen",

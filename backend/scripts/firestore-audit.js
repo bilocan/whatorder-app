@@ -90,6 +90,7 @@ async function auditBusiness(businessId, businessIds) {
   const orderDocs = await listDocs(businessRef(businessId).collection('orders'));
   const customerDocs = await listDocs(businessRef(businessId).collection('customers'));
   const learningDocs = await listDocs(businessRef(businessId).collection('intentLearnings'));
+  const seededDocs = await listDocs(businessRef(businessId).collection('seededIntents'));
 
   const menuNames = new Set(menuDocs.map((d) => normalizeMenuName(d.data.name ?? '')));
 
@@ -104,6 +105,7 @@ async function auditBusiness(businessId, businessIds) {
   });
 
   const learningIssues = learningDocs.flatMap((doc) => checkIntentLearning(doc, menuNames));
+  const seededIssues = seededDocs.flatMap((doc) => checkIntentLearning(doc, menuNames, 'seededIntents'));
 
   return {
     businessId,
@@ -113,8 +115,9 @@ async function auditBusiness(businessId, businessIds) {
       orders: orderDocs.length,
       customers: customerDocs.length,
       intentLearnings: learningDocs.length,
+      seededIntents: seededDocs.length,
     },
-    issues: [...orderIssues, ...customerIssues, ...learningIssues],
+    issues: [...orderIssues, ...customerIssues, ...learningIssues, ...seededIssues],
   };
 }
 
@@ -241,7 +244,7 @@ function printHumanReport(report) {
   for (const b of report.perBusiness) {
     const tag = b.protected ? ' [protected]' : '';
     console.log(
-      `  ${b.businessId}${tag}: menu=${b.counts.menu} orders=${b.counts.orders} customers=${b.counts.customers} intentLearnings=${b.counts.intentLearnings} issues=${b.issueCount}`,
+      `  ${b.businessId}${tag}: menu=${b.counts.menu} orders=${b.counts.orders} customers=${b.counts.customers} intentLearnings=${b.counts.intentLearnings} seededIntents=${b.counts.seededIntents} issues=${b.issueCount}`,
     );
   }
 

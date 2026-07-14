@@ -210,6 +210,11 @@ export interface IntentLearning {
   promotedAliases?: string[];
   updatedAt?: Timestamp | string | null;
   createdAt?: Timestamp | string | null;
+  /** Row lives in the seededIntents release archive (baked into the app image). */
+  seeded?: boolean;
+  seededInRelease?: string | null;
+  /** textKey listed in config/seedOverrides — the baked entry no longer replays. */
+  overridden?: boolean;
 }
 
 export function toDate(v: Timestamp | string | null | undefined): Date {

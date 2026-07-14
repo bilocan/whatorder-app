@@ -186,7 +186,10 @@
     },
     "status": {
       "promoted": "Menü takma adında",
-      "cacheOnly": "Yalnızca önbellek"
+      "cacheOnly": "Yalnızca önbellek",
+      "seeded": "Uygulamada",
+      "seededRelease": "Uygulamada ({{release}})",
+      "overridden": "Devre dışı"
     },
     "time": {
       "justNow": "Az önce",
@@ -197,6 +200,7 @@
       "title": "Öğrenilen ifade silinsin mi?",
       "message": "“{{phrase}}” kaldırılsın mı? Bir sonraki seferde yapay zeka veya kurallar tekrar devreye girebilir.",
       "messagePromoted": "“{{phrase}}” önbellekten kaldırılsın mı? Menü takma adları değişmez — menüden düzenleyin.",
+      "messageSeeded": "“{{phrase}}” devre dışı bırakılsın mı? Bu ifade uygulamayla birlikte geldiği için silinmek yerine kapatılır ve burada Devre dışı olarak görünmeye devam eder.",
       "confirm": "Sil"
     },
     "rowTest": "Test",
