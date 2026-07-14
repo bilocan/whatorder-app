@@ -6,8 +6,9 @@
  *   1. reachability — lookupLearnedIntent(textKey) resolves to the seed entry
  *      (catches intentNormalize drift since export, and hydration drops)
  *   2. menu drift  — every menuItemId still resolves on the live menu
- *   3. stale-hit   — shouldRejectStaleLearnedHit would not veto the replay
- *   4. structural  — an add-learning on a remove-shaped phrase never replays
+ *   3+4. seedReplayVeto (shared with the export, intentSeedGuards.js) —
+ *      stale-hit and structural-remove checks; the export drops these rows,
+ *      so a failure here means the guards changed after the export ran
  * Overridden textKeys (config/seedOverrides) are reported as skipped, not failed.
  *
  * Usage:
@@ -20,10 +21,8 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.local') });
 const { menuRef, seedOverridesRef } = require('../lib/collections');
 const { seedEnabled } = require('../bot/intentSeed');
-const { lookupLearnedIntent, normalizeOperation } = require('../bot/intentLearning');
-const { parseIntent } = require('../bot/intentParser');
-const { detectRemovePhrase } = require('../bot/intentRemoveDetect');
-const { shouldRejectStaleLearnedHit } = require('../bot/intentPartialMatch');
+const { lookupLearnedIntent } = require('../bot/intentLearning');
+const { seedReplayVeto } = require('../bot/intentSeedGuards');
 
 // eslint-disable-next-line import/no-unresolved
 const seed = require('../data/intentLearnings.seed.json');
@@ -71,14 +70,21 @@ async function verifyBusiness(businessId, entries) {
       continue;
     }
 
-    const structural = detectRemovePhrase(textKey);
-    if (structural && normalizeOperation(learned.operation) === 'add') {
-      failures.push({ textKey, reason: 'structural_remove_skip', detail: 'add-learning on remove-shaped phrase' });
+    // A seed entry answered, but not THIS one: the key canonicalizes to a
+    // different entry's key (normalization drift since export) — the entry is
+    // unreachable under its own textKey and must not ship.
+    if (entry.docId && learned.docId && learned.docId !== entry.docId) {
+      failures.push({
+        textKey,
+        reason: 'not_replayed',
+        detail: 'lookup resolves to a different seed entry (normalization drift since export)',
+      });
       continue;
     }
 
-    if (shouldRejectStaleLearnedHit(textKey, learned, parseIntent(textKey))) {
-      failures.push({ textKey, reason: 'stale_hit_reject', detail: 'rules parse now outmatches the learning' });
+    const veto = seedReplayVeto(textKey, learned);
+    if (veto) {
+      failures.push({ textKey, ...veto });
       continue;
     }
 

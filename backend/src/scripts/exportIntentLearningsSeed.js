@@ -26,6 +26,7 @@ const {
   businessesCollectionRef, businessRef, menuRef, seededIntentRef, intentLearningRef, seedOverridesRef,
 } = require('../lib/collections');
 const { promoteHitThreshold } = require('../bot/intentLearningPromote');
+const { seedReplayVeto } = require('../bot/intentSeedGuards');
 const {
   eligibleSeedRow, seedEntryFromRow, buildSeedFile, diffSeeds,
 } = require('../lib/intentSeedExport');
@@ -93,6 +94,8 @@ async function exportBusiness(businessId, { minHits }) {
     if (overriddenKeys.has(row.textKey)) { skip('archive_overridden'); continue; }
     const check = eligibleSeedRow(row, { minHits, menuIds });
     if (!check.eligible) { skip(`archive_${check.reason}`); continue; }
+    const veto = seedReplayVeto(row.textKey, row);
+    if (veto) { skip(`archive_${veto.reason}`); continue; }
     entries[row.textKey] = seedEntryFromRow(doc.id, row);
     carried += 1;
   }
@@ -103,6 +106,8 @@ async function exportBusiness(businessId, { minHits }) {
     const row = doc.data();
     const check = eligibleSeedRow(row, { minHits, menuIds });
     if (!check.eligible) { skip(check.reason); continue; }
+    const veto = seedReplayVeto(row.textKey, row);
+    if (veto) { skip(veto.reason); continue; }
     entries[row.textKey] = seedEntryFromRow(doc.id, row);
     moves.push({ docId: doc.id, row });
   }
