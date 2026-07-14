@@ -127,15 +127,16 @@ function normalizeMenuName(name) {
 /**
  * @param {AuditDoc} learning
  * @param {Set<string>} menuNames
+ * @param {string} [collection] — intentLearnings (live) or seededIntents (release archive)
  * @returns {string[]}
  */
-function checkIntentLearning(learning, menuNames) {
+function checkIntentLearning(learning, menuNames, collection = 'intentLearnings') {
   const issues = [];
   const { id, data } = learning;
   const items = data.items;
 
   if (!Array.isArray(items)) {
-    issues.push(`intentLearnings/${id}: missing items array`);
+    issues.push(`${collection}/${id}: missing items array`);
     return issues;
   }
 
@@ -144,7 +145,7 @@ function checkIntentLearning(learning, menuNames) {
     if (!item?.name) continue;
     const key = normalizeMenuName(item.name);
     if (!menuNames.has(key)) {
-      issues.push(`intentLearnings/${id}: items[${i}] name "${item.name}" not in menu`);
+      issues.push(`${collection}/${id}: items[${i}] name "${item.name}" not in menu`);
     }
   }
 

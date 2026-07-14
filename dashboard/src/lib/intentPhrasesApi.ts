@@ -16,6 +16,9 @@ export interface IntentPhraseIntentItem {
   qty: number;
 }
 
+/** Playground parse tier: app = full pipeline (appLlm adds the LLM tier). */
+export type IntentPreviewSource = 'app' | 'appLlm' | 'rules' | 'llm' | 'learned' | 'seed';
+
 export interface IntentLearnedMeta {
   id: string;
   textKey: string;
@@ -23,6 +26,8 @@ export interface IntentLearnedMeta {
   source: string | null;
   operation: IntentLearningOperation;
   aliasesPromotedAt: string | null;
+  seeded?: boolean;
+  seededInRelease?: string | null;
   items: {
     menuItemId: string | null;
     name: string;
@@ -37,6 +42,7 @@ export interface IntentPhrasePreview {
   outcome: string;
   operation?: IntentLearningOperation;
   parsedBy: string | null;
+  learnedFrom?: 'seed' | 'firestore' | null;
   orderLike: boolean;
   intentItems?: IntentPhraseIntentItem[];
   matched: IntentPhrasePreviewMatch[];
@@ -77,23 +83,28 @@ export async function previewIntentPhrase(
   text: string,
   {
     llm = false,
+    source = 'app',
     sampleItems,
     context = 'basket',
     operation,
     items,
   }: {
     llm?: boolean;
+    source?: IntentPreviewSource;
     sampleItems?: IntentPhraseSaveItem[];
     context?: 'basket' | 'proposal';
     operation?: IntentLearningOperation;
     items?: IntentPhraseSaveItem[];
   } = {},
 ): Promise<IntentPhrasePreview> {
+  // app/appLlm run the full pipeline (backend "auto"); the rest pin one tier.
+  const tier = source === 'app' || source === 'appLlm' ? undefined : source;
+  const useLlm = source === 'appLlm' || (source === 'app' && llm);
   const res = await fetch(`${API_URL}/api/businesses/${businessId}/intent-phrases/preview`, {
     method: 'POST',
     headers: await jsonAuthHeaders(),
     body: JSON.stringify({
-      text, llm, sampleItems, context, operation, items,
+      text, llm: useLlm, source: tier, sampleItems, context, operation, items,
     }),
   });
   const data = await res.json().catch(() => ({}));

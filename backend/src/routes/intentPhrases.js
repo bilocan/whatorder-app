@@ -22,6 +22,7 @@ function slimPreview(result) {
     outcome: result.outcome,
     operation: result.operation ?? result.intent?.operation ?? 'add',
     parsedBy: result.intent?.parsedBy ?? null,
+    learnedFrom: result.intent?.learnedFrom ?? null,
     orderLike: result.orderLike ?? false,
     intentItems,
     matched: (result.matched ?? []).map((line) => {
@@ -57,6 +58,8 @@ function slimLearnedMeta(meta) {
     source: meta.source ?? null,
     operation: meta.operation ?? 'add',
     aliasesPromotedAt: meta.aliasesPromotedAt ?? null,
+    seeded: meta.seeded ?? false,
+    seededInRelease: meta.seededInRelease ?? null,
     items: (meta.items ?? []).map((i) => ({
       menuItemId: i.menuItemId ?? null,
       name: i.name,
@@ -103,13 +106,28 @@ function slimOriginalItems(items) {
   }));
 }
 
-// POST /api/businesses/:businessId/intent-phrases/preview  { text, llm? }
+/**
+ * Playground tier selector → evaluateIntent options.
+ * auto = full pipeline (default) · rules/llm = that tier only (learned skipped)
+ * learned = only a learned replay counts · seed = only a baked-seed replay counts
+ */
+function sourceOptions(source, llm) {
+  switch (source) {
+    case 'rules': return { llm: false, skipLearned: true };
+    case 'llm': return { llm: true, skipLearned: true };
+    case 'learned': return { llm: false, skipLearned: false, learnedSource: 'any' };
+    case 'seed': return { llm: false, skipLearned: false, learnedSource: 'seed' };
+    default: return { llm: !!llm, skipLearned: false };
+  }
+}
+
+// POST /api/businesses/:businessId/intent-phrases/preview  { text, llm?, source? }
 router.post(
   '/businesses/:businessId/intent-phrases/preview',
   requireOwnerOfBusiness,
   async (req, res) => {
     const { businessId } = req.params;
-    const { text, llm, sampleItems, context, operation, items: draftItems } = req.body ?? {};
+    const { text, llm, source, sampleItems, context, operation, items: draftItems } = req.body ?? {};
     if (!text?.trim()) return res.status(400).json({ error: 'text is required' });
     try {
       const { menu, menuMatch, menuTokenIndex } = await getMenuContext(businessId);
@@ -119,7 +137,7 @@ router.post(
         menuMatch,
         menuTokenIndex,
         businessId,
-        llm: !!llm,
+        ...sourceOptions(source, llm),
         basket: sample.basket,
         pendingItems: sample.pendingItems,
       });

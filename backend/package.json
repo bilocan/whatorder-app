@@ -14,6 +14,8 @@
     "firestore:reset-production": "node scripts/firestore-reset-production.js",
     "intent:sandbox": "node scripts/intent-sandbox.js",
     "intent:eval": "node scripts/intent-eval.js",
+    "intent:seed-export": "node src/scripts/exportIntentLearningsSeed.js",
+    "intent:seed-verify": "node src/scripts/verifyIntentSeed.js",
     "intent:record": "node scripts/intent-record.js",
     "intent:promote": "node scripts/intent-promote.js",
     "intent:ship": "node scripts/intent-ship.js",

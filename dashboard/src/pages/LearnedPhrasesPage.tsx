@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  collection, onSnapshot, deleteDoc, doc,
+  collection, onSnapshot, deleteDoc, doc, setDoc, arrayUnion, serverTimestamp,
 } from 'firebase/firestore';
 import type { TFunction } from 'i18next';
 import { Link } from 'react-router-dom';
@@ -87,6 +87,8 @@ export default function LearnedPhrasesPage() {
   const confirmDialog = useConfirm();
   const { businessId } = useAuth();
   const [rows, setRows] = useState<IntentLearning[]>([]);
+  const [seededRows, setSeededRows] = useState<IntentLearning[]>([]);
+  const [overrideKeys, setOverrideKeys] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -128,9 +130,74 @@ export default function LearnedPhrasesPage() {
     return unsub;
   }, [businessId, t]);
 
+  // Learnings archived into the baked app seed at release (seededIntents).
+  useEffect(() => {
+    if (!businessId) {
+      setSeededRows([]);
+      return undefined;
+    }
+    const ref = collection(db, 'businesses', businessId, 'seededIntents');
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        const next = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            textKey: String(data.textKey ?? ''),
+            items: Array.isArray(data.items) ? data.items : [],
+            operation: data.operation === 'remove' ? 'remove' : 'add',
+            hitCount: Number(data.hitCount) || 0,
+            source: data.source,
+            partySize: data.partySize ?? null,
+            aliasesPromotedAt: data.aliasesPromotedAt ?? null,
+            promotedAliases: data.promotedAliases,
+            updatedAt: data.updatedAt ?? null,
+            createdAt: data.createdAt ?? null,
+            seeded: true,
+            seededInRelease: data.seededInRelease ?? null,
+          } as IntentLearning;
+        });
+        setSeededRows(next);
+      },
+      (err) => {
+        console.error('[LearnedPhrases] seededIntents listener failed:', err);
+      },
+    );
+    return unsub;
+  }, [businessId]);
+
+  // Overridden textKeys: corrections/deletions that shadow the baked seed.
+  useEffect(() => {
+    if (!businessId) {
+      setOverrideKeys(new Set());
+      return undefined;
+    }
+    const ref = doc(db, 'businesses', businessId, 'config', 'seedOverrides');
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        const list = snap.exists() ? snap.data()?.textKeys : null;
+        setOverrideKeys(new Set(Array.isArray(list) ? list.map(String) : []));
+      },
+      (err) => {
+        console.error('[LearnedPhrases] seedOverrides listener failed:', err);
+      },
+    );
+    return unsub;
+  }, [businessId]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = [...rows].sort((a, b) => (b.hitCount ?? 0) - (a.hitCount ?? 0)
+    // Live rows win over their archived seed copy (a correction shadows the seed).
+    const liveKeys = new Set(rows.map((r) => r.textKey));
+    const merged = [
+      ...rows,
+      ...seededRows
+        .filter((s) => !liveKeys.has(s.textKey))
+        .map((s) => (overrideKeys.has(s.textKey) ? { ...s, overridden: true } : s)),
+    ];
+    const list = merged.sort((a, b) => (b.hitCount ?? 0) - (a.hitCount ?? 0)
       || String(b.textKey).localeCompare(String(a.textKey)));
     if (!q) return list;
     return list.filter((row) => {
@@ -142,18 +209,41 @@ export default function LearnedPhrasesPage() {
       ].join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, search]);
+  }, [rows, seededRows, overrideKeys, search]);
+
+  /** The baked seed can't be edited until next release — an override entry disables it. */
+  async function writeSeedOverride(textKey: string) {
+    if (!businessId) return;
+    await setDoc(doc(db, 'businesses', businessId, 'config', 'seedOverrides'), {
+      textKeys: arrayUnion(textKey),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  }
 
   async function handleDelete(row: IntentLearning) {
     if (!businessId) return;
     const promoted = !!row.aliasesPromotedAt;
-    const message = promoted
-      ? t('learnedPhrases.delete.messagePromoted', { phrase: row.textKey })
-      : t('learnedPhrases.delete.message', { phrase: row.textKey });
+    let message: string;
+    if (row.seeded) {
+      message = t('learnedPhrases.delete.messageSeeded', { phrase: row.textKey });
+    } else if (promoted) {
+      message = t('learnedPhrases.delete.messagePromoted', { phrase: row.textKey });
+    } else {
+      message = t('learnedPhrases.delete.message', { phrase: row.textKey });
+    }
     if (!(await confirmDialog(message))) return;
     setDeletingId(row.id);
     try {
-      await deleteDoc(doc(db, 'businesses', businessId, 'intentLearnings', row.id));
+      if (row.seeded) {
+        await writeSeedOverride(row.textKey);
+      } else {
+        await deleteDoc(doc(db, 'businesses', businessId, 'intentLearnings', row.id));
+        // If this phrase also ships in the seed, deleting the live row alone
+        // would let the baked entry resurface — disable it too.
+        if (seededRows.some((s) => s.textKey === row.textKey)) {
+          await writeSeedOverride(row.textKey);
+        }
+      }
     } finally {
       setDeletingId(null);
     }
@@ -242,9 +332,34 @@ export default function LearnedPhrasesPage() {
                     <td style={{ padding: '0.65rem 0.75rem' }}>{row.hitCount ?? 0}</td>
                     <td style={{ padding: '0.65rem 0.75rem' }}>{sourceLabel(row.source)}</td>
                     <td style={{ padding: '0.65rem 0.75rem' }}>
-                      {row.aliasesPromotedAt
-                        ? t('learnedPhrases.status.promoted')
-                        : t('learnedPhrases.status.cacheOnly')}
+                      {row.overridden ? (
+                        <span style={{ color: '#9ca3af' }}>{t('learnedPhrases.status.overridden')}</span>
+                      ) : (
+                        <>
+                          {row.seeded && (
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '0.1rem 0.45rem',
+                                marginRight: '0.35rem',
+                                borderRadius: 999,
+                                background: '#eef2ff',
+                                color: '#4338ca',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                              }}
+                              title={row.seededInRelease ?? undefined}
+                            >
+                              {row.seededInRelease
+                                ? t('learnedPhrases.status.seededRelease', { release: row.seededInRelease })
+                                : t('learnedPhrases.status.seeded')}
+                            </span>
+                          )}
+                          {row.aliasesPromotedAt
+                            ? t('learnedPhrases.status.promoted')
+                            : t('learnedPhrases.status.cacheOnly')}
+                        </>
+                      )}
                     </td>
                     <td style={{ padding: '0.65rem 0.75rem', color: '#666', whiteSpace: 'nowrap' }}>
                       {formatRelativeTime(updated, t)}
@@ -259,10 +374,10 @@ export default function LearnedPhrasesPage() {
                       <button
                         type="button"
                         onClick={() => handleDelete(row)}
-                        disabled={deletingId === row.id}
+                        disabled={deletingId === row.id || row.overridden}
                         style={{
                           ...btnIconDelete,
-                          opacity: deletingId === row.id ? 0.5 : 1,
+                          opacity: deletingId === row.id || row.overridden ? 0.5 : 1,
                         }}
                         aria-label={t('learnedPhrases.delete.confirm')}
                       >

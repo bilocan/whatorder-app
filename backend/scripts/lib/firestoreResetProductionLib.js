@@ -35,6 +35,7 @@ const INFRA_COLLECTION_IDS = [
   'menu',
   'optionGroups',
   'intentLearnings',
+  'seededIntents',
   'phoneRouting',
   'owners',
   'admins',
