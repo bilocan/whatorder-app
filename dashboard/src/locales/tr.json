@@ -49,7 +49,27 @@
   },
   "orders": {
     "title": "Siparişler",
+    "board": {
+      "title": "Mutfak panosu",
+      "new": "YENİ",
+      "close": "✕ Kapat",
+      "waitingSince": "Siparişten beri bekliyor",
+      "openFull": "Tam sipariş detayını aç",
+      "terminal": "Bu sipariş {{status}} — başka işlem yok.",
+      "col": {
+        "new": "Yeni",
+        "preparing": "Hazırlık",
+        "delivery": "Teslimat",
+        "done": "Bitti"
+      },
+      "elapsed": {
+        "justNow": "Az önce",
+        "minutesAgo": "{{count}} dk önce",
+        "hoursAgo": "{{hours}}sa {{minutes}}dk önce"
+      }
+    },
     "noOrders": "Henüz sipariş yok.",
+    "noOrdersForDay": "Bu güne ait sipariş yok.",
     "phoneLineScope": "Yalnızca bu WhatsApp hattındaki siparişler gösteriliyor.",
     "col": {
       "orderNumber": "Sipariş #",
@@ -70,6 +90,10 @@
     "deliveryFee": "+ €{{fee}} teslimat ücreti",
     "filter": {
       "label": "Göster",
+      "day": "Gün",
+      "today": "Bugün",
+      "prevDay": "Önceki gün",
+      "nextDay": "Sonraki gün",
       "active": "Aktif siparişler",
       "completed2w": "Tamamlanan — son 2 hafta",
       "completedCustom": "Tamamlanan — özel aralık",

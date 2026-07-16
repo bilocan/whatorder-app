@@ -1,12 +1,14 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import OrdersPage from '../pages/OrdersPage'
+import { localDayKey } from '../lib/orderBoardColumns'
 
-const { mockUseAuth, mockOnSnapshot } = vi.hoisted(() => ({
+const { mockUseAuth, mockOnSnapshot, mockPostOrderAction } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
   mockOnSnapshot: vi.fn(),
+  mockPostOrderAction: vi.fn(),
 }))
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: mockUseAuth }))
@@ -17,6 +19,19 @@ vi.mock('firebase/firestore', () => ({
   orderBy: vi.fn(),
   onSnapshot: mockOnSnapshot,
 }))
+vi.mock('../lib/orderActions', async () => {
+  const actual = await vi.importActual<typeof import('../lib/orderActions')>('../lib/orderActions')
+  return {
+    ...actual,
+    postOrderAction: mockPostOrderAction,
+  }
+})
+
+const TODAY = new Date().toISOString()
+const TODAY_KEY = localDayKey()
+const YESTERDAY_MS = Date.now() - 24 * 60 * 60 * 1000
+const YESTERDAY_KEY = localDayKey(YESTERDAY_MS)
+const YESTERDAY = new Date(YESTERDAY_MS).toISOString()
 
 const ORDERS = [
   {
@@ -27,7 +42,7 @@ const ORDERS = [
     items: [{ name: 'Döner', qty: 2, price: 8.5 }],
     total: 17.0,
     status: 'pending',
-    createdAt: '2026-06-09T10:00:00.000Z',
+    createdAt: TODAY,
   },
   {
     id: 'o2',
@@ -37,7 +52,7 @@ const ORDERS = [
     items: [{ name: 'Falafel', qty: 1, price: 7.0 }, { name: 'Ayran', qty: 1, price: 2.0 }],
     total: 9.0,
     status: 'ready',
-    createdAt: '2026-06-09T09:00:00.000Z',
+    createdAt: TODAY,
   },
   {
     id: 'o3',
@@ -47,13 +62,27 @@ const ORDERS = [
     items: [{ name: 'Wrap', qty: 1, price: 6.5 }],
     total: 6.5,
     status: 'completed',
-    // 2 days ago, relative to "now" so it reliably falls within the "last 2 weeks" filter
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    completedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'o4',
+    customerId: 'c4',
+    customerName: 'Old Pending',
+    customerPhone: '+43 660 444444',
+    items: [{ name: 'Lahmacun', qty: 1, price: 5.0 }],
+    total: 5.0,
+    status: 'pending',
+    createdAt: YESTERDAY,
   },
 ]
 
-function renderPage() {
-  return render(<MemoryRouter><OrdersPage /></MemoryRouter>)
+function renderPage(initialEntry = '/orders') {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <OrdersPage />
+    </MemoryRouter>,
+  )
 }
 
 describe('OrdersPage', () => {
@@ -61,25 +90,27 @@ describe('OrdersPage', () => {
     vi.clearAllMocks()
     vi.stubEnv('VITE_WHATSAPP_PHONE_NUMBER_ID', '')
     mockUseAuth.mockReturnValue({ businessId: 'biz-1' })
+    mockPostOrderAction.mockResolvedValue({ ok: true, nextStatus: 'approved' })
   })
 
-  it('shows empty state when there are no orders', () => {
+  it('shows empty state when there are no orders for the day', () => {
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({ docs: [] })
       return vi.fn()
     })
     renderPage()
-    expect(screen.getByText('No orders yet.')).toBeInTheDocument()
+    expect(screen.getByText('No orders for this day.')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Kitchen board' })).not.toBeInTheDocument()
   })
 
   it('does not subscribe when businessId is null', () => {
     mockUseAuth.mockReturnValue({ businessId: null })
     renderPage()
     expect(mockOnSnapshot).not.toHaveBeenCalled()
-    expect(screen.getByText('No orders yet.')).toBeInTheDocument()
+    expect(screen.getByText('No orders for this day.')).toBeInTheDocument()
   })
 
-    it('hides orders from other WhatsApp lines when VITE_WHATSAPP_PHONE_NUMBER_ID is set', () => {
+  it('hides orders from other WhatsApp lines when VITE_WHATSAPP_PHONE_NUMBER_ID is set', () => {
     vi.stubEnv('VITE_WHATSAPP_PHONE_NUMBER_ID', 'line_a')
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({
@@ -91,30 +122,71 @@ describe('OrdersPage', () => {
       return vi.fn()
     })
     renderPage()
-    expect(screen.getByRole('link', { name: 'Ali Veli' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Max Muster' })).not.toBeInTheDocument()
+    expect(screen.getByText('Ali Veli')).toBeInTheDocument()
+    expect(screen.queryByText('Max Muster')).not.toBeInTheDocument()
     vi.unstubAllEnvs()
   })
 
-  it('renders customer names and links for active orders, hides completed by default', () => {
+  it('renders kitchen board for today only (hides older open orders)', () => {
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
       return vi.fn()
     })
     renderPage()
-    expect(screen.getByRole('link', { name: 'Ali Veli' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Max Muster' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Sara Schmidt' })).not.toBeInTheDocument()
+    expect(screen.getByText('Kitchen board')).toBeInTheDocument()
+    expect(screen.getByLabelText('Day')).toHaveValue(localDayKey())
+    expect(screen.getByText('New')).toBeInTheDocument()
+    expect(screen.getByText('Preparing')).toBeInTheDocument()
+    expect(screen.getByText('Delivery')).toBeInTheDocument()
+    expect(screen.getByText('Done')).toBeInTheDocument()
+    expect(screen.getByText('Ali Veli')).toBeInTheDocument()
+    expect(screen.getByText('Max Muster')).toBeInTheDocument()
+    expect(screen.queryByText('Sara Schmidt')).not.toBeInTheDocument()
+    expect(screen.queryByText('Old Pending')).not.toBeInTheDocument()
   })
 
-  it('shows completed orders when the "last 2 weeks" filter is selected', async () => {
+  it('day picker shows orders for the chosen day', () => {
+    mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+      cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage(`/orders?day=${YESTERDAY_KEY}`)
+    expect(screen.getByLabelText('Day')).toHaveValue(YESTERDAY_KEY)
+    expect(screen.getByText('Old Pending')).toBeInTheDocument()
+    expect(screen.queryByText('Ali Veli')).not.toBeInTheDocument()
+  })
+
+  it('previous/next day buttons step the board day without relying on the date picker', async () => {
+    mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+      cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage()
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.getByLabelText('Next day')).toBeDisabled()
+    await userEvent.click(screen.getByLabelText('Previous day'))
+    expect(screen.getByLabelText('Day')).toHaveValue(YESTERDAY_KEY)
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
+    expect(screen.getByText('Old Pending')).toBeInTheDocument()
+    expect(screen.getByLabelText('Next day')).not.toBeDisabled()
+    await userEvent.click(screen.getByLabelText('Next day'))
+    expect(screen.getByLabelText('Day')).toHaveValue(TODAY_KEY)
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.getByLabelText('Next day')).toBeDisabled()
+  })
+
+  it('shows completed orders as a table when the "last 2 weeks" filter is selected', async () => {
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
       return vi.fn()
     })
     renderPage()
     await userEvent.selectOptions(screen.getByLabelText('Show'), 'completed-2w')
+    expect(screen.getByText('Orders')).toBeInTheDocument()
+    expect(screen.queryByText('Kitchen board')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Day')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Sara Schmidt' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Order #' })).toBeInTheDocument()
   })
 
   it('renders item lists correctly', () => {
@@ -123,8 +195,8 @@ describe('OrdersPage', () => {
       return vi.fn()
     })
     renderPage()
-    expect(screen.getByText('2x Döner')).toBeInTheDocument()
-    expect(screen.getByText('1x Falafel, 1x Ayran')).toBeInTheDocument()
+    expect(screen.getByText('2× Döner')).toBeInTheDocument()
+    expect(screen.getByText('1× Falafel, 1× Ayran')).toBeInTheDocument()
   })
 
   it('renders totals formatted to 2 decimal places for active orders', () => {
@@ -149,27 +221,34 @@ describe('OrdersPage', () => {
     expect(screen.queryByText('Completed')).not.toBeInTheDocument()
   })
 
-  it('renders the order number derived from the doc id', () => {
+  it('opens a modal with order details when a card is clicked', async () => {
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
       return vi.fn()
     })
     renderPage()
-    expect(screen.getByText('#O1')).toBeInTheDocument()
-    expect(screen.getByText('#O2')).toBeInTheDocument()
+    await userEvent.click(screen.getByText('Ali Veli'))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('Ali Veli')).toBeInTheDocument()
+    expect(within(dialog).getByText(/#O1/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: 'Open full order details' })).toHaveAttribute(
+      'href',
+      '/orders/o1',
+    )
   })
 
-  it('renders a non-empty timestamp for each order', () => {
+  it('runs the primary quick action from a card', async () => {
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
       return vi.fn()
     })
     renderPage()
-    const rows = screen.getAllByRole('row').slice(1) // skip header
-    rows.forEach((row) => {
-      const cells = row.querySelectorAll('td')
-      const timeCell = cells[cells.length - 1]
-      expect(timeCell.textContent).not.toBe('')
-    })
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    expect(mockPostOrderAction).toHaveBeenCalledWith(
+      'biz-1',
+      'o1',
+      'approve',
+      expect.objectContaining({ etaMinutes: 30 }),
+    )
   })
 })
