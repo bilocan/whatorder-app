@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
@@ -35,6 +35,8 @@ export default function SettingsPage() {
     0: null, 1: { ...DEFAULT_DAY }, 2: { ...DEFAULT_DAY },
     3: { ...DEFAULT_DAY }, 4: { ...DEFAULT_DAY }, 5: { ...DEFAULT_DAY }, 6: null,
   });
+  /** Last open times per day while marked closed in the UI (session-only; avoids wipe on accidental toggle). */
+  const closedDayDraftsRef = useRef<Partial<Record<number, DaySchedule>>>({});
   const [scheduleSaveStatus, setScheduleSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [botLanguage, setBotLanguage] = useState<'de' | 'tr' | 'en'>('de');
   const [langSaveStatus, setLangSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -175,10 +177,15 @@ export default function SettingsPage() {
   }
 
   function toggleDayOpen(d: number) {
-    setDayMap(prev => ({
-      ...prev,
-      [d]: prev[d] ? null : { ...DEFAULT_DAY },
-    }));
+    setDayMap(prev => {
+      const current = prev[d];
+      if (current) {
+        closedDayDraftsRef.current[d] = { ...current };
+        return { ...prev, [d]: null };
+      }
+      const draft = closedDayDraftsRef.current[d];
+      return { ...prev, [d]: draft ? { ...draft } : { ...DEFAULT_DAY } };
+    });
   }
 
   function updateDayField(d: number, field: keyof DaySchedule, value: string) {
