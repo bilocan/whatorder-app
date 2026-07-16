@@ -49,6 +49,25 @@
   },
   "orders": {
     "title": "Bestellungen",
+    "board": {
+      "title": "Küchenbrett",
+      "new": "NEU",
+      "close": "✕ Schließen",
+      "waitingSince": "Wartet seit Bestellung",
+      "openFull": "Vollständige Bestelldetails öffnen",
+      "terminal": "Diese Bestellung ist {{status}} — keine weitere Aktion.",
+      "col": {
+        "new": "Neu",
+        "preparing": "Zubereitung",
+        "delivery": "Lieferung",
+        "done": "Erledigt"
+      },
+      "elapsed": {
+        "justNow": "Gerade eben",
+        "minutesAgo": "vor {{count}} Min.",
+        "hoursAgo": "vor {{hours}}h {{minutes}}m"
+      }
+    },
     "noOrders": "Noch keine Bestellungen.",
     "phoneLineScope": "Nur Bestellungen über diese WhatsApp-Leitung.",
     "col": {

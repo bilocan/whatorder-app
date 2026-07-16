@@ -11,9 +11,10 @@ nav item shows the item list with availability toggles. Other nav items are plac
 - `data.js` — fake orders + menu.
 - `Sidebar.jsx` — nav + presence panel (composes `BrandLogo`).
 - `LoginScreen.jsx` — phone OTP login (composes `Card`, `Input`, `Button`).
-- `OrdersScreen.jsx` — orders table (composes `StatusBadge`, `PaymentBadge`, `Select`).
+- `OrdersScreen.jsx` — legacy orders table kit (composes `StatusBadge`, `PaymentBadge`, `Select`).
 - `OrderDetailScreen.jsx` — detail + lifecycle actions (composes `Button` with `tone`).
 - `MenuScreen.jsx` — menu by category with availability toggles.
+- `Dashboard-Improvements.dc.html` — Claude Design exploration (1a priority list vs **1b kitchen board**; production chose 1b).
 
 Composes the shared primitives from `window.WhatOrderDesignSystem_b54bed`; it does not
 re-implement them.

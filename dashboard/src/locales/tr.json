@@ -49,6 +49,25 @@
   },
   "orders": {
     "title": "Siparişler",
+    "board": {
+      "title": "Mutfak panosu",
+      "new": "YENİ",
+      "close": "✕ Kapat",
+      "waitingSince": "Siparişten beri bekliyor",
+      "openFull": "Tam sipariş detayını aç",
+      "terminal": "Bu sipariş {{status}} — başka işlem yok.",
+      "col": {
+        "new": "Yeni",
+        "preparing": "Hazırlık",
+        "delivery": "Teslimat",
+        "done": "Bitti"
+      },
+      "elapsed": {
+        "justNow": "Az önce",
+        "minutesAgo": "{{count}} dk önce",
+        "hoursAgo": "{{hours}}sa {{minutes}}dk önce"
+      }
+    },
     "noOrders": "Henüz sipariş yok.",
     "phoneLineScope": "Yalnızca bu WhatsApp hattındaki siparişler gösteriliyor.",
     "col": {

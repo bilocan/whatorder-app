@@ -4,48 +4,19 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import type { Order, OrderStatus } from '../types';
+import type { Order } from '../types';
 import { toDate } from '../types';
 import { paymentBadge } from '../lib/paymentBadge';
 import { shortId } from '../lib/shortId';
-
-import { API_URL } from '../lib/apiUrl';
-import { authHeaders, jsonAuthHeaders } from '../lib/apiAuth';
+import {
+  DEFAULT_APPROVE_ETA_MINUTES,
+  getActionButtons,
+  postOrderAction,
+} from '../lib/orderActions';
 import { matchesActivePhoneRouting } from '../lib/orderPhoneFilter';
 import type { DashboardT } from '../i18n';
 import StatusBadge from '../components/StatusBadge';
 import PaymentBadge from '../components/PaymentBadge';
-
-type ActionVariant = 'primary' | 'danger';
-type ActionTone = 'preparing' | 'ready' | 'on_the_way' | 'delivered';
-type ActionButton = {
-  labelKey: string;
-  action: string;
-  variant?: ActionVariant;
-  tone?: ActionTone;
-};
-
-function getActionButtons(status: OrderStatus, orderType?: string): ActionButton[] {
-  switch (status) {
-    case 'pending':
-      return [
-        { labelKey: 'orderDetail.action.approve', action: 'approve', variant: 'primary' },
-        { labelKey: 'orderDetail.action.reject', action: 'reject', variant: 'danger' },
-      ];
-    case 'approved':
-      return [{ labelKey: 'orderDetail.action.prepare', action: 'prepare', tone: 'preparing' }];
-    case 'preparing':
-      return orderType === 'delivery'
-        ? [{ labelKey: 'orderDetail.action.onTheWay', action: 'on-the-way', tone: 'on_the_way' }]
-        : [{ labelKey: 'orderDetail.action.markReady', action: 'ready', tone: 'ready' }];
-    case 'ready':
-      return [{ labelKey: 'orderDetail.action.pickedUp', action: 'picked-up', tone: 'delivered' }];
-    case 'on_the_way':
-      return [{ labelKey: 'orderDetail.action.delivered', action: 'delivered', tone: 'delivered' }];
-    default:
-      return [];
-  }
-}
 
 function SettlementStatusLine({ order, t }: { order: Order; t: DashboardT }) {
   if (order.settlementStatus === 'paid_out' && order.paidAt) {
@@ -122,7 +93,7 @@ export default function OrderDetailPage() {
   const [orderLoaded, setOrderLoaded] = useState(false);
   const [actionError, setActionError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [etaMinutes, setEtaMinutes] = useState(30);
+  const [etaMinutes, setEtaMinutes] = useState(DEFAULT_APPROVE_ETA_MINUTES);
 
   useEffect(() => {
     if (!orderId || !businessId) return;
@@ -139,32 +110,12 @@ export default function OrderDetailPage() {
     setLoading(true);
     setActionError('');
     try {
-      const headers = action === 'approve'
-        ? await jsonAuthHeaders()
-        : await authHeaders();
-      const res = await fetch(`${API_URL}/api/businesses/${businessId}/orders/${orderId}/${action}`, {
-        method: 'POST',
-        headers,
-        ...(action === 'approve' && {
-          body: JSON.stringify({ etaMinutes }),
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setActionError(body.error ?? `Request failed (${res.status})`);
+      const result = await postOrderAction(businessId, orderId, action, { etaMinutes });
+      if (!result.ok) {
+        setActionError(result.error);
         return;
       }
-      const nextStatus: Record<string, OrderStatus> = {
-        approve: 'approved',
-        reject: 'rejected',
-        prepare: 'preparing',
-        ready: 'ready',
-        'on-the-way': 'on_the_way',
-        'picked-up': 'picked_up',
-        delivered: 'delivered',
-        cancel: 'cancelled',
-      };
-      if (nextStatus[action]) setOrder((o) => (o ? { ...o, status: nextStatus[action] } : o));
+      setOrder((o) => (o ? { ...o, status: result.nextStatus } : o));
     } catch {
       setActionError(t('orderDetail.networkError'));
     } finally {

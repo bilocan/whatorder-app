@@ -30,6 +30,11 @@ export interface Order {
   createdAt: Timestamp | string | null;
   readyAt?: string;
   completedAt?: string;
+  deliveredAt?: string;
+  pickedUpAt?: string;
+  rejectedAt?: string;
+  cancelledAt?: string;
+  updatedAt?: Timestamp | string | null;
   pickupTime?: string;
   prepMins?: number;
   orderType?: 'pickup' | 'delivery';
