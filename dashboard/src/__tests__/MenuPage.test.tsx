@@ -103,7 +103,7 @@ describe('MenuPage', () => {
       return vi.fn()
     })
     renderPage()
-    expect(screen.getAllByTitle('Edit').length).toBe(3)
+    expect(screen.getAllByRole('button', { name: 'Edit' }).length).toBe(3)
     expect(screen.getAllByTitle('Delete').length).toBe(3)
   })
 
@@ -116,12 +116,53 @@ describe('MenuPage', () => {
     expect(screen.getByText('+ Add item')).toBeInTheDocument()
   })
 
+  it('collapses a category to hide its items and expands again', () => {
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage()
+    expect(screen.getByText('Döner')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Mains' }))
+    expect(screen.queryByText('Döner')).not.toBeInTheDocument()
+    expect(screen.queryByText('Falafel')).not.toBeInTheDocument()
+    expect(screen.getByText('Ayran')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Mains' }))
+    expect(screen.getByText('Döner')).toBeInTheDocument()
+    expect(screen.getByText('Falafel')).toBeInTheDocument()
+  })
+
   it('opens edit form when navigated with ?edit=itemId', async () => {
     mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
       cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
       return vi.fn()
     })
     renderPage('/menu?edit=m1')
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Save')).toBeInTheDocument()
+  })
+
+  it('force-expands a collapsed category for ?edit= deep link', async () => {
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage('/menu?edit=m1')
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Collapse Mains' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('opens the full edit form when Edit pill is clicked', async () => {
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
     await waitFor(() => {
       expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
     })

@@ -338,6 +338,8 @@
     "deleteConfirm": "Delete this item?",
     "available": "Available",
     "unavailable": "Off",
+    "expandCategory": "Expand {{category}}",
+    "collapseCategory": "Collapse {{category}}",
     "form": {
       "name": "Name",
       "price": "Price (€)",
