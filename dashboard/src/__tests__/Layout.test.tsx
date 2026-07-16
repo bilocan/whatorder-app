@@ -28,9 +28,18 @@ vi.mock('firebase/firestore', () => ({
 }))
 vi.mock('../lib/firebase', () => ({ db: {} }))
 vi.mock('react-router-dom', () => ({
-  NavLink: ({ to, children }: { to: string; children: React.ReactNode; style: unknown }) => (
-    <a href={to}>{children}</a>
-  ),
+  NavLink: ({
+    to,
+    children,
+    className,
+  }: {
+    to: string
+    children: React.ReactNode
+    className?: string | ((args: { isActive: boolean }) => string)
+  }) => {
+    const cls = typeof className === 'function' ? className({ isActive: false }) : className
+    return <a href={to} className={cls}>{children}</a>
+  },
   Outlet: () => <div data-testid="outlet" />,
   useLocation: () => ({ pathname: '/orders' }),
 }))

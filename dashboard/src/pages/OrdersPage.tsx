@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,25 +10,15 @@ import { paymentBadge } from '../lib/paymentBadge';
 import { shortId } from '../lib/shortId';
 import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
 import { getActivePhoneNumberId } from '../lib/activePhoneNumberId';
+import StatusBadge from '../components/StatusBadge';
+import PaymentBadge from '../components/PaymentBadge';
 
 const TERMINAL_STATUSES = new Set<OrderStatus>(['delivered', 'picked_up', 'rejected', 'cancelled', 'completed']);
-
-const statusColor: Record<string, string> = {
-  pending:    '#f59e0b',
-  approved:   '#a855f7',
-  preparing:  '#f97316',
-  ready:      '#3b82f6',
-  on_the_way: '#06b6d4',
-  picked_up:  '#22c55e',
-  delivered:  '#22c55e',
-  rejected:   '#ef4444',
-  cancelled:  '#6b7280',
-  completed:  '#22c55e',
-};
 
 export default function OrdersPage() {
   const { t } = useTranslation();
   const { businessId } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const activePhoneNumberId = getActivePhoneNumberId();
   const location = useLocation();
@@ -87,164 +77,157 @@ export default function OrdersPage() {
       const fromTime = customFrom ? new Date(customFrom).getTime() : -Infinity;
       const toTime = customTo ? new Date(customTo).getTime() + 24 * 60 * 60 * 1000 - 1 : Infinity;
       visibleOrders = completed.filter((o) => {
-        const t = toDate(o.createdAt).getTime();
-        return t >= fromTime && t <= toTime;
+        const created = toDate(o.createdAt).getTime();
+        return created >= fromTime && created <= toTime;
       });
     }
   }
 
+  function orderHref(id: string) {
+    return `/orders/${id}${location.search}`;
+  }
+
+  function openOrder(id: string) {
+    navigate(orderHref(id));
+  }
+
+  function statusLabel(status: OrderStatus | string) {
+    return t(`orderDetail.status.${status}`, { defaultValue: status });
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+      <div className="orders-header">
         <h2>{t('orders.title')}</h2>
         {activePhoneNumberId && (
-          <p style={{ margin: 0, fontSize: '0.78rem', color: '#666', flexBasis: '100%' }}>{t('orders.phoneLineScope')}</p>
+          <p className="orders-phone-scope">{t('orders.phoneLineScope')}</p>
         )}
-        <div style={{ position: 'relative', display: 'inline-block' }}>
+        <div className="orders-filter-wrap">
           <select
+            className="orders-filter"
             value={filter}
             onChange={(e) => setFilter(e.target.value as 'active' | 'completed-2w' | 'completed-custom')}
             aria-label={t('orders.filter.label')}
-            style={{
-              padding: '0.35rem 2rem 0.35rem 0.6rem',
-              fontSize: '0.78rem',
-              color: '#555',
-              background: '#f9fafb',
-              border: '1px solid #e5e7eb',
-              borderRadius: 6,
-              cursor: 'pointer',
-              appearance: 'none',
-              WebkitAppearance: 'none',
-              outline: 'none',
-            }}
           >
             <option value="active">{t('orders.filter.active')}</option>
             <option value="completed-2w">{t('orders.filter.completed2w')}</option>
             <option value="completed-custom">{t('orders.filter.completedCustom')}</option>
           </select>
-          <span style={{
-            position: 'absolute',
-            right: '0.5rem',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            pointerEvents: 'none',
-            fontSize: '0.6rem',
-            color: '#999',
-          }}>
-            ▼
-          </span>
+          <span className="orders-filter-chevron" aria-hidden>▼</span>
         </div>
         {filter === 'completed-custom' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: '#555' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <div className="orders-date-range">
+            <label>
               {t('orders.filter.from')}
               <input
+                className="orders-date-input"
                 type="date"
                 value={customFrom}
                 onChange={(e) => setCustomFrom(e.target.value)}
-                style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem', border: '1px solid #e5e7eb', borderRadius: 6, outline: 'none' }}
               />
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <label>
               {t('orders.filter.to')}
               <input
+                className="orders-date-input"
                 type="date"
                 value={customTo}
                 onChange={(e) => setCustomTo(e.target.value)}
-                style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem', border: '1px solid #e5e7eb', borderRadius: 6, outline: 'none' }}
               />
             </label>
           </div>
         )}
       </div>
-      {visibleOrders.length === 0 && <p style={{ color: '#999' }}>{t('orders.noOrders')}</p>}
-      <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
-        <thead>
-          <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
-            <th style={{ padding: '0.5rem' }}>{t('orders.col.orderNumber')}</th>
-            <th style={{ padding: '0.5rem' }}>{t('orders.col.customer')}</th>
-            <th style={{ padding: '0.5rem' }}>{t('orders.col.items')}</th>
-            <th style={{ padding: '0.5rem' }}>{t('orders.col.total')}</th>
-            <th style={{ padding: '0.5rem' }}>{t('orders.col.payment')}</th>
-            <th style={{ padding: '0.5rem' }}>{t('orders.col.status')}</th>
-            <th style={{ padding: '0.5rem' }}>{t('orders.col.time')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visibleOrders.map((order) => (
-            <tr key={order.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', fontFamily: 'monospace' }}>
-                <Link to={`/orders/${order.id}${location.search}`} style={{ color: '#666', textDecoration: 'none' }}>
-                  #{shortId(order.id)}
-                </Link>
-              </td>
-              <td style={{ padding: '0.75rem 0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  <Link to={`/orders/${order.id}${location.search}`} style={{ fontWeight: 600, color: '#000', textDecoration: 'none' }}>
-                    {order.customerName}
-                  </Link>
-                  {order.orderType === 'delivery' && (
-                    <span style={{ background: '#0ea5e922', color: '#0ea5e9', padding: '0.1rem 0.5rem', borderRadius: 999, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.02em' }}>
-                      {t('orders.delivery')}
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#999' }}>{order.customerPhone}</div>
-                {order.orderType === 'delivery' && order.deliveryAddress && (
-                  <div style={{ fontSize: '0.75rem', color: '#0ea5e9', marginTop: '0.1rem' }}>
-                    🚚 {order.deliveryAddress}
-                  </div>
-                )}
-              </td>
-              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.9rem' }}>
-                {order.items.map((i) => `${i.qty}x ${i.name}`).join(', ')}
-              </td>
-              <td style={{ padding: '0.75rem 0.5rem', fontWeight: 600 }}>
-                €{order.total.toFixed(2)}
-                {order.orderType === 'delivery' && order.deliveryFee ? (
-                  <div style={{ fontSize: '0.72rem', color: '#999', fontWeight: 400 }}>
-                    {t('orders.deliveryFee', { fee: order.deliveryFee.toFixed(2) })}
-                  </div>
-                ) : null}
-              </td>
-              <td style={{ padding: '0.75rem 0.5rem' }}>
-                {(() => {
-                  const badge = paymentBadge(order, t);
-                  return (
-                    <span style={{
-                      background: badge.color + '22',
-                      color: badge.color,
-                      padding: '0.2rem 0.6rem',
-                      borderRadius: 999,
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                    }}>
-                      {badge.label}
-                    </span>
-                  );
-                })()}
-              </td>
-              <td style={{ padding: '0.75rem 0.5rem' }}>
-                <span style={{
-                  background: statusColor[order.status] + '22',
-                  color: statusColor[order.status],
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: 999,
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  textTransform: 'capitalize',
-                }}>
-                  {order.status}
-                </span>
-              </td>
-              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', color: '#666' }}>
-                {toDate(order.createdAt).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
-              </td>
+      {visibleOrders.length === 0 && <p className="orders-empty">{t('orders.noOrders')}</p>}
+      <div className="orders-table-wrap">
+        <table className="orders-table">
+          <thead>
+            <tr>
+              <th>{t('orders.col.orderNumber')}</th>
+              <th>{t('orders.col.customer')}</th>
+              <th>{t('orders.col.items')}</th>
+              <th>{t('orders.col.total')}</th>
+              <th>{t('orders.col.payment')}</th>
+              <th>{t('orders.col.status')}</th>
+              <th>{t('orders.col.time')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {visibleOrders.map((order) => {
+              const pay = paymentBadge(order, t);
+              return (
+                <tr
+                  key={order.id}
+                  className="orders-row"
+                  tabIndex={0}
+                  onClick={() => openOrder(order.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      openOrder(order.id);
+                    }
+                  }}
+                >
+                  <td>
+                    <Link
+                      className="orders-id"
+                      to={orderHref(order.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      #{shortId(order.id)}
+                    </Link>
+                  </td>
+                  <td>
+                    <div className="orders-customer-meta">
+                      <Link
+                        className="orders-customer-name"
+                        to={orderHref(order.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {order.customerName}
+                      </Link>
+                      {order.orderType === 'delivery' && (
+                        <span className="delivery-pill">{t('orders.delivery')}</span>
+                      )}
+                    </div>
+                    <div className="orders-phone">{order.customerPhone}</div>
+                    {order.orderType === 'delivery' && order.deliveryAddress && (
+                      <div className="orders-address">
+                        🚚 {order.deliveryAddress}
+                      </div>
+                    )}
+                  </td>
+                  <td className="orders-items">
+                    {order.items.map((i) => `${i.qty}x ${i.name}`).join(', ')}
+                  </td>
+                  <td className="orders-total">
+                    €{order.total.toFixed(2)}
+                    {order.orderType === 'delivery' && order.deliveryFee ? (
+                      <div className="orders-fee">
+                        {t('orders.deliveryFee', { fee: order.deliveryFee.toFixed(2) })}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td>
+                    <PaymentBadge kind={pay.kind} label={pay.label} />
+                  </td>
+                  <td>
+                    <StatusBadge status={order.status} label={statusLabel(order.status)} />
+                  </td>
+                  <td className="orders-time">
+                    {toDate(order.createdAt).toLocaleString('de-AT', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

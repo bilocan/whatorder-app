@@ -144,9 +144,9 @@ describe('OrdersPage', () => {
       return vi.fn()
     })
     renderPage()
-    expect(screen.getByText('pending')).toBeInTheDocument()
-    expect(screen.getByText('ready')).toBeInTheDocument()
-    expect(screen.queryByText('completed')).not.toBeInTheDocument()
+    expect(screen.getByText('Pending')).toBeInTheDocument()
+    expect(screen.getByText('Ready for pickup')).toBeInTheDocument()
+    expect(screen.queryByText('Completed')).not.toBeInTheDocument()
   })
 
   it('renders the order number derived from the doc id', () => {
