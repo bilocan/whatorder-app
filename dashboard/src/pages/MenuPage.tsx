@@ -257,6 +257,15 @@ export default function MenuPage() {
     if (searchParams.get('edit')) setSearchParams({}, { replace: true });
   }
 
+  function expandCategory(cat: string) {
+    setCollapsedCats((prev) => {
+      if (!prev.has(cat)) return prev;
+      const next = new Set(prev);
+      next.delete(cat);
+      return next;
+    });
+  }
+
   function toggleCategory(cat: string) {
     setCollapsedCats((prev) => {
       const collapsing = !prev.has(cat);
@@ -291,7 +300,9 @@ export default function MenuPage() {
     setSaving(true);
     try {
       const photoUrl = await resolvePhotoForSave(businessId, newItem);
+      const targetCat = newItem.category || 'other';
       await addDoc(collection(db, 'businesses', businessId, 'menu'), buildMenuPayload({ ...newItem, photoUrl }));
+      expandCategory(targetCat);
       setNewItem(EMPTY);
       setShowAddForm(false);
     } catch (err) {
@@ -303,13 +314,7 @@ export default function MenuPage() {
   }
 
   function startEdit(item: MenuItem) {
-    const cat = item.category || 'other';
-    setCollapsedCats((prev) => {
-      if (!prev.has(cat)) return prev;
-      const next = new Set(prev);
-      next.delete(cat);
-      return next;
-    });
+    expandCategory(item.category || 'other');
     setEditingId(item.id);
     setPhotoError(null);
     setEditItem(menuItemToFormValues(item));
@@ -325,10 +330,12 @@ export default function MenuPage() {
     try {
       const original = items.find((i) => i.id === editingId);
       const photoUrl = await resolvePhotoForSave(businessId, editItem);
+      const targetCat = editItem.category || 'other';
       await updateDoc(doc(db, 'businesses', businessId, 'menu', editingId), buildMenuPayload({ ...editItem, photoUrl }, true));
       if (original?.photoUrl && original.photoUrl !== photoUrl) {
         await deleteMenuPhotoBestEffort(original.photoUrl);
       }
+      expandCategory(targetCat);
       setEditingId(null);
       clearEditParam();
     } catch (err) {

@@ -185,6 +185,41 @@ describe('MenuPage', () => {
     expect(screen.getByRole('button', { name: 'Collapse Mains' })).toHaveAttribute('aria-expanded', 'true')
   })
 
+  it('expands the target category after adding an item', async () => {
+    let snapCb: ((s: object) => void) | null = null
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      snapCb = cb
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    mockAddDoc.mockResolvedValue(undefined)
+
+    const { container } = renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Drinks' }))
+    expect(screen.queryByText('Ayran')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('+ Add item'))
+    const nameInput = container.querySelector('input[required]') as HTMLInputElement
+    fireEvent.change(nameInput, { target: { value: 'Cola' } })
+    const priceInput = container.querySelector('input[type="number"]') as HTMLInputElement
+    fireEvent.change(priceInput, { target: { value: '2.5' } })
+    const categorySelect = container.querySelector('select') as HTMLSelectElement
+    fireEvent.change(categorySelect, { target: { value: 'drinks' } })
+    fireEvent.click(screen.getByText('Add'))
+
+    await waitFor(() => expect(mockAddDoc).toHaveBeenCalledTimes(1))
+    snapCb?.({
+      docs: [
+        ...ITEMS.map(({ id, ...data }) => ({ id, data: () => data })),
+        { id: 'm4', data: () => ({ name: 'Cola', description: '', price: 2.5, category: 'drinks', available: true }) },
+      ],
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Cola')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Collapse Drinks' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('uploads a selected photo and saves the returned URL on the new item', async () => {
     URL.createObjectURL = vi.fn(() => 'blob:preview')
     URL.revokeObjectURL = vi.fn()
