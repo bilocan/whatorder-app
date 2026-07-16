@@ -57,7 +57,7 @@ export default function AdminRestaurantMapPage() {
           <h2 style={{ margin: 0 }}>{t('admin.map.title')}</h2>
           <p style={{ margin: '0.35rem 0 0', color: '#666', fontSize: '0.9rem' }}>{t('admin.map.subtitle')}</p>
         </div>
-        <Link to="/admin" style={{ fontSize: '0.9rem', color: '#6366f1' }}>{t('admin.map.backToList')}</Link>
+        <Link to="/admin" style={{ fontSize: '0.9rem', color: '#22c55e' }}>{t('admin.map.backToList')}</Link>
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
@@ -102,7 +102,7 @@ export default function AdminRestaurantMapPage() {
                         alignItems: 'flex-start',
                         gap: '0.6rem',
                         padding: '0.55rem 0.6rem',
-                        border: selected ? '1px solid #6366f1' : '1px solid #e5e7eb',
+                        border: selected ? '1px solid #22c55e' : '1px solid #e5e7eb',
                         borderRadius: 8,
                         background: selected ? '#eef2ff' : '#fff',
                         cursor: 'pointer',
@@ -115,7 +115,7 @@ export default function AdminRestaurantMapPage() {
                           width: 22,
                           height: 22,
                           borderRadius: '50%',
-                          background: selected ? '#6366f1' : '#ef4444',
+                          background: selected ? '#22c55e' : '#ef4444',
                           color: '#fff',
                           fontSize: '0.72rem',
                           fontWeight: 700,
@@ -140,7 +140,7 @@ export default function AdminRestaurantMapPage() {
                     </button>
                     <Link
                       to={`/admin/restaurants/${pin.id}`}
-                      style={{ display: 'inline-block', marginTop: '0.2rem', marginLeft: '2.35rem', fontSize: '0.78rem', color: '#6366f1' }}
+                      style={{ display: 'inline-block', marginTop: '0.2rem', marginLeft: '2.35rem', fontSize: '0.78rem', color: '#22c55e' }}
                     >
                       {t('admin.map.viewDetails')}
                     </Link>

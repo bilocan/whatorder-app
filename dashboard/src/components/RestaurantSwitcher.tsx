@@ -88,7 +88,7 @@ export default function RestaurantSwitcher() {
                 cursor: 'pointer',
                 fontSize: '0.82rem',
                 fontWeight: id === businessId ? 600 : 400,
-                color: id === businessId ? '#6366f1' : '#374151',
+                color: id === businessId ? '#22c55e' : '#374151',
               }}
               onMouseEnter={e => { if (id !== businessId) e.currentTarget.style.background = '#f9fafb'; }}
               onMouseLeave={e => { if (id !== businessId) e.currentTarget.style.background = '#fff'; }}

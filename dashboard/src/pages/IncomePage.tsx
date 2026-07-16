@@ -109,8 +109,8 @@ export default function IncomePage() {
             style={{
               padding: '0.4rem 0.9rem',
               borderRadius: 999,
-              border: `1px solid ${period === p ? '#6366f1' : '#ddd'}`,
-              background: period === p ? '#6366f1' : 'transparent',
+              border: `1px solid ${period === p ? '#22c55e' : '#ddd'}`,
+              background: period === p ? '#22c55e' : 'transparent',
               color: period === p ? '#fff' : 'inherit',
               fontSize: '0.85rem',
               cursor: 'pointer',
@@ -122,9 +122,9 @@ export default function IncomePage() {
       </div>
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
         {cards.map(({ label, value, accent }) => (
-          <div key={label} style={{ padding: '1rem 1.5rem', border: `1px solid ${accent ? '#6366f1' : '#eee'}`, borderRadius: 10, minWidth: 120 }}>
-            <div style={{ fontSize: '0.75rem', color: accent ? '#6366f1' : '#999', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: accent ? '#6366f1' : 'inherit' }}>{value}</div>
+          <div key={label} style={{ padding: '1rem 1.5rem', border: `1px solid ${accent ? '#22c55e' : '#eee'}`, borderRadius: 10, minWidth: 120 }}>
+            <div style={{ fontSize: '0.75rem', color: accent ? '#22c55e' : '#999', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: accent ? '#22c55e' : 'inherit' }}>{value}</div>
           </div>
         ))}
       </div>
@@ -181,7 +181,7 @@ export default function IncomePage() {
           </div>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             <span>€{order.total.toFixed(2)}</span>
-            <span style={{ fontSize: '0.8rem', color: '#6366f1' }}>
+            <span style={{ fontSize: '0.8rem', color: '#22c55e' }}>
               {t('income.feeLabel', { fee: calcFee(order.total, feeConfig).toFixed(2) })}
             </span>
           </div>

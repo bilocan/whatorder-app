@@ -32,7 +32,7 @@ function PayoutReconciliation({ payout, t }: { payout: Payout; t: (key: string, 
           <span>{t('payout.reconciliation.gross')}</span>
           <span>€{(grossCents / 100).toFixed(2)}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6366f1' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#22c55e' }}>
           <span>{t('payout.reconciliation.fee')}</span>
           <span>−€{(feeCents / 100).toFixed(2)}</span>
         </div>
