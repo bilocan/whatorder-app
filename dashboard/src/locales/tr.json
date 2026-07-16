@@ -69,6 +69,7 @@
       }
     },
     "noOrders": "Henüz sipariş yok.",
+    "noOrdersForDay": "Bu güne ait sipariş yok.",
     "phoneLineScope": "Yalnızca bu WhatsApp hattındaki siparişler gösteriliyor.",
     "col": {
       "orderNumber": "Sipariş #",
@@ -89,6 +90,7 @@
     "deliveryFee": "+ €{{fee}} teslimat ücreti",
     "filter": {
       "label": "Göster",
+      "day": "Gün",
       "active": "Aktif siparişler",
       "completed2w": "Tamamlanan — son 2 hafta",
       "completedCustom": "Tamamlanan — özel aralık",

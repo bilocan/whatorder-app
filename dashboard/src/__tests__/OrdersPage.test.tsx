@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import OrdersPage from '../pages/OrdersPage'
+import { localDayKey } from '../lib/orderBoardColumns'
 
 const { mockUseAuth, mockOnSnapshot, mockPostOrderAction } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
@@ -26,6 +27,11 @@ vi.mock('../lib/orderActions', async () => {
   }
 })
 
+const TODAY = new Date().toISOString()
+const YESTERDAY_MS = Date.now() - 24 * 60 * 60 * 1000
+const YESTERDAY_KEY = localDayKey(YESTERDAY_MS)
+const YESTERDAY = new Date(YESTERDAY_MS).toISOString()
+
 const ORDERS = [
   {
     id: 'o1',
@@ -35,7 +41,7 @@ const ORDERS = [
     items: [{ name: 'Döner', qty: 2, price: 8.5 }],
     total: 17.0,
     status: 'pending',
-    createdAt: new Date().toISOString(),
+    createdAt: TODAY,
   },
   {
     id: 'o2',
@@ -45,7 +51,7 @@ const ORDERS = [
     items: [{ name: 'Falafel', qty: 1, price: 7.0 }, { name: 'Ayran', qty: 1, price: 2.0 }],
     total: 9.0,
     status: 'ready',
-    createdAt: '2026-06-09T09:00:00.000Z',
+    createdAt: TODAY,
   },
   {
     id: 'o3',
@@ -56,11 +62,26 @@ const ORDERS = [
     total: 6.5,
     status: 'completed',
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    completedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'o4',
+    customerId: 'c4',
+    customerName: 'Old Pending',
+    customerPhone: '+43 660 444444',
+    items: [{ name: 'Lahmacun', qty: 1, price: 5.0 }],
+    total: 5.0,
+    status: 'pending',
+    createdAt: YESTERDAY,
   },
 ]
 
-function renderPage() {
-  return render(<MemoryRouter><OrdersPage /></MemoryRouter>)
+function renderPage(initialEntry = '/orders') {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <OrdersPage />
+    </MemoryRouter>,
+  )
 }
 
 describe('OrdersPage', () => {
@@ -71,20 +92,21 @@ describe('OrdersPage', () => {
     mockPostOrderAction.mockResolvedValue({ ok: true, nextStatus: 'approved' })
   })
 
-  it('shows empty state when there are no orders', () => {
+  it('shows empty state when there are no orders for the day', () => {
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({ docs: [] })
       return vi.fn()
     })
     renderPage()
-    expect(screen.getByText('No orders yet.')).toBeInTheDocument()
+    expect(screen.getByText('No orders for this day.')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Kitchen board' })).not.toBeInTheDocument()
   })
 
   it('does not subscribe when businessId is null', () => {
     mockUseAuth.mockReturnValue({ businessId: null })
     renderPage()
     expect(mockOnSnapshot).not.toHaveBeenCalled()
-    expect(screen.getByText('No orders yet.')).toBeInTheDocument()
+    expect(screen.getByText('No orders for this day.')).toBeInTheDocument()
   })
 
   it('hides orders from other WhatsApp lines when VITE_WHATSAPP_PHONE_NUMBER_ID is set', () => {
@@ -104,21 +126,33 @@ describe('OrdersPage', () => {
     vi.unstubAllEnvs()
   })
 
-  it('renders kitchen board for active orders including Done (today)', () => {
+  it('renders kitchen board for today only (hides older open orders)', () => {
     mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
       cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
       return vi.fn()
     })
     renderPage()
     expect(screen.getByText('Kitchen board')).toBeInTheDocument()
+    expect(screen.getByLabelText('Day')).toHaveValue(localDayKey())
     expect(screen.getByText('New')).toBeInTheDocument()
     expect(screen.getByText('Preparing')).toBeInTheDocument()
     expect(screen.getByText('Delivery')).toBeInTheDocument()
     expect(screen.getByText('Done')).toBeInTheDocument()
     expect(screen.getByText('Ali Veli')).toBeInTheDocument()
     expect(screen.getByText('Max Muster')).toBeInTheDocument()
-    // Sara completed 2 days ago — not today
     expect(screen.queryByText('Sara Schmidt')).not.toBeInTheDocument()
+    expect(screen.queryByText('Old Pending')).not.toBeInTheDocument()
+  })
+
+  it('day picker shows orders for the chosen day', () => {
+    mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+      cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage(`/orders?day=${YESTERDAY_KEY}`)
+    expect(screen.getByLabelText('Day')).toHaveValue(YESTERDAY_KEY)
+    expect(screen.getByText('Old Pending')).toBeInTheDocument()
+    expect(screen.queryByText('Ali Veli')).not.toBeInTheDocument()
   })
 
   it('shows completed orders as a table when the "last 2 weeks" filter is selected', async () => {
@@ -130,6 +164,7 @@ describe('OrdersPage', () => {
     await userEvent.selectOptions(screen.getByLabelText('Show'), 'completed-2w')
     expect(screen.getByText('Orders')).toBeInTheDocument()
     expect(screen.queryByText('Kitchen board')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Day')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Sara Schmidt' })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Order #' })).toBeInTheDocument()
   })

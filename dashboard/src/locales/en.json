@@ -69,6 +69,7 @@
       }
     },
     "noOrders": "No orders yet.",
+    "noOrdersForDay": "No orders for this day.",
     "phoneLineScope": "Showing orders for this WhatsApp line only.",
     "col": {
       "orderNumber": "Order #",
@@ -89,6 +90,7 @@
     "deliveryFee": "+ €{{fee}} delivery fee",
     "filter": {
       "label": "Show",
+      "day": "Day",
       "active": "Active orders",
       "completed2w": "Completed — last 2 weeks",
       "completedCustom": "Completed — custom range",

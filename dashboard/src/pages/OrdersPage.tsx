@@ -17,11 +17,17 @@ import {
   postOrderAction,
 } from '../lib/orderActions';
 import { orderElapsed } from '../lib/orderElapsed';
-import { ACTIVE_BOARD_COLUMNS, groupOrdersByColumn, isCompletedToday } from '../lib/orderBoardColumns';
+import {
+  ACTIVE_BOARD_COLUMNS,
+  belongsToBoardDay,
+  groupOrdersByColumn,
+  localDayKey,
+} from '../lib/orderBoardColumns';
 import StatusBadge from '../components/StatusBadge';
 import PaymentBadge from '../components/PaymentBadge';
 
 const TERMINAL_STATUSES = new Set<OrderStatus>(['delivered', 'picked_up', 'rejected', 'cancelled', 'completed']);
+const DAY_PARAM_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function OrdersPage() {
   const { t } = useTranslation();
@@ -39,6 +45,9 @@ export default function OrdersPage() {
   const customFrom = searchParams.get('from') ?? '';
   const customTo = searchParams.get('to') ?? '';
   const isActiveBoard = filter === 'active';
+  const todayKey = localDayKey(nowMs);
+  const dayParam = searchParams.get('day') ?? '';
+  const selectedDay = DAY_PARAM_RE.test(dayParam) ? dayParam : todayKey;
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 30_000);
@@ -49,6 +58,10 @@ export default function OrdersPage() {
     if (!isActiveBoard) setOpenOrderId(null);
   }, [isActiveBoard]);
 
+  useEffect(() => {
+    setOpenOrderId(null);
+  }, [selectedDay]);
+
   function setFilter(next: 'active' | 'completed-2w' | 'completed-custom') {
     const params = new URLSearchParams(searchParams);
     if (next === 'active') params.delete('filter');
@@ -57,6 +70,14 @@ export default function OrdersPage() {
       params.delete('from');
       params.delete('to');
     }
+    if (next !== 'active') params.delete('day');
+    setSearchParams(params, { replace: true });
+  }
+
+  function setBoardDay(value: string) {
+    const params = new URLSearchParams(searchParams);
+    if (!value || value === todayKey) params.delete('day');
+    else params.set('day', value);
     setSearchParams(params, { replace: true });
   }
 
@@ -87,10 +108,7 @@ export default function OrdersPage() {
 
   let visibleOrders: Order[];
   if (isActiveBoard) {
-    visibleOrders = orders.filter((o) => {
-      if (!TERMINAL_STATUSES.has(o.status)) return true;
-      return isCompletedToday(o, nowMs);
-    });
+    visibleOrders = orders.filter((o) => belongsToBoardDay(o, selectedDay));
   } else {
     const completed = orders.filter((o) => TERMINAL_STATUSES.has(o.status));
     if (filter === 'completed-2w') {
@@ -171,18 +189,33 @@ export default function OrdersPage() {
         {activePhoneNumberId && (
           <p className="orders-phone-scope">{t('orders.phoneLineScope')}</p>
         )}
-        <div className="orders-filter-wrap">
-          <select
-            className="orders-filter"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as 'active' | 'completed-2w' | 'completed-custom')}
-            aria-label={t('orders.filter.label')}
-          >
-            <option value="active">{t('orders.filter.active')}</option>
-            <option value="completed-2w">{t('orders.filter.completed2w')}</option>
-            <option value="completed-custom">{t('orders.filter.completedCustom')}</option>
-          </select>
-          <span className="orders-filter-chevron" aria-hidden>▼</span>
+        <div className="orders-header-controls">
+          {isActiveBoard && (
+            <label className="orders-day-picker">
+              <span className="orders-day-picker-label">{t('orders.filter.day')}</span>
+              <input
+                className="orders-date-input"
+                type="date"
+                value={selectedDay}
+                max={todayKey}
+                onChange={(e) => setBoardDay(e.target.value)}
+                aria-label={t('orders.filter.day')}
+              />
+            </label>
+          )}
+          <div className="orders-filter-wrap">
+            <select
+              className="orders-filter"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as 'active' | 'completed-2w' | 'completed-custom')}
+              aria-label={t('orders.filter.label')}
+            >
+              <option value="active">{t('orders.filter.active')}</option>
+              <option value="completed-2w">{t('orders.filter.completed2w')}</option>
+              <option value="completed-custom">{t('orders.filter.completedCustom')}</option>
+            </select>
+            <span className="orders-filter-chevron" aria-hidden>▼</span>
+          </div>
         </div>
         {filter === 'completed-custom' && (
           <div className="orders-date-range">
@@ -208,10 +241,14 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {visibleOrders.length === 0 && <p className="orders-empty">{t('orders.noOrders')}</p>}
+      {visibleOrders.length === 0 && (
+        <p className="orders-empty">
+          {isActiveBoard ? t('orders.noOrdersForDay') : t('orders.noOrders')}
+        </p>
+      )}
       {actionError && <p className="order-detail-error">{actionError}</p>}
 
-      {isActiveBoard ? (
+      {isActiveBoard && visibleOrders.length > 0 ? (
         <div className="kitchen-board" role="region" aria-label={t('orders.board.title')}>
           {ACTIVE_BOARD_COLUMNS.map((col) => {
             const colOrders = grouped[col.key];
@@ -303,7 +340,9 @@ export default function OrdersPage() {
             );
           })}
         </div>
-      ) : (
+      ) : null}
+
+      {!isActiveBoard && visibleOrders.length > 0 && (
         <div className="orders-table-wrap">
           <table className="orders-table">
             <thead>

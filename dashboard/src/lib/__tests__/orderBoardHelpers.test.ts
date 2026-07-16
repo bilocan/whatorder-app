@@ -3,7 +3,9 @@ import {
   boardColumnForStatus,
   groupOrdersByColumn,
   ACTIVE_BOARD_COLUMNS,
+  belongsToBoardDay,
   isCompletedToday,
+  localDayKey,
   startOfLocalDayMs,
 } from '../orderBoardColumns'
 import { orderElapsed } from '../orderElapsed'
@@ -60,6 +62,48 @@ describe('orderBoardColumns', () => {
     expect(
       isCompletedToday(
         { status: 'delivered', createdAt: oldCreated, deliveredAt: new Date(yesterdayMs).toISOString() } as Order,
+        now,
+      ),
+    ).toBe(false)
+  })
+
+  it('belongsToBoardDay is createdAt day only (ignores late completion / updatedAt)', () => {
+    const day = localDayKey(Date.parse('2026-07-16T12:00:00'))
+    const onDay = new Date(startOfLocalDayMs(Date.parse('2026-07-16T12:00:00')) + 3 * 60 * 60 * 1000).toISOString()
+    const otherDay = new Date(startOfLocalDayMs(Date.parse('2026-07-12T12:00:00')) + 3 * 60 * 60 * 1000).toISOString()
+
+    expect(
+      belongsToBoardDay({ status: 'pending', createdAt: onDay } as Order, day),
+    ).toBe(true)
+    expect(
+      belongsToBoardDay({ status: 'ready', createdAt: otherDay } as Order, day),
+    ).toBe(false)
+    // Delivered "today" but placed 4 days ago must not appear on today's board
+    expect(
+      belongsToBoardDay(
+        {
+          status: 'delivered',
+          createdAt: otherDay,
+          deliveredAt: onDay,
+          updatedAt: onDay,
+        } as Order,
+        day,
+      ),
+    ).toBe(false)
+  })
+
+  it('isCompletedToday ignores updatedAt bumps on old terminal orders', () => {
+    const now = Date.parse('2026-07-16T15:00:00.000Z')
+    const todayMs = startOfLocalDayMs(now) + 2 * 60 * 60 * 1000
+    const oldMs = startOfLocalDayMs(now) - 4 * 24 * 60 * 60 * 1000
+    expect(
+      isCompletedToday(
+        {
+          status: 'delivered',
+          createdAt: new Date(oldMs).toISOString(),
+          deliveredAt: new Date(oldMs).toISOString(),
+          updatedAt: new Date(todayMs).toISOString(),
+        } as Order,
         now,
       ),
     ).toBe(false)

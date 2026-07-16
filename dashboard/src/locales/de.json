@@ -69,6 +69,7 @@
       }
     },
     "noOrders": "Noch keine Bestellungen.",
+    "noOrdersForDay": "Keine Bestellungen an diesem Tag.",
     "phoneLineScope": "Nur Bestellungen über diese WhatsApp-Leitung.",
     "col": {
       "orderNumber": "Bestellnr.",
@@ -89,6 +90,7 @@
     "deliveryFee": "+ €{{fee}} Liefergebühr",
     "filter": {
       "label": "Anzeigen",
+      "day": "Tag",
       "active": "Aktive Bestellungen",
       "completed2w": "Abgeschlossen — letzte 2 Wochen",
       "completedCustom": "Abgeschlossen — benutzerdefiniert",

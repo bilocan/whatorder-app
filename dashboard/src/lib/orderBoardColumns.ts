@@ -52,8 +52,22 @@ export function startOfLocalDayMs(nowMs = Date.now()): number {
   return d.getTime();
 }
 
+/** Local calendar day as `YYYY-MM-DD` (for `<input type="date">` / URL params). */
+export function localDayKey(ms = Date.now()): string {
+  const d = new Date(ms);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function isOnLocalDay(ms: number, dayKey: string): boolean {
+  return localDayKey(ms) === dayKey;
+}
+
 /**
  * When the order entered a terminal status (not when it was placed).
+ * Do not use `updatedAt` — payment/settlement touches would pull old orders onto "today".
  */
 export function terminalCompletedAtMs(order: Order): number | null {
   const stamps = [
@@ -62,7 +76,6 @@ export function terminalCompletedAtMs(order: Order): number | null {
     order.completedAt,
     order.rejectedAt,
     order.cancelledAt,
-    order.updatedAt,
   ];
   let best: number | null = null;
   for (const stamp of stamps) {
@@ -74,9 +87,22 @@ export function terminalCompletedAtMs(order: Order): number | null {
   return best;
 }
 
-/** Terminal orders completed on the current local calendar day. */
-export function isCompletedToday(order: Order, nowMs = Date.now()): boolean {
+/** Terminal orders completed on the given local calendar day (`YYYY-MM-DD`). */
+export function isCompletedOnDay(order: Order, dayKey: string): boolean {
   const completedAt = terminalCompletedAtMs(order);
   if (completedAt === null) return false;
-  return completedAt >= startOfLocalDayMs(nowMs);
+  return isOnLocalDay(completedAt, dayKey);
+}
+
+/** Terminal orders completed on the current local calendar day. */
+export function isCompletedToday(order: Order, nowMs = Date.now()): boolean {
+  return isCompletedOnDay(order, localDayKey(nowMs));
+}
+
+/**
+ * Kitchen board for one local day: orders **placed** that day (open or terminal).
+ * Day picker + elapsed time both key off `createdAt`.
+ */
+export function belongsToBoardDay(order: Order, dayKey: string): boolean {
+  return isOnLocalDay(toDate(order.createdAt).getTime(), dayKey);
 }
