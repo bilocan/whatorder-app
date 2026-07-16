@@ -165,11 +165,7 @@ function LayoutContent() {
                   end={to === '/admin'}
                   onClick={closeMenu}
                   style={({ isActive }) => ({
-                    display: 'block',
-                    padding: '0.5rem 0',
-                    color: isActive ? '#6366f1' : '#666',
-                    fontWeight: isActive ? 600 : 400,
-                    textDecoration: 'none',
+                    ...navLinkStyle(isActive),
                     fontSize: '0.9rem',
                   })}
                 >

@@ -21,4 +21,4 @@ If the user invokes this skill without any other guidance, ask them what they wa
 - `ui_kits/dashboard/`, `ui_kits/marketing/` — full-screen recreations to copy from.
 - `assets/` — logo SVGs + favicon.
 - The dashboard's **order-status color system** is the signature — see `tokens/status.css` and README "Visual foundations".
-- Production dashboard still has leftover sample accents (indigo/purple in places). When you touch a screen, migrate those controls to brand tokens — do not spread indigo further.
+- Production dashboard uses brand green `#22C55E` for accent UI (links, selected chips, highlights). Do not reintroduce indigo (`#6366f1`) or Vite purple (`#646cff`).

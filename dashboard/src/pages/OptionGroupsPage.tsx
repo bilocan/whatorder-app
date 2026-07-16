@@ -44,7 +44,7 @@ const btnSecondary: React.CSSProperties = {
 };
 
 const linkStyle: React.CSSProperties = {
-  color: '#6366f1',
+  color: '#22c55e',
   textDecoration: 'none',
   fontWeight: 500,
 };
@@ -97,7 +97,7 @@ function ExtendsBadge({
   if (!ids.length) return null;
   const labels = ids.map((id) => templatesById[id]?.label ?? id).join(', ');
   return (
-    <div style={{ fontSize: '0.75rem', color: '#6366f1', marginTop: 2 }}>
+    <div style={{ fontSize: '0.75rem', color: '#22c55e', marginTop: 2 }}>
       {t('optionGroupsPage.extends')}: {labels}
     </div>
   );
@@ -305,7 +305,7 @@ export default function OptionGroupsPage() {
           >
             <div>
               <span style={{ fontWeight: 600 }}>{group.label}</span>
-              <span style={{ color: '#6366f1', fontSize: '0.75rem', marginLeft: '0.45rem' }}>
+              <span style={{ color: '#22c55e', fontSize: '0.75rem', marginLeft: '0.45rem' }}>
                 {typeLabel(group.type)}
               </span>
               {customizationSummary([expanded]) && (

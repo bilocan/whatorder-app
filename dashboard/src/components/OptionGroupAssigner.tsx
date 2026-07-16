@@ -76,7 +76,7 @@ export default function OptionGroupAssigner({
         </div>
         <Link
           to="/option-groups"
-          style={{ fontSize: '0.8rem', color: '#6366f1', textDecoration: 'none', whiteSpace: 'nowrap' }}
+          style={{ fontSize: '0.8rem', color: '#22c55e', textDecoration: 'none', whiteSpace: 'nowrap' }}
         >
           {t('menu.optionGroups.manageLink')}
         </Link>
@@ -89,7 +89,7 @@ export default function OptionGroupAssigner({
       {!loading && library.length === 0 && (
         <p style={{ margin: 0, fontSize: '0.82rem', color: '#999' }}>
           {t('menu.optionGroups.noLibrary')}{' '}
-          <Link to="/option-groups" style={{ color: '#6366f1' }}>{t('menu.optionGroups.createFirst')}</Link>
+          <Link to="/option-groups" style={{ color: '#22c55e' }}>{t('menu.optionGroups.createFirst')}</Link>
         </p>
       )}
 
@@ -132,7 +132,7 @@ export default function OptionGroupAssigner({
                 />
                 <span style={{ flex: 1 }}>
                   <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{group.label}</span>
-                  <span style={{ color: '#6366f1', fontSize: '0.72rem', marginLeft: '0.4rem' }}>
+                  <span style={{ color: '#22c55e', fontSize: '0.72rem', marginLeft: '0.4rem' }}>
                     {groupSummary(group, templatesById)}
                   </span>
                   {extendsLabels && (

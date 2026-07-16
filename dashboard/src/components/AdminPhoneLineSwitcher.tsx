@@ -172,7 +172,7 @@ export default function AdminPhoneLineSwitcher() {
                 padding: 0,
                 background: 'none',
                 border: 'none',
-                color: '#6366f1',
+                color: '#22c55e',
                 fontSize: '0.72rem',
                 cursor: 'pointer',
                 textDecoration: 'underline',

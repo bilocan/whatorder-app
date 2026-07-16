@@ -453,7 +453,7 @@ export default function MenuPage() {
                   {(() => {
                     const resolved = resolveMenuItemOptionGroups(item, optionGroupsById);
                     return customizationSummary(resolved) && (
-                      <span style={{ color: '#6366f1', fontSize: '0.75rem', marginLeft: '0.45rem' }}>
+                      <span style={{ color: '#22c55e', fontSize: '0.75rem', marginLeft: '0.45rem' }}>
                         {t('menu.optionGroups.badge', { summary: customizationSummary(resolved) })}
                       </span>
                     );
