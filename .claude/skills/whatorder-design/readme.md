@@ -30,7 +30,7 @@ values are copied verbatim from source.
   - `src/locales/{de,en,tr}.json` — full UI copy in three languages.
 - `WhatOrder/whatorder-app/dashboard/public/assets/`, `WhatOrder/whatorderat/public/assets/` — logo SVGs, favicon.
 
-> The dashboard's `src/index.css` is **Vite starter boilerplate** (purple `#646cff`, dark scaffold) and is **not** the real design — it is overridden by inline styles on every page. The tokens here come from the actual page/component code, not that file.
+> The dashboard's `src/index.css` still contains **Vite starter leftovers** (purple `#646cff`, dark scaffold). Many screens also use indigo `#6366f1` as a false accent. **Neither is brand.** Real design tokens are green `#22C55E`, light surfaces, black primary buttons, and the order-status color system. When editing UI, follow this skill and vault [[Projects/WhatOrder/ai-rules/dashboard|dashboard rules]] — migrate sample accents on touched screens; do not treat indigo as the design system.
 
 ---
 
