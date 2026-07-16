@@ -1,6 +1,16 @@
 ---
 name: whatorder-design
-description: Use this skill for any WhatOrder visual work — especially owner dashboard (dashboard/src) UI, CSS, layout, new screens, badges, and buttons — plus marketing mocks and branded HTML. Contains brand tokens, status colors, type, assets, and UI kit components. Invoke when editing dashboard appearance or when the user asks for design/branded UI.
+description: >-
+  WhatOrder brand design system for owner dashboard and marketing UI. Use automatically
+  when editing dashboard/src appearance (layout, CSS, pages, components, badges, buttons);
+  also when the user asks for design, branded UI, mocks, or /whatorder-design.
+  Contains tokens, status colors, type, assets, and UI kits. Accent #22C55E only —
+  never indigo #6366f1 or Vite purple #646cff.
+paths:
+  - "dashboard/src/**/*.tsx"
+  - "dashboard/src/**/*.css"
+  - "dashboard/src/components/**"
+  - "dashboard/src/pages/**"
 user-invocable: true
 ---
 
