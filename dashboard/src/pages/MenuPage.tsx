@@ -259,6 +259,13 @@ export default function MenuPage() {
 
   function toggleCategory(cat: string) {
     setCollapsedCats((prev) => {
+      const collapsing = !prev.has(cat);
+      if (collapsing) {
+        const editingItem = editingId ? items.find((i) => i.id === editingId) : undefined;
+        const editingCat = editingItem ? (editingItem.category || 'other') : null;
+        // Keep the edit form mounted — collapsing would unmount MenuForm while edit state stays active.
+        if (editingCat === cat) return prev;
+      }
       const next = new Set(prev);
       if (next.has(cat)) next.delete(cat);
       else next.add(cat);
@@ -383,7 +390,8 @@ export default function MenuPage() {
 
       <div className="menu-cats">
         {grouped.map(({ cat, items: catItems }) => {
-          const expanded = !collapsedCats.has(cat);
+          const editingInCat = editingId != null && catItems.some((i) => i.id === editingId);
+          const expanded = !collapsedCats.has(cat) || editingInCat;
           const label = categoryLabel(cat, t);
           return (
             <div key={cat} className="menu-cat">

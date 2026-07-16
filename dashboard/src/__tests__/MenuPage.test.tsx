@@ -169,6 +169,22 @@ describe('MenuPage', () => {
     expect(screen.getByText('Save')).toBeInTheDocument()
   })
 
+  it('keeps the edit form visible when collapsing the category being edited', async () => {
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Mains' }))
+    expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    expect(screen.getByText('Save')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse Mains' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('uploads a selected photo and saves the returned URL on the new item', async () => {
     URL.createObjectURL = vi.fn(() => 'blob:preview')
     URL.revokeObjectURL = vi.fn()
