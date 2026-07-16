@@ -482,9 +482,17 @@
   "settings": {
     "title": "Einstellungen",
     "loading": "Lade...",
-    "businessName": "Unternehmensname",
+    "businessName": "Restaurantname",
     "alertNumber": "Benachrichtigungsnummer",
     "status": "Status",
+    "statusActive": "Aktiv",
+    "statusPaused": "Pausiert",
+    "profile": {
+      "title": "Restaurantprofil"
+    },
+    "deliveryPayment": {
+      "title": "Lieferung & Zahlung"
+    },
     "location": {
       "title": "Standort",
       "description": "Wird verwendet, um dieses Restaurant nach Entfernung für nahegelegene Kunden zu sortieren.",
@@ -541,6 +549,8 @@
     "hours": {
       "title": "Öffnungszeiten",
       "description": "Zeiten pro Tag festlegen. Der Bot lehnt Bestellungen außerhalb des Bestellfensters ab. Geschlossene Tage werden als gesperrt angezeigt.",
+      "shopHours": "Laden öffnet – schließt",
+      "orderWindow": "Erste – letzte Bestellung",
       "open": "Geöffnet",
       "closed": "Geschlossen",
       "opens": "Öffnet",

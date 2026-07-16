@@ -482,9 +482,15 @@
   "settings": {
     "title": "Ayarlar",
     "loading": "Yükleniyor...",
-    "businessName": "İşletme adı",
+    "businessName": "Restoran adı",
     "alertNumber": "Bildirim numarası",
     "status": "Durum",
+    "profile": {
+      "title": "Restoran profili"
+    },
+    "deliveryPayment": {
+      "title": "Teslimat ve ödeme"
+    },
     "location": {
       "title": "Konum",
       "description": "Bu restoranı yakındaki müşteriler için mesafeye göre sıralamak amacıyla kullanılır.",
@@ -547,6 +553,7 @@
       "closes": "Kapanış",
       "firstOrder": "İlk sipariş",
       "lastOrder": "Son sipariş",
+      "orderWindowHint": "İkinci satır: bot için ilk ve son sipariş saati",
       "save": "Saatleri kaydet",
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi",

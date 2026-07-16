@@ -482,9 +482,17 @@
   "settings": {
     "title": "Settings",
     "loading": "Loading...",
-    "businessName": "Business name",
+    "businessName": "Restaurant name",
     "alertNumber": "Alert number",
     "status": "Status",
+    "statusActive": "Active",
+    "statusPaused": "Paused",
+    "profile": {
+      "title": "Restaurant profile"
+    },
+    "deliveryPayment": {
+      "title": "Delivery & payment"
+    },
     "location": {
       "title": "Location",
       "description": "Used to sort this restaurant by distance for nearby customers.",
@@ -539,8 +547,10 @@
       "error": "Error saving"
     },
     "hours": {
-      "title": "Operating Hours",
-      "description": "Set hours per day. Bot rejects orders outside the order window. Closed days show \"🔒 Closed\" in the restaurant picker.",
+      "title": "Opening hours",
+      "description": "Set hours per day. Bot rejects orders outside the order window. Closed days show as closed in the restaurant picker.",
+      "shopHours": "Shop open – close",
+      "orderWindow": "First – last order",
       "open": "Open",
       "closed": "Closed",
       "opens": "Opens",
