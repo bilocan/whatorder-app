@@ -338,6 +338,8 @@
     "deleteConfirm": "Diesen Artikel wirklich löschen?",
     "available": "Verfügbar",
     "unavailable": "Nicht verfügbar",
+    "expandCategory": "{{category}} aufklappen",
+    "collapseCategory": "{{category}} zuklappen",
     "form": {
       "name": "Name",
       "price": "Preis (€)",

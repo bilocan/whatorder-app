@@ -14,13 +14,6 @@ import { useConfirm } from '../components/ConfirmDialog';
 import type { DashboardT } from '../i18n';
 import type { MenuItem } from '../types';
 
-const PencilIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-  </svg>
-);
-
 const TrashIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="3 6 5 6 21 6"/>
@@ -58,60 +51,6 @@ function groupMenuItems(items: MenuItem[]) {
     }));
 }
 
-const inputStyle: React.CSSProperties = {
-  padding: '0.45rem 0.65rem',
-  border: '1px solid #ddd',
-  borderRadius: 6,
-  fontSize: '0.9rem',
-  width: '100%',
-  boxSizing: 'border-box',
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: '0.45rem 1rem',
-  background: '#000',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 6,
-  cursor: 'pointer',
-  fontWeight: 600,
-  fontSize: '0.85rem',
-};
-
-const btnSecondary: React.CSSProperties = {
-  padding: '0.35rem 0.8rem',
-  background: 'none',
-  border: '1px solid #ddd',
-  borderRadius: 6,
-  cursor: 'pointer',
-  fontSize: '0.82rem',
-};
-
-
-const btnIconEdit: React.CSSProperties = {
-  padding: '0.3rem',
-  background: 'none',
-  border: '1px solid #e5e7eb',
-  borderRadius: 5,
-  cursor: 'pointer',
-  color: '#6b7280',
-  display: 'inline-flex',
-  alignItems: 'center',
-  lineHeight: 0,
-};
-
-const btnIconDelete: React.CSSProperties = {
-  padding: '0.3rem',
-  background: 'none',
-  border: '1px solid #fca5a5',
-  borderRadius: 5,
-  cursor: 'pointer',
-  color: '#ef4444',
-  display: 'inline-flex',
-  alignItems: 'center',
-  lineHeight: 0,
-};
-
 type FormValues = {
   name: string;
   price: string;
@@ -140,6 +79,7 @@ interface MenuFormProps {
   libraryLoading: boolean;
   templatesById?: Record<string, import('../types').OptionGroupTemplate>;
   anchorId?: string;
+  availCheckId: string;
 }
 
 function menuItemToFormValues(item: MenuItem): FormValues {
@@ -157,7 +97,7 @@ function menuItemToFormValues(item: MenuItem): FormValues {
 
 function MenuForm({
   values, onChange, onSubmit, onCancel, submitting, submitLabel, photoError,
-  optionGroupLibrary, libraryLoading, templatesById, anchorId,
+  optionGroupLibrary, libraryLoading, templatesById, anchorId, availCheckId,
 }: MenuFormProps) {
   const { t } = useTranslation();
   const categoryOptions = STANDARD_CATEGORIES.map((c) => ({ value: c, label: t(`menu.category.${c}`) }));
@@ -176,27 +116,20 @@ function MenuForm({
   const photoPreview = filePreviewUrl ?? values.photoUrl;
 
   return (
-    <form
-      id={anchorId}
-      onSubmit={onSubmit}
-      style={{
-        display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end',
-        padding: '0.75rem', background: '#f9fafb', borderRadius: 8, marginBottom: '0.5rem',
-      }}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: '1 1 150px' }}>
-        <label style={{ fontSize: '0.75rem', color: '#666' }}>{t('menu.form.name')}</label>
+    <form id={anchorId} className="menu-form" onSubmit={onSubmit}>
+      <div className="menu-form-field menu-form-field-grow">
+        <label className="menu-form-label">{t('menu.form.name')}</label>
         <input
-          style={inputStyle}
+          className="menu-form-input"
           required
           value={values.name}
           onChange={(e) => onChange({ ...values, name: e.target.value })}
         />
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: '0 0 90px' }}>
-        <label style={{ fontSize: '0.75rem', color: '#666' }}>{t('menu.form.price')}</label>
+      <div className="menu-form-field menu-form-field-price">
+        <label className="menu-form-label">{t('menu.form.price')}</label>
         <input
-          style={inputStyle}
+          className="menu-form-input"
           required
           type="number"
           min="0"
@@ -205,10 +138,10 @@ function MenuForm({
           onChange={(e) => onChange({ ...values, price: e.target.value })}
         />
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: '0 0 120px' }}>
-        <label style={{ fontSize: '0.75rem', color: '#666' }}>{t('menu.form.category')}</label>
+      <div className="menu-form-field menu-form-field-category">
+        <label className="menu-form-label">{t('menu.form.category')}</label>
         <select
-          style={inputStyle}
+          className="menu-form-input"
           value={values.category}
           onChange={(e) => onChange({ ...values, category: e.target.value as MenuItem['category'] })}
         >
@@ -217,19 +150,19 @@ function MenuForm({
           ))}
         </select>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: '1 1 150px' }}>
-        <label style={{ fontSize: '0.75rem', color: '#666' }}>{t('menu.form.description')}</label>
+      <div className="menu-form-field menu-form-field-grow">
+        <label className="menu-form-label">{t('menu.form.description')}</label>
         <input
-          style={inputStyle}
+          className="menu-form-input"
           value={values.description}
           onChange={(e) => onChange({ ...values, description: e.target.value })}
         />
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <label style={{ fontSize: '0.75rem', color: '#666' }}>{t('menu.form.photo')}</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="menu-form-field">
+        <label className="menu-form-label">{t('menu.form.photo')}</label>
+        <div className="menu-form-photo-row">
           {photoPreview && (
-            <img src={photoPreview} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
+            <img src={photoPreview} alt="" className="menu-form-photo-preview" />
           )}
           <input
             type="file"
@@ -239,29 +172,31 @@ function MenuForm({
           {(values.photoUrl || values.photoFile) && (
             <button
               type="button"
-              style={btnSecondary}
+              className="menu-form-btn-secondary"
               onClick={() => onChange({ ...values, photoFile: null, photoUrl: null })}
             >
               {t('menu.form.photoRemove')}
             </button>
           )}
         </div>
-        {photoError && <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{photoError}</span>}
+        {photoError && <span className="menu-form-error">{photoError}</span>}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 2 }}>
+      <div className="menu-form-avail">
         <input
           type="checkbox"
-          id="menu-avail-check"
+          id={availCheckId}
           checked={values.available}
           onChange={(e) => onChange({ ...values, available: e.target.checked })}
         />
-        <label htmlFor="menu-avail-check" style={{ fontSize: '0.85rem' }}>{t('menu.form.available')}</label>
+        <label htmlFor={availCheckId}>{t('menu.form.available')}</label>
       </div>
-      <div style={{ display: 'flex', gap: '0.5rem', paddingBottom: 2 }}>
-        <button type="submit" style={btnPrimary} disabled={submitting}>
+      <div className="menu-form-actions">
+        <button type="submit" className="menu-form-btn-primary" disabled={submitting}>
           {submitting ? t('menu.saving') : submitLabel}
         </button>
-        <button type="button" style={btnSecondary} onClick={onCancel}>{t('menu.cancel')}</button>
+        <button type="button" className="menu-form-btn-secondary" onClick={onCancel}>
+          {t('menu.cancel')}
+        </button>
       </div>
       <OptionGroupAssigner
         value={values.optionGroupIds}
@@ -287,6 +222,8 @@ export default function MenuPage() {
   const [editItem, setEditItem] = useState<FormValues>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  /** Categories in this set are collapsed; default empty = all expanded. */
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     if (!businessId) return;
@@ -300,6 +237,13 @@ export default function MenuPage() {
     if (!editId || !items.length) return;
     const item = items.find((i) => i.id === editId);
     if (!item || editingId === editId) return;
+    const cat = item.category || 'other';
+    setCollapsedCats((prev) => {
+      if (!prev.has(cat)) return prev;
+      const next = new Set(prev);
+      next.delete(cat);
+      return next;
+    });
     setEditingId(editId);
     setPhotoError(null);
     setEditItem(menuItemToFormValues(item));
@@ -313,14 +257,39 @@ export default function MenuPage() {
     if (searchParams.get('edit')) setSearchParams({}, { replace: true });
   }
 
+  function expandCategory(cat: string) {
+    setCollapsedCats((prev) => {
+      if (!prev.has(cat)) return prev;
+      const next = new Set(prev);
+      next.delete(cat);
+      return next;
+    });
+  }
+
+  function toggleCategory(cat: string) {
+    setCollapsedCats((prev) => {
+      const collapsing = !prev.has(cat);
+      if (collapsing) {
+        const editingItem = editingId ? items.find((i) => i.id === editingId) : undefined;
+        const editingCat = editingItem ? (editingItem.category || 'other') : null;
+        // Keep the edit form mounted — collapsing would unmount MenuForm while edit state stays active.
+        if (editingCat === cat) return prev;
+      }
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
+
   const grouped = groupMenuItems(items);
 
   function photoErrorMessage(err: MenuPhotoError): string {
     return t(err.code === 'too-large' ? 'menu.form.photoTooLarge' : 'menu.form.photoInvalidType');
   }
 
-  async function resolvePhotoForSave(businessId: string, values: FormValues): Promise<string | null> {
-    if (values.photoFile) return uploadMenuPhoto(businessId, values.photoFile);
+  async function resolvePhotoForSave(bizId: string, values: FormValues): Promise<string | null> {
+    if (values.photoFile) return uploadMenuPhoto(bizId, values.photoFile);
     return values.photoUrl;
   }
 
@@ -331,7 +300,9 @@ export default function MenuPage() {
     setSaving(true);
     try {
       const photoUrl = await resolvePhotoForSave(businessId, newItem);
+      const targetCat = newItem.category || 'other';
       await addDoc(collection(db, 'businesses', businessId, 'menu'), buildMenuPayload({ ...newItem, photoUrl }));
+      expandCategory(targetCat);
       setNewItem(EMPTY);
       setShowAddForm(false);
     } catch (err) {
@@ -343,6 +314,7 @@ export default function MenuPage() {
   }
 
   function startEdit(item: MenuItem) {
+    expandCategory(item.category || 'other');
     setEditingId(item.id);
     setPhotoError(null);
     setEditItem(menuItemToFormValues(item));
@@ -358,10 +330,12 @@ export default function MenuPage() {
     try {
       const original = items.find((i) => i.id === editingId);
       const photoUrl = await resolvePhotoForSave(businessId, editItem);
+      const targetCat = editItem.category || 'other';
       await updateDoc(doc(db, 'businesses', businessId, 'menu', editingId), buildMenuPayload({ ...editItem, photoUrl }, true));
       if (original?.photoUrl && original.photoUrl !== photoUrl) {
         await deleteMenuPhotoBestEffort(original.photoUrl);
       }
+      expandCategory(targetCat);
       setEditingId(null);
       clearEditParam();
     } catch (err) {
@@ -389,11 +363,12 @@ export default function MenuPage() {
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <h2 style={{ margin: 0 }}>{t('menu.title')}</h2>
+    <div className="menu-page">
+      <div className="menu-header">
+        <h2>{t('menu.title')}</h2>
         <button
-          style={btnPrimary}
+          type="button"
+          className="menu-add-btn"
           onClick={() => { setShowAddForm(true); setEditingId(null); clearEditParam(); }}
         >
           {t('menu.addItem')}
@@ -412,80 +387,112 @@ export default function MenuPage() {
           optionGroupLibrary={optionGroupLibrary}
           libraryLoading={libraryLoading}
           templatesById={optionGroupsById}
+          availCheckId="menu-avail-add"
         />
       )}
 
       {items.length === 0 && !showAddForm && (
-        <p style={{ color: '#999' }}>{t('menu.noItems')}</p>
+        <p className="menu-empty">{t('menu.noItems')}</p>
       )}
 
-      {grouped.map(({ cat, items: catItems }) => (
-        <div key={cat} style={{ marginBottom: '2rem' }}>
-          <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem', marginBottom: '0.5rem' }}>
-            {categoryLabel(cat, t)}
-          </h3>
-          {catItems.map((item) =>
-            editingId === item.id ? (
-              <MenuForm
-                key={item.id}
-                anchorId={`menu-item-edit-${item.id}`}
-                values={editItem}
-                onChange={setEditItem}
-                onSubmit={handleSaveEdit}
-                onCancel={() => { setEditingId(null); setPhotoError(null); clearEditParam(); }}
-                submitting={saving}
-                submitLabel={t('menu.save')}
-                photoError={photoError}
-                optionGroupLibrary={optionGroupLibrary}
-                libraryLoading={libraryLoading}
-                templatesById={optionGroupsById}
-              />
-            ) : (
-              <div
-                key={item.id}
-                style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '0.6rem 0', borderBottom: '1px solid #f9f9f9',
-                }}
+      <div className="menu-cats">
+        {grouped.map(({ cat, items: catItems }) => {
+          const editingInCat = editingId != null && catItems.some((i) => i.id === editingId);
+          const expanded = !collapsedCats.has(cat) || editingInCat;
+          const label = categoryLabel(cat, t);
+          return (
+            <div key={cat} className="menu-cat">
+              <button
+                type="button"
+                className="menu-cat-header"
+                aria-expanded={expanded}
+                aria-label={expanded
+                  ? t('menu.collapseCategory', { category: label })
+                  : t('menu.expandCategory', { category: label })}
+                onClick={() => toggleCategory(cat)}
               >
-                <div>
-                  <span style={{ fontWeight: 600 }}>{item.name}</span>
-                  {(() => {
-                    const resolved = resolveMenuItemOptionGroups(item, optionGroupsById);
-                    return customizationSummary(resolved) && (
-                      <span style={{ color: '#22c55e', fontSize: '0.75rem', marginLeft: '0.45rem' }}>
-                        {t('menu.optionGroups.badge', { summary: customizationSummary(resolved) })}
-                      </span>
-                    );
-                  })()}
-                  {item.description && (
-                    <span style={{ color: '#999', fontSize: '0.85rem', marginLeft: '0.5rem' }}>
-                      {item.description}
-                    </span>
+                <span className="menu-cat-label">{label}</span>
+                <span className="menu-cat-chevron" aria-hidden>{expanded ? '▾' : '▸'}</span>
+              </button>
+              {expanded && (
+                <div className="menu-cat-body">
+                  {catItems.map((item) =>
+                    editingId === item.id ? (
+                      <MenuForm
+                        key={item.id}
+                        anchorId={`menu-item-edit-${item.id}`}
+                        values={editItem}
+                        onChange={setEditItem}
+                        onSubmit={handleSaveEdit}
+                        onCancel={() => { setEditingId(null); setPhotoError(null); clearEditParam(); }}
+                        submitting={saving}
+                        submitLabel={t('menu.save')}
+                        photoError={photoError}
+                        optionGroupLibrary={optionGroupLibrary}
+                        libraryLoading={libraryLoading}
+                        templatesById={optionGroupsById}
+                        availCheckId={`menu-avail-edit-${item.id}`}
+                      />
+                    ) : (
+                      <div key={item.id} className="menu-row">
+                        {item.photoUrl && (
+                          <img src={item.photoUrl} alt="" className="menu-row-thumb" />
+                        )}
+                        <div className="menu-row-main">
+                          <span className={`menu-row-name${item.available ? '' : ' is-off'}`}>
+                            {item.name}
+                          </span>
+                          {(item.description || customizationSummary(resolveMenuItemOptionGroups(item, optionGroupsById))) && (
+                            <div className="menu-row-sub">
+                              {(() => {
+                                const resolved = resolveMenuItemOptionGroups(item, optionGroupsById);
+                                const summary = customizationSummary(resolved);
+                                return summary ? (
+                                  <span className="menu-row-badge">
+                                    {t('menu.optionGroups.badge', { summary })}
+                                  </span>
+                                ) : null;
+                              })()}
+                              {item.description && (
+                                <span className="menu-row-desc">{item.description}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="menu-row-meta">
+                          <span className="menu-row-price">€{item.price.toFixed(2)}</span>
+                          <button
+                            type="button"
+                            className="menu-pill menu-pill-edit"
+                            onClick={() => startEdit(item)}
+                          >
+                            {t('menu.edit')}
+                          </button>
+                          <button
+                            type="button"
+                            className={`menu-pill ${item.available ? 'menu-pill-avail' : 'menu-pill-off'}`}
+                            onClick={() => toggleAvailable(item)}
+                          >
+                            {item.available ? t('menu.available') : t('menu.unavailable')}
+                          </button>
+                          <button
+                            type="button"
+                            className="menu-pill-delete"
+                            title={t('menu.delete')}
+                            onClick={() => handleDelete(item.id)}
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      </div>
+                    )
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 600 }}>€{item.price.toFixed(2)}</span>
-                  <button
-                    onClick={() => toggleAvailable(item)}
-                    style={{
-                      padding: '0.2rem 0.5rem', borderRadius: 5, border: '1px solid',
-                      fontSize: '0.75rem', cursor: 'pointer', fontWeight: 500,
-                      color: item.available ? '#16a34a' : '#9ca3af',
-                      borderColor: item.available ? '#86efac' : '#e5e7eb',
-                      background: item.available ? '#f0fdf4' : '#f9fafb',
-                    }}
-                  >
-                    {item.available ? t('menu.available') : t('menu.unavailable')}
-                  </button>
-                  <button style={btnIconEdit} title={t('menu.edit')} onClick={() => startEdit(item)}><PencilIcon /></button>
-                  <button style={btnIconDelete} title={t('menu.delete')} onClick={() => handleDelete(item.id)}><TrashIcon /></button>
-                </div>
-              </div>
-            )
-          )}
-        </div>
-      ))}
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

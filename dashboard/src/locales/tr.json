@@ -338,6 +338,8 @@
     "deleteConfirm": "Bu ürün silinsin mi?",
     "available": "Mevcut",
     "unavailable": "Mevcut değil",
+    "expandCategory": "{{category}} bölümünü aç",
+    "collapseCategory": "{{category}} bölümünü kapat",
     "form": {
       "name": "Ad",
       "price": "Fiyat (€)",
