@@ -482,9 +482,17 @@
   "settings": {
     "title": "Ayarlar",
     "loading": "Yükleniyor...",
-    "businessName": "İşletme adı",
+    "businessName": "Restoran adı",
     "alertNumber": "Bildirim numarası",
     "status": "Durum",
+    "statusActive": "Aktif",
+    "statusPaused": "Duraklatıldı",
+    "profile": {
+      "title": "Restoran profili"
+    },
+    "deliveryPayment": {
+      "title": "Teslimat ve ödeme"
+    },
     "location": {
       "title": "Konum",
       "description": "Bu restoranı yakındaki müşteriler için mesafeye göre sıralamak amacıyla kullanılır.",
@@ -541,6 +549,8 @@
     "hours": {
       "title": "Çalışma Saatleri",
       "description": "Günlük saatleri ayarlayın. Bot, sipariş penceresi dışındaki siparişleri reddeder. Kapalı günler restoran seçicisinde \"🔒 Kapalı\" olarak gösterilir.",
+      "shopHours": "Dükkan açılış – kapanış",
+      "orderWindow": "İlk – son sipariş",
       "open": "Açık",
       "closed": "Kapalı",
       "opens": "Açılış",

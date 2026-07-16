@@ -14,7 +14,11 @@ nav item shows the item list with availability toggles. Other nav items are plac
 - `OrdersScreen.jsx` — legacy orders table kit (composes `StatusBadge`, `PaymentBadge`, `Select`).
 - `OrderDetailScreen.jsx` — detail + lifecycle actions (composes `Button` with `tone`).
 - `MenuScreen.jsx` — menu by category with availability toggles.
-- `Dashboard-Improvements.dc.html` — Claude Design exploration (1a priority list vs **1b kitchen board**; production chose 1b).
+- `Dashboard-Improvements.dc.html` — Claude Design exploration:
+  - **Settings:** **3a** sectioned cards (profile, hours, delivery/payment, language) — production chose 3a
+  - **Menu:** 2a category accordion vs 2b flat table (production chose 2a)
+  - **Orders:** 1a priority list vs **1b kitchen board** (production chose 1b)
+  - Mock “Notifications” toggles are exploration-only (not in production Settings)
 
 Composes the shared primitives from `window.WhatOrderDesignSystem_b54bed`; it does not
 re-implement them.
