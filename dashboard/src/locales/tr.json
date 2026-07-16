@@ -91,6 +91,9 @@
     "filter": {
       "label": "Göster",
       "day": "Gün",
+      "today": "Bugün",
+      "prevDay": "Önceki gün",
+      "nextDay": "Sonraki gün",
       "active": "Aktif siparişler",
       "completed2w": "Tamamlanan — son 2 hafta",
       "completedCustom": "Tamamlanan — özel aralık",

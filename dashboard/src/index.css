@@ -476,15 +476,68 @@ button:focus-visible {
   flex-wrap: wrap;
   margin-left: auto;
 }
-.orders-day-picker {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
+.orders-day-nav {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-control);
 }
-.orders-day-picker-label {
-  white-space: nowrap;
+.orders-day-display {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 7.5rem;
+  padding: 0 0.75rem;
+  border-left: 1px solid var(--surface-border-strong);
+  border-right: 1px solid var(--surface-border-strong);
+  cursor: pointer;
+}
+.orders-day-display-text {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.orders-day-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  cursor: pointer;
+}
+.orders-day-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.orders-day-step:hover:not(:disabled) {
+  background: var(--paper-200);
+  color: var(--green-600);
+}
+.orders-day-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.orders-day-step:focus-visible,
+.orders-day-display:focus-within {
+  outline: 2px solid var(--green-500);
+  outline-offset: -2px;
+  z-index: 1;
 }
 .orders-filter-wrap {
   position: relative;

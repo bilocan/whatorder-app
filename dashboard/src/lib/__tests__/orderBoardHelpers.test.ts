@@ -6,6 +6,7 @@ import {
   belongsToBoardDay,
   isCompletedToday,
   localDayKey,
+  shiftLocalDayKey,
   startOfLocalDayMs,
 } from '../orderBoardColumns'
 import { orderElapsed } from '../orderElapsed'
@@ -44,6 +45,12 @@ describe('orderBoardColumns', () => {
       'delivery',
       'done',
     ])
+  })
+
+  it('shiftLocalDayKey steps calendar days', () => {
+    expect(shiftLocalDayKey('2026-07-16', -1)).toBe('2026-07-15')
+    expect(shiftLocalDayKey('2026-07-01', -1)).toBe('2026-06-30')
+    expect(shiftLocalDayKey('2026-07-15', 1)).toBe('2026-07-16')
   })
 
   it('Done shows only orders completed today (local calendar day)', () => {
@@ -104,6 +111,24 @@ describe('orderBoardColumns', () => {
           deliveredAt: new Date(oldMs).toISOString(),
           updatedAt: new Date(todayMs).toISOString(),
         } as Order,
+        now,
+      ),
+    ).toBe(false)
+  })
+
+  it('legacy terminal without stamps falls back to createdAt for isCompletedToday', () => {
+    const now = Date.parse('2026-07-16T15:00:00.000Z')
+    const todayMs = startOfLocalDayMs(now) + 2 * 60 * 60 * 1000
+    const oldMs = startOfLocalDayMs(now) - 4 * 24 * 60 * 60 * 1000
+    expect(
+      isCompletedToday(
+        { status: 'completed', createdAt: new Date(todayMs).toISOString() } as Order,
+        now,
+      ),
+    ).toBe(true)
+    expect(
+      isCompletedToday(
+        { status: 'completed', createdAt: new Date(oldMs).toISOString() } as Order,
         now,
       ),
     ).toBe(false)

@@ -61,6 +61,14 @@ export function localDayKey(ms = Date.now()): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Shift a `YYYY-MM-DD` local day by `delta` calendar days. */
+export function shiftLocalDayKey(dayKey: string, delta: number): string {
+  const [y, m, d] = dayKey.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + delta);
+  return localDayKey(dt.getTime());
+}
+
 export function isOnLocalDay(ms: number, dayKey: string): boolean {
   return localDayKey(ms) === dayKey;
 }
@@ -68,6 +76,7 @@ export function isOnLocalDay(ms: number, dayKey: string): boolean {
 /**
  * When the order entered a terminal status (not when it was placed).
  * Do not use `updatedAt` — payment/settlement touches would pull old orders onto "today".
+ * Legacy terminal rows with no stamp fall back to `createdAt`.
  */
 export function terminalCompletedAtMs(order: Order): number | null {
   const stamps = [
@@ -84,7 +93,18 @@ export function terminalCompletedAtMs(order: Order): number | null {
     if (!Number.isFinite(ms)) continue;
     if (best === null || ms > best) best = ms;
   }
-  return best;
+  if (best !== null) return best;
+
+  const terminal = new Set<OrderStatus>([
+    'delivered',
+    'picked_up',
+    'rejected',
+    'cancelled',
+    'completed',
+  ]);
+  if (!terminal.has(order.status)) return null;
+  const created = toDate(order.createdAt).getTime();
+  return Number.isFinite(created) && created > 0 ? created : null;
 }
 
 /** Terminal orders completed on the given local calendar day (`YYYY-MM-DD`). */

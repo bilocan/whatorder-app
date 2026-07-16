@@ -91,6 +91,9 @@
     "filter": {
       "label": "Anzeigen",
       "day": "Tag",
+      "today": "Heute",
+      "prevDay": "Vorheriger Tag",
+      "nextDay": "Nächster Tag",
       "active": "Aktive Bestellungen",
       "completed2w": "Abgeschlossen — letzte 2 Wochen",
       "completedCustom": "Abgeschlossen — benutzerdefiniert",

@@ -28,6 +28,7 @@ vi.mock('../lib/orderActions', async () => {
 })
 
 const TODAY = new Date().toISOString()
+const TODAY_KEY = localDayKey()
 const YESTERDAY_MS = Date.now() - 24 * 60 * 60 * 1000
 const YESTERDAY_KEY = localDayKey(YESTERDAY_MS)
 const YESTERDAY = new Date(YESTERDAY_MS).toISOString()
@@ -153,6 +154,25 @@ describe('OrdersPage', () => {
     expect(screen.getByLabelText('Day')).toHaveValue(YESTERDAY_KEY)
     expect(screen.getByText('Old Pending')).toBeInTheDocument()
     expect(screen.queryByText('Ali Veli')).not.toBeInTheDocument()
+  })
+
+  it('previous/next day buttons step the board day without relying on the date picker', async () => {
+    mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+      cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage()
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.getByLabelText('Next day')).toBeDisabled()
+    await userEvent.click(screen.getByLabelText('Previous day'))
+    expect(screen.getByLabelText('Day')).toHaveValue(YESTERDAY_KEY)
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
+    expect(screen.getByText('Old Pending')).toBeInTheDocument()
+    expect(screen.getByLabelText('Next day')).not.toBeDisabled()
+    await userEvent.click(screen.getByLabelText('Next day'))
+    expect(screen.getByLabelText('Day')).toHaveValue(TODAY_KEY)
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.getByLabelText('Next day')).toBeDisabled()
   })
 
   it('shows completed orders as a table when the "last 2 weeks" filter is selected', async () => {

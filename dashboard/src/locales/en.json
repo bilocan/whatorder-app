@@ -91,6 +91,9 @@
     "filter": {
       "label": "Show",
       "day": "Day",
+      "today": "Today",
+      "prevDay": "Previous day",
+      "nextDay": "Next day",
       "active": "Active orders",
       "completed2w": "Completed — last 2 weeks",
       "completedCustom": "Completed — custom range",

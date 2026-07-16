@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +22,13 @@ import {
   belongsToBoardDay,
   groupOrdersByColumn,
   localDayKey,
+  shiftLocalDayKey,
 } from '../lib/orderBoardColumns';
+import {
+  mergeOrdersWithOptimistic,
+  stampTerminalFields,
+  type OrderOptimisticPatch,
+} from '../lib/orderOptimistic';
 import StatusBadge from '../components/StatusBadge';
 import PaymentBadge from '../components/PaymentBadge';
 
@@ -35,9 +41,10 @@ export default function OrdersPage() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [loadingIds, setLoadingIds] = useState<Set<string>>(() => new Set());
   const [actionError, setActionError] = useState('');
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const optimisticRef = useRef(new Map<string, OrderOptimisticPatch>());
   const activePhoneNumberId = getActivePhoneNumberId();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -48,6 +55,15 @@ export default function OrdersPage() {
   const todayKey = localDayKey(nowMs);
   const dayParam = searchParams.get('day') ?? '';
   const selectedDay = DAY_PARAM_RE.test(dayParam) ? dayParam : todayKey;
+
+  function setOrderLoading(orderId: string, loading: boolean) {
+    setLoadingIds((prev) => {
+      const next = new Set(prev);
+      if (loading) next.add(orderId);
+      else next.delete(orderId);
+      return next;
+    });
+  }
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 30_000);
@@ -81,6 +97,12 @@ export default function OrdersPage() {
     setSearchParams(params, { replace: true });
   }
 
+  function stepBoardDay(delta: number) {
+    const next = shiftLocalDayKey(selectedDay, delta);
+    if (delta > 0 && next > todayKey) return;
+    setBoardDay(next);
+  }
+
   function setCustomFrom(value: string) {
     const params = new URLSearchParams(searchParams);
     if (value) params.set('from', value); else params.delete('from');
@@ -102,7 +124,10 @@ export default function OrdersPage() {
     return onSnapshot(q, (snap) => {
       const docs = snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) } as Order));
       docs.sort((a, b) => toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime());
-      setOrders(filterOrdersByPhoneRouting(docs, activePhoneNumberId));
+      const remote = filterOrdersByPhoneRouting(docs, activePhoneNumberId);
+      const { orders: merged, clearedIds } = mergeOrdersWithOptimistic(remote, optimisticRef.current);
+      for (const id of clearedIds) optimisticRef.current.delete(id);
+      setOrders(merged);
     });
   }, [businessId, activePhoneNumberId]);
 
@@ -149,7 +174,7 @@ export default function OrdersPage() {
 
   async function runAction(order: Order, action: string) {
     if (!businessId) return;
-    setActionLoadingId(order.id);
+    setOrderLoading(order.id, true);
     setActionError('');
     try {
       const result = await postOrderAction(businessId, order.id, action, {
@@ -159,18 +184,10 @@ export default function OrdersPage() {
         setActionError(result.error);
         return;
       }
-      const nowIso = new Date().toISOString();
+      const patch = stampTerminalFields(result.nextStatus, new Date().toISOString());
+      optimisticRef.current.set(order.id, patch);
       setOrders((prev) =>
-        prev.map((o) => {
-          if (o.id !== order.id) return o;
-          const next: Order = { ...o, status: result.nextStatus };
-          if (result.nextStatus === 'delivered') next.deliveredAt = nowIso;
-          if (result.nextStatus === 'picked_up') next.pickedUpAt = nowIso;
-          if (result.nextStatus === 'rejected') next.rejectedAt = nowIso;
-          if (result.nextStatus === 'cancelled') next.cancelledAt = nowIso;
-          if (result.nextStatus === 'completed') next.completedAt = nowIso;
-          return next;
-        }),
+        prev.map((o) => (o.id === order.id ? { ...o, ...patch } : o)),
       );
       if (TERMINAL_STATUSES.has(result.nextStatus) && openOrderId === order.id) {
         setOpenOrderId(null);
@@ -178,8 +195,18 @@ export default function OrdersPage() {
     } catch {
       setActionError(t('orderDetail.networkError'));
     } finally {
-      setActionLoadingId(null);
+      setOrderLoading(order.id, false);
     }
+  }
+
+  function boardDayLabel(dayKey: string) {
+    if (dayKey === todayKey) return t('orders.filter.today');
+    const [y, m, d] = dayKey.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('de-AT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
   }
 
   return (
@@ -191,17 +218,36 @@ export default function OrdersPage() {
         )}
         <div className="orders-header-controls">
           {isActiveBoard && (
-            <label className="orders-day-picker">
-              <span className="orders-day-picker-label">{t('orders.filter.day')}</span>
-              <input
-                className="orders-date-input"
-                type="date"
-                value={selectedDay}
-                max={todayKey}
-                onChange={(e) => setBoardDay(e.target.value)}
-                aria-label={t('orders.filter.day')}
-              />
-            </label>
+            <div className="orders-day-nav">
+              <button
+                type="button"
+                className="orders-day-step"
+                onClick={() => stepBoardDay(-1)}
+                aria-label={t('orders.filter.prevDay')}
+              >
+                ‹
+              </button>
+              <label className="orders-day-display">
+                <span className="orders-day-display-text">{boardDayLabel(selectedDay)}</span>
+                <input
+                  className="orders-day-input"
+                  type="date"
+                  value={selectedDay}
+                  max={todayKey}
+                  onChange={(e) => setBoardDay(e.target.value)}
+                  aria-label={t('orders.filter.day')}
+                />
+              </label>
+              <button
+                type="button"
+                className="orders-day-step"
+                onClick={() => stepBoardDay(1)}
+                disabled={selectedDay >= todayKey}
+                aria-label={t('orders.filter.nextDay')}
+              >
+                ›
+              </button>
+            </div>
           )}
           <div className="orders-filter-wrap">
             <select
@@ -267,7 +313,7 @@ export default function OrdersPage() {
                     const elapsed = elapsedLabel(order);
                     const primary = getPrimaryAction(order.status, order.orderType);
                     const pay = paymentBadge(order, t);
-                    const loading = actionLoadingId === order.id;
+                    const loading = loadingIds.has(order.id);
                     return (
                       <div
                         key={order.id}
@@ -516,10 +562,10 @@ export default function OrdersPage() {
                       className="order-action-btn"
                       data-variant={variant}
                       data-tone={tone}
-                      disabled={actionLoadingId === openOrder.id}
+                      disabled={loadingIds.has(openOrder.id)}
                       onClick={() => void runAction(openOrder, action)}
                     >
-                      {actionLoadingId === openOrder.id
+                      {loadingIds.has(openOrder.id)
                         ? t('orderDetail.saving')
                         : t(labelKey)}
                     </button>
