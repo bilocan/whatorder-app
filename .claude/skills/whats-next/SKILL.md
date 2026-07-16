@@ -4,6 +4,6 @@ description: Show open Asana tasks aligned with build-roadmap. Use when the user
 ---
 
 When invoked, follow the prompt at:
-`../../../../../whatorder-vault/Skills/whats-next/prompt.md`
+`../../../../whatorder-vault/Skills/whats-next/prompt.md`
 
 That file is loaded via vault `CLAUDE.md` (through `.claude/CLAUDE.local.md`). Execute its workflow directly.

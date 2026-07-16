@@ -4,6 +4,6 @@ description: Run the Definition of Done workflow — use an explicit mode (full,
 ---
 
 When invoked, follow the prompt at:
-`../../../../../whatorder-vault/Skills/task-done/prompt.md`
+`../../../../whatorder-vault/Skills/task-done/prompt.md`
 
 That file is loaded via vault `CLAUDE.md` (through `.claude/CLAUDE.local.md`). Execute its workflow directly.
