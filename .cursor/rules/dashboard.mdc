@@ -10,8 +10,11 @@ alwaysApply: false
 
 **Critical:**
 - Check scope against `specs/mvp-spec.md` (no Phase 2 unless asked)
-- i18n: de, en, tr locale files together
+- **UI/layout/CSS:** read `/whatorder-design` before visual changes. Accent `#22C55E`, not indigo `#6366f1` / Vite purple `#646cff`
+- **After visual/layout changes:** run `/whatorder-responsive-qa` (640px drawer) before claiming done
+- **Locale / owner-facing strings:** use `/whatorder-copy`; always update de, en, tr together
 - Firestore reads scoped to auth `businessId`
 - Before done: `tsc --project tsconfig.app.json`, `eslint`, `npm test`
 
 Scope check: `../whatorder-vault/Projects/WhatOrder/specs/mvp-spec.md`
+Design: `../whatorder-vault/Resources/tools/whatorder-design-howto.md`

@@ -4,6 +4,6 @@ description: Route an idea to vault or Asana. Use when the user says "Idea:", "i
 ---
 
 When invoked, follow the prompt at:
-`../../../../../whatorder-vault/Skills/capture-idea/prompt.md`
+`../../../../whatorder-vault/Skills/capture-idea/prompt.md`
 
 That file is loaded via vault `CLAUDE.md` (through `.claude/CLAUDE.local.md`). Execute its workflow directly.

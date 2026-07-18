@@ -49,7 +49,27 @@
   },
   "orders": {
     "title": "Siparişler",
+    "board": {
+      "title": "Mutfak panosu",
+      "new": "YENİ",
+      "close": "✕ Kapat",
+      "waitingSince": "Siparişten beri bekliyor",
+      "openFull": "Tam sipariş detayını aç",
+      "terminal": "Bu sipariş {{status}} — başka işlem yok.",
+      "col": {
+        "new": "Yeni",
+        "preparing": "Hazırlık",
+        "delivery": "Teslimat",
+        "done": "Bitti"
+      },
+      "elapsed": {
+        "justNow": "Az önce",
+        "minutesAgo": "{{count}} dk önce",
+        "hoursAgo": "{{hours}}sa {{minutes}}dk önce"
+      }
+    },
     "noOrders": "Henüz sipariş yok.",
+    "noOrdersForDay": "Bu güne ait sipariş yok.",
     "phoneLineScope": "Yalnızca bu WhatsApp hattındaki siparişler gösteriliyor.",
     "col": {
       "orderNumber": "Sipariş #",
@@ -70,6 +90,10 @@
     "deliveryFee": "+ €{{fee}} teslimat ücreti",
     "filter": {
       "label": "Göster",
+      "day": "Gün",
+      "today": "Bugün",
+      "prevDay": "Önceki gün",
+      "nextDay": "Sonraki gün",
       "active": "Aktif siparişler",
       "completed2w": "Tamamlanan — son 2 hafta",
       "completedCustom": "Tamamlanan — özel aralık",
@@ -314,6 +338,8 @@
     "deleteConfirm": "Bu ürün silinsin mi?",
     "available": "Mevcut",
     "unavailable": "Mevcut değil",
+    "expandCategory": "{{category}} bölümünü aç",
+    "collapseCategory": "{{category}} bölümünü kapat",
     "form": {
       "name": "Ad",
       "price": "Fiyat (€)",
@@ -456,9 +482,17 @@
   "settings": {
     "title": "Ayarlar",
     "loading": "Yükleniyor...",
-    "businessName": "İşletme adı",
+    "businessName": "Restoran adı",
     "alertNumber": "Bildirim numarası",
     "status": "Durum",
+    "statusActive": "Aktif",
+    "statusPaused": "Duraklatıldı",
+    "profile": {
+      "title": "Restoran profili"
+    },
+    "deliveryPayment": {
+      "title": "Teslimat ve ödeme"
+    },
     "location": {
       "title": "Konum",
       "description": "Bu restoranı yakındaki müşteriler için mesafeye göre sıralamak amacıyla kullanılır.",
@@ -515,6 +549,8 @@
     "hours": {
       "title": "Çalışma Saatleri",
       "description": "Günlük saatleri ayarlayın. Bot, sipariş penceresi dışındaki siparişleri reddeder. Kapalı günler restoran seçicisinde \"🔒 Kapalı\" olarak gösterilir.",
+      "shopHours": "Dükkan açılış – kapanış",
+      "orderWindow": "İlk – son sipariş",
       "open": "Açık",
       "closed": "Kapalı",
       "opens": "Açılış",

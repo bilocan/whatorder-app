@@ -577,7 +577,7 @@ const EMPTY_MENU: MenuFormState = {
                         {(() => {
                           const resolved = resolveMenuItemOptionGroups(item, optionGroupsById);
                           return customizationSummary(resolved) && (
-                            <span style={{ display: 'block', fontSize: '0.75rem', color: '#6366f1', fontWeight: 400 }}>
+                            <span style={{ display: 'block', fontSize: '0.75rem', color: '#22c55e', fontWeight: 400 }}>
                               {t('menu.optionGroups.badge', { summary: customizationSummary(resolved) })}
                             </span>
                           );

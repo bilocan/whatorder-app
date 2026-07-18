@@ -103,7 +103,7 @@ describe('MenuPage', () => {
       return vi.fn()
     })
     renderPage()
-    expect(screen.getAllByTitle('Edit').length).toBe(3)
+    expect(screen.getAllByRole('button', { name: 'Edit' }).length).toBe(3)
     expect(screen.getAllByTitle('Delete').length).toBe(3)
   })
 
@@ -116,6 +116,22 @@ describe('MenuPage', () => {
     expect(screen.getByText('+ Add item')).toBeInTheDocument()
   })
 
+  it('collapses a category to hide its items and expands again', () => {
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage()
+    expect(screen.getByText('Döner')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Mains' }))
+    expect(screen.queryByText('Döner')).not.toBeInTheDocument()
+    expect(screen.queryByText('Falafel')).not.toBeInTheDocument()
+    expect(screen.getByText('Ayran')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Mains' }))
+    expect(screen.getByText('Döner')).toBeInTheDocument()
+    expect(screen.getByText('Falafel')).toBeInTheDocument()
+  })
+
   it('opens edit form when navigated with ?edit=itemId', async () => {
     mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
       cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
@@ -126,6 +142,82 @@ describe('MenuPage', () => {
       expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
     })
     expect(screen.getByText('Save')).toBeInTheDocument()
+  })
+
+  it('force-expands a collapsed category for ?edit= deep link', async () => {
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage('/menu?edit=m1')
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Collapse Mains' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('opens the full edit form when Edit pill is clicked', async () => {
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Save')).toBeInTheDocument()
+  })
+
+  it('keeps the edit form visible when collapsing the category being edited', async () => {
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Mains' }))
+    expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    expect(screen.getByText('Save')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse Mains' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('expands the target category after adding an item', async () => {
+    let snapCb: ((s: object) => void) | null = null
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      snapCb = cb
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    mockAddDoc.mockResolvedValue(undefined)
+
+    const { container } = renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Drinks' }))
+    expect(screen.queryByText('Ayran')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('+ Add item'))
+    const nameInput = container.querySelector('input[required]') as HTMLInputElement
+    fireEvent.change(nameInput, { target: { value: 'Cola' } })
+    const priceInput = container.querySelector('input[type="number"]') as HTMLInputElement
+    fireEvent.change(priceInput, { target: { value: '2.5' } })
+    const categorySelect = container.querySelector('select') as HTMLSelectElement
+    fireEvent.change(categorySelect, { target: { value: 'drinks' } })
+    fireEvent.click(screen.getByText('Add'))
+
+    await waitFor(() => expect(mockAddDoc).toHaveBeenCalledTimes(1))
+    snapCb?.({
+      docs: [
+        ...ITEMS.map(({ id, ...data }) => ({ id, data: () => data })),
+        { id: 'm4', data: () => ({ name: 'Cola', description: '', price: 2.5, category: 'drinks', available: true }) },
+      ],
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Cola')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Collapse Drinks' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('uploads a selected photo and saves the returned URL on the new item', async () => {

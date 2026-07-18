@@ -36,6 +36,10 @@ const managementNavItems = [
   { to: '/settings', key: 'settings' },
 ] as const;
 
+function navClassName({ isActive }: { isActive: boolean }, extra?: string) {
+  return ['nav-link', isActive ? 'active' : '', extra].filter(Boolean).join(' ');
+}
+
 function LayoutContent() {
   const { t } = useTranslation();
   const location = useLocation();
@@ -60,47 +64,39 @@ function LayoutContent() {
 
   const managementActive = MANAGEMENT_PATHS.some((path) => location.pathname.startsWith(path));
 
-  const presenceDotColor = !presence?.isOnline ? '#ef4444'
-    : !presence?.ordersOpen ? '#f59e0b'
-    : '#22c55e';
+  const presenceDot = !presence?.isOnline
+    ? 'var(--danger)'
+    : !presence?.ordersOpen
+      ? 'var(--status-pending)'
+      : 'var(--green-500)';
 
   function closeMenu() { setMenuOpen(false); }
 
-  function navLinkStyle(isActive: boolean) {
-    return {
-      display: 'block',
-      padding: '0.5rem 0',
-      color: isActive ? '#000' : '#666',
-      fontWeight: isActive ? 600 : 400,
-      textDecoration: 'none',
-    } as const;
-  }
-
   return (
     <div className="layout-root">
-      {/* Mobile top header */}
       <div className="layout-mobile-header">
         <button className="hamburger-btn" onClick={() => setMenuOpen(true)} aria-label="Open menu">
           ☰
         </button>
         <BrandLogo size="sm" />
         {presence && (
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: presenceDotColor, flexShrink: 0 }} />
+          <span
+            className="presence-dot-header"
+            style={{ '--presence-dot': presenceDot } as React.CSSProperties}
+          />
         )}
         {!presence && <span style={{ width: 10 }} />}
       </div>
 
-      {/* Overlay (mobile) */}
       <div
         className={`layout-overlay${menuOpen ? ' open' : ''}`}
         onClick={closeMenu}
       />
 
-      {/* Sidebar / nav drawer */}
       <nav className={`layout-nav${menuOpen ? ' open' : ''}`}>
         <button className="nav-close-btn" onClick={closeMenu} aria-label="Close menu">✕</button>
 
-        <div style={{ marginBottom: '1rem' }}>
+        <div className="nav-brand">
           <BrandLogo size="md" />
         </div>
         {showTenantNav && <RestaurantSwitcher />}
@@ -113,7 +109,7 @@ function LayoutContent() {
                   key={to}
                   to={to}
                   onClick={closeMenu}
-                  style={({ isActive }) => navLinkStyle(isActive)}
+                  className={navClassName}
                 >
                   {t(`nav.${key}`)}
                 </NavLink>
@@ -122,13 +118,9 @@ function LayoutContent() {
               <div className="nav-management">
                 <button
                   type="button"
-                  className="nav-management-toggle"
+                  className={`nav-management-toggle${managementActive ? ' active' : ''}`}
                   aria-expanded={managementOpen}
                   onClick={() => setManagementOpen((open) => !open)}
-                  style={{
-                    color: managementActive ? '#000' : '#666',
-                    fontWeight: managementActive ? 600 : 500,
-                  }}
                 >
                   <span>{t('nav.management')}</span>
                   <span className={`nav-management-chevron${managementOpen ? ' open' : ''}`} aria-hidden>▾</span>
@@ -140,7 +132,7 @@ function LayoutContent() {
                         key={to}
                         to={to}
                         onClick={closeMenu}
-                        style={({ isActive }) => navLinkStyle(isActive)}
+                        className={navClassName}
                       >
                         {t(`nav.${key}`)}
                       </NavLink>
@@ -152,11 +144,11 @@ function LayoutContent() {
           )}
           {isAdmin && (
             <>
-              <div style={{ borderTop: '1px solid #eee', margin: '0.75rem 0' }} />
+              <div className="nav-admin-divider" />
               <AdminPhoneLineSwitcher />
               {[
-                { to: '/admin',          label: t('nav.admin') },
-                { to: '/admin/map',      label: t('nav.adminMap') },
+                { to: '/admin', label: t('nav.admin') },
+                { to: '/admin/map', label: t('nav.adminMap') },
                 { to: '/admin/earnings', label: t('nav.earnings') },
               ].map(({ to, label }) => (
                 <NavLink
@@ -164,14 +156,7 @@ function LayoutContent() {
                   to={to}
                   end={to === '/admin'}
                   onClick={closeMenu}
-                  style={({ isActive }) => ({
-                    display: 'block',
-                    padding: '0.5rem 0',
-                    color: isActive ? '#6366f1' : '#666',
-                    fontWeight: isActive ? 600 : 400,
-                    textDecoration: 'none',
-                    fontSize: '0.9rem',
-                  })}
+                  className={({ isActive }) => navClassName({ isActive }, 'nav-link-sm')}
                 >
                   {label}
                 </NavLink>
@@ -181,10 +166,13 @@ function LayoutContent() {
         </div>
 
         {showTenantNav && presence && (
-          <div style={{ margin: '0.5rem 0 0.75rem', padding: '0.6rem 0.75rem', background: '#f5f5f5', borderRadius: 8, fontSize: '0.78rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: presenceDotColor }} />
-              <span style={{ color: '#444', fontWeight: 500 }}>
+          <div className="presence-panel">
+            <div className="presence-status">
+              <span
+                className="presence-dot"
+                style={{ '--presence-dot': presenceDot } as React.CSSProperties}
+              />
+              <span className="presence-label">
                 {!presence.isOnline
                   ? t('presence.offline')
                   : !presence.ordersOpen
@@ -193,38 +181,17 @@ function LayoutContent() {
               </span>
             </div>
             <button
+              type="button"
+              className={`presence-btn ${presence.ordersOpen ? 'presence-btn-pause' : 'presence-btn-resume'}`}
               onClick={() => businessId && toggleOrdersOpen(businessId, !presence.ordersOpen)}
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '0.3rem 0',
-                marginBottom: presence.deliveryEnabled ? '0.3rem' : 0,
-                background: presence.ordersOpen ? '#fee2e2' : '#dcfce7',
-                border: 'none',
-                borderRadius: 6,
-                color: presence.ordersOpen ? '#dc2626' : '#16a34a',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-              }}
             >
               {presence.ordersOpen ? t('presence.pauseOrders') : t('presence.resumeOrders')}
             </button>
             {presence.deliveryEnabled && (
               <button
+                type="button"
+                className={`presence-btn ${presence.deliveryOpen ? 'presence-btn-pause' : 'presence-btn-resume'}`}
                 onClick={() => businessId && toggleDeliveryOpen(businessId, !presence.deliveryOpen)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  padding: '0.3rem 0',
-                  background: presence.deliveryOpen ? '#fee2e2' : '#dcfce7',
-                  border: 'none',
-                  borderRadius: 6,
-                  color: presence.deliveryOpen ? '#dc2626' : '#16a34a',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontSize: '0.75rem',
-                }}
               >
                 {presence.deliveryOpen ? t('presence.pauseDelivery') : t('presence.resumeDelivery')}
               </button>
@@ -235,20 +202,17 @@ function LayoutContent() {
         <BuildInfoPanel />
 
         <LanguageSwitcher />
-        <div style={{ marginBottom: '0.5rem' }}>
-          <div style={{ fontSize: '0.7rem', color: '#ccc', marginBottom: '0.15rem' }}>UID</div>
+        <div className="nav-uid">
+          <div className="nav-uid-label">UID</div>
           <div
+            className="nav-uid-value"
             title={user?.uid}
-            style={{ fontSize: '0.7rem', color: '#bbb', fontFamily: 'monospace', cursor: 'pointer', wordBreak: 'break-all' }}
             onClick={() => user?.uid && navigator.clipboard.writeText(user.uid)}
           >
             {user?.uid?.slice(0, 16)}…
           </div>
         </div>
-        <button
-          onClick={signOut}
-          style={{ padding: '0.5rem 0', background: 'none', border: 'none', color: '#999', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}
-        >
+        <button type="button" className="sign-out-btn" onClick={signOut}>
           {t('nav.signOut')}
         </button>
       </nav>

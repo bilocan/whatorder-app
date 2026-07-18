@@ -49,7 +49,27 @@
   },
   "orders": {
     "title": "Orders",
+    "board": {
+      "title": "Kitchen board",
+      "new": "NEW",
+      "close": "✕ Close",
+      "waitingSince": "Waiting since order placed",
+      "openFull": "Open full order details",
+      "terminal": "This order is {{status}} — no further action.",
+      "col": {
+        "new": "New",
+        "preparing": "Preparing",
+        "delivery": "Delivery",
+        "done": "Done"
+      },
+      "elapsed": {
+        "justNow": "Just now",
+        "minutesAgo": "{{count}} min ago",
+        "hoursAgo": "{{hours}}h {{minutes}}m ago"
+      }
+    },
     "noOrders": "No orders yet.",
+    "noOrdersForDay": "No orders for this day.",
     "phoneLineScope": "Showing orders for this WhatsApp line only.",
     "col": {
       "orderNumber": "Order #",
@@ -70,6 +90,10 @@
     "deliveryFee": "+ €{{fee}} delivery fee",
     "filter": {
       "label": "Show",
+      "day": "Day",
+      "today": "Today",
+      "prevDay": "Previous day",
+      "nextDay": "Next day",
       "active": "Active orders",
       "completed2w": "Completed — last 2 weeks",
       "completedCustom": "Completed — custom range",
@@ -314,6 +338,8 @@
     "deleteConfirm": "Delete this item?",
     "available": "Available",
     "unavailable": "Off",
+    "expandCategory": "Expand {{category}}",
+    "collapseCategory": "Collapse {{category}}",
     "form": {
       "name": "Name",
       "price": "Price (€)",
@@ -456,9 +482,17 @@
   "settings": {
     "title": "Settings",
     "loading": "Loading...",
-    "businessName": "Business name",
+    "businessName": "Restaurant name",
     "alertNumber": "Alert number",
     "status": "Status",
+    "statusActive": "Active",
+    "statusPaused": "Paused",
+    "profile": {
+      "title": "Restaurant profile"
+    },
+    "deliveryPayment": {
+      "title": "Delivery & payment"
+    },
     "location": {
       "title": "Location",
       "description": "Used to sort this restaurant by distance for nearby customers.",
@@ -513,8 +547,10 @@
       "error": "Error saving"
     },
     "hours": {
-      "title": "Operating Hours",
-      "description": "Set hours per day. Bot rejects orders outside the order window. Closed days show \"🔒 Closed\" in the restaurant picker.",
+      "title": "Opening hours",
+      "description": "Set hours per day. Bot rejects orders outside the order window. Closed days show as closed in the restaurant picker.",
+      "shopHours": "Shop open – close",
+      "orderWindow": "First – last order",
       "open": "Open",
       "closed": "Closed",
       "opens": "Opens",

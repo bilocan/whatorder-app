@@ -248,7 +248,7 @@ export default function EarningsPage() {
         <button
           onClick={saveFeeConfig}
           disabled={saving}
-          style={{ padding: '0.3rem 0.9rem', borderRadius: 6, background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
+          style={{ padding: '0.3rem 0.9rem', borderRadius: 6, background: '#000', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
         >
           {saving ? t('admin.earnings.saving') : t('admin.earnings.save')}
         </button>
@@ -264,9 +264,9 @@ export default function EarningsPage() {
           <div style={labelStyle}>{t('admin.earnings.cards.restaurantRevenue')}</div>
           <div style={valueStyle}>€{totalRevenue.toFixed(2)}</div>
         </div>
-        <div style={{ ...cardStyle, borderColor: '#6366f1' }}>
-          <div style={{ ...labelStyle, color: '#6366f1' }}>{t('admin.earnings.cards.whatorderEarnings')}</div>
-          <div style={{ ...valueStyle, color: '#6366f1' }}>€{totalFees.toFixed(2)}</div>
+        <div style={{ ...cardStyle, borderColor: '#22c55e' }}>
+          <div style={{ ...labelStyle, color: '#22c55e' }}>{t('admin.earnings.cards.whatorderEarnings')}</div>
+          <div style={{ ...valueStyle, color: '#22c55e' }}>€{totalFees.toFixed(2)}</div>
         </div>
       </div>
 
@@ -337,7 +337,7 @@ export default function EarningsPage() {
               <th style={{ padding: '0.5rem' }}>{t('admin.earnings.col.date')}</th>
               <th style={{ padding: '0.5rem' }}>{t('admin.earnings.col.customer')}</th>
               <th style={{ padding: '0.5rem', textAlign: 'right' }}>{t('admin.earnings.col.orderTotal')}</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right', color: '#6366f1' }}>{t('admin.earnings.col.fee')}</th>
+              <th style={{ padding: '0.5rem', textAlign: 'right', color: '#22c55e' }}>{t('admin.earnings.col.fee')}</th>
               <th style={{ padding: '0.5rem' }}>{t('admin.earnings.col.settlement')}</th>
               <th style={{ padding: '0.5rem' }}>{t('admin.earnings.col.status')}</th>
             </tr>
@@ -351,7 +351,7 @@ export default function EarningsPage() {
                 </td>
                 <td style={{ padding: '0.5rem' }}>{o.customerName}</td>
                 <td style={{ padding: '0.5rem', textAlign: 'right' }}>€{o.total.toFixed(2)}</td>
-                <td style={{ padding: '0.5rem', textAlign: 'right', color: '#6366f1', fontWeight: 600 }}>
+                <td style={{ padding: '0.5rem', textAlign: 'right', color: '#22c55e', fontWeight: 600 }}>
                   €{calcFee(o.total, feeConfig).toFixed(2)}
                 </td>
                 <td style={{

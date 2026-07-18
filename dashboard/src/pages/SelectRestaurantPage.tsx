@@ -72,7 +72,7 @@ export default function SelectRestaurantPage() {
                   color: '#111',
                   transition: 'border-color 0.15s',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = '#22c55e')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}
               >
                 {name}
