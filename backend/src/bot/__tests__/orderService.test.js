@@ -359,13 +359,27 @@ describe('Order state machine', () => {
   });
 
   // ── rejectOrder ───────────────────────────────────────────────────────────
-  test('rejectOrder: pending → rejected, notifies with orderRejected key', async () => {
+  test('rejectOrder: pending → rejected with reorder buttons', async () => {
     const { mockUpdate } = makeRef(ORDER('pending'));
 
     await rejectOrder(BIZ, 'order_abc123');
 
     expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'rejected', rejectedAt: expect.any(String) }));
     expect(t).toHaveBeenCalledWith('orderRejected', 'tr', 'ABC123');
+    expect(t).toHaveBeenCalledWith('orderCompletePrompt', 'tr');
+    expect(sendButtonMessage).toHaveBeenCalledWith(
+      '+43699000001',
+      expect.objectContaining({
+        body: expect.stringContaining('orderCompletePrompt'),
+        buttons: expect.arrayContaining([
+          expect.objectContaining({ id: 'btn_post_reorder' }),
+          expect.objectContaining({ id: 'btn_post_restaurant' }),
+        ]),
+      }),
+      'prod_phone_id',
+    );
+    expect(sendText).not.toHaveBeenCalled();
+    expect(patchSession).toHaveBeenCalledWith('+43699000001', { pendingAmendBusinessId: BIZ });
   });
 
   // ── startPreparation ──────────────────────────────────────────────────────
@@ -452,10 +466,30 @@ describe('Order state machine', () => {
   });
 
   // ── cancelOrder ───────────────────────────────────────────────────────────
-  test('cancelOrder: pending → cancelled', async () => {
+  test('cancelOrder: pending → cancelled with reorder buttons', async () => {
     const { mockUpdate } = makeRef(ORDER('pending'));
     await cancelOrder(BIZ, 'order_abc123');
     expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled', cancelledAt: expect.any(String) }));
+    expect(t).toHaveBeenCalledWith('orderCancelled', 'tr', 'ABC123');
+    expect(sendButtonMessage).toHaveBeenCalledWith(
+      '+43699000001',
+      expect.objectContaining({
+        buttons: expect.arrayContaining([
+          expect.objectContaining({ id: 'btn_post_reorder' }),
+          expect.objectContaining({ id: 'btn_post_restaurant' }),
+        ]),
+      }),
+      'prod_phone_id',
+    );
+    expect(patchSession).toHaveBeenCalledWith('+43699000001', { pendingAmendBusinessId: BIZ });
+  });
+
+  test('cancelOrder: skipReentry sends plain text (self-serve cancel path)', async () => {
+    makeRef(ORDER('pending'));
+    await cancelOrder(BIZ, 'order_abc123', { skipReentry: true });
+    expect(sendText).toHaveBeenCalledWith('+43699000001', 'orderCancelled', 'prod_phone_id');
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+    expect(patchSession).not.toHaveBeenCalled();
   });
 
   test('cancelOrder: approved → cancelled', async () => {

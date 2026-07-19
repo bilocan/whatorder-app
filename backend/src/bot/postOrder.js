@@ -153,7 +153,8 @@ async function handlePostOrderCancelButton({ from, session, lang, businessId }) 
   }
 
   if (canCustomerCancel(order)) {
-    await cancelOrder(businessId, order.id);
+    // skipReentry: this path restarts browsing below — avoid a second button bubble.
+    await cancelOrder(businessId, order.id, { skipReentry: true });
     // transitionOrder already sends orderCancelled template to the customer.
     await clearPostOrderSession(from, session, { consecutiveParseFailures: 0 });
     const info = await getBusinessInfo(businessId);
