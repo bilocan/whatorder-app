@@ -5,7 +5,16 @@ const { buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, 
 const { getBusinessInfo, getMenuContext } = require('../menuService');
 const { createOrder } = require('../orderService');
 const { customersRef, ordersRef } = require('../../lib/collections');
-const { reverseGeocode } = require('../../lib/geocode');
+const { reverseGeocode, validateDeliveryAddress } = require('../../lib/geocode');
+const {
+  hasUnitPattern,
+  normalizeBuildingLabel,
+  composeDeliveryLabel,
+  isDeliverableBuildingLabel,
+  parseDeliveryUnit,
+  splitStreetAndUnitHint,
+  isNearlySameAddress,
+} = require('../deliveryAddress');
 const { isStripeConfigured } = require('../../lib/stripe');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
 const { isStrongOrderText, isGreetingOnly, isFreshStartCommand } = require('../intentParser');
@@ -146,7 +155,7 @@ async function resolveCustomerName(session, phone, businessId) {
 
 async function finishToConfirming(from, session, lang, businessId, basket) {
   const info = await getBusinessInfo(businessId);
-  const cleared = { ...session, confirmingOrderTypeEdit: false };
+  const cleared = { ...session, confirmingOrderTypeEdit: false, pendingDeliveryBuilding: null };
   if (isConversationalBasket(info)) {
     await advanceCheckoutFromSlots({ from, session: cleared, lang, businessId, basket, info });
     return;
@@ -158,6 +167,114 @@ async function finishToConfirming(from, session, lang, businessId, basket) {
     const askId = await sendText(from, t('askName', lang));
     await setSession(from, { ...cleared, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
   }
+}
+
+async function presentBuildingConfirm({ from, session, lang, building, lat, lng }) {
+  const label = normalizeBuildingLabel(building);
+  const msgId = await sendButtonMessage(from, {
+    body: t('deliveryAddressConfirm', lang, label),
+    buttons: [
+      { id: 'btn_delivery_addr_yes', title: t('deliveryAddressConfirmYes', lang) },
+      { id: 'btn_delivery_addr_edit', title: t('deliveryAddressConfirmEdit', lang) },
+    ],
+  });
+  await setSession(from, {
+    ...session,
+    state: 'awaiting_delivery_address_confirm',
+    pendingDeliveryBuilding: label,
+    ...(lat != null && lng != null ? { lat, lng } : {}),
+    pendingDeleteIds: msgId ? [msgId] : [],
+  });
+}
+
+/**
+ * Confirm when building was corrected OR when customer omitted PLZ.
+ * With PLZ present and label nearly identical, skip Yes/Edit (Wien optional).
+ * Without PLZ always confirm — Wien alone is not enough (ambiguous Hauptstraße).
+ */
+async function presentBuildingConfirmOrContinue({
+  from, session, lang, businessId, basket, building, lat, lng, rawInput,
+}) {
+  const label = normalizeBuildingLabel(building);
+  const inputHasPlz = /\b\d{4}\b/.test(String(rawInput || ''));
+  if (rawInput && inputHasPlz && isNearlySameAddress(rawInput, label)) {
+    await continueAfterBuildingAccepted({
+      from, session, lang, businessId, basket, building: label, lat, lng,
+    });
+    return;
+  }
+  await presentBuildingConfirm({ from, session, lang, building: label, lat, lng });
+}
+
+async function presentUnitPrompt({ from, session, lang, building }) {
+  const askId = await sendText(from, t('askDeliveryUnit', lang));
+  await setSession(from, {
+    ...session,
+    state: 'awaiting_delivery_address_unit',
+    pendingDeliveryBuilding: normalizeBuildingLabel(building),
+    pendingDeleteIds: askId ? [askId] : [],
+  });
+}
+
+/** After building is accepted: skip unit if already present, else ask Stiege/Tür/Top. */
+async function continueAfterBuildingAccepted({ from, session, lang, businessId, basket, building, lat, lng }) {
+  const label = normalizeBuildingLabel(building);
+  const next = {
+    ...session,
+    pendingDeliveryBuilding: label,
+    ...(lat != null && lng != null ? { lat, lng } : {}),
+  };
+  if (hasUnitPattern(label)) {
+    await finishToConfirming(from, { ...next, deliveryAddress: label, pendingDeliveryBuilding: null }, lang, businessId, basket);
+    return;
+  }
+  await presentUnitPrompt({ from, session: next, lang, building: label });
+}
+
+const EDIT_ADDRESS = new Set(['edit', 'ändern', 'andern', 'aendern', 'düzenle', 'duzenle', 'change', 'degistir', 'değiştir']);
+
+async function resolveTypedDeliveryAddress(rawText) {
+  const trimmed = rawText.trim();
+  const { query, unitHint } = splitStreetAndUnitHint(trimmed);
+
+  // Try building-only first; add Wien when locality missing (AT pilot default).
+  const hasLocality = /\b(wien|vienna|\d{4})\b/i.test(query);
+  const candidates = [];
+  const push = (c) => {
+    if (c && !candidates.includes(c)) candidates.push(c);
+  };
+  push(query);
+  if (!hasLocality) push(`${query}, Wien`);
+  if (query !== trimmed) push(trimmed);
+  if (query !== trimmed && !/\b(wien|vienna|\d{4})\b/i.test(trimmed)) {
+    push(`${query}, Wien`);
+  }
+
+  let validated = null;
+  for (const candidate of candidates) {
+    validated = await validateDeliveryAddress(candidate);
+    if (validated?.formattedAddress && isDeliverableBuildingLabel(validated.formattedAddress)) {
+      break;
+    }
+    validated = null;
+  }
+
+  if (!validated?.formattedAddress) {
+    // Never accept unverified raw text (fake Hausnummer like "1111111" must fail).
+    console.warn(`[checkout] delivery address unresolved: ${trimmed.slice(0, 80)}`);
+    return { ok: false };
+  }
+
+  let building = normalizeBuildingLabel(validated.formattedAddress);
+  if (unitHint) {
+    building = composeDeliveryLabel(building, unitHint);
+  }
+  return {
+    ok: true,
+    building,
+    lat: validated.lat ?? null,
+    lng: validated.lng ?? null,
+  };
 }
 
 async function sendOrderTypePrompt(from, lang, deliveryFee, body) {
@@ -466,6 +583,21 @@ async function reshowCheckoutPrompt(ctx, session, basket) {
       }
       return;
     }
+    case 'awaiting_delivery_address_confirm': {
+      if (session.pendingDeliveryBuilding) {
+        await presentBuildingConfirm({
+          from, session, lang,
+          building: session.pendingDeliveryBuilding,
+          lat: session.lat, lng: session.lng,
+        });
+      }
+      return;
+    }
+    case 'awaiting_delivery_address_unit': {
+      const askId = await sendText(from, t('askDeliveryUnit', lang));
+      await setSession(from, { ...session, basket, pendingDeleteIds: askId ? [askId] : [] });
+      return;
+    }
     default:
       break;
   }
@@ -580,10 +712,12 @@ async function gateCheckoutTextInput(ctx) {
 
     // awaiting_confirm_note / confirming: weak free text is a note, not a product search.
     // awaiting_name: only run basket op for strong order text ("noch ein cola", "2 döner", etc.).
-    // awaiting_delivery_address*: typed text is always the address, never a menu search.
+    // awaiting_delivery_address*: typed text is always the address / unit, never a menu search.
     const skipBasketOp = liveSession.state === 'awaiting_confirm_note'
       || liveSession.state === 'awaiting_delivery_address'
       || liveSession.state === 'awaiting_delivery_address_choice'
+      || liveSession.state === 'awaiting_delivery_address_confirm'
+      || liveSession.state === 'awaiting_delivery_address_unit'
       || (liveSession.state === 'confirming' && !isStrongOrderText(text, norm))
       || (liveSession.state === 'awaiting_name' && !isStrongOrderText(text, norm));
     const opResult = skipBasketOp
@@ -737,8 +871,14 @@ async function handleAwaitingDeliveryAddressChoice({ from, session, lang, busine
   if (type === 'list_reply') {
     if (id === 'delivery_loc_start' && session.lat != null && session.lng != null) {
       const geocoded = await reverseGeocode(session.lat, session.lng);
-      const deliveryAddress = geocoded || `${session.lat.toFixed(4)}, ${session.lng.toFixed(4)}`;
-      await finishToConfirming(from, { ...session, deliveryAddress }, lang, businessId, basket);
+      if (!geocoded || !isDeliverableBuildingLabel(geocoded)) {
+        const askId = await sendText(from, t('deliveryAddressGeocodeFailed', lang));
+        await setSession(from, { ...session, state: 'awaiting_delivery_address', pendingDeleteIds: askId ? [askId] : [] });
+        return;
+      }
+      await presentBuildingConfirm({
+        from, session, lang, building: geocoded, lat: session.lat, lng: session.lng,
+      });
       return;
     }
     if (id === 'delivery_addr_saved') {
@@ -746,7 +886,9 @@ async function handleAwaitingDeliveryAddressChoice({ from, session, lang, busine
         const snap = await customersRef(businessId).doc(from).get();
         const deliveryAddress = snap.data()?.lastDeliveryAddress;
         if (deliveryAddress) {
-          await finishToConfirming(from, { ...session, deliveryAddress }, lang, businessId, basket);
+          await continueAfterBuildingAccepted({
+            from, session, lang, businessId, basket, building: deliveryAddress,
+          });
           return;
         }
       } catch { /* fall through to re-show picker */ }
@@ -757,7 +899,7 @@ async function handleAwaitingDeliveryAddressChoice({ from, session, lang, busine
       return;
     }
     if (id === 'delivery_addr_share') {
-      const locId = await sendLocationRequest(from, t('askDeliveryAddress', lang));
+      const locId = await sendLocationRequest(from, t('askDeliveryAddressShare', lang));
       await setSession(from, { ...session, state: 'awaiting_delivery_address', pendingDeleteIds: locId ? [locId] : [] });
       return;
     }
@@ -775,19 +917,106 @@ async function handleAwaitingDeliveryAddress({ from, session, lang, businessId, 
     from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
   })) return;
 
-  let deliveryAddress = null;
   if (type === 'location' && latitude != null && longitude != null) {
     const geocoded = await reverseGeocode(latitude, longitude);
-    deliveryAddress = geocoded || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-  } else if (type === 'text' && norm.length > 0) {
-    deliveryAddress = text.trim();
+    if (!geocoded || !isDeliverableBuildingLabel(geocoded)) {
+      await sendText(from, t('deliveryAddressGeocodeFailed', lang));
+      return;
+    }
+    await presentBuildingConfirm({
+      from, session, lang, building: geocoded, lat: latitude, lng: longitude,
+    });
+    return;
   }
 
-  if (deliveryAddress) {
-    await finishToConfirming(from, { ...session, deliveryAddress }, lang, businessId, basket);
+  if (type === 'text' && norm.length > 0) {
+    const resolved = await resolveTypedDeliveryAddress(text);
+    if (!resolved.ok) {
+      await sendText(from, t('deliveryAddressInvalid', lang));
+      return;
+    }
+    await presentBuildingConfirmOrContinue({
+      from, session, lang, businessId, basket,
+      building: resolved.building,
+      lat: resolved.lat,
+      lng: resolved.lng,
+      rawInput: text.trim(),
+    });
     return;
   }
   await sendText(from, t('askDeliveryAddress', lang));
+}
+
+async function handleAwaitingDeliveryAddressConfirm({ from, session, lang, businessId, basket, type, id, text, norm, contactName, isMulti }) {
+  if (type === 'text' && await gateCheckoutTextInput({
+    from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
+  })) return;
+
+  const building = session.pendingDeliveryBuilding;
+  const accepted =
+    (type === 'button_reply' && id === 'btn_delivery_addr_yes')
+    || (type === 'text' && CONFIRM.has(norm));
+  const edit =
+    (type === 'button_reply' && id === 'btn_delivery_addr_edit')
+    || (type === 'text' && EDIT_ADDRESS.has(norm));
+
+  if (edit) {
+    const askId = await sendText(from, t('askDeliveryAddress', lang));
+    await setSession(from, {
+      ...session,
+      state: 'awaiting_delivery_address',
+      pendingDeliveryBuilding: null,
+      pendingDeleteIds: askId ? [askId] : [],
+    });
+    return;
+  }
+
+  if (accepted && building) {
+    await continueAfterBuildingAccepted({
+      from, session, lang, businessId, basket, building, lat: session.lat, lng: session.lng,
+    });
+    return;
+  }
+
+  if (building) {
+    await presentBuildingConfirm({
+      from, session, lang, building, lat: session.lat, lng: session.lng,
+    });
+    return;
+  }
+  const askId = await sendText(from, t('askDeliveryAddress', lang));
+  await setSession(from, { ...session, state: 'awaiting_delivery_address', pendingDeleteIds: askId ? [askId] : [] });
+}
+
+async function handleAwaitingDeliveryAddressUnit({ from, session, lang, businessId, basket, type, text, norm, contactName, isMulti }) {
+  if (type === 'text' && text?.trim() && await gateCheckoutTextInput({
+    from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
+  })) return;
+
+  const building = session.pendingDeliveryBuilding;
+  if (!building) {
+    const askId = await sendText(from, t('askDeliveryAddress', lang));
+    await setSession(from, { ...session, state: 'awaiting_delivery_address', pendingDeleteIds: askId ? [askId] : [] });
+    return;
+  }
+
+  if (type === 'text' && norm.length > 0) {
+    const parsed = parseDeliveryUnit(text);
+    if (!parsed.ok) {
+      await sendText(from, t('deliveryUnitInvalid', lang));
+      return;
+    }
+    const deliveryAddress = parsed.label == null
+      ? normalizeBuildingLabel(building)
+      : composeDeliveryLabel(building, parsed.label);
+    await finishToConfirming(from, {
+      ...session,
+      deliveryAddress,
+      pendingDeliveryBuilding: null,
+    }, lang, businessId, basket);
+    return;
+  }
+  await sendText(from, t('askDeliveryUnit', lang));
 }
 
 async function handleAwaitingName({ from, session, lang, businessId, basket, type, text, norm, contactName, isMulti }) {
@@ -900,6 +1129,8 @@ module.exports = {
   handleAwaitingOrderType,
   handleAwaitingDeliveryAddressChoice,
   handleAwaitingDeliveryAddress,
+  handleAwaitingDeliveryAddressConfirm,
+  handleAwaitingDeliveryAddressUnit,
   handleAwaitingName,
   handleConfirming,
   resumeDeliveryCheckout,

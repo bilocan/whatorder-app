@@ -1,7 +1,10 @@
 const { sessionRef } = require('../lib/collections');
 const { db } = require('../lib/firebase');
 
-const CHECKOUT_FIELDS = ['flow', 'orderType', 'deliveryAddress', 'specialRequests', 'customerName', 'pendingPaymentMethod', 'prepMins', 'pickupTime', 'confirmingOrderTypeEdit'];
+const CHECKOUT_FIELDS = [
+  'flow', 'orderType', 'deliveryAddress', 'pendingDeliveryBuilding',
+  'specialRequests', 'customerName', 'pendingPaymentMethod', 'prepMins', 'pickupTime', 'confirmingOrderTypeEdit',
+];
 const MENU_BROWSE_FIELDS = ['textMenuIndex', 'textMenuCategory', 'menuSearchActive'];
 const INTENT_FIELDS = ['pendingIntentItems', 'unmatchedIntentItems', 'intentCustomize', 'pendingItem', 'pendingIntentNote', 'pendingIntentRawText', 'intentSuggestions'];
 const REORDER_FIELDS = ['pendingReorderItems', 'pendingReorderUnmatched'];

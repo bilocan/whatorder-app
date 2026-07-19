@@ -326,7 +326,7 @@ describe('Confirm list: edit name and address before placing order', () => {
     }));
   });
 
-  test('switching to delivery from confirm goes to address picker then back to confirm', async () => {
+  test('switching to delivery from confirm goes to address picker then unit then back to confirm', async () => {
     mockCustomerProfile({ lastDeliveryAddress: 'Naschmarkt 5, 1040 Wien' });
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, deliveryFee: 2.5 });
     getSession.mockResolvedValue({
@@ -350,8 +350,24 @@ describe('Confirm list: edit name and address before placing order', () => {
     await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'delivery_addr_saved', title: 'Last address' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address_unit',
+      pendingDeliveryBuilding: 'Naschmarkt 5, 1040 Wien',
+    }));
+
+    getSession.mockResolvedValue({
+      language: 'en', state: 'awaiting_delivery_address_unit', confirmingOrderTypeEdit: true,
+      orderType: 'delivery',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'John',
+      pendingDeliveryBuilding: 'Naschmarkt 5, 1040 Wien',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Top 2' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
       customerName: 'John',
+      deliveryAddress: 'Naschmarkt 5, Top 2, 1040 Wien',
     }));
     expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('Naschmarkt'),
@@ -489,11 +505,31 @@ describe('Known-name skip: awaiting_name bypassed for returning customers', () =
     }));
   });
 
-  test('returning customer providing typed delivery address skips awaiting_name', async () => {
+  test('returning customer providing typed delivery address skips confirm when unchanged, then unit', async () => {
+    const { validateDeliveryAddress } = require('../../lib/geocode');
+    validateDeliveryAddress.mockResolvedValue({
+      formattedAddress: 'Naschmarkt 5, 1040 Wien',
+      lat: 48.2,
+      lng: 16.3,
+    });
     mockCustomerProfile({ name: 'Bilal' });
     getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_delivery_address', orderType: 'delivery' });
 
     await handleMessage(ROUTING, msg({ text: 'Naschmarkt 5, 1040 Wien' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address_unit',
+      pendingDeliveryBuilding: 'Naschmarkt 5, 1040 Wien',
+    }));
+
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'awaiting_delivery_address_unit',
+      orderType: 'delivery',
+      pendingDeliveryBuilding: 'Naschmarkt 5, 1040 Wien',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Haus' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
