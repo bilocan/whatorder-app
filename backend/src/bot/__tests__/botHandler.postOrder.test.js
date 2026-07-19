@@ -107,7 +107,7 @@ describe('M4 post-order routing', () => {
 
     await handleMessage(ROUTING, msg({ text: 'stornieren' }));
 
-    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID);
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true });
     expect(patchSession).toHaveBeenCalled();
   });
 
