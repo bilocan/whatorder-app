@@ -1,4 +1,4 @@
-const { ordersRef, stripeEventRef } = require('./collections');
+const { ordersRef, stripeEventRef, businessRef } = require('./collections');
 const { admin } = require('./firebase');
 const { getStripe } = require('./stripe');
 const { getFeeConfig, calcFeeCents } = require('./feeConfig');
@@ -6,6 +6,7 @@ const { getSettlementConfig, computeHoldEndsAt, computeExpectedPayoutAt } = requ
 const { resolveWhatsAppReturnPhoneDigits, waMeUrl, resolvePaymentLang } = require('./whatsappReturn');
 const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('./whatsappRouting');
 const { sendText, sendButtonMessage } = require('./whatsapp');
+const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } = require('./messageIdentity');
 const { t } = require('./templates');
 
 function paymentBaseUrl() {
@@ -112,20 +113,24 @@ async function handleCheckoutSessionCompleted(session) {
     const phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
-    await sendText(order.customerPhone, t('paymentConfirmed', lang, shortId), phoneNumberId);
-    await orderRef.update({
-      paymentNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+    const bizSnap = await businessRef(businessId).get();
+    await runWithMessageIdentity(PLATFORM_IDENTITY, async () => {
+      applyBusinessInfoIdentity(bizSnap.exists ? bizSnap.data() : { name: order.restaurantName });
+      await sendText(order.customerPhone, t('paymentConfirmed', lang, shortId), phoneNumberId);
+      await orderRef.update({
+        paymentNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      // Best-effort: send post-order action buttons. Failure is logged but does not
+      // block the primary notification or cause a duplicate text on retry.
+      await sendButtonMessage(order.customerPhone, {
+        body: t('postOrderOptions', lang, order.restaurantName || null),
+        buttons: [
+          { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
+          { id: 'btn_post_reorder',    title: t('postReorderBtn', lang) },
+          { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
+        ],
+      }, phoneNumberId);
     });
-    // Best-effort: send post-order action buttons. Failure is logged but does not
-    // block the primary notification or cause a duplicate text on retry.
-    await sendButtonMessage(order.customerPhone, {
-      body: t('postOrderOptions', lang, order.restaurantName || null),
-      buttons: [
-        { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
-        { id: 'btn_post_reorder',    title: t('postReorderBtn', lang) },
-        { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
-      ],
-    }, phoneNumberId);
   } catch (err) {
     const msg = err.name === 'WhatsAppRoutingError'
       ? err.message

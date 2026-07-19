@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { redactPhone } = require('./logRedact');
+const { applyOutboundIdentity } = require('./messageIdentity');
 
 const BASE_URL = 'https://graph.facebook.com/v21.0';
 
@@ -72,26 +73,28 @@ async function send(payload, phoneNumberId) {
 
 async function sendText(to, body, phoneNumberId) {
   const normalized = normalizePhone(to);
+  const { body: identifiedBody } = applyOutboundIdentity({ body, kind: 'text' });
   if (process.env.NODE_ENV === 'test') {
-    console.log(`\n[WA TEXT → ${normalized}] phoneNumberId=${phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || 'default'}\n${body}\n`);
+    console.log(`\n[WA TEXT → ${normalized}] phoneNumberId=${phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || 'default'}\n${identifiedBody}\n`);
     return testId();
   }
-  return send({ messaging_product: 'whatsapp', to: normalized, type: 'text', text: { body } }, phoneNumberId);
+  return send({ messaging_product: 'whatsapp', to: normalized, type: 'text', text: { body: identifiedBody } }, phoneNumberId);
 }
 
 // sections: [{ title, rows: [{ id, title, description? }] }]
 // buttonLabel: text on the button that opens the list (max 20 chars)
 async function sendListMessage(to, { header, body, footer, buttonLabel, sections }) {
   const normalized = normalizePhone(to);
+  const identified = applyOutboundIdentity({ body, header, kind: 'list' });
   if (process.env.NODE_ENV === 'test') {
     const rows = sections.flatMap(s => s.rows.map(r => `  [${s.title}] ${r.title} — ${r.description ?? ''}`));
-    console.log(`\n[WA LIST → ${normalized}]\n${header}\n${body}\n${rows.join('\n')}\n`);
+    console.log(`\n[WA LIST → ${normalized}]\n${identified.header}\n${identified.body}\n${rows.join('\n')}\n`);
     return testId();
   }
   const interactive = {
     type: 'list',
-    header: { type: 'text', text: header },
-    body: { text: body },
+    header: { type: 'text', text: identified.header },
+    body: { text: identified.body },
     action: { button: clampWaButtonTitle(buttonLabel, 'Menu'), sections: sanitizeListSections(sections) },
   };
   if (footer) interactive.footer = { text: footer };
@@ -99,43 +102,49 @@ async function sendListMessage(to, { header, body, footer, buttonLabel, sections
 }
 
 // buttons: [{ id, title }] — max 3
-async function sendButtonMessage(to, { body, footer, buttons }, phoneNumberId) {
+async function sendButtonMessage(to, { body, footer, header, buttons }, phoneNumberId) {
   const normalized = normalizePhone(to);
+  const identified = applyOutboundIdentity({ body, header: header ?? null, kind: 'interactive' });
   const safeButtons = (buttons ?? []).map(b => ({
     id: b.id,
     title: clampWaButtonTitle(b.title),
   }));
   if (process.env.NODE_ENV === 'test') {
-    console.log(`\n[WA BUTTONS → ${normalized}]\n${body}\n[${safeButtons.map(b => b.title).join(' | ')}]\n`);
+    const headerLine = identified.header ? `${identified.header}\n` : '';
+    console.log(`\n[WA BUTTONS → ${normalized}]\n${headerLine}${identified.body}\n[${safeButtons.map(b => b.title).join(' | ')}]\n`);
     return testId();
   }
   const interactive = {
     type: 'button',
-    body: { text: body },
+    body: { text: identified.body },
     action: {
       buttons: safeButtons.map(b => ({ type: 'reply', reply: { id: b.id, title: b.title } })),
     },
   };
+  if (identified.header) interactive.header = { type: 'text', text: identified.header };
   if (footer) interactive.footer = { text: footer };
   return send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive }, phoneNumberId);
 }
 
 // Opens url in the device browser — use instead of pasting long URLs in message body.
-async function sendCtaUrlMessage(to, { body, footer, buttonLabel, url }, phoneNumberId) {
+async function sendCtaUrlMessage(to, { body, footer, header, buttonLabel, url }, phoneNumberId) {
   const normalized = normalizePhone(to);
+  const identified = applyOutboundIdentity({ body, header: header ?? null, kind: 'interactive' });
   const displayText = clampWaButtonTitle(buttonLabel, 'Open');
   if (process.env.NODE_ENV === 'test') {
-    console.log(`\n[WA CTA URL → ${normalized}] phoneNumberId=${phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || 'default'}\n${body}\n[${displayText}] → ${url}\n`);
+    const headerLine = identified.header ? `${identified.header}\n` : '';
+    console.log(`\n[WA CTA URL → ${normalized}] phoneNumberId=${phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || 'default'}\n${headerLine}${identified.body}\n[${displayText}] → ${url}\n`);
     return testId();
   }
   const interactive = {
     type: 'cta_url',
-    body: { text: body },
+    body: { text: identified.body },
     action: {
       name: 'cta_url',
       parameters: { display_text: displayText, url },
     },
   };
+  if (identified.header) interactive.header = { type: 'text', text: identified.header };
   if (footer) interactive.footer = { text: footer };
   return send({ messaging_product: 'whatsapp', to: normalized, type: 'interactive', interactive }, phoneNumberId);
 }
@@ -145,8 +154,9 @@ async function sendCtaUrlMessage(to, { body, footer, buttonLabel, url }, phoneNu
 // Catalog message IDs are not returned — Meta does not support deleting catalog messages.
 async function sendCatalogMessage(to, catalogId, bodyText, thumbnailProductId) {
   const normalized = normalizePhone(to);
+  const { body: identifiedBody } = applyOutboundIdentity({ body: bodyText, kind: 'text' });
   if (process.env.NODE_ENV === 'test') {
-    console.log(`\n[WA CATALOG → ${normalized}]\ncatalogId=${catalogId}\n${bodyText}\n`);
+    console.log(`\n[WA CATALOG → ${normalized}]\ncatalogId=${catalogId}\n${identifiedBody}\n`);
     return null;
   }
   await send({
@@ -155,7 +165,7 @@ async function sendCatalogMessage(to, catalogId, bodyText, thumbnailProductId) {
     type: 'interactive',
     interactive: {
       type: 'catalog_message',
-      body: { text: bodyText },
+      body: { text: identifiedBody },
       action: { name: 'catalog_message', parameters: { thumbnail_product_retailer_id: thumbnailProductId } },
     },
   });
@@ -164,8 +174,9 @@ async function sendCatalogMessage(to, catalogId, bodyText, thumbnailProductId) {
 
 async function sendLocationRequest(to, bodyText) {
   const normalized = normalizePhone(to);
+  const { body: identifiedBody } = applyOutboundIdentity({ body: bodyText, kind: 'text' });
   if (process.env.NODE_ENV === 'test') {
-    console.log(`\n[WA LOCATION REQUEST → ${normalized}]\n${bodyText}\n`);
+    console.log(`\n[WA LOCATION REQUEST → ${normalized}]\n${identifiedBody}\n`);
     return testId();
   }
   return send({
@@ -174,7 +185,7 @@ async function sendLocationRequest(to, bodyText) {
     type: 'interactive',
     interactive: {
       type: 'location_request_message',
-      body: { text: bodyText },
+      body: { text: identifiedBody },
       action: { name: 'send_location' },
     },
   });
@@ -187,8 +198,9 @@ async function sendLocationRequest(to, bodyText) {
 // data: optional initial data passed to the first screen
 async function sendFlowMessage(to, { flowId, flowToken, flowCta, screen, body, data = {} }) {
   const normalized = normalizePhone(to);
+  const { body: identifiedBody } = applyOutboundIdentity({ body, kind: 'text' });
   if (process.env.NODE_ENV === 'test') {
-    console.log(`\n[WA FLOW → ${normalized}]\nflowId=${flowId} screen=${screen}\n${body}\n`);
+    console.log(`\n[WA FLOW → ${normalized}]\nflowId=${flowId} screen=${screen}\n${identifiedBody}\n`);
     return testId();
   }
   return send({
@@ -197,7 +209,7 @@ async function sendFlowMessage(to, { flowId, flowToken, flowCta, screen, body, d
     type: 'interactive',
     interactive: {
       type: 'flow',
-      body: { text: body },
+      body: { text: identifiedBody },
       action: {
         name: 'flow',
         parameters: {
@@ -215,12 +227,15 @@ async function sendFlowMessage(to, { flowId, flowToken, flowCta, screen, body, d
 
 async function sendImage(to, { url, caption }) {
   const normalized = normalizePhone(to);
+  const { body: identifiedCaption } = caption
+    ? applyOutboundIdentity({ body: caption, kind: 'text' })
+    : { body: caption };
   if (process.env.NODE_ENV === 'test') {
-    console.log(`\n[WA IMAGE → ${normalized}]\nurl=${url}\ncaption=${caption ?? ''}\n`);
+    console.log(`\n[WA IMAGE → ${normalized}]\nurl=${url}\ncaption=${identifiedCaption ?? ''}\n`);
     return testId();
   }
   const image = { link: url };
-  if (caption) image.caption = caption;
+  if (identifiedCaption) image.caption = identifiedCaption;
   return send({ messaging_product: 'whatsapp', to: normalized, type: 'image', image });
 }
 

@@ -2,6 +2,7 @@ const { ordersRef, businessRef, customersRef } = require('../lib/collections');
 const { admin } = require('../lib/firebase');
 const { sendText } = require('../lib/whatsapp');
 const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('../lib/whatsappRouting');
+const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } = require('../lib/messageIdentity');
 const { formatBasketItemsText } = require('./botHelpers');
 const { t } = require('./templates');
 const { normalizeCustomerPhone, customerPhoneVariants } = require('../lib/phone');
@@ -182,7 +183,11 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
     const notifyArgs = toStatus === 'approved' ? [shortId, etaTime] : [shortId];
-    await sendText(order.customerPhone, t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs), phoneNumberId);
+    const bizSnap = await businessRef(businessId).get();
+    await runWithMessageIdentity(PLATFORM_IDENTITY, async () => {
+      applyBusinessInfoIdentity(bizSnap.exists ? bizSnap.data() : { name: order.restaurantName });
+      await sendText(order.customerPhone, t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs), phoneNumberId);
+    });
   } catch (err) {
     const msg = err.name === 'WhatsAppRoutingError'
       ? err.message
