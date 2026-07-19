@@ -1,11 +1,14 @@
 const { ordersRef, businessRef, customersRef } = require('../lib/collections');
 const { admin } = require('../lib/firebase');
-const { sendText } = require('../lib/whatsapp');
+const { sendText, sendButtonMessage } = require('../lib/whatsapp');
 const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('../lib/whatsappRouting');
 const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } = require('../lib/messageIdentity');
 const { formatBasketItemsText } = require('./botHelpers');
 const { t } = require('./templates');
 const { normalizeCustomerPhone, customerPhoneVariants } = require('../lib/phone');
+const { patchSession } = require('./sessionStore');
+
+const TERMINAL_REENTRY_STATUSES = new Set(['delivered', 'picked_up']);
 
 // Valid source states for each target status
 const VALID_FROM = {
@@ -186,7 +189,25 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
     const bizSnap = await businessRef(businessId).get();
     await runWithMessageIdentity(PLATFORM_IDENTITY, async () => {
       applyBusinessInfoIdentity(bizSnap.exists ? bizSnap.data() : { name: order.restaurantName });
-      await sendText(order.customerPhone, t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs), phoneNumberId);
+      const statusText = t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs);
+      if (TERMINAL_REENTRY_STATUSES.has(toStatus)) {
+        // Re-open ordering after the meal (no Cancel — order is finished).
+        await sendButtonMessage(order.customerPhone, {
+          body: `${statusText}\n\n${t('orderCompletePrompt', lang)}`,
+          buttons: [
+            { id: 'btn_post_reorder', title: t('postReorderBtn', lang) },
+            { id: 'btn_post_restaurant', title: t('postCompleteRestaurantBtn', lang) },
+          ],
+        }, phoneNumberId);
+        // Multi clears businessId after place; restore restaurant context for btn_post_*.
+        try {
+          await patchSession(order.customerPhone, { pendingAmendBusinessId: businessId });
+        } catch (patchErr) {
+          console.error('[orderService] post-complete session patch failed:', patchErr.message);
+        }
+      } else {
+        await sendText(order.customerPhone, statusText, phoneNumberId);
+      }
     });
   } catch (err) {
     const msg = err.name === 'WhatsAppRoutingError'

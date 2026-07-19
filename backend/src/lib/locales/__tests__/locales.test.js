@@ -108,6 +108,20 @@ describe('order status notification keys — all locales', () => {
   });
 });
 
+describe('post-complete re-entry keys — all locales', () => {
+  test.each(['orderCompletePrompt', 'postCompleteRestaurantBtn', 'postReorderBtn'])('%s', (key) => {
+    expect(str(en[key]())).toBe(true);
+    expect(str(de[key]())).toBe(true);
+    expect(str(tr[key]())).toBe(true);
+  });
+  test('button titles stay within WhatsApp 20-char limit', () => {
+    for (const loc of [en, de, tr]) {
+      expect(loc.postReorderBtn().length).toBeLessThanOrEqual(20);
+      expect(loc.postCompleteRestaurantBtn().length).toBeLessThanOrEqual(20);
+    }
+  });
+});
+
 const MENU_TEXT_INTENT_CALLS = [
   ['menuCategoryBody', []],
   ['menuCategoriesSection', []],

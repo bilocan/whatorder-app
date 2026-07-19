@@ -15,7 +15,7 @@ const BASKET_EDIT_FIELDS = [
   'basketUndoSnapshot',
   'basketPendingLearning',
 ];
-const POST_ORDER_FIELDS = ['pendingAmendOrderId', 'pendingAmendPlacedAt', 'consecutiveParseFailures'];
+const POST_ORDER_FIELDS = ['pendingAmendOrderId', 'pendingAmendBusinessId', 'pendingAmendPlacedAt', 'consecutiveParseFailures'];
 const MULTI_RESTAURANT_FIELDS = ['restaurantPickerUnfiltered'];
 
 /** Firestore rejects undefined at any depth — strip before write. */

@@ -126,6 +126,7 @@ module.exports = {
   orderOnTheWay:  (shortId) => `🚚 Sipariş #${shortId} yola çıktı!`,
   orderPickedUp:  (shortId) => `✅ Sipariş #${shortId} teslim alındı. Afiyet olsun! 🙏`,
   orderDelivered: (shortId) => `✅ Sipariş #${shortId} teslim edildi. Afiyet olsun! 🙏`,
+  orderCompletePrompt: () => 'Başka bir şey sipariş etmek ister misin?',
   orderRejected:  (shortId) => `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Lütfen bize ulaşın.`,
   orderCancelled: (shortId) => `❌ Sipariş #${shortId} iptal edildi.`,
   orderStatusPending: (shortId) => `⏳ Sipariş #${shortId} alındı, restoran onayı bekleniyor.`,
@@ -141,6 +142,7 @@ module.exports = {
   postCancelBtn: () => 'İptal et',
   postReorderBtn: () => 'Tekrar sipariş',
   postRestaurantBtn: () => 'Restoran seç',
+  postCompleteRestaurantBtn: () => 'Başka restoran',
   postOrderCancelTooLate: (name, phone) => phone
     ? `Siparişiniz hazırlanmaya başlandı. Değişiklik için lütfen ${name} arayın: ${phone}`
     : `Siparişiniz hazırlanmaya başlandı. Lütfen ${name} ile iletişime geçin.`,
