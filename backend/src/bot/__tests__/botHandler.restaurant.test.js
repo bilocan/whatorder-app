@@ -425,7 +425,7 @@ describe('Multi-restaurant: order cancelled sends text and resets session', () =
 // ─── Use case: switch keyword from browsing ───────────────────────────────────
 
 describe('Multi-restaurant: switch keyword from browsing state', () => {
-  test('switch keyword with stored location → sorted picker', async () => {
+  test('switch keyword clears stale location and re-requests pin', async () => {
     const BIZ_A_WITH_COORDS = { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 };
     const BIZ_B_WITH_COORDS = { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 };
     getBusinessInfo.mockImplementation(id =>
@@ -435,15 +435,14 @@ describe('Multi-restaurant: switch keyword from browsing state', () => {
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'switch' }));
 
+    expect(sendLocationRequest).toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'selecting_restaurant',
+      state: 'awaiting_location',
       businessId: null,
-      lat: 48.1980,
-      lng: 16.3730,
+      lat: null,
+      lng: null,
     }));
-    expect(sendListMessage).toHaveBeenCalled();
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    expect(rows[0].id).toBe('restaurant_biz_b');
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -472,7 +471,7 @@ describe('Multi-restaurant: start vs switch (Asana 1216105866871196)', () => {
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ businessId: null }));
   });
 
-  test('"switch" still opens restaurant picker', async () => {
+  test('"switch" always re-requests location (never reuses stale pin)', async () => {
     const BIZ_A_WITH_COORDS = { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 };
     const BIZ_B_WITH_COORDS = { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 };
     getBusinessInfo.mockImplementation(id =>
@@ -487,11 +486,14 @@ describe('Multi-restaurant: start vs switch (Asana 1216105866871196)', () => {
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'switch' }));
 
+    expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.any(String));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'selecting_restaurant',
+      state: 'awaiting_location',
       businessId: null,
+      lat: null,
+      lng: null,
     }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 });
 

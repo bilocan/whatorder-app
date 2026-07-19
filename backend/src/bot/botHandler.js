@@ -7,7 +7,7 @@ const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { isAcceptingOrders } = require('../lib/presence');
 const { getBusinessesInfo, sendRestaurantPicker, presentRestaurantPickerForLocation } = require('./botHelpers');
 const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/restaurant');
-const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming } = require('./states/checkout');
+const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingDeliveryAddressConfirm, handleAwaitingDeliveryAddressUnit, handleAwaitingName, handleConfirming } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
 const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
@@ -33,6 +33,8 @@ const GREETING_FRESH_START_STATES = new Set([
   'awaiting_order_type',
   'awaiting_delivery_address',
   'awaiting_delivery_address_choice',
+  'awaiting_delivery_address_confirm',
+  'awaiting_delivery_address_unit',
   'awaiting_confirm_note',
   'selecting',
   'customizing_intent',
@@ -48,6 +50,8 @@ const STATE_HANDLERS = {
   awaiting_order_type:              handleAwaitingOrderType,
   awaiting_delivery_address_choice: handleAwaitingDeliveryAddressChoice,
   awaiting_delivery_address:        handleAwaitingDeliveryAddress,
+  awaiting_delivery_address_confirm: handleAwaitingDeliveryAddressConfirm,
+  awaiting_delivery_address_unit:   handleAwaitingDeliveryAddressUnit,
   awaiting_name:                    handleAwaitingName,
   confirming:                       handleConfirming,
   awaiting_confirm_note:            handleAwaitingConfirmNote,
@@ -268,28 +272,22 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     return;
   }
 
-  // Switch restaurant command — available from any state (multi only)
+  // Switch restaurant command — available from any state (multi only).
+  // Always re-request location so a stale/wrong pin (e.g. Linz while testing Wien) is not reused.
   if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {
     await sendText(from, t('switchConfirmed', lang));
     await sendText(from, t('multiWelcomeBody', lang));
-    if (session.lat != null && session.lng != null) {
-      const { pendingDeleteIds } = await presentRestaurantPickerForLocation(
-        from, routing.businessIds, session.lat, session.lng, lang,
-      );
-      await setSession(from, {
-        state: 'selecting_restaurant',
-        language: lang,
-        basket: [],
-        businessId: null,
-        lat: session.lat,
-        lng: session.lng,
-        pendingDeleteIds,
-        restaurantPickerUnfiltered: false,
-      });
-    } else {
-      const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
-      await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: locId ? [locId] : [] });
-    }
+    const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
+    await setSession(from, {
+      state: 'awaiting_location',
+      language: lang,
+      basket: [],
+      businessId: null,
+      lat: null,
+      lng: null,
+      pendingDeleteIds: locId ? [locId] : [],
+      restaurantPickerUnfiltered: false,
+    });
     return;
   }
 

@@ -1,5 +1,6 @@
 const DISTANCE_MATRIX_URL = 'https://maps.googleapis.com/maps/api/distancematrix/json';
 const GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
+const ADDRESS_VALIDATION_URL = 'https://addressvalidation.googleapis.com/v1:validateAddress';
 const REQUEST_TIMEOUT_MS = 4000;
 const MAX_DESTINATIONS_PER_REQUEST = 25;
 
@@ -67,11 +68,20 @@ async function fetchDrivingDistances(originLat, originLng, destinations) {
 
 async function geocodeForward(address) {
   if (!isConfigured() || !address?.trim()) return null;
-  const data = await fetchJson(GEOCODE_URL, { address: address.trim() });
+  const data = await fetchJson(GEOCODE_URL, {
+    address: address.trim(),
+    region: 'at',
+    language: 'de',
+  });
   if (data?.status !== 'OK' || !data.results?.length) return null;
-  const loc = data.results[0].geometry?.location;
+  const result = data.results[0];
+  const loc = result.geometry?.location;
   if (loc?.lat == null || loc?.lng == null) return null;
-  return { lat: loc.lat, lng: loc.lng };
+  return {
+    lat: loc.lat,
+    lng: loc.lng,
+    formattedAddress: result.formatted_address ?? null,
+  };
 }
 
 async function geocodeReverse(lat, lng) {
@@ -81,6 +91,64 @@ async function geocodeReverse(lat, lng) {
   return data.results[0].formatted_address ?? null;
 }
 
+/**
+ * Google Address Validation API (Austria-focused). Returns null when unconfigured or on error.
+ * @returns {Promise<{
+ *   formattedAddress: string,
+ *   lat: number|null,
+ *   lng: number|null,
+ *   possibleNextAction: string|null,
+ *   hasReplacedComponents: boolean,
+ *   hasInferredComponents: boolean,
+ *   hasUnconfirmedComponents: boolean,
+ *   unconfirmedComponentTypes: string[],
+ * }|null>}
+ */
+async function validateAddress(address, { regionCode = 'AT' } = {}) {
+  if (!isConfigured() || !address?.trim()) return null;
+  try {
+    const qs = new URLSearchParams({ key: getApiKey() });
+    const res = await fetch(`${ADDRESS_VALIDATION_URL}?${qs}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        address: {
+          regionCode,
+          addressLines: [address.trim()],
+        },
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        const errBody = await res.json();
+        detail = errBody?.error?.message || detail;
+      } catch { /* ignore */ }
+      console.warn(`[googleMaps] Address Validation HTTP ${res.status}: ${detail}`);
+      return null;
+    }
+    const data = await res.json();
+    const result = data?.result;
+    const formattedAddress = result?.address?.formattedAddress?.trim();
+    if (!formattedAddress) return null;
+    const loc = result?.geocode?.location;
+    return {
+      formattedAddress,
+      lat: loc?.latitude ?? null,
+      lng: loc?.longitude ?? null,
+      possibleNextAction: result?.verdict?.possibleNextAction ?? null,
+      hasReplacedComponents: Boolean(result?.verdict?.hasReplacedComponents),
+      hasInferredComponents: Boolean(result?.verdict?.hasInferredComponents),
+      hasUnconfirmedComponents: Boolean(result?.verdict?.hasUnconfirmedComponents),
+      unconfirmedComponentTypes: result?.address?.unconfirmedComponentTypes ?? [],
+    };
+  } catch (err) {
+    console.warn('[googleMaps] Address Validation failed:', err.message);
+    return null;
+  }
+}
+
 module.exports = {
   getApiKey,
   getMapsJsApiKey,
@@ -88,5 +156,6 @@ module.exports = {
   fetchDrivingDistances,
   geocodeForward,
   geocodeReverse,
+  validateAddress,
   MAX_DESTINATIONS_PER_REQUEST,
 };
