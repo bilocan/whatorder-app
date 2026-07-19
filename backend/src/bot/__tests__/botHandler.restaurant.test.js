@@ -101,7 +101,15 @@ describe('Multi-restaurant: first-time customer', () => {
       state: 'awaiting_location',
       businessId: null,
     }));
-    expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.any(String));
+    expect(sendLocationRequest).toHaveBeenCalledWith(
+      FROM,
+      expect.stringMatching(/Welcome to WhatOrder|Willkommen bei WhatOrder|WhatOrder'a hoş geldiniz/i),
+    );
+    expect(sendLocationRequest).toHaveBeenCalledWith(
+      FROM,
+      expect.not.stringMatching(/Restaurant switched|Restaurant gewechselt|Restoran değiştirildi/i),
+    );
+    expect(sendText).not.toHaveBeenCalled();
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
@@ -435,7 +443,15 @@ describe('Multi-restaurant: switch keyword from browsing state', () => {
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'switch' }));
 
-    expect(sendLocationRequest).toHaveBeenCalled();
+    expect(sendLocationRequest).toHaveBeenCalledWith(
+      FROM,
+      expect.stringMatching(/Restaurant switched|Restaurant gewechselt|Restoran değiştirildi/i),
+    );
+    expect(sendLocationRequest).toHaveBeenCalledWith(
+      FROM,
+      expect.stringMatching(/Welcome to WhatOrder|Willkommen bei WhatOrder|hoş geldiniz/i),
+    );
+    expect(sendText).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_location',
       businessId: null,
@@ -486,7 +502,11 @@ describe('Multi-restaurant: start vs switch (Asana 1216105866871196)', () => {
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'switch' }));
 
-    expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.any(String));
+    expect(sendLocationRequest).toHaveBeenCalledWith(
+      FROM,
+      expect.stringMatching(/Restaurant switched|Restaurant gewechselt|Restoran değiştirildi/i),
+    );
+    expect(sendText).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_location',
       businessId: null,

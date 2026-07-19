@@ -168,10 +168,9 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
       return;
     }
     if (id === 'btn_post_restaurant' && isMulti) {
-      const phoneNumberId = session.whatsappPhoneNumberId || null;
       await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [] });
       try {
-        await sendText(from, t('multiWelcomeBody', postLang), phoneNumberId);
+        // Single location_request bubble (no separate welcome text) — less chat clutter.
         const locId = await sendLocationRequest(from, t('locationRequestBody', postLang));
         if (locId) await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [locId] });
       } catch { /* ignore — awaiting_location handler will show picker on next message */ }
@@ -202,7 +201,7 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
       // if the call succeeds, update pendingDeleteIds so the message is cleaned up next turn.
       await setSession(from, { state: 'awaiting_location', language: langForMulti, basket: [], businessId: null, pendingDeleteIds: [] });
       try {
-        await sendText(from, t('multiWelcomeBody', langForMulti));
+        // One interactive bubble only (welcome folded into location CTA copy).
         const locId = await sendLocationRequest(from, t('locationRequestBody', langForMulti));
         if (locId) await setSession(from, { state: 'awaiting_location', language: langForMulti, basket: [], businessId: null, pendingDeleteIds: [locId] });
       } catch { /* ignore — awaiting_location handler will show the picker on next message */ }
@@ -281,11 +280,10 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
   // Switch restaurant command — available from any state (multi only).
   // Always re-request location so a stale/wrong pin (e.g. Linz while testing Wien) is not reused.
   // Platform identity: switch leaves the restaurant context.
+  // One location_request bubble: switch notice + location CTA (no separate welcome/switch texts).
   if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {
     setMessageIdentity(PLATFORM_IDENTITY);
-    await sendText(from, t('switchConfirmed', lang));
-    await sendText(from, t('multiWelcomeBody', lang));
-    const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
+    const locId = await sendLocationRequest(from, t('switchLocationRequestBody', lang));
     await setSession(from, {
       state: 'awaiting_location',
       language: lang,
