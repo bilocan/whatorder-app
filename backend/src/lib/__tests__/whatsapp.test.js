@@ -5,6 +5,7 @@
 jest.mock('axios');
 
 const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, deleteMessage, clampWaButtonTitle } = require('../whatsapp');
+const { runWithMessageIdentity } = require('../messageIdentity');
 
 let consoleSpy;
 
@@ -35,6 +36,14 @@ describe('sendText', () => {
   test('includes message body in output', async () => {
     await sendText('43123456789', 'Order is ready!');
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Order is ready!'));
+  });
+
+  test('prefixes identity when ALS is set', async () => {
+    await runWithMessageIdentity('Enes, 1170 Wien', async () => {
+      await sendText('43123456789', 'What would you like?');
+    });
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('*Enes, 1170 Wien*'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('What would you like?'));
   });
 });
 
@@ -70,6 +79,17 @@ describe('sendListMessage', () => {
     const { footer: _omit, ...noFooter } = payload;
     await expect(sendListMessage('+43123456789', noFooter)).resolves.toMatch(/^test-wamid-/);
   });
+
+  test('replaces branding header with identity label', async () => {
+    await runWithMessageIdentity('Döner Palace, 1010 Wien', async () => {
+      await sendListMessage('+43123456789', {
+        ...payload,
+        header: '🍽️ Döner Palace',
+      });
+    });
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Döner Palace, 1010 Wien'));
+    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringMatching(/\*Döner Palace, 1010 Wien\*/));
+  });
 });
 
 describe('sendButtonMessage', () => {
@@ -96,6 +116,14 @@ describe('sendButtonMessage', () => {
   test('works without optional footer', async () => {
     const { footer: _omit, ...noFooter } = payload;
     await expect(sendButtonMessage('+43123456789', noFooter)).resolves.toMatch(/^test-wamid-/);
+  });
+
+  test('adds identity as interactive header', async () => {
+    await runWithMessageIdentity('Enes, 1170 Wien', async () => {
+      await sendButtonMessage('+43123456789', payload);
+    });
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Enes, 1170 Wien'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Confirm your order?'));
   });
 
   test('clamps button titles longer than 20 chars', async () => {

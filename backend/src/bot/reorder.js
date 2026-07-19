@@ -1,8 +1,9 @@
 const { patchSession, getSession } = require('./sessionStore');
 const { sendButtonMessage } = require('../lib/whatsapp');
+const { applyBusinessInfoIdentity } = require('../lib/messageIdentity');
 const { t } = require('./templates');
 const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHelpers');
-const { getMenu } = require('./menuService');
+const { getMenu, getBusinessInfo } = require('./menuService');
 const { getLastOrderForCustomer } = require('./orderService');
 const { matchMenuItem } = require('./menuMatch');
 const { tryTextIntentOrder } = require('./intentOrder');
@@ -122,6 +123,7 @@ async function handleReorderButtons({ from, session, lang, businessId, basket, i
 
 // Layer 0–1 entry: menu keyword → catalog; intent → disambiguate/confirm; reorder → offer; else order entry prompt.
 async function startRestaurantBrowsing({ from, session, lang, businessId, type, text, norm, businessName }) {
+  applyBusinessInfoIdentity(await getBusinessInfo(businessId));
   // Any fresh browse clears the post-order amend context so subsequent food text is treated as a new order.
   if (session.pendingAmendOrderId) {
     await patchSession(from, {

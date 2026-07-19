@@ -1,6 +1,12 @@
 const { getSession, setSession } = require('./sessionStore');
 const { getBusinessInfo } = require('./menuService');
 const { sendText, sendLocationRequest, sendFlowMessage, deleteMessage } = require('../lib/whatsapp');
+const {
+  PLATFORM_IDENTITY,
+  runWithMessageIdentity,
+  setMessageIdentity,
+  applyBusinessInfoIdentity,
+} = require('../lib/messageIdentity');
 const { detectLanguage, scoreLanguage, getOverride } = require('./languageDetector');
 const { t } = require('./templates');
 const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
@@ -64,6 +70,7 @@ async function deleteStale(phone, session) {
 
 async function enterRestaurantDirect(from, bid, lang) {
   const bidInfo = await getBusinessInfo(bid);
+  applyBusinessInfoIdentity(bidInfo);
   if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
     const window = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
     await sendText(from, t('restaurantClosed', lang, bidInfo.name, window?.firstOrderTime ?? null, window?.lastOrderTime ?? null));
@@ -81,14 +88,7 @@ async function enterRestaurantDirect(from, bid, lang) {
   });
 }
 
-// routing: { businessIds: string[], defaultBusinessId: string|null }
-// message shape:
-//   { type: 'text', text }
-//   { type: 'list_reply', id, title }       — list menu or restaurant picker
-//   { type: 'button_reply', id, title }
-//   { type: 'cart_submitted', items: [{ productId, qty, price, currency }] } — catalog flow
-//   { type: 'flow_completion', data: { item_id, protein, quantity, sauces_text, special_requests, total, unit_price } }
-async function handleMessage(routing, { from, contactName, type, text, id, items, data, latitude, longitude }) {
+async function handleMessageInner(routing, { from, contactName, type, text, id, items, data, latitude, longitude }) {
   if (!routing.businessIds.length) {
     console.warn(`[bot] no restaurants routed for this WhatsApp number — ignoring message from ${redactPhone(from)}`);
     return;
@@ -117,6 +117,9 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   if (type === 'text') {
     const overrideLang = getOverride(norm);
     if (overrideLang) {
+      if (session.businessId && routing.businessIds.includes(session.businessId)) {
+        applyBusinessInfoIdentity(await getBusinessInfo(session.businessId));
+      }
       await setSession(from, { ...session, language: overrideLang, pendingDeleteIds: [] });
       await sendText(from, t('langChanged', overrideLang));
       return;
@@ -175,6 +178,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       return;
     }
     const postInfo = await getBusinessInfo(postBid);
+    applyBusinessInfoIdentity(postInfo);
     await startRestaurantBrowsing({ from, session: { ...session, basket: [] }, lang: postLang, businessId: postBid, type, text, norm, businessName: postInfo.name });
     return;
   }
@@ -206,6 +210,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     }
     const bid = routing.defaultBusinessId || routing.businessIds[0];
     const bidInfo = await getBusinessInfo(bid);
+    applyBusinessInfoIdentity(bidInfo);
     const langResolved = lang || bidInfo.botLanguage || 'de';
     if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
       const _w0 = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
@@ -240,6 +245,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     && (isFreshStartCommand(norm) || (isGreetingOnly(norm) && basket.length === 0));
   if (checkoutFreshStart) {
     const bidInfo = await getBusinessInfo(businessId);
+    applyBusinessInfoIdentity(bidInfo);
     if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
       const _w = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
       await sendText(from, t('restaurantClosed', lang, bidInfo.name, _w?.firstOrderTime ?? null, _w?.lastOrderTime ?? null));
@@ -274,7 +280,9 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
 
   // Switch restaurant command — available from any state (multi only).
   // Always re-request location so a stale/wrong pin (e.g. Linz while testing Wien) is not reused.
+  // Platform identity: switch leaves the restaurant context.
   if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {
+    setMessageIdentity(PLATFORM_IDENTITY);
     await sendText(from, t('switchConfirmed', lang));
     await sendText(from, t('multiWelcomeBody', lang));
     const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
@@ -291,6 +299,15 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     return;
   }
 
+  // Multi without a selected restaurant stays on WhatOrder; otherwise label as Name, PLZ Ort.
+  if (sessionBidValid) {
+    applyBusinessInfoIdentity(await getBusinessInfo(session.businessId));
+  } else if (!isMulti) {
+    applyBusinessInfoIdentity(await getBusinessInfo(businessId));
+  } else {
+    setMessageIdentity(PLATFORM_IDENTITY);
+  }
+
   const ctx = { from, contactName, session, lang, businessId, basket, isMulti, routing, type, text, norm, id, items, data, latitude, longitude };
 
   if (type === 'button_reply' && isHumanHandoffButton(id)) {
@@ -304,6 +321,17 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   }
 
   await (STATE_HANDLERS[session.state] ?? handleBrowsing)(ctx);
+}
+
+// routing: { businessIds: string[], defaultBusinessId: string|null }
+// message shape:
+//   { type: 'text', text }
+//   { type: 'list_reply', id, title }       — list menu or restaurant picker
+//   { type: 'button_reply', id, title }
+//   { type: 'cart_submitted', items: [{ productId, qty, price, currency }] } — catalog flow
+//   { type: 'flow_completion', data: { item_id, protein, quantity, sauces_text, special_requests, total, unit_price } }
+async function handleMessage(routing, message) {
+  return runWithMessageIdentity(PLATFORM_IDENTITY, () => handleMessageInner(routing, message));
 }
 
 module.exports = { handleMessage };
