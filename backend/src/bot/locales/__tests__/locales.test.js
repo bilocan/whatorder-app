@@ -92,6 +92,14 @@ describe('order status notification keys — all locales', () => {
   });
 });
 
+describe('post-complete re-entry keys — all locales', () => {
+  test.each(['orderCompletePrompt', 'postCompleteRestaurantBtn', 'postReorderBtn'])('%s', (key) => {
+    expect(str(en[key]())).toBe(true);
+    expect(str(de[key]())).toBe(true);
+    expect(str(tr[key]())).toBe(true);
+  });
+});
+
 const MENU_TEXT_INTENT_CALLS = [
   ['menuCategoryBody', []],
   ['menuCategoriesSection', []],

@@ -126,6 +126,7 @@ module.exports = {
   orderOnTheWay:  (shortId) => `🚚 Bestellung #${shortId} ist unterwegs!`,
   orderPickedUp:  (shortId) => `✅ Bestellung #${shortId} abgeholt. Guten Appetit! 🙏`,
   orderDelivered: (shortId) => `✅ Bestellung #${shortId} zugestellt. Guten Appetit! 🙏`,
+  orderCompletePrompt: () => 'Noch etwas bestellen?',
   orderRejected:  (shortId) => `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Bitte kontaktieren Sie uns.`,
   orderCancelled: (shortId) => `❌ Bestellung #${shortId} wurde storniert.`,
   orderStatusPending: (shortId) => `⏳ Bestellung #${shortId} ist eingegangen und wartet auf Bestätigung durch das Restaurant.`,
@@ -141,6 +142,7 @@ module.exports = {
   postCancelBtn: () => 'Stornieren',
   postReorderBtn: () => 'Nochmal bestellen',
   postRestaurantBtn: () => 'Restaurant wählen',
+  postCompleteRestaurantBtn: () => 'Andere Restaurant',
   postOrderCancelTooLate: (name, phone) => phone
     ? `Deine Bestellung wird bereits zubereitet. Für Änderungen ruf bitte ${name} an: ${phone}`
     : `Deine Bestellung wird bereits zubereitet. Bitte kontaktiere ${name} direkt.`,

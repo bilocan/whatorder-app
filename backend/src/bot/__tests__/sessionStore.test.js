@@ -145,6 +145,23 @@ describe('buildSessionWrite', () => {
     expect(payload.pendingIntentRawText).toBe('kebap mit scharf');
   });
 
+  test('preserves pendingAmendBusinessId across unrelated patches', () => {
+    const payload = buildSessionWrite(
+      {
+        state: 'browsing',
+        language: 'de',
+        businessId: null,
+        basket: [],
+        pendingAmendBusinessId: 'biz_enes',
+        pendingAmendOrderId: 'order_1',
+      },
+      { pendingDeleteIds: [] },
+    );
+
+    expect(payload.pendingAmendBusinessId).toBe('biz_enes');
+    expect(payload.pendingAmendOrderId).toBe('order_1');
+  });
+
   test('preserves specialRequests on basket update', () => {
     const payload = buildSessionWrite(
       { state: 'browsing', language: 'de', businessId: 'biz_test', basket: [], specialRequests: 'extra scharf' },
