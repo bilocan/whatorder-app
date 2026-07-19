@@ -1,7 +1,7 @@
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('./menuService');
 const { sortByDistance, filterWithinDistanceKm, getMaxRestaurantDistanceKm } = require('../lib/distance');
-const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendImage } = require('../lib/whatsapp');
-const { buildRestaurantsMapProxyUrl, buildRestaurantsBrowseMapUrl, buildOpenMapCtaUrl, getPublicBackendUrl } = require('../lib/mapsUrl');
+const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage } = require('../lib/whatsapp');
+const { buildOpenMapCtaUrl } = require('../lib/mapsUrl');
 const { isOpenNow } = require('../lib/schedule');
 const { t, tCategory } = require('./templates');
 const { publishTextMenu } = require('./textMenu');
@@ -452,43 +452,13 @@ async function presentRestaurantPickerForLocation(from, businessIds, customerLat
   );
   if (filtered && !hasNearby) {
     await sendText(from, t('noNearbyRestaurants', lang, maxKm));
-    return { pickerId: null, mapId: null, pendingDeleteIds: [], noNearby: true };
+    return { pickerId: null, pendingDeleteIds: [], noNearby: true };
   }
   return sendRestaurantPickerWithMap(from, pickList, lang, customerLat, customerLng);
 }
 
-async function sendRestaurantsMapPreview(to, businesses, customerLat, customerLng, lang) {
-  const caption = t('mapLinkBody', lang);
-  const publicBase = getPublicBackendUrl();
-  const imageUrl = publicBase
-    ? buildRestaurantsMapProxyUrl(customerLat, customerLng, businesses, publicBase)
-    : null;
-
-  if (imageUrl) {
-    try {
-      return await sendImage(to, { url: imageUrl, caption });
-    } catch (err) {
-      console.error('[maps-preview] WhatsApp image send failed:', err.response?.data ?? err.message);
-    }
-  }
-
-  const browseUrl = buildRestaurantsBrowseMapUrl(customerLat, customerLng, businesses);
-  if (!browseUrl) {
-    console.warn('[maps-preview] skipped — no restaurant coordinates or customer location');
-    return null;
-  }
-  return sendCtaUrlMessage(to, {
-    body: caption,
-    buttonLabel: t('mapLinkBtn', lang),
-    url: browseUrl,
-  });
-}
-
 async function sendRestaurantPickerWithMap(to, businesses, lang, customerLat, customerLng) {
   const pickerId = await sendRestaurantPicker(to, businesses, lang, { numbered: true });
-  const mapId = customerLat != null && customerLng != null
-    ? await sendRestaurantsMapPreview(to, businesses, customerLat, customerLng, lang)
-    : null;
   let interactiveId = null;
   const interactiveUrl = buildOpenMapCtaUrl(
     customerLat,
@@ -505,14 +475,13 @@ async function sendRestaurantPickerWithMap(to, businesses, lang, customerLat, cu
         url: interactiveUrl,
       });
     } catch (err) {
-      console.error('[maps-preview] interactive map CTA failed:', err.response?.data ?? err.message);
+      console.error('[maps] interactive map CTA failed:', err.response?.data ?? err.message);
     }
   }
   return {
     pickerId,
-    mapId,
     interactiveId,
-    pendingDeleteIds: [pickerId, mapId, interactiveId].filter(Boolean),
+    pendingDeleteIds: [pickerId, interactiveId].filter(Boolean),
   };
 }
 
@@ -578,7 +547,6 @@ module.exports = {
   sendCatalog,
   getBusinessesInfo,
   sendRestaurantPicker,
-  sendRestaurantsMapPreview,
   sendRestaurantPickerWithMap,
   presentRestaurantPickerForLocation,
   resolveRestaurantsForPicker,

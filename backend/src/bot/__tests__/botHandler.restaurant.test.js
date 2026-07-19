@@ -212,10 +212,7 @@ describe('Multi-restaurant: awaiting_location state', () => {
     await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'selecting_restaurant', lat: 48.1980, lng: 16.3730 }));
-    expect(sendImage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      url: expect.stringContaining('tunnel.ngrok-free.dev/api/maps/restaurants-preview'),
-      caption: expect.stringContaining('list above'),
-    }));
+    expect(sendImage).not.toHaveBeenCalled();
     expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       url: expect.stringContaining('/map?clat='),
       buttonLabel: 'Open map',
@@ -246,9 +243,11 @@ describe('Multi-restaurant: awaiting_location state', () => {
     const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe('restaurant_biz_a');
-    const imageUrl = sendImage.mock.calls[0][1].url;
-    expect(imageUrl).toContain('48.2093');
-    expect(imageUrl).not.toContain('41.0082');
+    expect(sendImage).not.toHaveBeenCalled();
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: expect.stringMatching(/ids=biz_a(?:&|$)/),
+    }));
+    expect(sendCtaUrlMessage.mock.calls[0][1].url).not.toContain('biz_b');
   });
 
   test('location row description shows distance', async () => {
@@ -318,7 +317,8 @@ describe('Multi-restaurant: late location share in selecting_restaurant', () => 
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
 
-    expect(sendImage).toHaveBeenCalled();
+    expect(sendImage).not.toHaveBeenCalled();
+    expect(sendCtaUrlMessage).toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ lat: 48.1980, lng: 16.3730 }));
     expect(sendListMessage).toHaveBeenCalled();
     const rows = sendListMessage.mock.calls[0][1].sections[0].rows;

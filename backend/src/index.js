@@ -16,7 +16,6 @@ const stripeWebhookRouter = require('./routes/stripeWebhook');
 const chatRouter = require('./routes/chat');
 const geocodeRouter = require('./routes/geocode');
 const intentPhrasesRouter = require('./routes/intentPhrases');
-const mapsPreviewRouter = require('./routes/mapsPreview');
 const mapsRestaurantsRouter = require('./routes/mapsRestaurants');
 const mapsConfigRouter = require('./routes/mapsConfig');
 const { getBuildInfo } = require('./lib/buildInfo');
@@ -58,7 +57,6 @@ app.use('/', ordersRouter);
 app.use('/api', ordersRouter);
 app.use('/api', geocodeRouter);
 app.use('/api', intentPhrasesRouter);
-app.use('/api', mapsPreviewRouter);
 app.use('/api', mapsRestaurantsRouter);
 app.use('/api', mapsConfigRouter);
 
