@@ -303,6 +303,9 @@
     "changePick": "Change",
     "defaultOption": "Default",
     "sourceLabel": "Test with",
+    "modelLabel": "AI model",
+    "modelHint": "Bare names call Gemini directly. OR … goes via OpenRouter. Parse again to compare latency/quality. Live WhatsApp still uses the server default.",
+    "modelUsed": "model {{model}}",
     "source": {
       "app": "App (like the bot)",
       "appLlm": "App + AI fallback",

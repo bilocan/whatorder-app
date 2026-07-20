@@ -303,6 +303,9 @@
     "changePick": "Değiştir",
     "defaultOption": "Varsayılan",
     "sourceLabel": "Şununla test et",
+    "modelLabel": "YZ modeli",
+    "modelHint": "Öneksiz ad = doğrudan Gemini. OR … = OpenRouter. Karşılaştırmak için tekrar Ayrıştır. Canlı WhatsApp sunucu varsayılanını kullanır.",
+    "modelUsed": "model {{model}}",
     "source": {
       "app": "Uygulama (bot gibi)",
       "appLlm": "Uygulama + yapay zeka",
