@@ -209,6 +209,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Verify Preproduction environment config
+        env:
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: |
           if [ -z "${{ vars.GCP_PROJECT }}" ]; then
             echo "::error::Preproduction environment is missing variable GCP_PROJECT (set to whatorder-fire-prod — copy from Production environment)."
@@ -220,6 +223,16 @@ jobs:
           fi
           if [ -z "${{ secrets.WIF_PROVIDER }}" ]; then
             echo "::error::Preproduction environment is missing WIF_PROVIDER secret (copy from Production)."
+            exit 1
+          fi
+          # Preprod must use prod Firebase Auth + named preprod DB. Test project
+          # secrets cause "Account not linked" (no owners docs / no preprod DB).
+          if [ "$VITE_FIREBASE_PROJECT_ID" != "whatorder-fire-prod" ]; then
+            echo "::error::Preproduction VITE_FIREBASE_PROJECT_ID must be whatorder-fire-prod (got '${VITE_FIREBASE_PROJECT_ID:-empty}'). Copy VITE_FIREBASE_* from Production, then re-run."
+            exit 1
+          fi
+          if [ -z "$VITE_API_URL" ] || [[ "$VITE_API_URL" != *"whatorder-backend-pre"* ]]; then
+            echo "::error::Preproduction VITE_API_URL must point at the pre backend (got '${VITE_API_URL:-empty}')."
             exit 1
           fi
 
