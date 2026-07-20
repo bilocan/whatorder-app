@@ -741,7 +741,7 @@ function mergeLlmIntent(llm, rawText, rulesIntent) {
 }
 
 async function parseIntentAsync(text, {
-  phone, businessId, menu, rulesOnly = false, skipLearned = false,
+  phone, businessId, menu, rulesOnly = false, skipLearned = false, model, provider, llmLabel,
 } = {}) {
   const rawText = (text ?? '').trim();
 
@@ -803,16 +803,29 @@ async function parseIntentAsync(text, {
 
   if (rulesOnly || !shouldTryLlm(text, rulesIntent, phone)) return rulesIntent;
 
-  const llm = await parseOrderIntentWithLlm(text, { phone, menu });
+  const llm = await parseOrderIntentWithLlm(text, { phone, menu, model, provider, llmLabel });
   if (!llm || llm.confidence < 0.6 || !llm.items.length) {
-    return { ...rulesIntent, llmAttempted: true, llmFailed: true };
+    return {
+      ...rulesIntent,
+      llmAttempted: true,
+      llmFailed: true,
+      llmModel: llmLabel || llm?.llmModel || model,
+    };
   }
 
   if (rulesIntentHasModifierSplit(rulesIntent) && llm.items.length < rulesIntent.items.length) {
-    return { ...rulesIntent, llmAttempted: true, llmFailed: true };
+    return {
+      ...rulesIntent,
+      llmAttempted: true,
+      llmFailed: true,
+      llmModel: llm.llmModel,
+    };
   }
 
-  return mergeLlmIntent(llm, rulesIntent.rawText, rulesIntent);
+  const merged = mergeLlmIntent(llm, rulesIntent.rawText, rulesIntent);
+  if (llm.llmModel) merged.llmModel = llm.llmModel;
+  if (llm.llmProvider) merged.llmProvider = llm.llmProvider;
+  return merged;
 }
 
 module.exports = {

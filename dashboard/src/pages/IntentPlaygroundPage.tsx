@@ -11,6 +11,7 @@ import { resolveMenuItemOptionGroups } from '../lib/optionGroups';
 import { inferPhraseOperation } from '../lib/inferPhraseOperation';
 import {
   previewIntentPhrase,
+  fetchPlaygroundLlmConfig,
   saveIntentPhrase,
   type IntentPhrasePreview,
   type IntentPreviewSource,
@@ -77,6 +78,8 @@ export default function IntentPlaygroundPage() {
   const [phraseText, setPhraseText] = useState('');
   const [operation, setOperation] = useState<IntentLearningOperation>('add');
   const [source, setSource] = useState<IntentPreviewSource>('app');
+  const [llmModel, setLlmModel] = useState('');
+  const [llmModels, setLlmModels] = useState<string[]>([]);
   const [parseSnapshot, setParseSnapshot] = useState<IntentPhrasePreview | null>(null);
   const [initialDraft, setInitialDraft] = useState<DraftLine[]>([]);
   const [draft, setDraft] = useState<DraftLine[]>([]);
@@ -100,6 +103,30 @@ export default function IntentPlaygroundPage() {
     setPhraseText(fromUrl);
     if (inferPhraseOperation(fromUrl) === 'remove') setOperation('remove');
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!businessId) {
+      setLlmModels([]);
+      setLlmModel('');
+      return undefined;
+    }
+    let cancelled = false;
+    fetchPlaygroundLlmConfig(businessId)
+      .then((cfg) => {
+        if (cancelled) return;
+        setLlmModels(cfg.models);
+        setLlmModel((prev) => (
+          prev && cfg.models.includes(prev) ? prev : (cfg.defaultModel ?? cfg.models[0] ?? '')
+        ));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLlmModels([]);
+          setLlmModel('');
+        }
+      });
+    return () => { cancelled = true; };
+  }, [businessId]);
 
   useEffect(() => {
     if (!businessId) {
@@ -158,6 +185,7 @@ export default function IntentPlaygroundPage() {
       items: draftItems.length ? draftItems : undefined,
       sampleItems,
       context: 'basket',
+      model: (source === 'appLlm' || source === 'llm') && llmModel ? llmModel : undefined,
     });
 
     if (opts.isParse) {
@@ -184,6 +212,7 @@ export default function IntentPlaygroundPage() {
           items: nextDraftItems,
           sampleItems: nextSampleItems,
           context: 'basket',
+          model: (source === 'appLlm' || source === 'llm') && llmModel ? llmModel : undefined,
         });
         setPreview(removeResult);
         return;
@@ -225,7 +254,7 @@ export default function IntentPlaygroundPage() {
     }, 400);
     return () => window.clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, phraseText, operation, source, parseSnapshot]);
+  }, [draft, phraseText, operation, source, llmModel, parseSnapshot]);
 
   const learnedMeta: IntentLearnedMeta | null | undefined = (
     preview?.learnedMeta ?? parseSnapshot?.learnedMeta
@@ -331,6 +360,9 @@ export default function IntentPlaygroundPage() {
         onOperationChange={setOperation}
         source={source}
         onSourceChange={setSource}
+        llmModel={llmModel}
+        onLlmModelChange={setLlmModel}
+        llmModels={llmModels}
         parsing={parsing}
         onParse={() => void handleParse()}
       />

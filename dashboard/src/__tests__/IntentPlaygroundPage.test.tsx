@@ -21,6 +21,15 @@ vi.mock('../lib/firebase', () => ({ db: {} }));
 vi.mock('../lib/intentPhrasesApi', () => ({
   previewIntentPhrase: (...args: unknown[]) => mockPreview(...args),
   saveIntentPhrase: (...args: unknown[]) => mockSave(...args),
+  fetchPlaygroundLlmConfig: () => Promise.resolve({
+    provider: 'openrouter',
+    defaultModel: 'OR google/gemini-2.5-flash-lite',
+    models: [
+      'gemini-2.5-flash-lite',
+      'OR google/gemini-2.5-flash-lite',
+      'OR moonshotai/kimi-k2.5',
+    ],
+  }),
 }));
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),

@@ -303,6 +303,9 @@
     "changePick": "Ändern",
     "defaultOption": "Standard",
     "sourceLabel": "Testen mit",
+    "modelLabel": "KI-Modell",
+    "modelHint": "Ohne Präfix = direkter Gemini-Aufruf. OR … = über OpenRouter. Erneut Analysieren zum Vergleich. Live-WhatsApp nutzt weiter den Server-Standard.",
+    "modelUsed": "Modell {{model}}",
     "source": {
       "app": "App (wie der Bot)",
       "appLlm": "App + KI-Fallback",

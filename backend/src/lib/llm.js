@@ -202,11 +202,199 @@ const rateLimitByPhone = new Map();
 let dailyCallCount = 0;
 let dailyCallDate = '';
 
+function getLlmProvider() {
+  return (process.env.LLM_PROVIDER || 'google').toLowerCase();
+}
+
+function normalizeProvider(provider) {
+  return String(provider || getLlmProvider()).toLowerCase();
+}
+
+/** OpenAI Chat Completions API, including OpenRouter's compatible endpoint. */
+function usesOpenAiCompatibleProvider(provider) {
+  const p = normalizeProvider(provider);
+  return p === 'openai' || p === 'openrouter';
+}
+
+function getOpenAiCompatibleApiKey(provider) {
+  const p = normalizeProvider(provider);
+  if (p === 'openrouter') {
+    return process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || '';
+  }
+  return process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY || '';
+}
+
+/** Required for openai / openrouter. Example: https://openrouter.ai/api/v1 */
+function getOpenAiCompatibleBaseUrl(provider) {
+  const p = normalizeProvider(provider);
+  const raw = p === 'openrouter'
+    ? (process.env.OPENROUTER_BASE_URL || process.env.OPENAI_BASE_URL || '')
+    : (process.env.OPENAI_BASE_URL || process.env.OPENROUTER_BASE_URL || '');
+  return raw.replace(/\/$/, '');
+}
+
+/** Required whenever AI intent is enabled. No in-code model defaults. */
+function getLlmModel() {
+  return (process.env.LLM_MODEL || '').trim();
+}
+
+/**
+ * Gemini generateContent base (no trailing slash).
+ * Example: https://generativelanguage.googleapis.com/v1beta
+ */
+function getGeminiApiBaseUrl() {
+  const raw = process.env.GEMINI_API_BASE_URL || '';
+  return raw.replace(/\/$/, '');
+}
+
+function isProviderReady(provider) {
+  const p = normalizeProvider(provider);
+  if (usesOpenAiCompatibleProvider(p)) {
+    return Boolean(getOpenAiCompatibleApiKey(p) && getOpenAiCompatibleBaseUrl(p));
+  }
+  return Boolean(process.env.GEMINI_API_KEY && getGeminiApiBaseUrl());
+}
+
+/**
+ * Resolve chat-completions URL + headers for openai / openrouter.
+ * All host / key / model / optional ranking headers come from env.
+ */
+function getOpenAiCompatibleClient({ model: modelOverride, provider: providerOverride } = {}) {
+  const provider = normalizeProvider(providerOverride);
+  const baseUrl = getOpenAiCompatibleBaseUrl(provider);
+  const apiKey = getOpenAiCompatibleApiKey(provider);
+  const model = (modelOverride || getLlmModel()).trim();
+  if (!baseUrl || !apiKey || !model) {
+    throw new Error(
+      '[llm] openai-compatible provider requires OPENAI_BASE_URL (or OPENROUTER_BASE_URL), '
+      + 'OPENAI_API_KEY (or OPENROUTER_API_KEY), and LLM_MODEL',
+    );
+  }
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  };
+  const referer = process.env.OPENROUTER_HTTP_REFERER || process.env.LLM_HTTP_REFERER;
+  const title = process.env.OPENROUTER_APP_TITLE || process.env.LLM_APP_TITLE;
+  if (referer) headers['HTTP-Referer'] = referer;
+  if (title) headers['X-Title'] = title;
+  return {
+    url: `${baseUrl}/chat/completions`,
+    headers,
+    model,
+  };
+}
+
+function getGeminiGenerateContentUrl(model) {
+  const baseUrl = getGeminiApiBaseUrl();
+  if (!baseUrl) {
+    throw new Error('[llm] google provider requires GEMINI_API_BASE_URL');
+  }
+  if (!model) {
+    throw new Error('[llm] google provider requires LLM_MODEL');
+  }
+  return `${baseUrl}/models/${model}:generateContent`;
+}
+
 function isAiIntentEnabled() {
   if (process.env.AI_INTENT_ENABLED !== 'true') return false;
-  const provider = (process.env.LLM_PROVIDER || 'google').toLowerCase();
-  if (provider === 'openai') return Boolean(process.env.OPENAI_API_KEY);
-  return Boolean(process.env.GEMINI_API_KEY);
+  if (!getLlmModel()) return false;
+  return isProviderReady(getLlmProvider());
+}
+
+/**
+ * Parse a Teach-bot / playground model entry.
+ * - `OR:google/gemini-2.5-flash-lite` or `OR google/...` → OpenRouter
+ * - bare `gemini-2.5-flash-lite` → direct Google Gemini
+ * - bare `vendor/model` (has `/`) → OpenRouter, label normalized to `OR …`
+ */
+function parsePlaygroundModelEntry(raw) {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return null;
+
+  const orMatch = trimmed.match(/^OR[:\s]+(.+)$/i);
+  if (orMatch) {
+    const model = orMatch[1].trim();
+    if (!model) return null;
+    return { label: `OR ${model}`, model, provider: 'openrouter' };
+  }
+
+  const directMatch = trimmed.match(/^(DIRECT|GEMINI)[:\s]+(.+)$/i);
+  if (directMatch) {
+    const model = directMatch[2].trim();
+    if (!model) return null;
+    return { label: model, model, provider: 'google' };
+  }
+
+  if (trimmed.includes('/')) {
+    return { label: `OR ${trimmed}`, model: trimmed, provider: 'openrouter' };
+  }
+
+  return { label: trimmed, model: trimmed, provider: 'google' };
+}
+
+function defaultPlaygroundEntry() {
+  const model = getLlmModel();
+  if (!model) return null;
+  if (usesOpenAiCompatibleProvider()) {
+    return parsePlaygroundModelEntry(`OR:${model}`);
+  }
+  return parsePlaygroundModelEntry(model);
+}
+
+/**
+ * Models selectable in Teach bot / playground (display labels).
+ * Always includes env default; extras from LLM_PLAYGROUND_MODELS (comma-separated).
+ */
+function listPlaygroundEntries() {
+  const entries = [];
+  const seen = new Set();
+  const add = (raw) => {
+    const entry = typeof raw === 'object' && raw?.label
+      ? raw
+      : parsePlaygroundModelEntry(raw);
+    if (!entry || seen.has(entry.label)) return;
+    seen.add(entry.label);
+    entries.push(entry);
+  };
+  add(defaultPlaygroundEntry());
+  for (const part of String(process.env.LLM_PLAYGROUND_MODELS || '').split(',')) {
+    add(part);
+  }
+  return entries;
+}
+
+function listPlaygroundModels() {
+  return listPlaygroundEntries().map((e) => e.label);
+}
+
+/**
+ * Resolve optional playground override. Empty → env default entry.
+ * Unknown label → null (caller should 400).
+ * @returns {{ label: string, model: string, provider: string }|null}
+ */
+function resolvePlaygroundModel(requested) {
+  const entries = listPlaygroundEntries();
+  if (!entries.length) return null;
+  const trimmed = String(requested ?? '').trim();
+  if (!trimmed) return entries[0];
+
+  const exact = entries.find((e) => e.label === trimmed);
+  if (exact) return exact;
+
+  // Accept raw env forms (OR:slug, bare slug) that normalize to a listed label.
+  const parsed = parsePlaygroundModelEntry(trimmed);
+  if (!parsed) return null;
+  return entries.find((e) => e.label === parsed.label) || null;
+}
+
+function getPlaygroundLlmConfig() {
+  const entries = listPlaygroundEntries();
+  return {
+    provider: getLlmProvider(),
+    defaultModel: entries[0]?.label || null,
+    models: entries.map((e) => e.label),
+  };
 }
 
 function resetDailyCapIfNeeded() {
@@ -237,8 +425,10 @@ function recordCall(phone) {
   if (phone) rateLimitByPhone.set(phone, Date.now());
 }
 
-function canCallLlm(phone) {
-  return isAiIntentEnabled() && isWithinDailyCap() && isWithinRateLimit(phone);
+function canCallLlm(phone, { provider } = {}) {
+  if (process.env.AI_INTENT_ENABLED !== 'true') return false;
+  if (!isProviderReady(provider || getLlmProvider())) return false;
+  return isWithinDailyCap() && isWithinRateLimit(phone);
 }
 
 const RETRYABLE_STATUSES = new Set([429, 500, 503, 504]);
@@ -400,13 +590,13 @@ function buildCommandUserText(text, { hasUndoSnapshot = false, hasBasket = false
 }
 
 async function callOpenAiCommand(userText) {
-  const model = process.env.LLM_MODEL || 'gpt-4o-mini';
+  const client = getOpenAiCompatibleClient();
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
 
   const res = await axios.post(
-    'https://api.openai.com/v1/chat/completions',
+    client.url,
     {
-      model,
+      model: client.model,
       temperature: 0,
       response_format: {
         type: 'json_schema',
@@ -422,10 +612,7 @@ async function callOpenAiCommand(userText) {
       ],
     },
     {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers: client.headers,
       timeout,
     },
   );
@@ -435,9 +622,9 @@ async function callOpenAiCommand(userText) {
 }
 
 async function callGeminiCommand(userText) {
-  const model = process.env.LLM_MODEL || 'gemini-2.5-flash-lite';
+  const model = getLlmModel();
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const url = getGeminiGenerateContentUrl(model);
   const key = process.env.GEMINI_API_KEY;
 
   const baseBody = {
@@ -496,11 +683,10 @@ async function parseBotCommandWithLlm(text, { phone, hasUndoSnapshot = false, ha
   if (!canCallLlm(phone)) return null;
 
   const userText = buildCommandUserText(text, { hasUndoSnapshot, hasBasket });
-  const provider = (process.env.LLM_PROVIDER || 'google').toLowerCase();
   const started = Date.now();
 
   try {
-    const result = provider === 'openai'
+    const result = usesOpenAiCompatibleProvider()
       ? await callOpenAiCommand(userText)
       : await callGeminiCommand(userText);
 
@@ -518,13 +704,13 @@ async function parseBotCommandWithLlm(text, { phone, hasUndoSnapshot = false, ha
 }
 
 async function callOpenAiEdit(userText) {
-  const model = process.env.LLM_MODEL || 'gpt-4o-mini';
+  const client = getOpenAiCompatibleClient();
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
 
   const res = await axios.post(
-    'https://api.openai.com/v1/chat/completions',
+    client.url,
     {
-      model,
+      model: client.model,
       temperature: 0,
       response_format: {
         type: 'json_schema',
@@ -540,10 +726,7 @@ async function callOpenAiEdit(userText) {
       ],
     },
     {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers: client.headers,
       timeout,
     },
   );
@@ -553,9 +736,9 @@ async function callOpenAiEdit(userText) {
 }
 
 async function callGeminiEdit(userText) {
-  const model = process.env.LLM_MODEL || 'gemini-2.5-flash-lite';
+  const model = getLlmModel();
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const url = getGeminiGenerateContentUrl(model);
   const key = process.env.GEMINI_API_KEY;
 
   const baseBody = {
@@ -618,11 +801,10 @@ async function parseProposalEditWithLlm(text, pendingItems, { phone } = {}) {
     .join('\n');
   const userText = `Current proposed order:\n${orderLines}\n\nCustomer edit:\n${text}`;
 
-  const provider = (process.env.LLM_PROVIDER || 'google').toLowerCase();
   const started = Date.now();
 
   try {
-    const result = provider === 'openai'
+    const result = usesOpenAiCompatibleProvider()
       ? await callOpenAiEdit(userText)
       : await callGeminiEdit(userText);
 
@@ -639,8 +821,8 @@ async function parseProposalEditWithLlm(text, pendingItems, { phone } = {}) {
   }
 }
 
-async function callOpenAi(userText, { menuIndex = null } = {}) {
-  const model = process.env.LLM_MODEL || 'gpt-4o-mini';
+async function callOpenAi(userText, { menuIndex = null, model, provider } = {}) {
+  const client = getOpenAiCompatibleClient({ model, provider });
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
   const constrained = !!menuIndex?.byId?.size;
   const systemPrompt = constrained ? MENU_CONSTRAINED_SYSTEM_PROMPT : SYSTEM_PROMPT;
@@ -648,9 +830,9 @@ async function callOpenAi(userText, { menuIndex = null } = {}) {
   const promptText = constrained ? buildMenuConstrainedUserText(userText, menuIndex) : userText;
 
   const res = await axios.post(
-    'https://api.openai.com/v1/chat/completions',
+    client.url,
     {
-      model,
+      model: client.model,
       temperature: 0,
       response_format: {
         type: 'json_schema',
@@ -666,10 +848,7 @@ async function callOpenAi(userText, { menuIndex = null } = {}) {
       ],
     },
     {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers: client.headers,
       timeout,
     },
   );
@@ -681,10 +860,10 @@ async function callOpenAi(userText, { menuIndex = null } = {}) {
     : validateIntentPayload(parsed);
 }
 
-async function callGemini(userText, { menuIndex = null } = {}) {
-  const model = process.env.LLM_MODEL || 'gemini-2.5-flash-lite';
+async function callGemini(userText, { menuIndex = null, model } = {}) {
+  const resolvedModel = (model || getLlmModel()).trim();
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const url = getGeminiGenerateContentUrl(resolvedModel);
   const key = process.env.GEMINI_API_KEY;
   const constrained = !!menuIndex?.byId?.size;
   const systemPrompt = constrained ? MENU_CONSTRAINED_SYSTEM_PROMPT : SYSTEM_PROMPT;
@@ -750,33 +929,50 @@ function logLlmFailure(err, apiMsg) {
   if (process.env.NODE_ENV === 'test') return;
   const status = err.response?.status;
   const msg = apiMsg || err.response?.data?.error?.message || err.message;
+  const provider = getLlmProvider();
   if (status === 429) {
-    console.warn('[llm] Gemini quota exhausted — add billing at https://ai.google.dev/ or switch LLM_PROVIDER=openai');
+    if (provider === 'google') {
+      console.warn('[llm] Gemini quota exhausted — add billing at https://ai.google.dev/ or switch LLM_PROVIDER=openrouter');
+    } else {
+      console.warn(`[llm] ${provider} rate limited (429): ${msg}`);
+    }
   } else if (status === 503) {
-    console.warn(`[llm] Gemini overloaded (503) after retries: ${msg}`);
+    console.warn(`[llm] ${provider} overloaded (503) after retries: ${msg}`);
   } else {
     console.warn(`[llm] intent parse failed (${status ?? 'network'}): ${msg}`);
   }
 }
 
-async function parseOrderIntentWithLlm(userText, { phone, menu } = {}) {
-  if (!canCallLlm(phone)) return null;
+async function parseOrderIntentWithLlm(userText, { phone, menu, model, provider, llmLabel } = {}) {
+  const resolvedProvider = normalizeProvider(provider);
+  if (!canCallLlm(phone, { provider: resolvedProvider })) return null;
 
   const menuIndex = (menu?.length) ? buildMenuLlmIndex(menu) : null;
-  const provider = (process.env.LLM_PROVIDER || 'google').toLowerCase();
   const started = Date.now();
+  const resolvedModel = (model || getLlmModel()).trim() || undefined;
+  const displayLabel = llmLabel || (
+    usesOpenAiCompatibleProvider(resolvedProvider) && resolvedModel
+      ? `OR ${resolvedModel}`
+      : resolvedModel
+  );
 
   try {
-    const result = provider === 'openai'
-      ? await callOpenAi(userText, { menuIndex })
-      : await callGemini(userText, { menuIndex });
+    const result = usesOpenAiCompatibleProvider(resolvedProvider)
+      ? await callOpenAi(userText, {
+        menuIndex,
+        model: resolvedModel,
+        provider: resolvedProvider,
+      })
+      : await callGemini(userText, { menuIndex, model: resolvedModel });
 
     if (result) {
       recordCall(phone);
       if (process.env.LOG_LEVEL === 'debug') {
         const mode = result.menuConstrained ? 'menu' : 'free';
-        console.log(`[llm] intent parsed (${mode}) in ${Date.now() - started}ms confidence=${result.confidence}`);
+        console.log(`[llm] intent parsed (${mode}) provider=${resolvedProvider} model=${resolvedModel} in ${Date.now() - started}ms confidence=${result.confidence}`);
       }
+      result.llmModel = displayLabel;
+      result.llmProvider = resolvedProvider;
     }
     return result;
   } catch (err) {
@@ -802,5 +998,11 @@ module.exports = {
   validateMenuIntentPayload,
   validateEditPayload,
   validateCommandPayload,
+  listPlaygroundModels,
+  listPlaygroundEntries,
+  parsePlaygroundModelEntry,
+  resolvePlaygroundModel,
+  getPlaygroundLlmConfig,
+  getLlmModel,
   _resetLlmState,
 };
