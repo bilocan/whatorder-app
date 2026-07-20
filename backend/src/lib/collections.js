@@ -45,7 +45,7 @@ const processedMessageRef = (wamid) =>
 const stripeEventRef = (eventId) =>
   db.collection('stripeEvents').doc(eventId);
 
-// config/whatorder → { feeType, feeValue, aiIntentEnabled?, llmProvider?, llmModel?, llmFallbackProvider?, llmFallbackModel? }
+// config/whatorder → { feeType, feeValue, aiIntentEnabled?, llmProvider?, llmModel?, llmFallbackProvider?, llmFallbackModel?, llmLastSuccessAt?, llmLastAttemptAt?, llmLastProvider?, llmLastModel?, llmLastLatencyMs?, llmLastOk?, llmLastError?, llmDailyDate?, llmDailyCalls?, llmDailyAttempts? }
 const configRef = () =>
   db.collection('config').doc('whatorder');
 

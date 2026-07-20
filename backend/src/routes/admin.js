@@ -6,8 +6,8 @@ const {
   getLlmRuntimeSelection,
   saveLlmRuntimeSelection,
   getAdminLlmConfigPayload,
+  getLlmUsageStats,
 } = require('../lib/llmRuntimeConfig');
-const { getDailyCallStats } = require('../lib/llm');
 
 const router = express.Router();
 
@@ -96,8 +96,11 @@ router.delete('/owners', requireAdmin, async (req, res) => {
 // GET /admin/llm-config — env catalog + active selection (no secrets)
 router.get('/llm-config', requireAdmin, async (_req, res) => {
   try {
-    const selection = await getLlmRuntimeSelection({ force: true });
-    res.json(getAdminLlmConfigPayload(selection, getDailyCallStats()));
+    const [selection, usage] = await Promise.all([
+      getLlmRuntimeSelection({ force: true }),
+      getLlmUsageStats({ force: true }),
+    ]);
+    res.json(getAdminLlmConfigPayload(selection, usage));
   } catch (err) {
     console.error('[admin/llm-config] GET failed:', err);
     res.status(500).json({ error: 'Failed to load LLM config' });
@@ -107,8 +110,11 @@ router.get('/llm-config', requireAdmin, async (_req, res) => {
 // PUT /admin/llm-config — select among env catalog options only
 router.put('/llm-config', requireAdmin, async (req, res) => {
   try {
-    const { selection } = await saveLlmRuntimeSelection(req.body ?? {});
-    res.json(getAdminLlmConfigPayload(selection, getDailyCallStats()));
+    const [{ selection }, usage] = await Promise.all([
+      saveLlmRuntimeSelection(req.body ?? {}),
+      getLlmUsageStats({ force: true }),
+    ]);
+    res.json(getAdminLlmConfigPayload(selection, usage));
   } catch (err) {
     const status = err.status || 500;
     if (status >= 500) console.error('[admin/llm-config] PUT failed:', err);

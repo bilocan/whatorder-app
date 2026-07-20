@@ -2,13 +2,24 @@ jest.mock('../collections', () => ({
   configRef: jest.fn(),
 }));
 
+jest.mock('../firebase', () => ({
+  db: {
+    runTransaction: jest.fn(),
+  },
+  admin: {},
+}));
+
 const { configRef } = require('../collections');
+const { db } = require('../firebase');
 const {
   getEnvLlmCatalog,
   getLlmRuntimeSelection,
   saveLlmRuntimeSelection,
   invalidateLlmRuntimeCache,
   mergeSelection,
+  getLlmUsageStats,
+  recordLlmUsage,
+  utcDay,
 } = require('../llmRuntimeConfig');
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
@@ -161,5 +172,142 @@ describe('saveLlmRuntimeSelection', () => {
     });
     expect(set).toHaveBeenCalledWith(written, { merge: true });
     expect(selection.llmFallbackProvider).toBe('google');
+  });
+});
+
+describe('getLlmUsageStats / recordLlmUsage', () => {
+  test('reads last-used and same-day daily count from Firestore', async () => {
+    const today = utcDay();
+    configRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          llmLastSuccessAt: '2026-07-20T12:00:00.000Z',
+          llmLastProvider: 'openrouter',
+          llmLastModel: 'google/gemini-2.5-flash-lite',
+          llmLastLatencyMs: 420,
+          llmDailyDate: today,
+          llmDailyCalls: 7,
+          llmDailyAttempts: 12,
+        }),
+      }),
+    });
+    const stats = await getLlmUsageStats({ force: true });
+    expect(stats).toEqual({
+      dailyCallCount: 7,
+      dailyAttemptCount: 12,
+      dailyDate: today,
+      lastSuccessAt: '2026-07-20T12:00:00.000Z',
+      lastAttemptAt: '2026-07-20T12:00:00.000Z',
+      lastOk: null,
+      lastError: null,
+      lastProvider: 'openrouter',
+      lastModel: 'google/gemini-2.5-flash-lite',
+      lastLatencyMs: 420,
+    });
+  });
+
+  test('backfills attempts when only legacy success count exists', async () => {
+    const today = utcDay();
+    configRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          llmDailyDate: today,
+          llmDailyCalls: 1,
+          // llmDailyAttempts missing
+          llmLastSuccessAt: '2026-07-20T12:00:00.000Z',
+          llmLastProvider: 'openrouter',
+          llmLastModel: 'google/gemini-2.5-flash-lite',
+          llmLastLatencyMs: 400,
+        }),
+      }),
+    });
+    const stats = await getLlmUsageStats({ force: true });
+    expect(stats.dailyCallCount).toBe(1);
+    expect(stats.dailyAttemptCount).toBe(1);
+  });
+
+  test('resets daily count when stored date is not today', async () => {
+    configRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          llmDailyDate: '2000-01-01',
+          llmDailyCalls: 99,
+          llmDailyAttempts: 120,
+          llmLastSuccessAt: '2000-01-01T00:00:00.000Z',
+          llmLastProvider: 'google',
+          llmLastModel: 'gemini-2.5-flash-lite',
+          llmLastLatencyMs: 100,
+        }),
+      }),
+    });
+    const stats = await getLlmUsageStats({ force: true });
+    expect(stats.dailyCallCount).toBe(0);
+    expect(stats.dailyAttemptCount).toBe(0);
+    expect(stats.lastProvider).toBe('google');
+  });
+
+  test('recordLlmUsage increments same-day counter in a transaction', async () => {
+    const today = utcDay();
+    const ref = { path: 'config/whatorder' };
+    configRef.mockReturnValue(ref);
+    db.runTransaction.mockImplementation(async (fn) => {
+      const tx = {
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({ llmDailyDate: today, llmDailyCalls: 2, llmDailyAttempts: 5 }),
+        }),
+        set: jest.fn(),
+      };
+      await fn(tx);
+      expect(tx.set).toHaveBeenCalledWith(ref, expect.objectContaining({
+        llmDailyDate: today,
+        llmDailyCalls: 3,
+        llmDailyAttempts: 6,
+        llmLastProvider: 'openrouter',
+        llmLastModel: 'google/gemini-2.5-flash-lite',
+        llmLastLatencyMs: 250,
+      }), { merge: true });
+    });
+
+    await recordLlmUsage({
+      provider: 'openrouter',
+      model: 'google/gemini-2.5-flash-lite',
+      latencyMs: 250.4,
+    });
+    expect(db.runTransaction).toHaveBeenCalled();
+  });
+
+  test('recordLlmUsage failure bumps attempts but not success count', async () => {
+    const today = utcDay();
+    const ref = { path: 'config/whatorder' };
+    configRef.mockReturnValue(ref);
+    db.runTransaction.mockImplementation(async (fn) => {
+      const tx = {
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({ llmDailyDate: today, llmDailyCalls: 2, llmDailyAttempts: 5 }),
+        }),
+        set: jest.fn(),
+      };
+      await fn(tx);
+      expect(tx.set).toHaveBeenCalledWith(ref, expect.objectContaining({
+        llmDailyDate: today,
+        llmDailyAttempts: 6,
+        llmLastOk: false,
+        llmLastError: 'timeout of 8000ms exceeded',
+      }));
+      expect(tx.set.mock.calls[0][1].llmDailyCalls).toBeUndefined();
+    });
+
+    await recordLlmUsage({
+      provider: 'openrouter',
+      model: 'deepseek/deepseek-v4-flash',
+      latencyMs: 8000,
+      ok: false,
+      error: 'timeout of 8000ms exceeded',
+    });
   });
 });

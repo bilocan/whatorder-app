@@ -10,6 +10,13 @@ const SELECTABLE_PROVIDERS = ['google', 'openrouter'];
 /** @type {{ at: number, selection: object|null }} */
 let cache = { at: 0, selection: null };
 
+/** @type {{ at: number, stats: object|null }} */
+let usageCache = { at: 0, stats: null };
+
+function utcDay() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function llmHelpers() {
   // Lazy require avoids circular load with llm.js
   return require('./llm');
@@ -61,10 +68,11 @@ function getEnvLlmCatalog() {
 
   const providers = SELECTABLE_PROVIDERS.map((id) => ({
     id,
-    ready: isProviderReady(id),
+    ready: typeof isProviderReady === 'function' ? isProviderReady(id) : false,
   }));
 
-  const models = listPlaygroundEntries()
+  const entries = typeof listPlaygroundEntries === 'function' ? listPlaygroundEntries() : [];
+  const models = entries
     .filter((e) => SELECTABLE_PROVIDERS.includes(e.provider))
     .map((e) => ({
       label: e.label,
@@ -208,6 +216,141 @@ async function readStoredSelection() {
 
 function invalidateLlmRuntimeCache() {
   cache = { at: 0, selection: null };
+  usageCache = { at: 0, stats: null };
+}
+
+/**
+ * Persist LLM usage telemetry on config/whatorder (admin config + history).
+ * @param {{ provider?: string, model?: string, latencyMs?: number, ok?: boolean, error?: string }} meta
+ * - every call → bump UTC daily attempt count + last attempt fields
+ * - ok true → provider responded (success for this page); bump success count
+ * - ok false → transport/provider error only (timeout, 429, 5xx, network)
+ */
+async function recordLlmUsage({
+  provider, model, latencyMs, ok = true, error = null,
+} = {}) {
+  const today = utcDay();
+  const nowIso = new Date().toISOString();
+  const latency = Number.isFinite(latencyMs) ? Math.max(0, Math.round(latencyMs)) : null;
+  const succeeded = ok !== false;
+
+  try {
+    const { db } = require('./firebase');
+    const ref = configRef();
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const data = snap.exists ? (snap.data() || {}) : {};
+      const sameDay = data.llmDailyDate === today;
+      const prevSuccess = sameDay ? (Number(data.llmDailyCalls) || 0) : 0;
+      const prevAttemptsRaw = sameDay ? (Number(data.llmDailyAttempts) || 0) : 0;
+      // Backfill attempts when older docs only had success counts.
+      const prevAttempts = Math.max(prevAttemptsRaw, prevSuccess);
+      const nextSuccess = succeeded ? prevSuccess + 1 : prevSuccess;
+      const nextAttempts = prevAttempts + 1;
+
+      const updates = {
+        llmDailyDate: today,
+        llmDailyAttempts: nextAttempts,
+        llmLastAttemptAt: nowIso,
+        llmLastProvider: provider || null,
+        llmLastModel: model || null,
+        llmLastLatencyMs: latency,
+        llmLastOk: succeeded,
+        llmLastError: succeeded ? null : String(error || 'failed').slice(0, 200),
+      };
+      if (succeeded) {
+        updates.llmLastSuccessAt = nowIso;
+        updates.llmDailyCalls = nextSuccess;
+      }
+
+      tx.set(ref, updates, { merge: true });
+      usageCache = {
+        at: Date.now(),
+        stats: {
+          dailyCallCount: nextSuccess,
+          dailyAttemptCount: nextAttempts,
+          dailyDate: today,
+          lastSuccessAt: succeeded
+            ? nowIso
+            : (typeof data.llmLastSuccessAt === 'string' ? data.llmLastSuccessAt : null),
+          lastAttemptAt: nowIso,
+          lastOk: succeeded,
+          lastError: succeeded ? null : String(error || 'failed').slice(0, 200),
+          lastProvider: provider || null,
+          lastModel: model || null,
+          lastLatencyMs: latency,
+        },
+      };
+    });
+    if (process.env.LOG_LEVEL === 'debug' || !succeeded) {
+      console.log(
+        `[llm-config] usage ${succeeded ? 'ok' : 'fail'} provider=${provider} model=${model}`
+        + ` attempts=${usageCache.stats?.dailyAttemptCount} ok=${usageCache.stats?.dailyCallCount}`,
+      );
+    }
+  } catch (err) {
+    console.warn('[llm-config] usage persist failed:', err.message);
+  }
+}
+
+/**
+ * Read persisted usage for admin status. Day counter resets at UTC midnight.
+ * @param {{ force?: boolean }} [opts]
+ */
+async function getLlmUsageStats({ force = false } = {}) {
+  if (!force && usageCache.stats && (Date.now() - usageCache.at) < CACHE_TTL_MS) {
+    return usageCache.stats;
+  }
+
+  const empty = {
+    dailyCallCount: 0,
+    dailyAttemptCount: 0,
+    dailyDate: utcDay(),
+    lastSuccessAt: null,
+    lastAttemptAt: null,
+    lastOk: null,
+    lastError: null,
+    lastProvider: null,
+    lastModel: null,
+    lastLatencyMs: null,
+  };
+
+  try {
+    const snap = await configRef().get();
+    if (!snap.exists) {
+      usageCache = { at: Date.now(), stats: empty };
+      return empty;
+    }
+    const data = snap.data() || {};
+    const today = utcDay();
+    const sameDay = data.llmDailyDate === today;
+    const successes = sameDay ? (Number(data.llmDailyCalls) || 0) : 0;
+    // Legacy docs only stored successes; never show attempts < successes.
+    const attemptsRaw = sameDay ? (Number(data.llmDailyAttempts) || 0) : 0;
+    const stats = {
+      dailyCallCount: successes,
+      dailyAttemptCount: Math.max(attemptsRaw, successes),
+      dailyDate: today,
+      lastSuccessAt: typeof data.llmLastSuccessAt === 'string' ? data.llmLastSuccessAt : null,
+      lastAttemptAt: typeof data.llmLastAttemptAt === 'string'
+        ? data.llmLastAttemptAt
+        : (typeof data.llmLastSuccessAt === 'string' ? data.llmLastSuccessAt : null),
+      lastOk: typeof data.llmLastOk === 'boolean' ? data.llmLastOk : null,
+      lastError: typeof data.llmLastError === 'string' ? data.llmLastError : null,
+      lastProvider: typeof data.llmLastProvider === 'string' ? data.llmLastProvider : null,
+      lastModel: typeof data.llmLastModel === 'string' ? data.llmLastModel : null,
+      lastLatencyMs: Number.isFinite(Number(data.llmLastLatencyMs))
+        ? Number(data.llmLastLatencyMs)
+        : null,
+    };
+    usageCache = { at: Date.now(), stats };
+    return stats;
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn('[llm-config] usage read failed:', err.message);
+    }
+    return empty;
+  }
 }
 
 /**
@@ -238,6 +381,10 @@ async function getLlmRuntimeSelection({ force = false } = {}) {
 
 /** Sync peek for canCallLlm / isAiIntentEnabled (env until first async refresh). */
 function getCachedLlmRuntimeSelection() {
+  // Warm Firestore selection in the background so sync gates catch up after admin Save.
+  if (!cache.selection || (Date.now() - cache.at) >= CACHE_TTL_MS) {
+    getLlmRuntimeSelection().catch(() => {});
+  }
   if (cache.selection) return cache.selection;
   const catalog = getEnvLlmCatalog();
   const merged = mergeSelection(null, catalog);
@@ -329,7 +476,8 @@ async function saveLlmRuntimeSelection(body) {
   return { selection, catalog };
 }
 
-function getAdminLlmConfigPayload(selection, dailyStats) {
+function getAdminLlmConfigPayload(selection, usageStats) {
+  const dailyCallCap = selection.catalog.ops.dailyCallCap;
   return {
     catalog: {
       providers: selection.catalog.providers,
@@ -349,8 +497,17 @@ function getAdminLlmConfigPayload(selection, dailyStats) {
       primaryLabel: selection.primaryLabel,
       primaryReady: providerReadyInCatalog(selection.catalog, selection.llmProvider),
       fallbackConfigured: Boolean(selection.llmFallbackProvider && selection.llmFallbackModel),
-      dailyCallCount: dailyStats?.dailyCallCount ?? 0,
-      dailyCallCap: selection.catalog.ops.dailyCallCap,
+      dailyCallCount: usageStats?.dailyCallCount ?? 0,
+      dailyAttemptCount: usageStats?.dailyAttemptCount ?? 0,
+      dailyCallCap,
+      dailyDate: usageStats?.dailyDate ?? null,
+      lastSuccessAt: usageStats?.lastSuccessAt ?? null,
+      lastAttemptAt: usageStats?.lastAttemptAt ?? null,
+      lastOk: usageStats?.lastOk ?? null,
+      lastError: usageStats?.lastError ?? null,
+      lastProvider: usageStats?.lastProvider ?? null,
+      lastModel: usageStats?.lastModel ?? null,
+      lastLatencyMs: usageStats?.lastLatencyMs ?? null,
     },
   };
 }
@@ -365,7 +522,10 @@ module.exports = {
   saveLlmRuntimeSelection,
   invalidateLlmRuntimeCache,
   getAdminLlmConfigPayload,
+  recordLlmUsage,
+  getLlmUsageStats,
   mergeSelection,
   findCatalogModel,
   normalizeSelectableProvider,
+  utcDay,
 };

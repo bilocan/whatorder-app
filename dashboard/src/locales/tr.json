@@ -719,11 +719,17 @@
         "sourceEnv": "env varsayılanı",
         "sourceFirestore": "admin seçimi",
         "primary": "Birincil: {{label}}",
-        "primaryReady": "Birincil provider hazır",
+        "primaryReady": "Birincil provider hazır (env anahtarları var)",
         "primaryNotReady": "Birincil provider hazır değil",
+        "lastUsed": "Son çağrı: {{provider}} / {{model}} · {{when}} · {{result}}{{latency}}",
+        "lastUsedOk": "ok",
+        "lastUsedFail": "başarısız ({{error}})",
+        "lastUsedLatency": " · {{ms}} ms",
+        "lastUsedNever": "Son çağrı: yok (henüz LLM denemesi kaydı yok)",
         "fallbackOn": "Yedek yapılandırıldı",
         "fallbackOff": "Yedek yok",
-        "dailyCalls": "Günlük LLM çağrıları: {{count}} / {{cap}}"
+        "dailyCalls": "Bugün (UTC): {{count}} yanıt / cap {{cap}} ({{attempts}} çağrı)",
+        "trustHint": "Başarı = model cevap verdi. Hata = timeout, kota veya provider hatası. Bu sayfa sadece config ve geçmiş."
       }
     },
     "restaurants": {

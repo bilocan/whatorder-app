@@ -47,7 +47,16 @@ type LlmConfigResponse = {
     primaryReady: boolean;
     fallbackConfigured: boolean;
     dailyCallCount: number;
+    dailyAttemptCount: number;
     dailyCallCap: number;
+    dailyDate: string | null;
+    lastSuccessAt: string | null;
+    lastAttemptAt: string | null;
+    lastOk: boolean | null;
+    lastError: string | null;
+    lastProvider: string | null;
+    lastModel: string | null;
+    lastLatencyMs: number | null;
   };
 };
 
@@ -320,15 +329,34 @@ export default function AiConfigPage() {
                 : t('admin.aiConfig.status.primaryNotReady')}
             </li>
             <li>
+              {(status.lastAttemptAt || status.lastSuccessAt)
+                ? t('admin.aiConfig.status.lastUsed', {
+                  provider: status.lastProvider || '—',
+                  model: status.lastModel || '—',
+                  when: new Date(status.lastAttemptAt || status.lastSuccessAt || '').toLocaleString(),
+                  result: status.lastOk === false
+                    ? t('admin.aiConfig.status.lastUsedFail', { error: status.lastError || 'error' })
+                    : t('admin.aiConfig.status.lastUsedOk'),
+                  latency: status.lastLatencyMs != null
+                    ? t('admin.aiConfig.status.lastUsedLatency', { ms: status.lastLatencyMs })
+                    : '',
+                })
+                : t('admin.aiConfig.status.lastUsedNever')}
+            </li>
+            <li>
               {status.fallbackConfigured
                 ? t('admin.aiConfig.status.fallbackOn')
                 : t('admin.aiConfig.status.fallbackOff')}
             </li>
             <li>
               {t('admin.aiConfig.status.dailyCalls', {
+                attempts: status.dailyAttemptCount ?? 0,
                 count: status.dailyCallCount,
                 cap: status.dailyCallCap,
               })}
+            </li>
+            <li style={{ color: '#888', fontSize: '0.8rem' }}>
+              {t('admin.aiConfig.status.trustHint')}
             </li>
           </ul>
         </section>

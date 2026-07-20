@@ -20,6 +20,18 @@ jest.mock('../collections', () => ({
     set: jest.fn().mockResolvedValue(undefined),
   })),
 }));
+jest.mock('../firebase', () => ({
+  db: {
+    runTransaction: jest.fn(async (fn) => {
+      const tx = {
+        get: jest.fn().mockResolvedValue({ exists: false, data: () => ({}) }),
+        set: jest.fn(),
+      };
+      return fn(tx);
+    }),
+  },
+  admin: {},
+}));
 
 const ORIGINAL_ENV = process.env;
 
@@ -77,6 +89,15 @@ describe('validateIntentPayload', () => {
 
   test('rejects missing confidence', () => {
     expect(validateIntentPayload({ items: [{ name: 'pizza' }] })).toBeNull();
+  });
+
+  test('accepts quantity / overall_confidence aliases', () => {
+    const r = validateIntentPayload({
+      items: [{ name: 'Döner', quantity: 2 }],
+      overall_confidence: 0.98,
+    });
+    expect(r.items).toEqual([{ name: 'Döner', qty: 2 }]);
+    expect(r.confidence).toBe(0.98);
   });
 });
 

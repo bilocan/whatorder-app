@@ -421,10 +421,22 @@ function isWithinRateLimit(phone) {
   return Date.now() - last >= cooldownMs;
 }
 
-function recordCall(phone) {
+function recordCall(phone, { provider, model, latencyMs } = {}) {
   resetDailyCapIfNeeded();
   dailyCallCount += 1;
   if (phone) rateLimitByPhone.set(phone, Date.now());
+}
+
+/**
+ * Memory rate/cap + Firestore last-used / daily count.
+ * ok=true when the provider responded (config/history). Soft intent-parse
+ * misses still count as ok; only transport/provider errors are failures.
+ */
+async function recordCallAndPersist(phone, meta = {}) {
+  const ok = meta.ok !== false;
+  if (ok) recordCall(phone, meta);
+  const { recordLlmUsage } = require('./llmRuntimeConfig');
+  await recordLlmUsage({ ...meta, ok });
 }
 
 function canCallLlm(phone, { provider } = {}) {
@@ -523,12 +535,18 @@ async function withLlmRetry(fn) {
 }
 
 function parseJsonContent(raw) {
-  if (!raw || typeof raw !== 'string') return null;
-  const trimmed = raw.trim();
+  if (raw == null) return null;
+  let text = raw;
+  if (Array.isArray(raw)) {
+    text = raw.map((p) => (typeof p === 'string' ? p : (p?.text ?? ''))).join('');
+  }
+  if (typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  if (!trimmed) return null;
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const text = fenced ? fenced[1].trim() : trimmed;
+  const body = fenced ? fenced[1].trim() : trimmed;
   try {
-    return JSON.parse(text);
+    return JSON.parse(body);
   } catch {
     return null;
   }
@@ -537,15 +555,20 @@ function parseJsonContent(raw) {
 function validateIntentPayload(data) {
   if (!data || typeof data !== 'object') return null;
   if (!Array.isArray(data.items)) return null;
-  const confidence = Number(data.confidence);
+  const confidence = Number(
+    data.confidence ?? data.overall_confidence ?? data.overallConfidence,
+  );
   if (!Number.isFinite(confidence)) return null;
 
   const items = data.items
     .filter(i => i && typeof i.name === 'string' && i.name.trim())
-    .map(i => ({
-      name: i.name.trim(),
-      qty: i.qty == null ? null : Math.min(99, Math.max(1, Number(i.qty) || 1)),
-    }));
+    .map(i => {
+      const rawQty = i.qty ?? i.quantity;
+      return {
+        name: i.name.trim(),
+        qty: rawQty == null ? null : Math.min(99, Math.max(1, Number(rawQty) || 1)),
+      };
+    });
 
   let partySize = null;
   if (data.partySize != null) {
@@ -558,7 +581,9 @@ function validateIntentPayload(data) {
 
 function validateMenuIntentPayload(data, menuIndex) {
   if (!data || typeof data !== 'object' || !menuIndex?.byId) return null;
-  const confidence = Number(data.confidence);
+  const confidence = Number(
+    data.confidence ?? data.overall_confidence ?? data.overallConfidence,
+  );
   if (!Number.isFinite(confidence)) return null;
 
   const rawItems = repairMenuLlmRawItems(
@@ -581,6 +606,59 @@ function validateMenuIntentPayload(data, menuIndex) {
     confidence: Math.max(0, Math.min(1, confidence)),
     menuConstrained: true,
   };
+}
+
+function interpretIntentPayload(content, { constrained = false, menuIndex = null } = {}) {
+  if (content == null || (typeof content === 'string' && !content.trim())
+    || (Array.isArray(content) && content.length === 0)) {
+    return { result: null, error: 'empty_response' };
+  }
+  const parsed = parseJsonContent(content);
+  if (!parsed) return { result: null, error: 'invalid_json' };
+
+  if (constrained) {
+    const menuResult = validateMenuIntentPayload(parsed, menuIndex);
+    if (menuResult) return { result: menuResult, error: null };
+
+    // Some OpenRouter models ignore menuItemId and return free-form names.
+    const free = validateIntentPayload(parsed);
+    if (free?.items?.length) return { result: free, error: null };
+
+    // Or return lineText / name without resolvable ids — still usable for menu match.
+    const fromLines = (parsed.items ?? [])
+      .map((i) => {
+        if (!i || typeof i !== 'object') return null;
+        const name = (typeof i.name === 'string' && i.name.trim())
+          || (typeof i.lineText === 'string' && i.lineText.trim())
+          || '';
+        if (!name) return null;
+        const rawQty = i.qty ?? i.quantity;
+        return {
+          name,
+          qty: rawQty == null ? null : Math.min(99, Math.max(1, Number(rawQty) || 1)),
+        };
+      })
+      .filter(Boolean);
+    const confidence = Number(
+      parsed.confidence ?? parsed.overall_confidence ?? parsed.overallConfidence,
+    );
+    if (fromLines.length && Number.isFinite(confidence)) {
+      return {
+        result: {
+          items: fromLines,
+          partySize: null,
+          confidence: Math.max(0, Math.min(1, confidence)),
+        },
+        error: null,
+      };
+    }
+
+    return { result: null, error: 'no_menu_match' };
+  }
+
+  const result = validateIntentPayload(parsed);
+  if (!result) return { result: null, error: 'invalid_schema' };
+  return { result, error: null };
 }
 
 function buildMenuConstrainedUserText(userText, menuIndex) {
@@ -760,18 +838,38 @@ async function parseBotCommandWithLlm(text, { phone, hasUndoSnapshot = false, ha
     try {
       const result = await invokeCommandParse(userText, target);
       if (result) {
-        recordCall(phone);
+        await recordCallAndPersist(phone, {
+          provider: target.provider,
+          model: target.model,
+          latencyMs: Date.now() - started,
+          ok: true,
+        });
         if (process.env.LOG_LEVEL === 'debug') {
           console.log(`[llm] bot command parsed via ${target.provider}/${target.model} in ${Date.now() - started}ms command=${result.command} confidence=${result.confidence}`);
         }
         return result;
       }
+      await recordCallAndPersist(phone, {
+        provider: target.provider,
+        model: target.model,
+        latencyMs: Date.now() - started,
+        ok: true,
+      });
       return null;
     } catch (err) {
       lastErr = err;
       logLlmFailure(err, err.response?.data?.error?.message);
       const canFallback = i === 0 && fallback && isRetryableLlmError(err);
-      if (!canFallback) return null;
+      if (!canFallback) {
+        await recordCallAndPersist(phone, {
+          provider: target.provider,
+          model: target.model,
+          latencyMs: Date.now() - started,
+          ok: false,
+          error: err.response?.data?.error?.message || err.message || String(err.response?.status || 'error'),
+        });
+        return null;
+      }
       if (process.env.NODE_ENV !== 'test') {
         console.warn(`[llm] primary command failed; trying fallback ${fallback.provider}/${fallback.model}`);
       }
@@ -896,17 +994,37 @@ async function parseProposalEditWithLlm(text, pendingItems, { phone } = {}) {
     try {
       const result = await invokeEditParse(userText, target);
       if (result) {
-        recordCall(phone);
+        await recordCallAndPersist(phone, {
+          provider: target.provider,
+          model: target.model,
+          latencyMs: Date.now() - started,
+          ok: true,
+        });
         if (process.env.LOG_LEVEL === 'debug') {
           console.log(`[llm] proposal edit parsed via ${target.provider}/${target.model} in ${Date.now() - started}ms type=${result.type} confidence=${result.confidence}`);
         }
         return result;
       }
+      await recordCallAndPersist(phone, {
+        provider: target.provider,
+        model: target.model,
+        latencyMs: Date.now() - started,
+        ok: true,
+      });
       return null;
     } catch (err) {
       logLlmFailure(err, err.response?.data?.error?.message);
       const canFallback = i === 0 && fallback && isRetryableLlmError(err);
-      if (!canFallback) return null;
+      if (!canFallback) {
+        await recordCallAndPersist(phone, {
+          provider: target.provider,
+          model: target.model,
+          latencyMs: Date.now() - started,
+          ok: false,
+          error: err.response?.data?.error?.message || err.message || String(err.response?.status || 'error'),
+        });
+        return null;
+      }
       if (process.env.NODE_ENV !== 'test') {
         console.warn(`[llm] primary edit failed; trying fallback ${fallback.provider}/${fallback.model}`);
       }
@@ -948,10 +1066,7 @@ async function callOpenAi(userText, { menuIndex = null, model, provider } = {}) 
   );
 
   const content = res.data?.choices?.[0]?.message?.content;
-  const parsed = parseJsonContent(content);
-  return constrained
-    ? validateMenuIntentPayload(parsed, menuIndex)
-    : validateIntentPayload(parsed);
+  return interpretIntentPayload(content, { constrained, menuIndex });
 }
 
 async function callGemini(userText, { menuIndex = null, model } = {}) {
@@ -986,10 +1101,7 @@ async function callGemini(userText, { menuIndex = null, model } = {}) {
       timeout,
     }));
     const content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    const parsed = parseJsonContent(content);
-    return constrained
-      ? validateMenuIntentPayload(parsed, menuIndex)
-      : validateIntentPayload(parsed);
+    return interpretIntentPayload(content, { constrained, menuIndex });
   } catch (err) {
     const status = err.response?.status;
     if (status === 400) {
@@ -1007,10 +1119,7 @@ async function callGemini(userText, { menuIndex = null, model } = {}) {
           timeout,
         }));
         const content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        const parsed = parseJsonContent(content);
-        return constrained
-          ? validateMenuIntentPayload(parsed, menuIndex)
-          : validateIntentPayload(parsed);
+        return interpretIntentPayload(content, { constrained, menuIndex });
       } catch (retryErr) {
         throw retryErr;
       }
@@ -1055,7 +1164,7 @@ async function parseOrderIntentWithLlm(userText, { phone, menu, model, provider,
         : target.model
     );
     try {
-      const result = usesOpenAiCompatibleProvider(target.provider)
+      const outcome = usesOpenAiCompatibleProvider(target.provider)
         ? await callOpenAi(userText, {
           menuIndex,
           model: target.model,
@@ -1063,8 +1172,14 @@ async function parseOrderIntentWithLlm(userText, { phone, menu, model, provider,
         })
         : await callGemini(userText, { menuIndex, model: target.model });
 
+      const result = outcome?.result ?? null;
       if (result) {
-        recordCall(phone);
+        await recordCallAndPersist(phone, {
+          provider: target.provider,
+          model: target.model,
+          latencyMs: Date.now() - started,
+          ok: true,
+        });
         if (process.env.LOG_LEVEL === 'debug') {
           const mode = result.menuConstrained ? 'menu' : 'free';
           console.log(`[llm] intent parsed (${mode}) provider=${target.provider} model=${target.model} in ${Date.now() - started}ms confidence=${result.confidence}`);
@@ -1073,11 +1188,28 @@ async function parseOrderIntentWithLlm(userText, { phone, menu, model, provider,
         result.llmProvider = target.provider;
         return result;
       }
+      // Provider answered — count as success for admin config/history even if
+      // the body was not usable as order intent (Teach-bot / pipeline decide that).
+      await recordCallAndPersist(phone, {
+        provider: target.provider,
+        model: target.model,
+        latencyMs: Date.now() - started,
+        ok: true,
+      });
       return null;
     } catch (err) {
       logLlmFailure(err, err.response?.data?.error?.message);
       const canFallback = i === 0 && targets.length > 1 && isRetryableLlmError(err);
-      if (!canFallback) return null;
+      if (!canFallback) {
+        await recordCallAndPersist(phone, {
+          provider: target.provider,
+          model: target.model,
+          latencyMs: Date.now() - started,
+          ok: false,
+          error: err.response?.data?.error?.message || err.message || String(err.response?.status || 'error'),
+        });
+        return null;
+      }
       if (process.env.NODE_ENV !== 'test') {
         console.warn(`[llm] primary intent failed; trying fallback ${targets[1].provider}/${targets[1].model}`);
       }

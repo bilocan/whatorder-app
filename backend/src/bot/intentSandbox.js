@@ -68,6 +68,7 @@ async function evaluateIntent(text, options = {}) {
     model = undefined,
     provider = undefined,
     llmLabel = undefined,
+    forceLlm = false,
   } = options;
   const phone = options.phone ?? (llm ? sandboxPhoneForLlm() : 'sandbox');
 
@@ -98,6 +99,7 @@ async function evaluateIntent(text, options = {}) {
     menu,
     rulesOnly: !llm,
     skipLearned,
+    forceLlm,
     model,
     provider,
     llmLabel,

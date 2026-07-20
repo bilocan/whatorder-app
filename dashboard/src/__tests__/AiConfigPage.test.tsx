@@ -51,6 +51,14 @@ const catalogPayload = {
     fallbackConfigured: false,
     dailyCallCount: 12,
     dailyCallCap: 5000,
+    dailyDate: '2026-07-20',
+    lastSuccessAt: null,
+    lastAttemptAt: null,
+    lastOk: null,
+    lastError: null,
+    lastProvider: null,
+    lastModel: null,
+    lastLatencyMs: null,
   },
 }
 
@@ -71,7 +79,8 @@ describe('AiConfigPage', () => {
       expect(screen.getByText('AI config')).toBeInTheDocument()
     })
 
-    expect(screen.getByText(/Daily LLM calls/i)).toBeInTheDocument()
+    expect(screen.getByText(/Today \(UTC\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/Last call: never/i)).toBeInTheDocument()
     expect(global.fetch).toHaveBeenCalledWith('/admin/llm-config', expect.any(Object))
 
     ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({

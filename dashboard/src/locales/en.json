@@ -719,11 +719,17 @@
         "sourceEnv": "env default",
         "sourceFirestore": "admin selection",
         "primary": "Primary: {{label}}",
-        "primaryReady": "Primary provider ready",
+        "primaryReady": "Primary provider ready (env keys present)",
         "primaryNotReady": "Primary provider not ready",
+        "lastUsed": "Last call: {{provider}} / {{model}} · {{when}} · {{result}}{{latency}}",
+        "lastUsedOk": "ok",
+        "lastUsedFail": "failed ({{error}})",
+        "lastUsedLatency": " · {{ms}} ms",
+        "lastUsedNever": "Last call: never (no LLM attempt persisted yet)",
         "fallbackOn": "Fallback configured",
         "fallbackOff": "No fallback",
-        "dailyCalls": "Daily LLM calls: {{count}} / {{cap}}"
+        "dailyCalls": "Today (UTC): {{count}} responses / cap {{cap}} ({{attempts}} calls)",
+        "trustHint": "Success = model responded. Failure = timeout, quota, or provider error. This page is config and history only."
       }
     },
     "restaurants": {

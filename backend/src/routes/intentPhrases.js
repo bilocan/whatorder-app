@@ -118,11 +118,11 @@ function slimOriginalItems(items) {
  */
 function sourceOptions(source, llm) {
   switch (source) {
-    case 'rules': return { llm: false, skipLearned: true };
-    case 'llm': return { llm: true, skipLearned: true };
-    case 'learned': return { llm: false, skipLearned: false, learnedSource: 'any' };
-    case 'seed': return { llm: false, skipLearned: false, learnedSource: 'seed' };
-    default: return { llm: !!llm, skipLearned: false };
+    case 'rules': return { llm: false, skipLearned: true, forceLlm: false };
+    case 'llm': return { llm: true, skipLearned: true, forceLlm: true };
+    case 'learned': return { llm: false, skipLearned: false, learnedSource: 'any', forceLlm: false };
+    case 'seed': return { llm: false, skipLearned: false, learnedSource: 'seed', forceLlm: false };
+    default: return { llm: !!llm, skipLearned: false, forceLlm: false };
   }
 }
 

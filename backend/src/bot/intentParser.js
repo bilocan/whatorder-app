@@ -705,8 +705,8 @@ function rulesParseQuality(text) {
   return 'low';
 }
 
-function shouldTryLlm(text, rulesIntent, phone) {
-  if (!canCallLlm(phone)) return false;
+function shouldTryLlm(text, rulesIntent, phone, { provider } = {}) {
+  if (!canCallLlm(phone, { provider })) return false;
   if (rulesIntentHasModifierSplit(rulesIntent)) return false;
   if (rulesParseQuality(text) === 'high') return false;
   if (rulesIntent.items?.length === 1 && rulesItemHasKnownModifiers(rulesIntent.items[0].name)) {
@@ -741,7 +741,8 @@ function mergeLlmIntent(llm, rawText, rulesIntent) {
 }
 
 async function parseIntentAsync(text, {
-  phone, businessId, menu, rulesOnly = false, skipLearned = false, model, provider, llmLabel,
+  phone, businessId, menu, rulesOnly = false, skipLearned = false, forceLlm = false,
+  model, provider, llmLabel,
 } = {}) {
   const rawText = (text ?? '').trim();
 
@@ -801,10 +802,30 @@ async function parseIntentAsync(text, {
 
   const rulesIntent = parseIntent(text);
 
-  if (rulesOnly || !shouldTryLlm(text, rulesIntent, phone)) return rulesIntent;
+  // Load Firestore selection before the sync gate (env-only cache is stale after admin Save).
+  const { getLlmRuntimeSelection } = require('../lib/llmRuntimeConfig');
+  await getLlmRuntimeSelection();
+
+  if (rulesOnly) return rulesIntent;
+  // Teach-bot "AI" tier sets forceLlm — always call even when rules look strong.
+  if (!forceLlm && !shouldTryLlm(text, rulesIntent, phone, { provider })) return rulesIntent;
 
   const llm = await parseOrderIntentWithLlm(text, { phone, menu, model, provider, llmLabel });
   if (!llm || llm.confidence < 0.6 || !llm.items.length) {
+    // Teach-bot "AI" tier: do not silently fall back to rules (looks like AI success).
+    if (forceLlm) {
+      return {
+        items: [],
+        partySize: null,
+        confidence: 0,
+        rawText,
+        parsedBy: 'llm',
+        llmAttempted: true,
+        llmFailed: true,
+        llmModel: llmLabel || llm?.llmModel || model,
+        llmProvider: llm?.llmProvider || provider,
+      };
+    }
     return {
       ...rulesIntent,
       llmAttempted: true,
