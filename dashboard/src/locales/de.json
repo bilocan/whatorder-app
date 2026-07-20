@@ -24,6 +24,7 @@
     "admin": "Admin",
     "adminMap": "Karte",
     "earnings": "Erlöse",
+    "aiConfig": "KI-Config",
     "signOut": "Abmelden"
   },
   "lang": {
@@ -691,6 +692,44 @@
         },
         "modeMock": "Mock",
         "modeLive": "Live"
+      }
+    },
+    "aiConfig": {
+      "title": "KI-Config",
+      "hint": "Wähle unter den Providern und Modellen, die schon in der Backend-Env stehen. Keys bleiben in Secrets — hier nur aktivieren und auswählen.",
+      "loading": "Laden…",
+      "loadError": "KI-Config konnte nicht geladen werden.",
+      "save": "Speichern",
+      "saving": "Speichern…",
+      "saved": "Gespeichert.",
+      "saveError": "Speichern fehlgeschlagen.",
+      "enabled": "KI-Intent (Tier B)",
+      "enabledOn": "An",
+      "enabledOff": "Aus",
+      "primaryProvider": "Primary-Provider",
+      "primaryModel": "Primary-Modell",
+      "fallbackProvider": "Fallback-Provider",
+      "fallbackModel": "Fallback-Modell",
+      "fallbackNone": "Keiner",
+      "providerNotReady": "Nicht bereit (Env-Keys fehlen)",
+      "noModels": "Keine Modelle in der Env-Liste für diesen Provider.",
+      "status": {
+        "title": "Status",
+        "source": "Quelle: {{source}}",
+        "sourceEnv": "Env-Standard",
+        "sourceFirestore": "Admin-Auswahl",
+        "primary": "Primary: {{label}}",
+        "primaryReady": "Primary-Provider bereit (Env-Keys vorhanden)",
+        "primaryNotReady": "Primary-Provider nicht bereit",
+        "lastUsed": "Letzter Call: {{provider}} / {{model}} · {{when}} · {{result}}{{latency}}",
+        "lastUsedOk": "ok",
+        "lastUsedFail": "fehlgeschlagen ({{error}})",
+        "lastUsedLatency": " · {{ms}} ms",
+        "lastUsedNever": "Letzter Call: noch nie (kein LLM-Versuch persistiert)",
+        "fallbackOn": "Fallback konfiguriert",
+        "fallbackOff": "Kein Fallback",
+        "dailyCalls": "Heute (UTC): {{count}} Antworten / Cap {{cap}} ({{attempts}} Calls)",
+        "trustHint": "Erfolg = Modell hat geantwortet. Fehlschlag = Timeout, Quota oder Provider-Fehler. Diese Seite ist nur Config und Verlauf."
       }
     },
     "restaurants": {

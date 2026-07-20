@@ -1,7 +1,13 @@
 const express = require('express');
-const { admin, db } = require('../lib/firebase');
+const { admin } = require('../lib/firebase');
 const { ownerRef, adminRef } = require('../lib/collections');
 const { requireAdmin } = require('../lib/adminAuth');
+const {
+  getLlmRuntimeSelection,
+  saveLlmRuntimeSelection,
+  getAdminLlmConfigPayload,
+  getLlmUsageStats,
+} = require('../lib/llmRuntimeConfig');
 
 const router = express.Router();
 
@@ -85,6 +91,35 @@ router.delete('/owners', requireAdmin, async (req, res) => {
   if (!uid) return res.status(400).json({ error: 'uid query param required' });
   await ownerRef(uid).delete();
   res.json({ ok: true });
+});
+
+// GET /admin/llm-config — env catalog + active selection (no secrets)
+router.get('/llm-config', requireAdmin, async (_req, res) => {
+  try {
+    const [selection, usage] = await Promise.all([
+      getLlmRuntimeSelection({ force: true }),
+      getLlmUsageStats({ force: true }),
+    ]);
+    res.json(getAdminLlmConfigPayload(selection, usage));
+  } catch (err) {
+    console.error('[admin/llm-config] GET failed:', err);
+    res.status(500).json({ error: 'Failed to load LLM config' });
+  }
+});
+
+// PUT /admin/llm-config — select among env catalog options only
+router.put('/llm-config', requireAdmin, async (req, res) => {
+  try {
+    const [{ selection }, usage] = await Promise.all([
+      saveLlmRuntimeSelection(req.body ?? {}),
+      getLlmUsageStats({ force: true }),
+    ]);
+    res.json(getAdminLlmConfigPayload(selection, usage));
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error('[admin/llm-config] PUT failed:', err);
+    res.status(status).json({ error: err.message || 'Failed to save LLM config' });
+  }
 });
 
 module.exports = router;

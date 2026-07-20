@@ -41,10 +41,20 @@ function buildMenuLlmIndex(menuItems) {
 function resolveMenuLlmItems(items, menuIndex) {
   if (!items?.length || !menuIndex?.byId) return [];
 
+  const idsInPromptOrder = [...menuIndex.byId.keys()];
   const out = [];
   for (const line of items) {
-    const id = String(line?.menuItemId ?? '').trim();
+    let id = String(line?.menuItemId ?? '').trim();
     if (!id) continue;
+
+    // Models often return the 1-based prompt index ("1", "2") instead of the real id.
+    if (!menuIndex.byId.has(id)) {
+      const n = Number.parseInt(id, 10);
+      if (String(n) === id && n >= 1 && n <= idsInPromptOrder.length) {
+        id = idsInPromptOrder[n - 1];
+      }
+    }
+
     const menuItem = menuIndex.byId.get(id);
     if (!menuItem) continue;
 

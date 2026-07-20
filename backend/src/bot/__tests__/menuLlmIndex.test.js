@@ -27,4 +27,16 @@ describe('menuLlmIndex', () => {
       { name: 'Ayran', qty: 1, menuItemId: 'a1' },
     ]);
   });
+
+  test('resolveMenuLlmItems coerces 1-based prompt index to real ids', () => {
+    const index = buildMenuLlmIndex(MENU);
+    const items = resolveMenuLlmItems([
+      { menuItemId: '1', qty: 2 },
+      { menuItemId: '2', qty: 1 },
+    ], index);
+    expect(items).toEqual([
+      { name: 'Kebap Sandwich Huhn', qty: 2, menuItemId: 'k1' },
+      { name: 'Ayran', qty: 1, menuItemId: 'a1' },
+    ]);
+  });
 });

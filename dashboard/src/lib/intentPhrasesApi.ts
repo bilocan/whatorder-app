@@ -120,7 +120,7 @@ export async function previewIntentPhrase(
 ): Promise<IntentPhrasePreview> {
   // app/appLlm run the full pipeline (backend "auto"); the rest pin one tier.
   const tier = source === 'app' || source === 'appLlm' ? undefined : source;
-  const useLlm = source === 'appLlm' || (source === 'app' && llm);
+  const useLlm = source === 'appLlm' || source === 'llm' || (source === 'app' && llm);
   const res = await fetch(`${API_URL}/api/businesses/${businessId}/intent-phrases/preview`, {
     method: 'POST',
     headers: await jsonAuthHeaders(),

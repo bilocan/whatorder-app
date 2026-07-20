@@ -1,5 +1,20 @@
 jest.mock('../../lib/llm');
 
+jest.mock('../../lib/llmRuntimeConfig', () => ({
+  getLlmRuntimeSelection: jest.fn().mockResolvedValue({
+    aiIntentEnabled: true,
+    llmProvider: 'google',
+    llmModel: 'gemini-2.5-flash-lite',
+    source: 'env',
+  }),
+  getCachedLlmRuntimeSelection: jest.fn().mockReturnValue({
+    aiIntentEnabled: true,
+    llmProvider: 'google',
+    llmModel: 'gemini-2.5-flash-lite',
+    source: 'env',
+  }),
+}));
+
 const mockLookupLearnedIntent = jest.fn().mockResolvedValue(null);
 
 jest.mock('../intentLearning', () => ({
