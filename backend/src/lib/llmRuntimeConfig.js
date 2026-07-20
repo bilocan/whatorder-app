@@ -28,17 +28,24 @@ function normalizeSelectableProvider(raw) {
   return null;
 }
 
+function envLlmProvider() {
+  // Read env directly — do not pull getLlmProvider from llm.js.
+  // Bot tests mock ../../lib/llm without those getters; catalog must still work.
+  return (process.env.LLM_PROVIDER || 'google').toLowerCase();
+}
+
+function envLlmModel() {
+  return (process.env.LLM_MODEL || '').trim();
+}
+
 function getEnvDefaults() {
-  const {
-    getLlmProvider,
-    getLlmModel,
-    isProviderReady,
-  } = llmHelpers();
+  const { isProviderReady } = llmHelpers();
+  const ready = typeof isProviderReady === 'function' ? isProviderReady : () => false;
 
   // Admin UI only selects google/openrouter; boot env may still use openai.
-  const rawProvider = String(getLlmProvider() || 'google').toLowerCase();
+  const rawProvider = String(envLlmProvider() || 'google').toLowerCase();
   const provider = normalizeSelectableProvider(rawProvider) || rawProvider;
-  const model = (getLlmModel() || '').trim();
+  const model = envLlmModel();
   const fallbackProvider = normalizeSelectableProvider(process.env.LLM_FALLBACK_PROVIDER);
   const fallbackModel = (process.env.LLM_FALLBACK_MODEL || '').trim() || null;
 
@@ -46,10 +53,10 @@ function getEnvDefaults() {
     aiIntentEnabled: process.env.AI_INTENT_ENABLED === 'true',
     llmProvider: provider,
     llmModel: model,
-    llmFallbackProvider: fallbackProvider && fallbackModel && isProviderReady(fallbackProvider)
+    llmFallbackProvider: fallbackProvider && fallbackModel && ready(fallbackProvider)
       ? fallbackProvider
       : null,
-    llmFallbackModel: fallbackProvider && fallbackModel && isProviderReady(fallbackProvider)
+    llmFallbackModel: fallbackProvider && fallbackModel && ready(fallbackProvider)
       ? fallbackModel
       : null,
   };
@@ -62,8 +69,6 @@ function getEnvLlmCatalog() {
   const {
     isProviderReady,
     listPlaygroundEntries,
-    getLlmProvider,
-    getLlmModel,
   } = llmHelpers();
 
   const providers = SELECTABLE_PROVIDERS.map((id) => ({
@@ -81,8 +86,8 @@ function getEnvLlmCatalog() {
     }));
 
   // Ensure boot default appears even if not listed in LLM_PLAYGROUND_MODELS
-  const envProvider = String(getLlmProvider() || 'google').toLowerCase();
-  const envModel = (getLlmModel() || '').trim();
+  const envProvider = envLlmProvider();
+  const envModel = envLlmModel();
   if (envModel && !models.some((m) => m.provider === envProvider && m.model === envModel)) {
     const label = (envProvider === 'openrouter' || envProvider === 'openai')
       ? `OR ${envModel}`
