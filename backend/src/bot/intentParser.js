@@ -802,12 +802,9 @@ async function parseIntentAsync(text, {
 
   const rulesIntent = parseIntent(text);
 
-  // Load Firestore selection before the sync gate (env-only cache is stale after admin Save).
-  const { getLlmRuntimeSelection } = require('../lib/llmRuntimeConfig');
-  await getLlmRuntimeSelection();
-
   if (rulesOnly) return rulesIntent;
   // Teach-bot "AI" tier sets forceLlm — always call even when rules look strong.
+  // Gate uses getCachedLlmRuntimeSelection (sync); do not await Firestore here.
   if (!forceLlm && !shouldTryLlm(text, rulesIntent, phone, { provider })) return rulesIntent;
 
   const llm = await parseOrderIntentWithLlm(text, { phone, menu, model, provider, llmLabel });
