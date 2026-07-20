@@ -297,9 +297,11 @@ function getGeminiGenerateContentUrl(model) {
 }
 
 function isAiIntentEnabled() {
-  if (process.env.AI_INTENT_ENABLED !== 'true') return false;
-  if (!getLlmModel()) return false;
-  return isProviderReady(getLlmProvider());
+  const { getCachedLlmRuntimeSelection } = require('./llmRuntimeConfig');
+  const runtime = getCachedLlmRuntimeSelection();
+  if (!runtime.aiIntentEnabled) return false;
+  if (!runtime.llmModel) return false;
+  return isProviderReady(runtime.llmProvider);
 }
 
 /**
@@ -426,9 +428,66 @@ function recordCall(phone) {
 }
 
 function canCallLlm(phone, { provider } = {}) {
-  if (process.env.AI_INTENT_ENABLED !== 'true') return false;
-  if (!isProviderReady(provider || getLlmProvider())) return false;
+  const { getCachedLlmRuntimeSelection } = require('./llmRuntimeConfig');
+  const runtime = getCachedLlmRuntimeSelection();
+  if (!runtime.aiIntentEnabled) return false;
+  const resolved = provider || runtime.llmProvider || getLlmProvider();
+  if (!isProviderReady(resolved)) return false;
   return isWithinDailyCap() && isWithinRateLimit(phone);
+}
+
+function getDailyCallStats() {
+  resetDailyCapIfNeeded();
+  return {
+    dailyCallCount,
+    dailyCallCap: parseInt(process.env.LLM_DAILY_CALL_CAP || '5000', 10),
+  };
+}
+
+/**
+ * Resolve live primary (+ optional fallback) from admin/env selection.
+ * Explicit playground overrides skip runtime primary/fallback.
+ */
+async function resolveLiveLlmTargets({ model, provider, llmLabel } = {}) {
+  if (model || provider) {
+    const resolvedProvider = normalizeProvider(provider);
+    const resolvedModel = (model || getLlmModel()).trim();
+    return {
+      primary: {
+        provider: resolvedProvider,
+        model: resolvedModel,
+        llmLabel: llmLabel || undefined,
+      },
+      fallback: null,
+    };
+  }
+
+  const { getLlmRuntimeSelection } = require('./llmRuntimeConfig');
+  const runtime = await getLlmRuntimeSelection();
+  if (!runtime.aiIntentEnabled || !runtime.llmModel) {
+    return { primary: null, fallback: null };
+  }
+
+  const primary = {
+    provider: normalizeProvider(runtime.llmProvider),
+    model: runtime.llmModel,
+    llmLabel: runtime.primaryLabel,
+  };
+  let fallback = null;
+  if (
+    runtime.llmFallbackProvider
+    && runtime.llmFallbackModel
+    && isProviderReady(runtime.llmFallbackProvider)
+  ) {
+    fallback = {
+      provider: normalizeProvider(runtime.llmFallbackProvider),
+      model: runtime.llmFallbackModel,
+      llmLabel: runtime.llmFallbackProvider === 'openrouter'
+        ? `OR ${runtime.llmFallbackModel}`
+        : runtime.llmFallbackModel,
+    };
+  }
+  return { primary, fallback };
 }
 
 const RETRYABLE_STATUSES = new Set([429, 500, 503, 504]);
@@ -589,8 +648,8 @@ function buildCommandUserText(text, { hasUndoSnapshot = false, hasBasket = false
   return lines.join('\n');
 }
 
-async function callOpenAiCommand(userText) {
-  const client = getOpenAiCompatibleClient();
+async function callOpenAiCommand(userText, { model, provider } = {}) {
+  const client = getOpenAiCompatibleClient({ model, provider });
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
 
   const res = await axios.post(
@@ -621,10 +680,10 @@ async function callOpenAiCommand(userText) {
   return validateCommandPayload(parseJsonContent(content));
 }
 
-async function callGeminiCommand(userText) {
-  const model = getLlmModel();
+async function callGeminiCommand(userText, { model } = {}) {
+  const resolvedModel = (model || getLlmModel()).trim();
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
-  const url = getGeminiGenerateContentUrl(model);
+  const url = getGeminiGenerateContentUrl(resolvedModel);
   const key = process.env.GEMINI_API_KEY;
 
   const baseBody = {
@@ -679,32 +738,51 @@ async function callGeminiCommand(userText) {
   return null;
 }
 
+async function invokeCommandParse(userText, { provider, model }) {
+  return usesOpenAiCompatibleProvider(provider)
+    ? callOpenAiCommand(userText, { model, provider })
+    : callGeminiCommand(userText, { model });
+}
+
 async function parseBotCommandWithLlm(text, { phone, hasUndoSnapshot = false, hasBasket = false } = {}) {
-  if (!canCallLlm(phone)) return null;
+  const { primary, fallback } = await resolveLiveLlmTargets();
+  if (!primary || !canCallLlm(phone, { provider: primary.provider })) return null;
 
   const userText = buildCommandUserText(text, { hasUndoSnapshot, hasBasket });
   const started = Date.now();
+  const targets = [primary];
+  if (fallback) targets.push(fallback);
 
-  try {
-    const result = usesOpenAiCompatibleProvider()
-      ? await callOpenAiCommand(userText)
-      : await callGeminiCommand(userText);
-
-    if (result) {
-      recordCall(phone);
-      if (process.env.LOG_LEVEL === 'debug') {
-        console.log(`[llm] bot command parsed in ${Date.now() - started}ms command=${result.command} confidence=${result.confidence}`);
+  let lastErr = null;
+  for (let i = 0; i < targets.length; i += 1) {
+    const target = targets[i];
+    if (!isProviderReady(target.provider)) continue;
+    try {
+      const result = await invokeCommandParse(userText, target);
+      if (result) {
+        recordCall(phone);
+        if (process.env.LOG_LEVEL === 'debug') {
+          console.log(`[llm] bot command parsed via ${target.provider}/${target.model} in ${Date.now() - started}ms command=${result.command} confidence=${result.confidence}`);
+        }
+        return result;
+      }
+      return null;
+    } catch (err) {
+      lastErr = err;
+      logLlmFailure(err, err.response?.data?.error?.message);
+      const canFallback = i === 0 && fallback && isRetryableLlmError(err);
+      if (!canFallback) return null;
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(`[llm] primary command failed; trying fallback ${fallback.provider}/${fallback.model}`);
       }
     }
-    return result;
-  } catch (err) {
-    logLlmFailure(err, err.response?.data?.error?.message);
-    return null;
   }
+  if (lastErr) return null;
+  return null;
 }
 
-async function callOpenAiEdit(userText) {
-  const client = getOpenAiCompatibleClient();
+async function callOpenAiEdit(userText, { model, provider } = {}) {
+  const client = getOpenAiCompatibleClient({ model, provider });
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
 
   const res = await axios.post(
@@ -735,10 +813,10 @@ async function callOpenAiEdit(userText) {
   return validateEditPayload(parseJsonContent(content));
 }
 
-async function callGeminiEdit(userText) {
-  const model = getLlmModel();
+async function callGeminiEdit(userText, { model } = {}) {
+  const resolvedModel = (model || getLlmModel()).trim();
   const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '8000', 10);
-  const url = getGeminiGenerateContentUrl(model);
+  const url = getGeminiGenerateContentUrl(resolvedModel);
   const key = process.env.GEMINI_API_KEY;
 
   const baseBody = {
@@ -793,8 +871,15 @@ async function callGeminiEdit(userText) {
   return null;
 }
 
+async function invokeEditParse(userText, { provider, model }) {
+  return usesOpenAiCompatibleProvider(provider)
+    ? callOpenAiEdit(userText, { model, provider })
+    : callGeminiEdit(userText, { model });
+}
+
 async function parseProposalEditWithLlm(text, pendingItems, { phone } = {}) {
-  if (!canCallLlm(phone)) return null;
+  const { primary, fallback } = await resolveLiveLlmTargets();
+  if (!primary || !canCallLlm(phone, { provider: primary.provider })) return null;
 
   const orderLines = (pendingItems ?? [])
     .map(p => `${p.qty}x ${p.name}`)
@@ -802,23 +887,32 @@ async function parseProposalEditWithLlm(text, pendingItems, { phone } = {}) {
   const userText = `Current proposed order:\n${orderLines}\n\nCustomer edit:\n${text}`;
 
   const started = Date.now();
+  const targets = [primary];
+  if (fallback) targets.push(fallback);
 
-  try {
-    const result = usesOpenAiCompatibleProvider()
-      ? await callOpenAiEdit(userText)
-      : await callGeminiEdit(userText);
-
-    if (result) {
-      recordCall(phone);
-      if (process.env.LOG_LEVEL === 'debug') {
-        console.log(`[llm] proposal edit parsed in ${Date.now() - started}ms type=${result.type} confidence=${result.confidence}`);
+  for (let i = 0; i < targets.length; i += 1) {
+    const target = targets[i];
+    if (!isProviderReady(target.provider)) continue;
+    try {
+      const result = await invokeEditParse(userText, target);
+      if (result) {
+        recordCall(phone);
+        if (process.env.LOG_LEVEL === 'debug') {
+          console.log(`[llm] proposal edit parsed via ${target.provider}/${target.model} in ${Date.now() - started}ms type=${result.type} confidence=${result.confidence}`);
+        }
+        return result;
+      }
+      return null;
+    } catch (err) {
+      logLlmFailure(err, err.response?.data?.error?.message);
+      const canFallback = i === 0 && fallback && isRetryableLlmError(err);
+      if (!canFallback) return null;
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(`[llm] primary edit failed; trying fallback ${fallback.provider}/${fallback.model}`);
       }
     }
-    return result;
-  } catch (err) {
-    logLlmFailure(err, err.response?.data?.error?.message);
-    return null;
   }
+  return null;
 }
 
 async function callOpenAi(userText, { menuIndex = null, model, provider } = {}) {
@@ -944,41 +1038,52 @@ function logLlmFailure(err, apiMsg) {
 }
 
 async function parseOrderIntentWithLlm(userText, { phone, menu, model, provider, llmLabel } = {}) {
-  const resolvedProvider = normalizeProvider(provider);
-  if (!canCallLlm(phone, { provider: resolvedProvider })) return null;
+  const { primary, fallback } = await resolveLiveLlmTargets({ model, provider, llmLabel });
+  if (!primary || !canCallLlm(phone, { provider: primary.provider })) return null;
 
   const menuIndex = (menu?.length) ? buildMenuLlmIndex(menu) : null;
   const started = Date.now();
-  const resolvedModel = (model || getLlmModel()).trim() || undefined;
-  const displayLabel = llmLabel || (
-    usesOpenAiCompatibleProvider(resolvedProvider) && resolvedModel
-      ? `OR ${resolvedModel}`
-      : resolvedModel
-  );
+  const targets = [primary];
+  if (!model && !provider && fallback) targets.push(fallback);
 
-  try {
-    const result = usesOpenAiCompatibleProvider(resolvedProvider)
-      ? await callOpenAi(userText, {
-        menuIndex,
-        model: resolvedModel,
-        provider: resolvedProvider,
-      })
-      : await callGemini(userText, { menuIndex, model: resolvedModel });
+  for (let i = 0; i < targets.length; i += 1) {
+    const target = targets[i];
+    if (!isProviderReady(target.provider)) continue;
+    const displayLabel = target.llmLabel || (
+      usesOpenAiCompatibleProvider(target.provider) && target.model
+        ? `OR ${target.model}`
+        : target.model
+    );
+    try {
+      const result = usesOpenAiCompatibleProvider(target.provider)
+        ? await callOpenAi(userText, {
+          menuIndex,
+          model: target.model,
+          provider: target.provider,
+        })
+        : await callGemini(userText, { menuIndex, model: target.model });
 
-    if (result) {
-      recordCall(phone);
-      if (process.env.LOG_LEVEL === 'debug') {
-        const mode = result.menuConstrained ? 'menu' : 'free';
-        console.log(`[llm] intent parsed (${mode}) provider=${resolvedProvider} model=${resolvedModel} in ${Date.now() - started}ms confidence=${result.confidence}`);
+      if (result) {
+        recordCall(phone);
+        if (process.env.LOG_LEVEL === 'debug') {
+          const mode = result.menuConstrained ? 'menu' : 'free';
+          console.log(`[llm] intent parsed (${mode}) provider=${target.provider} model=${target.model} in ${Date.now() - started}ms confidence=${result.confidence}`);
+        }
+        result.llmModel = displayLabel;
+        result.llmProvider = target.provider;
+        return result;
       }
-      result.llmModel = displayLabel;
-      result.llmProvider = resolvedProvider;
+      return null;
+    } catch (err) {
+      logLlmFailure(err, err.response?.data?.error?.message);
+      const canFallback = i === 0 && targets.length > 1 && isRetryableLlmError(err);
+      if (!canFallback) return null;
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(`[llm] primary intent failed; trying fallback ${targets[1].provider}/${targets[1].model}`);
+      }
     }
-    return result;
-  } catch (err) {
-    logLlmFailure(err, err.response?.data?.error?.message);
-    return null;
   }
+  return null;
 }
 
 /** Test helpers */
@@ -986,6 +1091,11 @@ function _resetLlmState() {
   rateLimitByPhone.clear();
   dailyCallCount = 0;
   dailyCallDate = '';
+  try {
+    require('./llmRuntimeConfig').invalidateLlmRuntimeCache();
+  } catch {
+    // ignore if runtime module not loaded
+  }
 }
 
 module.exports = {
@@ -1004,5 +1114,9 @@ module.exports = {
   resolvePlaygroundModel,
   getPlaygroundLlmConfig,
   getLlmModel,
+  getLlmProvider,
+  isProviderReady,
+  getDailyCallStats,
+  isRetryableLlmError,
   _resetLlmState,
 };

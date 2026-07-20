@@ -14,6 +14,12 @@ const {
 const { buildMenuLlmIndex } = require('../menuLlmIndex');
 
 jest.mock('axios');
+jest.mock('../collections', () => ({
+  configRef: jest.fn(() => ({
+    get: jest.fn().mockResolvedValue({ exists: false }),
+    set: jest.fn().mockResolvedValue(undefined),
+  })),
+}));
 
 const ORIGINAL_ENV = process.env;
 
@@ -529,5 +535,58 @@ describe('parseBotCommandWithLlm', () => {
 
     const r = await parseBotCommandWithLlm('zurück', { phone: '+432', hasUndoSnapshot: true });
     expect(r).toBeNull();
+  });
+});
+
+describe('parseOrderIntentWithLlm fallback', () => {
+  const { configRef } = require('../collections');
+
+  test('tries fallback provider once after retryable primary failure', async () => {
+    enableGoogleLlm({
+      OPENROUTER_API_KEY: 'sk-or-test',
+      OPENROUTER_BASE_URL: OPENROUTER_BASE,
+      LLM_PLAYGROUND_MODELS: 'gemini-2.5-flash-lite,OR:google/gemini-2.5-flash-lite',
+      LLM_RETRY_ATTEMPTS: '1',
+    });
+    configRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          aiIntentEnabled: true,
+          llmProvider: 'google',
+          llmModel: 'gemini-2.5-flash-lite',
+          llmFallbackProvider: 'openrouter',
+          llmFallbackModel: 'google/gemini-2.5-flash-lite',
+        }),
+      }),
+      set: jest.fn(),
+    });
+
+    const err503 = Object.assign(new Error('overloaded'), {
+      response: { status: 503, data: { error: { message: 'high demand' } } },
+    });
+    axios.post
+      .mockRejectedValueOnce(err503)
+      .mockResolvedValueOnce({
+        data: {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                items: [{ name: 'pizza', qty: 1 }],
+                partySize: null,
+                confidence: 0.9,
+              }),
+            },
+          }],
+        },
+      });
+
+    const r = await parseOrderIntentWithLlm('pizza', { phone: '+4499' });
+    expect(r).not.toBeNull();
+    expect(r.items[0].name).toBe('pizza');
+    expect(r.llmProvider).toBe('openrouter');
+    expect(axios.post).toHaveBeenCalledTimes(2);
+    const lastUrl = axios.post.mock.calls[1][0];
+    expect(lastUrl).toContain(OPENROUTER_BASE);
   });
 });
