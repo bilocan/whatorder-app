@@ -56,15 +56,6 @@ async function receiveWebhook(req, res) {
   const phoneNumberId = change?.metadata?.phone_number_id ?? null;
   console.log(`[webhook] message type=${msg.type} phone_number_id=${phoneNumberId} wamid=${wamid ?? 'n/a'}`);
 
-  if (wamid) {
-    const prior = await processedMessageRef(wamid).get();
-    if (prior.exists) {
-      console.log(`[webhook] duplicate wamid=${wamid}, skipping`);
-      res.status(200).json({ status: 'ok' });
-      return;
-    }
-  }
-
   let message;
   if (msg.type === 'text') {
     message = { type: 'text', text: msg.text?.body ?? '' };
@@ -111,25 +102,55 @@ async function receiveWebhook(req, res) {
     return;
   }
 
-  // Process before responding — Vercel terminates the function as soon as res.json() is called,
-  // so any async work after res.send() is silently dropped. Normal processing is well under Meta's 20s retry threshold.
+  // Claim wamid before handleMessage so Meta retries during a slow/hung turn
+  // cannot race and send duplicate WhatsApp replies (check-then-set was racy).
+  // Process before responding — Vercel terminates as soon as res.json() is called.
+  let claimedWamid = false;
   try {
     const routing = await resolveRouting(phoneNumberId);
-    await handleMessage(routing, { from, contactName, ...message });
+    const businessId = routing.defaultBusinessId
+      ?? (routing.businessIds?.length === 1 ? routing.businessIds[0] : null);
+
     if (wamid) {
-      const businessId = routing.defaultBusinessId
-        ?? (routing.businessIds?.length === 1 ? routing.businessIds[0] : null);
-      await processedMessageRef(wamid).set({
-        processedAt: admin.firestore.FieldValue.serverTimestamp(),
-        businessId,
-      });
+      try {
+        await processedMessageRef(wamid).create({
+          processedAt: admin.firestore.FieldValue.serverTimestamp(),
+          businessId,
+        });
+        claimedWamid = true;
+      } catch (claimErr) {
+        if (isAlreadyExistsError(claimErr)) {
+          console.log(`[webhook] duplicate wamid=${wamid}, skipping`);
+          res.status(200).json({ status: 'ok' });
+          return;
+        }
+        throw claimErr;
+      }
     }
+
+    await handleMessage(routing, { from, contactName, ...message });
   } catch (err) {
     const metaError = err.response?.data ? JSON.stringify(err.response.data) : null;
     console.error('Bot error:', metaError ?? err.message ?? err);
+    // Allow Meta retry on hard failure (same as pre-claim behavior).
+    if (claimedWamid && wamid) {
+      try {
+        await processedMessageRef(wamid).delete();
+      } catch (delErr) {
+        console.warn(`[webhook] failed to release wamid=${wamid}: ${delErr.message}`);
+      }
+    }
   }
 
   res.status(200).json({ status: 'success' });
 }
 
-module.exports = { verifyWebhook, receiveWebhook };
+function isAlreadyExistsError(err) {
+  const code = err?.code;
+  return code === 6
+    || code === 'already-exists'
+    || code === 'ALREADY_EXISTS'
+    || /already exists/i.test(String(err?.message ?? ''));
+}
+
+module.exports = { verifyWebhook, receiveWebhook, isAlreadyExistsError };

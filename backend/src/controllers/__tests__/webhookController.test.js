@@ -64,6 +64,8 @@ describe('receiveWebhook', () => {
     jest.clearAllMocks();
     handleMessage.mockResolvedValue();
     processedMessageRef.mockReturnValue({
+      create: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn().mockResolvedValue(undefined),
       get: jest.fn().mockResolvedValue({ exists: false }),
       set: jest.fn().mockResolvedValue(undefined),
     });
@@ -234,25 +236,57 @@ describe('receiveWebhook', () => {
   test('responds 200 success even when handleMessage throws', async () => {
     phoneRoutingRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
     handleMessage.mockRejectedValue(new Error('boom'));
+    const deleteMock = jest.fn().mockResolvedValue(undefined);
+    processedMessageRef.mockReturnValue({
+      create: jest.fn().mockResolvedValue(undefined),
+      delete: deleteMock,
+    });
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const req = { body: webhookBody() };
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(res.json).toHaveBeenCalledWith({ status: 'success' });
-    expect(processedMessageRef().set).not.toHaveBeenCalled();
+    expect(deleteMock).toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
 
   test('skips duplicate wamid without calling handleMessage', async () => {
+    const alreadyExists = Object.assign(new Error('Document already exists'), { code: 6 });
     processedMessageRef.mockReturnValue({
-      get: jest.fn().mockResolvedValue({ exists: true }),
-      set: jest.fn(),
+      create: jest.fn().mockRejectedValue(alreadyExists),
+      delete: jest.fn(),
     });
     const req = { body: webhookBody() };
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(handleMessage).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith({ status: 'ok' });
+  });
+
+  test('claims wamid before handleMessage so concurrent retries cannot race', async () => {
+    phoneRoutingRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({ businessIds: ['biz_a'], defaultBusinessId: 'biz_a' }),
+      }),
+    });
+    const createMock = jest.fn().mockResolvedValue(undefined);
+    processedMessageRef.mockReturnValue({
+      create: createMock,
+      delete: jest.fn(),
+    });
+    let handleStarted = false;
+    handleMessage.mockImplementation(async () => {
+      handleStarted = true;
+    });
+    const req = { body: webhookBody() };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz_a' }));
+    expect(handleStarted).toBe(true);
+    expect(createMock.mock.invocationCallOrder[0]).toBeLessThan(
+      handleMessage.mock.invocationCallOrder[0],
+    );
   });
 
   test('marks wamid processed after successful handleMessage', async () => {
@@ -262,15 +296,15 @@ describe('receiveWebhook', () => {
         data: () => ({ businessIds: ['biz_a'], defaultBusinessId: 'biz_a' }),
       }),
     });
-    const setMock = jest.fn().mockResolvedValue(undefined);
+    const createMock = jest.fn().mockResolvedValue(undefined);
     processedMessageRef.mockReturnValue({
-      get: jest.fn().mockResolvedValue({ exists: false }),
-      set: setMock,
+      create: createMock,
+      delete: jest.fn(),
     });
     const req = { body: webhookBody() };
     const res = makeRes();
     await receiveWebhook(req, res);
-    expect(setMock).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz_a' }));
+    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz_a' }));
   });
 
   test('401 when signature required but missing', async () => {

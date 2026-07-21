@@ -523,4 +523,110 @@ describe('Layer 1: disambiguation for ambiguous item names', () => {
     const clearedWrite = setSession.mock.calls.find(([, data]) => !data.disambiguation && !data.pendingIntentItems);
     expect(clearedWrite).toBeDefined();
   });
+
+  test('new order text during disambiguation re-runs intent (learned phrase)', async () => {
+    const { lookupLearnedIntent } = require('../intentLearning');
+    const SANDWICH_MENU = [
+      { id: 'ss1', name: 'Schnitzel Sandwich', price: 7.5, category: 'mains', available: true },
+      { id: 'ss2', name: 'Schnitzel Teller', price: 11, category: 'mains', available: true },
+      { id: 'cola_033', name: 'Coca Cola 0.33L', price: 2.9, category: 'drinks', available: true },
+    ];
+    getMenu.mockResolvedValue(SANDWICH_MENU);
+    lookupLearnedIntent.mockResolvedValueOnce({
+      items: [
+        { name: 'Schnitzel Sandwich', qty: 1, menuItemId: 'ss1' },
+        { name: 'Coca Cola 0.33L', qty: 1, menuItemId: 'cola_033' },
+      ],
+      partySize: null,
+      operation: 'add',
+    });
+
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'disambiguating_intent',
+      businessId: BIZ,
+      basket: [],
+      disambiguation: {
+        rawName: 'schnitzel semmel',
+        qty: 1,
+        candidates: [
+          { id: 'ss1', name: 'Schnitzel Sandwich', price: 7.5 },
+          { id: 'ss2', name: 'Schnitzel Teller', price: 11 },
+        ],
+        resolvedMatched: [],
+        pendingRest: [{ name: 'cola', qty: 1 }],
+      },
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'schnitzel semmel und cola' }));
+
+    expect(lookupLearnedIntent).toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Schnitzel Sandwich'),
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_confirm' })]),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+    const proposalWrite = setSession.mock.calls.find(
+      ([, data]) => data.pendingIntentItems?.some(i => i.name === 'Schnitzel Sandwich'),
+    );
+    expect(proposalWrite).toBeDefined();
+    expect(proposalWrite[1]).not.toHaveProperty('disambiguation');
+  });
+
+  test('unique new order during disambiguation escapes to proposal', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'disambiguating_intent',
+      businessId: BIZ,
+      basket: [],
+      disambiguation: {
+        rawName: 'döner',
+        qty: 1,
+        candidates: [
+          { id: 'd1', name: 'Döner', price: 8.5 },
+          { id: 'd2', name: 'Döner Box', price: 9.5 },
+          { id: 'd3', name: 'Döner Teller', price: 11 },
+        ],
+        resolvedMatched: [],
+        pendingRest: [],
+      },
+    });
+
+    await handleMessage(ROUTING, msg({ text: '1 ayran' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Ayran'),
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_confirm' })]),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('start during disambiguation clears to order entry', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'disambiguating_intent',
+      businessId: BIZ,
+      basket: [],
+      disambiguation: {
+        rawName: 'döner',
+        qty: 1,
+        candidates: [
+          { id: 'd1', name: 'Döner', price: 8.5 },
+          { id: 'd2', name: 'Döner Box', price: 9.5 },
+        ],
+        resolvedMatched: [],
+        pendingRest: [],
+      },
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'start' }));
+
+    // botHandler GREETING_FRESH_START_STATES exits disambiguation before the state handler.
+    expectOrderEntryPrompt();
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(
+      FROM,
+      expect.objectContaining({ state: 'browsing', basket: [] }),
+    );
+  });
 });
