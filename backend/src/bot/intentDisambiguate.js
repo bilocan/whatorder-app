@@ -216,13 +216,29 @@ async function abortDisambiguation({ from, session, lang, businessId, basket }) 
 /**
  * When a typed reply is not a candidate pick, re-run the full intent path so
  * trained phrases / multi-item orders are not trapped in disambiguating_intent.
+ * Protects pendingRest: short single-item replies (e.g. "cola") do not clear the
+ * in-progress multi-line disambiguation.
  * @returns {Promise<boolean>} true if the turn was handled
  */
+function shouldEscapeDisambiguation(text, cleaned, disambiguation) {
+  const { looksLikeOrderText } = require('./intentParser');
+  if (!looksLikeOrderText(text, cleaned)) return false;
+
+  const pendingRest = disambiguation?.pendingRest ?? [];
+  if (!pendingRest.length) return true;
+
+  // Trailing lines still waiting — only escape for a clearly new / extended order.
+  if (/\b(und|and|ve)\b/i.test(cleaned) || /[,+]/.test(cleaned)) return true;
+  const raw = norm(disambiguation?.rawName ?? '');
+  if (raw && cleaned.includes(raw) && cleaned.trim().length > raw.length + 1) return true;
+  return false;
+}
+
 async function tryEscapeDisambiguationWithOrderText({
-  from, session, lang, businessId, basket, text, norm,
+  from, session, lang, businessId, basket, text, norm: textNorm, disambiguation,
 }) {
-  const { looksLikeOrderText, isFreshStartCommand } = require('./intentParser');
-  const cleaned = (norm ?? text.trim().toLowerCase());
+  const { isFreshStartCommand } = require('./intentParser');
+  const cleaned = (textNorm ?? text.trim().toLowerCase());
 
   if (isFreshStartCommand(cleaned)) {
     const cleared = await clearDisambiguationState(from, session);
@@ -231,7 +247,7 @@ async function tryEscapeDisambiguationWithOrderText({
     return true;
   }
 
-  if (!looksLikeOrderText(text, cleaned)) return false;
+  if (!shouldEscapeDisambiguation(text, cleaned, disambiguation)) return false;
 
   const cleared = await clearDisambiguationState(from, session);
   const { tryTextIntentOrder } = require('./intentOrder');
@@ -460,7 +476,7 @@ async function handleDisambiguatingIntent({ from, session, lang, businessId, bas
 
   if (type === 'text' && text?.trim()
     && await tryEscapeDisambiguationWithOrderText({
-      from, session, lang, businessId, basket, text, norm,
+      from, session, lang, businessId, basket, text, norm, disambiguation,
     })) {
     return;
   }
@@ -479,4 +495,5 @@ module.exports = {
   mergePendingLine,
   pickBestCandidate,
   tryAutoResolveDisambiguation,
+  shouldEscapeDisambiguation,
 };

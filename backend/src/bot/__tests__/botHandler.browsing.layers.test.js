@@ -629,4 +629,30 @@ describe('Layer 1: disambiguation for ambiguous item names', () => {
       expect.objectContaining({ state: 'browsing', basket: [] }),
     );
   });
+
+  test('short drink reply with pendingRest re-shows list (does not drop rest)', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'disambiguating_intent',
+      businessId: BIZ,
+      basket: [],
+      disambiguation: {
+        rawName: 'schnitzel semmel',
+        qty: 1,
+        candidates: [
+          { id: 'ss1', name: 'Schnitzel Sandwich', price: 7.5 },
+          { id: 'ss2', name: 'Schnitzel Teller', price: 11 },
+        ],
+        resolvedMatched: [],
+        pendingRest: [{ name: 'cola', qty: 1 }],
+      },
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'cola' }));
+
+    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_confirm' })]),
+    }));
+  });
 });

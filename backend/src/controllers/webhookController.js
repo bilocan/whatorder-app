@@ -1,8 +1,11 @@
 const { handleMessage } = require('../bot/botHandler');
 const { phoneRoutingRef, processedMessageRef } = require('../lib/collections');
-const { admin } = require('../lib/firebase');
+const { admin, db } = require('../lib/firebase');
 const { assertWebhookSignature } = require('../lib/whatsappWebhookSecurity');
 const { redactLogValue } = require('../lib/logRedact');
+
+/** Stale "processing" claims older than this may be stolen by a Meta retry after a crash/hang. */
+const CLAIM_STALE_MS = 45_000;
 
 async function resolveRouting(phoneNumberId) {
   if (phoneNumberId) {
@@ -24,6 +27,62 @@ function verifyWebhook(req, res) {
   } else {
     res.status(403).send('Invalid token');
   }
+}
+
+function claimTimestampMs(data) {
+  const at = data?.processedAt;
+  if (!at) return 0;
+  if (typeof at.toMillis === 'function') return at.toMillis();
+  if (typeof at.toDate === 'function') return at.toDate().getTime();
+  if (at instanceof Date) return at.getTime();
+  if (typeof at === 'number') return at;
+  return 0;
+}
+
+/**
+ * Atomically claim a wamid before handleMessage.
+ * @returns {Promise<'claimed'|'duplicate'>}
+ */
+async function claimProcessedMessage(wamid, businessId) {
+  const ref = processedMessageRef(wamid);
+  const payload = {
+    processedAt: admin.firestore.FieldValue.serverTimestamp(),
+    businessId: businessId ?? null,
+    status: 'processing',
+  };
+
+  try {
+    await ref.create(payload);
+    return 'claimed';
+  } catch (claimErr) {
+    if (!isAlreadyExistsError(claimErr)) throw claimErr;
+  }
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      tx.set(ref, payload);
+      return 'claimed';
+    }
+    const data = snap.data() ?? {};
+    const status = data.status === 'processing' ? 'processing' : 'done';
+    const age = Date.now() - claimTimestampMs(data);
+
+    if (status === 'done') return 'duplicate';
+    if (status === 'processing' && age < CLAIM_STALE_MS) return 'duplicate';
+
+    // Steal stale processing claim (crash / hung turn before done/delete).
+    tx.set(ref, payload);
+    return 'claimed';
+  });
+}
+
+async function markProcessedMessageDone(wamid) {
+  await processedMessageRef(wamid).set({ status: 'done' }, { merge: true });
+}
+
+async function releaseProcessedMessage(wamid) {
+  await processedMessageRef(wamid).delete();
 }
 
 async function receiveWebhook(req, res) {
@@ -104,6 +163,7 @@ async function receiveWebhook(req, res) {
 
   // Claim wamid before handleMessage so Meta retries during a slow/hung turn
   // cannot race and send duplicate WhatsApp replies (check-then-set was racy).
+  // Stale "processing" claims (>45s) may be stolen so a crash mid-turn is not silent forever.
   // Process before responding — Vercel terminates as soon as res.json() is called.
   let claimedWamid = false;
   try {
@@ -112,30 +172,27 @@ async function receiveWebhook(req, res) {
       ?? (routing.businessIds?.length === 1 ? routing.businessIds[0] : null);
 
     if (wamid) {
-      try {
-        await processedMessageRef(wamid).create({
-          processedAt: admin.firestore.FieldValue.serverTimestamp(),
-          businessId,
-        });
-        claimedWamid = true;
-      } catch (claimErr) {
-        if (isAlreadyExistsError(claimErr)) {
-          console.log(`[webhook] duplicate wamid=${wamid}, skipping`);
-          res.status(200).json({ status: 'ok' });
-          return;
-        }
-        throw claimErr;
+      const claim = await claimProcessedMessage(wamid, businessId);
+      if (claim === 'duplicate') {
+        console.log(`[webhook] duplicate wamid=${wamid}, skipping`);
+        res.status(200).json({ status: 'ok' });
+        return;
       }
+      claimedWamid = true;
     }
 
     await handleMessage(routing, { from, contactName, ...message });
+    if (claimedWamid && wamid) {
+      await markProcessedMessageDone(wamid);
+    }
   } catch (err) {
     const metaError = err.response?.data ? JSON.stringify(err.response.data) : null;
     console.error('Bot error:', metaError ?? err.message ?? err);
-    // Allow Meta retry on hard failure (same as pre-claim behavior).
+    // Release so a later delivery (or steal after TTL) can retry. HTTP stays 200 —
+    // Meta does not redeliver on 2xx; concurrent duplicates and TTL steal cover recovery.
     if (claimedWamid && wamid) {
       try {
-        await processedMessageRef(wamid).delete();
+        await releaseProcessedMessage(wamid);
       } catch (delErr) {
         console.warn(`[webhook] failed to release wamid=${wamid}: ${delErr.message}`);
       }
@@ -153,4 +210,10 @@ function isAlreadyExistsError(err) {
     || /already exists/i.test(String(err?.message ?? ''));
 }
 
-module.exports = { verifyWebhook, receiveWebhook, isAlreadyExistsError };
+module.exports = {
+  verifyWebhook,
+  receiveWebhook,
+  isAlreadyExistsError,
+  claimProcessedMessage,
+  CLAIM_STALE_MS,
+};

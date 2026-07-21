@@ -1,11 +1,13 @@
+const mockRunTransaction = jest.fn();
+
 jest.mock('../../lib/firebase', () => ({
-  db: {},
+  db: { runTransaction: (...args) => mockRunTransaction(...args) },
   admin: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } },
 }));
 jest.mock('../../bot/botHandler');
 jest.mock('../../lib/collections');
 
-const { verifyWebhook, receiveWebhook } = require('../webhookController');
+const { verifyWebhook, receiveWebhook, CLAIM_STALE_MS } = require('../webhookController');
 const { handleMessage } = require('../../bot/botHandler');
 const { phoneRoutingRef, processedMessageRef } = require('../../lib/collections');
 
@@ -63,6 +65,10 @@ describe('receiveWebhook', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     handleMessage.mockResolvedValue();
+    mockRunTransaction.mockImplementation(async (fn) => fn({
+      get: jest.fn().mockResolvedValue({ exists: true, data: () => ({ status: 'done', processedAt: { toMillis: () => Date.now() } }) }),
+      set: jest.fn(),
+    }));
     processedMessageRef.mockReturnValue({
       create: jest.fn().mockResolvedValue(undefined),
       delete: jest.fn().mockResolvedValue(undefined),
@@ -240,6 +246,7 @@ describe('receiveWebhook', () => {
     processedMessageRef.mockReturnValue({
       create: jest.fn().mockResolvedValue(undefined),
       delete: deleteMock,
+      set: jest.fn(),
     });
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const req = { body: webhookBody() };
@@ -255,12 +262,76 @@ describe('receiveWebhook', () => {
     processedMessageRef.mockReturnValue({
       create: jest.fn().mockRejectedValue(alreadyExists),
       delete: jest.fn(),
+      set: jest.fn(),
     });
+    mockRunTransaction.mockImplementation(async (fn) => fn({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({ status: 'done', processedAt: { toMillis: () => Date.now() } }),
+      }),
+      set: jest.fn(),
+    }));
     const req = { body: webhookBody() };
     const res = makeRes();
     await receiveWebhook(req, res);
     expect(handleMessage).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith({ status: 'ok' });
+  });
+
+  test('skips fresh processing claim (in-flight) without stealing', async () => {
+    const alreadyExists = Object.assign(new Error('Document already exists'), { code: 6 });
+    processedMessageRef.mockReturnValue({
+      create: jest.fn().mockRejectedValue(alreadyExists),
+      delete: jest.fn(),
+      set: jest.fn(),
+    });
+    mockRunTransaction.mockImplementation(async (fn) => fn({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          status: 'processing',
+          processedAt: { toMillis: () => Date.now() - 1000 },
+        }),
+      }),
+      set: jest.fn(),
+    }));
+    const req = { body: webhookBody() };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(handleMessage).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ status: 'ok' });
+  });
+
+  test('steals stale processing claim so crash recovery can re-run', async () => {
+    const alreadyExists = Object.assign(new Error('Document already exists'), { code: 6 });
+    const txSet = jest.fn();
+    processedMessageRef.mockReturnValue({
+      create: jest.fn().mockRejectedValue(alreadyExists),
+      delete: jest.fn(),
+      set: jest.fn().mockResolvedValue(undefined),
+    });
+    mockRunTransaction.mockImplementation(async (fn) => fn({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          status: 'processing',
+          processedAt: { toMillis: () => Date.now() - CLAIM_STALE_MS - 1000 },
+        }),
+      }),
+      set: txSet,
+    }));
+    phoneRoutingRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({ businessIds: ['biz_a'], defaultBusinessId: 'biz_a' }),
+      }),
+    });
+    const req = { body: webhookBody() };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(txSet).toHaveBeenCalled();
+    expect(handleMessage).toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ status: 'success' });
   });
 
   test('claims wamid before handleMessage so concurrent retries cannot race', async () => {
@@ -271,9 +342,11 @@ describe('receiveWebhook', () => {
       }),
     });
     const createMock = jest.fn().mockResolvedValue(undefined);
+    const setMock = jest.fn().mockResolvedValue(undefined);
     processedMessageRef.mockReturnValue({
       create: createMock,
       delete: jest.fn(),
+      set: setMock,
     });
     let handleStarted = false;
     handleMessage.mockImplementation(async () => {
@@ -282,11 +355,15 @@ describe('receiveWebhook', () => {
     const req = { body: webhookBody() };
     const res = makeRes();
     await receiveWebhook(req, res);
-    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz_a' }));
+    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz_a',
+      status: 'processing',
+    }));
     expect(handleStarted).toBe(true);
     expect(createMock.mock.invocationCallOrder[0]).toBeLessThan(
       handleMessage.mock.invocationCallOrder[0],
     );
+    expect(setMock).toHaveBeenCalledWith({ status: 'done' }, { merge: true });
   });
 
   test('marks wamid processed after successful handleMessage', async () => {
@@ -297,14 +374,17 @@ describe('receiveWebhook', () => {
       }),
     });
     const createMock = jest.fn().mockResolvedValue(undefined);
+    const setMock = jest.fn().mockResolvedValue(undefined);
     processedMessageRef.mockReturnValue({
       create: createMock,
       delete: jest.fn(),
+      set: setMock,
     });
     const req = { body: webhookBody() };
     const res = makeRes();
     await receiveWebhook(req, res);
-    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz_a' }));
+    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz_a', status: 'processing' }));
+    expect(setMock).toHaveBeenCalledWith({ status: 'done' }, { merge: true });
   });
 
   test('401 when signature required but missing', async () => {
