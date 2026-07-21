@@ -272,13 +272,15 @@ function buildPostAddBody(lang, basket, { qty, name, addedLines, reorder } = {})
     return t('itemAdded', lang, line.qty, formatBasketItemLabel(line), count, total);
   }
   if (addedLines?.length > 1) {
-    const addedQty = addedLines.reduce((s, i) => s + i.qty, 0);
-    return t('itemsAdded', lang, addedQty, count, total);
+    const summary = addedLines
+      .map(l => `${l.qty}× ${formatBasketItemLabel(l)}`)
+      .join(', ');
+    return t('itemsAdded', lang, summary, count, total);
   }
   if (qty != null && name != null) {
     return t('itemAdded', lang, qty, name, count, total);
   }
-  return t('itemsAdded', lang, qty ?? count, count, total);
+  return t('itemsAddedCount', lang, qty ?? count, count, total);
 }
 
 /** Tier 2 compact receipt after any basket mutation (add / remove / qty). */
