@@ -98,6 +98,41 @@ describe('trySmartDefault — kebab', () => {
     };
     expect(classifyMenuMatch('dürüm', menu, menuMatch).item.id).toBe('dur');
   });
+
+  test('bare durum prefers plain Dürüm Huhn over cheaper Special', () => {
+    const menu = [
+      { id: 'plain', name: 'Dürüm Huhn', price: 8.5, available: true },
+      { id: 'special', name: 'Enes Kebap Special Dürüm Huhn', price: 6.9, available: true },
+      { id: 's1', name: 'Kebap Sandwich Huhn', price: 7.5, available: true },
+    ];
+    expect(trySmartDefault('durum', menu)?.id).toBe('plain');
+    const result = classifyMenuMatch('durum', menu);
+    expect(result.type).toBe('unique');
+    expect(result.item.id).toBe('plain');
+  });
+
+  test('bare durum stays ambiguous across multiple plain dürüm SKUs', () => {
+    const menu = [
+      { id: 'huhn', name: 'Dürüm Huhn', price: 8.5, available: true },
+      { id: 'falafel', name: 'Falafel Dürüm', price: 7.0, available: true },
+      { id: 'special', name: 'Enes Kebap Special Dürüm Huhn', price: 6.9, available: true },
+      { id: 's1', name: 'Kebap Sandwich Huhn', price: 7.5, available: true },
+    ];
+    expect(trySmartDefault('durum', menu)).toBeNull();
+    expect(classifyMenuMatch('durum', menu).type).toBe('ambiguous');
+  });
+
+  test('explicit special durum still resolves to Special SKU', () => {
+    const menu = [
+      { id: 'plain', name: 'Dürüm Huhn', price: 8.5, available: true },
+      { id: 'special', name: 'Enes Kebap Special Dürüm Huhn', price: 6.9, available: true },
+      { id: 's1', name: 'Kebap Sandwich Huhn', price: 7.5, available: true },
+    ];
+    expect(trySmartDefault('special durum', menu)?.id).toBe('special');
+    const result = classifyMenuMatch('special durum', menu);
+    expect(result.type).toBe('unique');
+    expect(result.item.id).toBe('special');
+  });
 });
 
 describe('classifyMenuMatch with smart defaults', () => {

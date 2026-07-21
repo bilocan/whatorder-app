@@ -87,6 +87,36 @@ function pickPizzaVariantDefault(candidates) {
   return list.length === 1 ? list[0] : null;
 }
 
+function isSpecialSku(item) {
+  return /\bspecial\b/i.test(norm(item?.name));
+}
+
+function pickCheapest(items) {
+  if (!items?.length) return null;
+  if (items.length === 1) return items[0];
+  return [...items].sort((a, b) => Number(a.price) - Number(b.price))[0];
+}
+
+/**
+ * Bare "durum" must not collapse to the cheapest Special SKU when a plain dürüm exists.
+ * Explicit "special" keeps Special; if the menu only has Special dürüm, bare durum may use it.
+ */
+function pickDurumDefault(candidates, dish) {
+  const durum = candidates.filter(c => /durum|dürüm|special/i.test(norm(c.name)));
+  if (!durum.length) return null;
+
+  const wantsSpecial = /\bspecial\b/i.test(dish);
+  if (wantsSpecial) {
+    const specials = durum.filter(isSpecialSku);
+    return pickCheapest(specials.length ? specials : durum);
+  }
+
+  const plain = durum.filter(c => !isSpecialSku(c));
+  if (plain.length === 1) return plain[0];
+  if (plain.length > 1) return null; // ask which dürüm (Huhn vs Falafel vs Schnitzel, …)
+  return pickCheapest(durum); // only Special dürüm SKUs on the menu
+}
+
 function pickKebabDefault(candidates, rawName) {
   const dish = norm(extractDishNameForMatch(rawName) || rawName);
   const list = (candidates ?? []).filter(c => !norm(c.name).includes('pizza'));
@@ -94,18 +124,13 @@ function pickKebabDefault(candidates, rawName) {
 
   // Dürüm / Special only when the customer said so
   if (/durum|dürüm|special/i.test(dish)) {
-    const durum = list.filter(c => /durum|dürüm|special/i.test(norm(c.name)));
-    if (durum.length === 1) return durum[0];
-    if (durum.length > 1) {
-      return [...durum].sort((a, b) => Number(a.price) - Number(b.price))[0];
-    }
-    return null;
+    return pickDurumDefault(list, dish);
   }
 
   const sandwich = list.filter(c => /sandwich/i.test(norm(c.name)));
   if (sandwich.length === 1) return sandwich[0];
   if (sandwich.length > 1) {
-    return [...sandwich].sort((a, b) => Number(a.price) - Number(b.price))[0];
+    return pickCheapest(sandwich);
   }
 
   return null;
