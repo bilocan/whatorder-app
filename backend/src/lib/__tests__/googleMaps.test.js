@@ -44,19 +44,22 @@ describe('googleMaps', () => {
     );
   });
 
-  test('geocodeForward returns lat/lng from Geocoding API', async () => {
+  test('geocodeForward returns lat/lng and formatted address from Geocoding API', async () => {
     process.env.GOOGLE_MAPS_API_KEY = 'test-key';
     global.fetch.mockResolvedValue({
       ok: true,
       json: jest.fn().mockResolvedValue({
         status: 'OK',
-        results: [{ geometry: { location: { lat: 48.2093, lng: 16.3621 } } }],
+        results: [{
+          formatted_address: 'Wien, Austria',
+          geometry: { location: { lat: 48.2093, lng: 16.3621 } },
+        }],
       }),
     });
 
     const result = await geocodeForward('Wien');
 
-    expect(result).toEqual({ lat: 48.2093, lng: 16.3621 });
+    expect(result).toEqual({ lat: 48.2093, lng: 16.3621, formattedAddress: 'Wien, Austria' });
   });
 
   test('geocodeReverse returns formatted address', async () => {
@@ -72,5 +75,41 @@ describe('googleMaps', () => {
     const result = await geocodeReverse(48.2, 16.36);
 
     expect(result).toBe('1060 Wien, Austria');
+  });
+
+  test('validateAddress posts to Address Validation API and parses result', async () => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        result: {
+          verdict: {
+            possibleNextAction: 'CONFIRM',
+            hasReplacedComponents: true,
+            hasInferredComponents: false,
+          },
+          address: { formattedAddress: 'Hippgasse 11, 1160 Wien, Austria' },
+          geocode: { location: { latitude: 48.21, longitude: 16.31 } },
+        },
+      }),
+    });
+
+    const { validateAddress } = require('../googleMaps');
+    const result = await validateAddress('hipgasse 11');
+
+    expect(result).toEqual({
+      formattedAddress: 'Hippgasse 11, 1160 Wien, Austria',
+      lat: 48.21,
+      lng: 16.31,
+      possibleNextAction: 'CONFIRM',
+      hasReplacedComponents: true,
+      hasInferredComponents: false,
+      hasUnconfirmedComponents: false,
+      unconfirmedComponentTypes: [],
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('addressvalidation.googleapis.com'),
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 });

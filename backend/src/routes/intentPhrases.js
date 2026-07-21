@@ -9,6 +9,10 @@ const {
   slimMatchedLine,
 } = require('../bot/intentPlaygroundDraft');
 const { enrichPendingWithModifier } = require('../bot/intentModifiers');
+const {
+  getPlaygroundLlmConfig,
+  resolvePlaygroundModel,
+} = require('../lib/llm');
 
 const router = express.Router();
 
@@ -46,6 +50,7 @@ function slimPreview(result) {
     botReply: result.botReply ?? null,
     llmEnabled: result.llmEnabled ?? false,
     llmAllowed: result.llmAllowed ?? false,
+    llmModel: result.intent?.llmModel ?? result.llmModel ?? null,
   };
 }
 
@@ -113,22 +118,47 @@ function slimOriginalItems(items) {
  */
 function sourceOptions(source, llm) {
   switch (source) {
-    case 'rules': return { llm: false, skipLearned: true };
-    case 'llm': return { llm: true, skipLearned: true };
-    case 'learned': return { llm: false, skipLearned: false, learnedSource: 'any' };
-    case 'seed': return { llm: false, skipLearned: false, learnedSource: 'seed' };
-    default: return { llm: !!llm, skipLearned: false };
+    case 'rules': return { llm: false, skipLearned: true, forceLlm: false };
+    case 'llm': return { llm: true, skipLearned: true, forceLlm: true };
+    case 'learned': return { llm: false, skipLearned: false, learnedSource: 'any', forceLlm: false };
+    case 'seed': return { llm: false, skipLearned: false, learnedSource: 'seed', forceLlm: false };
+    default: return { llm: !!llm, skipLearned: false, forceLlm: false };
   }
 }
 
-// POST /api/businesses/:businessId/intent-phrases/preview  { text, llm?, source? }
+// GET /api/businesses/:businessId/intent-phrases/llm-config
+router.get(
+  '/businesses/:businessId/intent-phrases/llm-config',
+  requireOwnerOfBusiness,
+  (_req, res) => {
+    res.json(getPlaygroundLlmConfig());
+  },
+);
+
+// POST /api/businesses/:businessId/intent-phrases/preview  { text, llm?, source?, model? }
 router.post(
   '/businesses/:businessId/intent-phrases/preview',
   requireOwnerOfBusiness,
   async (req, res) => {
     const { businessId } = req.params;
-    const { text, llm, source, sampleItems, context, operation, items: draftItems } = req.body ?? {};
+    const {
+      text, llm, source, sampleItems, context, operation, items: draftItems, model: modelRaw,
+    } = req.body ?? {};
     if (!text?.trim()) return res.status(400).json({ error: 'text is required' });
+
+    let playgroundModel;
+    if (modelRaw != null && String(modelRaw).trim()) {
+      playgroundModel = resolvePlaygroundModel(modelRaw);
+      if (!playgroundModel) {
+        return res.status(400).json({
+          error: 'model is not in LLM_PLAYGROUND_MODELS (or LLM_MODEL)',
+          ...getPlaygroundLlmConfig(),
+        });
+      }
+    } else {
+      playgroundModel = resolvePlaygroundModel('');
+    }
+
     try {
       const { menu, menuMatch, menuTokenIndex } = await getMenuContext(businessId);
       const sample = buildSampleLines(menu, sampleItems, context);
@@ -140,7 +170,16 @@ router.post(
         ...sourceOptions(source, llm),
         basket: sample.basket,
         pendingItems: sample.pendingItems,
+        model: playgroundModel?.model,
+        provider: playgroundModel?.provider,
+        llmLabel: playgroundModel?.label,
       });
+      if (result.intent?.parsedBy === 'llm' || result.intent?.llmModel || playgroundModel) {
+        result = {
+          ...result,
+          llmModel: result.intent?.llmModel ?? playgroundModel?.label ?? null,
+        };
+      }
       const draft = normalizeDraftItems(draftItems);
       const isRemove = operation === 'remove' || result.operation === 'remove';
 

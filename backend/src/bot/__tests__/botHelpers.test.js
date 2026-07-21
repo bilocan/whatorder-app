@@ -221,7 +221,7 @@ describe('basket formatting', () => {
     expect(body).not.toContain('Ihre Bestellung');
   });
 
-  test('buildPostAddBody batches multiple added lines', () => {
+  test('buildPostAddBody batches multiple added lines with names', () => {
     const basket = [
       { name: 'Döner', qty: 2, price: 8.5 },
       { name: 'Ayran', qty: 1, price: 2 },
@@ -229,7 +229,7 @@ describe('basket formatting', () => {
     const body = buildPostAddBody('en', basket, {
       addedLines: [{ name: 'Döner', qty: 2, price: 8.5 }, { name: 'Ayran', qty: 1, price: 2 }],
     });
-    expect(body).toContain('3 items added');
+    expect(body).toContain('2× Döner, 1× Ayran added');
     expect(body).toContain('3 items · €19.00');
   });
 

@@ -15,6 +15,14 @@ describe('de locale', () => {
   test('pickupBtn', () => expect(str(de.pickupBtn())).toBe(true));
   test('deliveryBtn', () => expect(str(de.deliveryBtn())).toBe(true));
   test('askDeliveryAddress', () => expect(str(de.askDeliveryAddress())).toBe(true));
+  test('askDeliveryAddressShare', () => expect(str(de.askDeliveryAddressShare())).toBe(true));
+  test('deliveryAddressConfirm', () => expect(str(de.deliveryAddressConfirm('Hippgasse 11'))).toBe(true));
+  test('deliveryAddressConfirmYes', () => expect(str(de.deliveryAddressConfirmYes())).toBe(true));
+  test('deliveryAddressConfirmEdit', () => expect(str(de.deliveryAddressConfirmEdit())).toBe(true));
+  test('deliveryAddressInvalid', () => expect(str(de.deliveryAddressInvalid())).toBe(true));
+  test('deliveryAddressGeocodeFailed', () => expect(str(de.deliveryAddressGeocodeFailed())).toBe(true));
+  test('askDeliveryUnit', () => expect(str(de.askDeliveryUnit())).toBe(true));
+  test('deliveryUnitInvalid', () => expect(str(de.deliveryUnitInvalid())).toBe(true));
   test('deliveryOutOfZone', () => expect(str(de.deliveryOutOfZone())).toBe(true));
   test('deliveryAddrPickerHeader', () => expect(str(de.deliveryAddrPickerHeader())).toBe(true));
   test('deliveryAddrPickerBody', () => expect(str(de.deliveryAddrPickerBody())).toBe(true));
@@ -26,6 +34,7 @@ describe('de locale', () => {
   test('deliveryShareLoc', () => expect(str(de.deliveryShareLoc())).toBe(true));
   test('multiWelcomeBody', () => expect(str(de.multiWelcomeBody())).toBe(true));
   test('locationRequestBody', () => expect(str(de.locationRequestBody())).toBe(true));
+  test('switchLocationRequestBody', () => expect(str(de.switchLocationRequestBody())).toBe(true));
   test('restaurantPickerBody', () => expect(str(de.restaurantPickerBody())).toBe(true));
   test('restaurantPickerButton', () => expect(str(de.restaurantPickerButton())).toBe(true));
   test('restaurantPickerFooter', () => expect(str(de.restaurantPickerFooter())).toBe(true));
@@ -43,6 +52,14 @@ describe('tr locale', () => {
   test('pickupBtn', () => expect(str(tr.pickupBtn())).toBe(true));
   test('deliveryBtn', () => expect(str(tr.deliveryBtn())).toBe(true));
   test('askDeliveryAddress', () => expect(str(tr.askDeliveryAddress())).toBe(true));
+  test('askDeliveryAddressShare', () => expect(str(tr.askDeliveryAddressShare())).toBe(true));
+  test('deliveryAddressConfirm', () => expect(str(tr.deliveryAddressConfirm('Hippgasse 11'))).toBe(true));
+  test('deliveryAddressConfirmYes', () => expect(str(tr.deliveryAddressConfirmYes())).toBe(true));
+  test('deliveryAddressConfirmEdit', () => expect(str(tr.deliveryAddressConfirmEdit())).toBe(true));
+  test('deliveryAddressInvalid', () => expect(str(tr.deliveryAddressInvalid())).toBe(true));
+  test('deliveryAddressGeocodeFailed', () => expect(str(tr.deliveryAddressGeocodeFailed())).toBe(true));
+  test('askDeliveryUnit', () => expect(str(tr.askDeliveryUnit())).toBe(true));
+  test('deliveryUnitInvalid', () => expect(str(tr.deliveryUnitInvalid())).toBe(true));
   test('deliveryOutOfZone', () => expect(str(tr.deliveryOutOfZone())).toBe(true));
   test('deliveryAddrPickerHeader', () => expect(str(tr.deliveryAddrPickerHeader())).toBe(true));
   test('deliveryAddrPickerBody', () => expect(str(tr.deliveryAddrPickerBody())).toBe(true));
@@ -54,6 +71,7 @@ describe('tr locale', () => {
   test('deliveryShareLoc', () => expect(str(tr.deliveryShareLoc())).toBe(true));
   test('multiWelcomeBody', () => expect(str(tr.multiWelcomeBody())).toBe(true));
   test('locationRequestBody', () => expect(str(tr.locationRequestBody())).toBe(true));
+  test('switchLocationRequestBody', () => expect(str(tr.switchLocationRequestBody())).toBe(true));
   test('restaurantPickerBody', () => expect(str(tr.restaurantPickerBody())).toBe(true));
   test('restaurantPickerButton', () => expect(str(tr.restaurantPickerButton())).toBe(true));
   test('restaurantPickerFooter', () => expect(str(tr.restaurantPickerFooter())).toBe(true));
@@ -69,6 +87,7 @@ describe('en locale — previously uncovered', () => {
   test('catalogUnavailable', () => expect(str(en.catalogUnavailable())).toBe(true));
   test('deliveryOutOfZone', () => expect(str(en.deliveryOutOfZone())).toBe(true));
   test('multiWelcomeBody', () => expect(str(en.multiWelcomeBody())).toBe(true));
+  test('switchLocationRequestBody', () => expect(str(en.switchLocationRequestBody())).toBe(true));
 });
 
 const STATUS_NOTIFY_KEYS = [
@@ -86,6 +105,20 @@ describe('order status notification keys — all locales', () => {
   });
   test.each(STATUS_NOTIFY_KEYS)('tr.%s(shortId)', (key) => {
     expect(str(tr[key]('ABC123'))).toBe(true);
+  });
+});
+
+describe('post-complete re-entry keys — all locales', () => {
+  test.each(['orderCompletePrompt', 'postCompleteRestaurantBtn', 'postReorderBtn'])('%s', (key) => {
+    expect(str(en[key]())).toBe(true);
+    expect(str(de[key]())).toBe(true);
+    expect(str(tr[key]())).toBe(true);
+  });
+  test('button titles stay within WhatsApp 20-char limit', () => {
+    for (const loc of [en, de, tr]) {
+      expect(loc.postReorderBtn().length).toBeLessThanOrEqual(20);
+      expect(loc.postCompleteRestaurantBtn().length).toBeLessThanOrEqual(20);
+    }
   });
 });
 

@@ -1,4 +1,3 @@
-const STATIC_MAP_BASE = 'https://maps.googleapis.com/maps/api/staticmap';
 const DEFAULT_MAX_PINS = 8;
 /** Production customer map — whatorder.at (not owner dashboard). */
 const DEFAULT_MAP_PUBLIC_URL = 'https://whatorder.at';
@@ -28,10 +27,6 @@ function normalizeBusinessCoords(business) {
   return { ...business, lat, lng };
 }
 
-function hasCoords(b) {
-  return parseCoord(b.lat) != null && parseCoord(b.lng) != null;
-}
-
 function restaurantsWithCoords(businesses, maxPins = DEFAULT_MAX_PINS) {
   return businesses
     .map(normalizeBusinessCoords)
@@ -56,58 +51,6 @@ function calcMapViewport(points) {
   return { centerLat, centerLng, zoom };
 }
 
-function getPublicBackendUrl() {
-  const fromEnv = process.env.BACKEND_URL?.trim();
-  if (fromEnv && !fromEnv.includes('localhost')) return fromEnv.replace(/\/$/, '');
-  const domain = process.env.NGROK_DOMAIN?.trim();
-  if (domain) return `https://${domain.replace(/^https?:\/\//, '').replace(/\/$/, '')}`;
-  return null;
-}
-
-/**
- * Static Maps image with customer (blue U) + numbered restaurant pins. Needs Maps Static API + key.
- */
-function buildRestaurantsStaticMapUrl(customerLat, customerLng, businesses, apiKey, { maxPins = DEFAULT_MAX_PINS } = {}) {
-  if (!apiKey) return null;
-  const clat = parseCoord(customerLat);
-  const clng = parseCoord(customerLng);
-  if (clat == null || clng == null) return null;
-
-  const withCoords = restaurantsWithCoords(businesses, maxPins);
-  if (!withCoords.length) return null;
-
-  const parts = [
-    'size=600x400',
-    'scale=2',
-    `markers=color:blue%7Clabel:U%7C${formatCoord(clat, clng)}`,
-    ...withCoords.map((b, i) => `markers=color:red%7Clabel:${i + 1}%7C${formatCoord(b.lat, b.lng)}`),
-    `visible=${[formatCoord(clat, clng), ...withCoords.map(b => formatCoord(b.lat, b.lng))].join('%7C')}`,
-    `key=${encodeURIComponent(apiKey)}`,
-  ];
-
-  return `${STATIC_MAP_BASE}?${parts.join('&')}`;
-}
-
-/**
- * Public URL WhatsApp can fetch — proxies Static Maps through our backend (keeps API key server-side).
- */
-function buildRestaurantsMapProxyUrl(customerLat, customerLng, businesses, baseUrl, { maxPins = DEFAULT_MAX_PINS } = {}) {
-  const clat = parseCoord(customerLat);
-  const clng = parseCoord(customerLng);
-  if (clat == null || clng == null || !baseUrl) return null;
-
-  const withCoords = restaurantsWithCoords(businesses, maxPins);
-  if (!withCoords.length) return null;
-
-  const params = new URLSearchParams({
-    clat: String(clat),
-    clng: String(clng),
-    pins: withCoords.map(b => formatCoord(b.lat, b.lng)).join('|'),
-  });
-
-  return `${baseUrl.replace(/\/$/, '')}/api/maps/restaurants-preview?${params.toString()}`;
-}
-
 function getPublicMapBaseUrl() {
   const fromEnv = process.env.MAP_PUBLIC_URL?.trim() || process.env.DASHBOARD_URL?.trim();
   if (fromEnv) return fromEnv.replace(/\/$/, '');
@@ -121,7 +64,7 @@ function getExplicitMapBaseUrl() {
 }
 
 /**
- * WhatsApp "Open map" CTA after the static preview image.
+ * WhatsApp "Open map" CTA after the numbered restaurant list.
  * WhatOrder /map (numbered + named pins). Google Maps browse is fallback only — no multi-pin support.
  */
 function buildOpenMapCtaUrl(customerLat, customerLng, businesses, businessIds, lang) {
@@ -156,17 +99,6 @@ function buildPublicRestaurantMapUrl(customerLat, customerLng, businessIds, base
   return `${baseUrl.replace(/\/$/, '')}/map?${params.toString()}`;
 }
 
-function parsePinsParam(pins) {
-  if (!pins?.trim()) return [];
-  return pins.split('|').map((pair, i) => {
-    const [latRaw, lngRaw] = pair.split(',');
-    const lat = parseCoord(latRaw);
-    const lng = parseCoord(lngRaw);
-    if (lat == null || lng == null) return null;
-    return { id: `p${i}`, lat, lng };
-  }).filter(Boolean);
-}
-
 /**
  * Opens Google Maps centered on all points — browse only, no directions/route.
  */
@@ -192,13 +124,9 @@ function buildRestaurantsBrowseMapUrl(customerLat, customerLng, businesses, { ma
 
 module.exports = {
   parseCoord,
-  buildRestaurantsStaticMapUrl,
-  buildRestaurantsMapProxyUrl,
   buildRestaurantsBrowseMapUrl,
   buildPublicRestaurantMapUrl,
   buildOpenMapCtaUrl,
-  parsePinsParam,
-  getPublicBackendUrl,
   getExplicitMapBaseUrl,
   getPublicMapBaseUrl,
   DEFAULT_MAX_PINS,

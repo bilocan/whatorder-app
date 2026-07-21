@@ -7,7 +7,7 @@ const FUNCTION_KEYS = [
   'greeting', 'langChanged',
   'menuListHeader', 'menuListBody', 'menuListFooter', 'viewMenuBtn',
   'qtyBody',
-  'itemAdded', 'itemsAdded', 'reorderLoaded', 'addMoreBtn', 'viewBasketBtn', 'doneBtn',
+  'itemAdded', 'itemsAdded', 'itemsAddedCount', 'reorderLoaded', 'addMoreBtn', 'viewBasketBtn', 'doneBtn',
   'basketHeader', 'basketEmpty', 'clearBasketBtn', 'removeItemBtn',
   'basketRemoveHint', 'basketRemoveNotFound', 'basketRemoveAmbiguous', 'basketRemoveDisambigNotFound',
   'confirmBtn',
@@ -79,6 +79,18 @@ describe('t() — interpolation', () => {
     expect(result).toContain('2');
     expect(result).toContain('Döner');
     expect(result).toContain('8.50');
+  });
+
+  test('itemsAdded embeds named summary and total', () => {
+    const result = t('itemsAdded', 'en', '2× Döner, 1× Ayran', 3, '19.00');
+    expect(result).toContain('2× Döner, 1× Ayran');
+    expect(result).toContain('19.00');
+  });
+
+  test('itemsAddedCount embeds qty and total', () => {
+    const result = t('itemsAddedCount', 'en', 3, 3, '19.00');
+    expect(result).toContain('3 items added');
+    expect(result).toContain('19.00');
   });
 
   test('orderTotal embeds formatted total', () => {

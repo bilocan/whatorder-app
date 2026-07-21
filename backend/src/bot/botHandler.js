@@ -1,13 +1,19 @@
 const { getSession, setSession } = require('./sessionStore');
 const { getBusinessInfo } = require('./menuService');
 const { sendText, sendLocationRequest, sendFlowMessage, deleteMessage } = require('../lib/whatsapp');
+const {
+  PLATFORM_IDENTITY,
+  runWithMessageIdentity,
+  setMessageIdentity,
+  applyBusinessInfoIdentity,
+} = require('../lib/messageIdentity');
 const { detectLanguage, scoreLanguage, getOverride } = require('./languageDetector');
 const { t } = require('./templates');
 const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { isAcceptingOrders } = require('../lib/presence');
 const { getBusinessesInfo, sendRestaurantPicker, presentRestaurantPickerForLocation } = require('./botHelpers');
 const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/restaurant');
-const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingName, handleConfirming } = require('./states/checkout');
+const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingDeliveryAddressConfirm, handleAwaitingDeliveryAddressUnit, handleAwaitingName, handleConfirming } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
 const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
@@ -33,6 +39,8 @@ const GREETING_FRESH_START_STATES = new Set([
   'awaiting_order_type',
   'awaiting_delivery_address',
   'awaiting_delivery_address_choice',
+  'awaiting_delivery_address_confirm',
+  'awaiting_delivery_address_unit',
   'awaiting_confirm_note',
   'selecting',
   'customizing_intent',
@@ -48,6 +56,8 @@ const STATE_HANDLERS = {
   awaiting_order_type:              handleAwaitingOrderType,
   awaiting_delivery_address_choice: handleAwaitingDeliveryAddressChoice,
   awaiting_delivery_address:        handleAwaitingDeliveryAddress,
+  awaiting_delivery_address_confirm: handleAwaitingDeliveryAddressConfirm,
+  awaiting_delivery_address_unit:   handleAwaitingDeliveryAddressUnit,
   awaiting_name:                    handleAwaitingName,
   confirming:                       handleConfirming,
   awaiting_confirm_note:            handleAwaitingConfirmNote,
@@ -60,6 +70,7 @@ async function deleteStale(phone, session) {
 
 async function enterRestaurantDirect(from, bid, lang) {
   const bidInfo = await getBusinessInfo(bid);
+  applyBusinessInfoIdentity(bidInfo);
   if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
     const window = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
     await sendText(from, t('restaurantClosed', lang, bidInfo.name, window?.firstOrderTime ?? null, window?.lastOrderTime ?? null));
@@ -77,14 +88,7 @@ async function enterRestaurantDirect(from, bid, lang) {
   });
 }
 
-// routing: { businessIds: string[], defaultBusinessId: string|null }
-// message shape:
-//   { type: 'text', text }
-//   { type: 'list_reply', id, title }       — list menu or restaurant picker
-//   { type: 'button_reply', id, title }
-//   { type: 'cart_submitted', items: [{ productId, qty, price, currency }] } — catalog flow
-//   { type: 'flow_completion', data: { item_id, protein, quantity, sauces_text, special_requests, total, unit_price } }
-async function handleMessage(routing, { from, contactName, type, text, id, items, data, latitude, longitude }) {
+async function handleMessageInner(routing, { from, contactName, type, text, id, items, data, latitude, longitude }) {
   if (!routing.businessIds.length) {
     console.warn(`[bot] no restaurants routed for this WhatsApp number — ignoring message from ${redactPhone(from)}`);
     return;
@@ -113,6 +117,9 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   if (type === 'text') {
     const overrideLang = getOverride(norm);
     if (overrideLang) {
+      if (session.businessId && routing.businessIds.includes(session.businessId)) {
+        applyBusinessInfoIdentity(await getBusinessInfo(session.businessId));
+      }
       await setSession(from, { ...session, language: overrideLang, pendingDeleteIds: [] });
       await sendText(from, t('langChanged', overrideLang));
       return;
@@ -161,16 +168,16 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       return;
     }
     if (id === 'btn_post_restaurant' && isMulti) {
-      const phoneNumberId = session.whatsappPhoneNumberId || null;
       await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [] });
       try {
-        await sendText(from, t('multiWelcomeBody', postLang), phoneNumberId);
+        // Single location_request bubble (no separate welcome text) — less chat clutter.
         const locId = await sendLocationRequest(from, t('locationRequestBody', postLang));
         if (locId) await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [locId] });
       } catch { /* ignore — awaiting_location handler will show picker on next message */ }
       return;
     }
     const postInfo = await getBusinessInfo(postBid);
+    applyBusinessInfoIdentity(postInfo);
     await startRestaurantBrowsing({ from, session: { ...session, basket: [] }, lang: postLang, businessId: postBid, type, text, norm, businessName: postInfo.name });
     return;
   }
@@ -194,7 +201,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
       // if the call succeeds, update pendingDeleteIds so the message is cleaned up next turn.
       await setSession(from, { state: 'awaiting_location', language: langForMulti, basket: [], businessId: null, pendingDeleteIds: [] });
       try {
-        await sendText(from, t('multiWelcomeBody', langForMulti));
+        // One interactive bubble only (welcome folded into location CTA copy).
         const locId = await sendLocationRequest(from, t('locationRequestBody', langForMulti));
         if (locId) await setSession(from, { state: 'awaiting_location', language: langForMulti, basket: [], businessId: null, pendingDeleteIds: [locId] });
       } catch { /* ignore — awaiting_location handler will show the picker on next message */ }
@@ -202,6 +209,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     }
     const bid = routing.defaultBusinessId || routing.businessIds[0];
     const bidInfo = await getBusinessInfo(bid);
+    applyBusinessInfoIdentity(bidInfo);
     const langResolved = lang || bidInfo.botLanguage || 'de';
     if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
       const _w0 = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
@@ -236,6 +244,7 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     && (isFreshStartCommand(norm) || (isGreetingOnly(norm) && basket.length === 0));
   if (checkoutFreshStart) {
     const bidInfo = await getBusinessInfo(businessId);
+    applyBusinessInfoIdentity(bidInfo);
     if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
       const _w = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
       await sendText(from, t('restaurantClosed', lang, bidInfo.name, _w?.firstOrderTime ?? null, _w?.lastOrderTime ?? null));
@@ -268,29 +277,33 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
     return;
   }
 
-  // Switch restaurant command — available from any state (multi only)
+  // Switch restaurant command — available from any state (multi only).
+  // Always re-request location so a stale/wrong pin (e.g. Linz while testing Wien) is not reused.
+  // Platform identity: switch leaves the restaurant context.
+  // One location_request bubble: switch notice + location CTA (no separate welcome/switch texts).
   if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {
-    await sendText(from, t('switchConfirmed', lang));
-    await sendText(from, t('multiWelcomeBody', lang));
-    if (session.lat != null && session.lng != null) {
-      const { pendingDeleteIds } = await presentRestaurantPickerForLocation(
-        from, routing.businessIds, session.lat, session.lng, lang,
-      );
-      await setSession(from, {
-        state: 'selecting_restaurant',
-        language: lang,
-        basket: [],
-        businessId: null,
-        lat: session.lat,
-        lng: session.lng,
-        pendingDeleteIds,
-        restaurantPickerUnfiltered: false,
-      });
-    } else {
-      const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
-      await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: locId ? [locId] : [] });
-    }
+    setMessageIdentity(PLATFORM_IDENTITY);
+    const locId = await sendLocationRequest(from, t('switchLocationRequestBody', lang));
+    await setSession(from, {
+      state: 'awaiting_location',
+      language: lang,
+      basket: [],
+      businessId: null,
+      lat: null,
+      lng: null,
+      pendingDeleteIds: locId ? [locId] : [],
+      restaurantPickerUnfiltered: false,
+    });
     return;
+  }
+
+  // Multi without a selected restaurant stays on WhatOrder; otherwise label as Name, PLZ Ort.
+  if (sessionBidValid) {
+    applyBusinessInfoIdentity(await getBusinessInfo(session.businessId));
+  } else if (!isMulti) {
+    applyBusinessInfoIdentity(await getBusinessInfo(businessId));
+  } else {
+    setMessageIdentity(PLATFORM_IDENTITY);
   }
 
   const ctx = { from, contactName, session, lang, businessId, basket, isMulti, routing, type, text, norm, id, items, data, latitude, longitude };
@@ -306,6 +319,17 @@ async function handleMessage(routing, { from, contactName, type, text, id, items
   }
 
   await (STATE_HANDLERS[session.state] ?? handleBrowsing)(ctx);
+}
+
+// routing: { businessIds: string[], defaultBusinessId: string|null }
+// message shape:
+//   { type: 'text', text }
+//   { type: 'list_reply', id, title }       — list menu or restaurant picker
+//   { type: 'button_reply', id, title }
+//   { type: 'cart_submitted', items: [{ productId, qty, price, currency }] } — catalog flow
+//   { type: 'flow_completion', data: { item_id, protein, quantity, sauces_text, special_requests, total, unit_price } }
+async function handleMessage(routing, message) {
+  return runWithMessageIdentity(PLATFORM_IDENTITY, () => handleMessageInner(routing, message));
 }
 
 module.exports = { handleMessage };

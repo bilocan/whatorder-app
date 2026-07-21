@@ -1007,12 +1007,13 @@
       "tags": [
         "enes_pilot",
         "harvest",
-        "owner"
+        "owner",
+        "disambiguation"
       ],
       "menu": "menu.json",
       "expect": {
         "orderLike": true,
-        "outcome": "proposal",
+        "outcome": "disambiguation",
         "parsedBy": "rules",
         "intentItems": [
           {
@@ -1027,13 +1028,7 @@
             "name": "jeweils ayran",
             "qty": 1
           }
-        ],
-        "matchedNames": [
-          "Enes Kebap Special Dürüm Huhn",
-          "Kebap Sandwich Huhn",
-          "Mis Ayran 0.25L"
-        ],
-        "matchedCount": 3
+        ]
       },
       "recordedFrom": "owner"
     },
@@ -1224,22 +1219,18 @@
       "tags": [
         "modifier",
         "wave_c",
-        "enes_pilot"
+        "enes_pilot",
+        "disambiguation"
       ],
       "menu": "menu.json",
       "expect": {
         "orderLike": true,
-        "outcome": "proposal",
+        "outcome": "disambiguation",
         "parsedBy": "rules",
         "intentItems": [
           { "name": "dürüm mit tomaten und salad und zwiebel ohne sose", "qty": 1 },
           { "name": "cola", "qty": 1 }
-        ],
-        "matchedNames": [
-          "Enes Kebap Special Dürüm Huhn",
-          "Coca Cola 0.33L"
-        ],
-        "matchedCount": 2
+        ]
       }
     }
   ]

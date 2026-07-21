@@ -55,7 +55,14 @@ export interface IntentPhrasePreview {
   botReply: string | null;
   llmEnabled: boolean;
   llmAllowed: boolean;
+  llmModel?: string | null;
   learnedMeta?: IntentLearnedMeta | null;
+}
+
+export interface PlaygroundLlmConfig {
+  provider: string;
+  defaultModel: string | null;
+  models: string[];
 }
 
 export interface IntentPhraseSaveItem {
@@ -78,6 +85,18 @@ export interface IntentCorrectionPayload {
   }[];
 }
 
+export async function fetchPlaygroundLlmConfig(
+  businessId: string,
+): Promise<PlaygroundLlmConfig> {
+  const res = await fetch(
+    `${API_URL}/api/businesses/${businessId}/intent-phrases/llm-config`,
+    { headers: await jsonAuthHeaders() },
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? 'Failed to load LLM config');
+  return data as PlaygroundLlmConfig;
+}
+
 export async function previewIntentPhrase(
   businessId: string,
   text: string,
@@ -88,6 +107,7 @@ export async function previewIntentPhrase(
     context = 'basket',
     operation,
     items,
+    model,
   }: {
     llm?: boolean;
     source?: IntentPreviewSource;
@@ -95,16 +115,24 @@ export async function previewIntentPhrase(
     context?: 'basket' | 'proposal';
     operation?: IntentLearningOperation;
     items?: IntentPhraseSaveItem[];
+    model?: string | null;
   } = {},
 ): Promise<IntentPhrasePreview> {
   // app/appLlm run the full pipeline (backend "auto"); the rest pin one tier.
   const tier = source === 'app' || source === 'appLlm' ? undefined : source;
-  const useLlm = source === 'appLlm' || (source === 'app' && llm);
+  const useLlm = source === 'appLlm' || source === 'llm' || (source === 'app' && llm);
   const res = await fetch(`${API_URL}/api/businesses/${businessId}/intent-phrases/preview`, {
     method: 'POST',
     headers: await jsonAuthHeaders(),
     body: JSON.stringify({
-      text, llm: useLlm, source: tier, sampleItems, context, operation, items,
+      text,
+      llm: useLlm,
+      source: tier,
+      sampleItems,
+      context,
+      operation,
+      items,
+      ...(model ? { model } : {}),
     }),
   });
   const data = await res.json().catch(() => ({}));

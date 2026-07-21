@@ -1,10 +1,14 @@
 const { ordersRef, businessRef, customersRef } = require('../lib/collections');
 const { admin } = require('../lib/firebase');
-const { sendText } = require('../lib/whatsapp');
+const { sendText, sendButtonMessage } = require('../lib/whatsapp');
 const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('../lib/whatsappRouting');
+const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } = require('../lib/messageIdentity');
 const { formatBasketItemsText } = require('./botHelpers');
 const { t } = require('./templates');
 const { normalizeCustomerPhone, customerPhoneVariants } = require('../lib/phone');
+const { patchSession } = require('./sessionStore');
+
+const TERMINAL_REENTRY_STATUSES = new Set(['delivered', 'picked_up', 'rejected', 'cancelled']);
 
 // Valid source states for each target status
 const VALID_FROM = {
@@ -182,7 +186,30 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
     const notifyArgs = toStatus === 'approved' ? [shortId, etaTime] : [shortId];
-    await sendText(order.customerPhone, t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs), phoneNumberId);
+    const bizSnap = await businessRef(businessId).get();
+    await runWithMessageIdentity(PLATFORM_IDENTITY, async () => {
+      applyBusinessInfoIdentity(bizSnap.exists ? bizSnap.data() : { name: order.restaurantName });
+      const statusText = t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs);
+      // Self-serve cancel already restarts browsing — skip buttons to avoid double CTA.
+      if (TERMINAL_REENTRY_STATUSES.has(toStatus) && !options.skipReentry) {
+        // Re-open ordering after meal finished, reject, or owner cancel (no Cancel on this message).
+        await sendButtonMessage(order.customerPhone, {
+          body: `${statusText}\n\n${t('orderCompletePrompt', lang)}`,
+          buttons: [
+            { id: 'btn_post_reorder', title: t('postReorderBtn', lang) },
+            { id: 'btn_post_restaurant', title: t('postCompleteRestaurantBtn', lang) },
+          ],
+        }, phoneNumberId);
+        // Multi clears businessId after place; restore restaurant context for btn_post_*.
+        try {
+          await patchSession(order.customerPhone, { pendingAmendBusinessId: businessId });
+        } catch (patchErr) {
+          console.error('[orderService] post-complete session patch failed:', patchErr.message);
+        }
+      } else {
+        await sendText(order.customerPhone, statusText, phoneNumberId);
+      }
+    });
   } catch (err) {
     const msg = err.name === 'WhatsAppRoutingError'
       ? err.message
@@ -198,7 +225,7 @@ const markReady         = (bid, oid) => transitionOrder(bid, oid, 'ready');
 const markOnTheWay      = (bid, oid) => transitionOrder(bid, oid, 'on_the_way');
 const markPickedUp      = (bid, oid) => transitionOrder(bid, oid, 'picked_up');
 const markDelivered     = (bid, oid) => transitionOrder(bid, oid, 'delivered');
-const cancelOrder       = (bid, oid) => transitionOrder(bid, oid, 'cancelled');
+const cancelOrder       = (bid, oid, options) => transitionOrder(bid, oid, 'cancelled', options);
 
 async function getOrder(businessId, orderId) {
   const snap = await ordersRef(businessId).doc(orderId).get();

@@ -151,7 +151,7 @@ export default function EarningsPage() {
     const val = parseFloat(editValue);
     if (isNaN(val) || val < 0) return;
     setSaving(true);
-    await setDoc(doc(db, 'config', 'whatorder'), { feeType: editType, feeValue: val });
+    await setDoc(doc(db, 'config', 'whatorder'), { feeType: editType, feeValue: val }, { merge: true });
     setSaving(false);
   }
 

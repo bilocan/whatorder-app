@@ -35,6 +35,8 @@ const CHECKOUT_BASKET_OP_STATES = new Set([
   ...BARE_DIGIT_CLARIFY_STATES,
   'awaiting_delivery_address',
   'awaiting_delivery_address_choice',
+  'awaiting_delivery_address_confirm',
+  'awaiting_delivery_address_unit',
 ]);
 
 function parsePaymentKeyword(norm) {

@@ -150,6 +150,7 @@ function LayoutContent() {
                 { to: '/admin', label: t('nav.admin') },
                 { to: '/admin/map', label: t('nav.adminMap') },
                 { to: '/admin/earnings', label: t('nav.earnings') },
+                { to: '/admin/ai', label: t('nav.aiConfig') },
               ].map(({ to, label }) => (
                 <NavLink
                   key={to}

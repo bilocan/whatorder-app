@@ -59,6 +59,12 @@ export default function ParseSnapshot({
             {t('learnedPhrases.test.parsedBy', { source: displayPreview.parsedBy })}
           </>
         )}
+        {displayPreview.llmModel && (
+          <>
+            {' · '}
+            {t('intentPlayground.modelUsed', { model: displayPreview.llmModel })}
+          </>
+        )}
         {displayPreview.parsedBy === 'learned' && displayPreview.learnedFrom && (
           <>
             {' · '}

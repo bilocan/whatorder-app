@@ -65,6 +65,10 @@ async function evaluateIntent(text, options = {}) {
     // null = full pipeline; 'any' = only accept a learned replay;
     // 'seed' = only accept a replay served from the baked seed.
     learnedSource = null,
+    model = undefined,
+    provider = undefined,
+    llmLabel = undefined,
+    forceLlm = false,
   } = options;
   const phone = options.phone ?? (llm ? sandboxPhoneForLlm() : 'sandbox');
 
@@ -95,6 +99,10 @@ async function evaluateIntent(text, options = {}) {
     menu,
     rulesOnly: !llm,
     skipLearned,
+    forceLlm,
+    model,
+    provider,
+    llmLabel,
   });
   intent = applyJeweilsBasketContext(intent, basket);
 
@@ -114,7 +122,7 @@ async function evaluateIntent(text, options = {}) {
     return { ...emptyResult(base, 'low_confidence'), intent };
   }
 
-  const llmAllowed = llm && canCallLlm(phone);
+  const llmAllowed = llm && canCallLlm(phone, { provider });
   const sandboxLlm = { llmEnabled: llm, llmAllowed };
 
   if (intent.operation === 'remove') {
@@ -172,7 +180,7 @@ async function evaluateIntent(text, options = {}) {
 
   if (llmAllowed && !intent.llmFailed && canRetryWithLlm(trimmed, intent, matched, unmatched)) {
     const retried = await retryIntentWithMenuLlm(trimmed, intent, {
-      phone, menu, menuMatch, menuTokenIndex,
+      phone, menu, menuMatch, menuTokenIndex, model, provider, llmLabel,
     });
     if (retried) {
       intent = retried.intent;

@@ -18,6 +18,7 @@ import RestaurantsPage from './pages/admin/RestaurantsPage';
 import RestaurantDetailPage from './pages/admin/RestaurantDetailPage';
 import AdminRestaurantMapPage from './pages/admin/AdminRestaurantMapPage';
 import EarningsPage from './pages/admin/EarningsPage';
+import AiConfigPage from './pages/admin/AiConfigPage';
 import SelectRestaurantPage from './pages/SelectRestaurantPage';
 import LearnedPhrasesPage from './pages/LearnedPhrasesPage';
 import IntentPlaygroundPage from './pages/IntentPlaygroundPage';
@@ -65,6 +66,7 @@ export default function App() {
               <Route path="admin/map" element={<AdminGuard><AdminRestaurantMapPage /></AdminGuard>} />
               <Route path="admin/restaurants/:id" element={<AdminGuard><RestaurantDetailPage /></AdminGuard>} />
               <Route path="admin/earnings" element={<AdminGuard><EarningsPage /></AdminGuard>} />
+              <Route path="admin/ai" element={<AdminGuard><AiConfigPage /></AdminGuard>} />
             </Route>
           </Routes>
         </BrowserRouter>

@@ -121,7 +121,7 @@ describe('handlePostOrderCancelButton', () => {
     });
 
     expect(handled).toBe(true);
-    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID);
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true });
     expect(patchSession).toHaveBeenCalled();
     expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({ from: FROM, businessId: BIZ }));
   });
@@ -135,7 +135,7 @@ describe('handlePostOrderCancelButton', () => {
     });
 
     expect(handled).toBe(true);
-    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID);
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true });
     expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({ from: FROM, businessId: BIZ }));
   });
 
@@ -191,7 +191,7 @@ describe('tryHandlePostOrderMessage', () => {
     });
 
     expect(handled).toBe(true);
-    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID);
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true });
   });
 
   test('cancels cash approved order on iptal text', async () => {
@@ -204,7 +204,7 @@ describe('tryHandlePostOrderMessage', () => {
     });
 
     expect(handled).toBe(true);
-    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID);
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true });
   });
 
   test('order text after placement routes to call-restaurant (no add-on)', async () => {

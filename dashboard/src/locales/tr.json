@@ -24,6 +24,7 @@
     "admin": "Admin",
     "adminMap": "Harita",
     "earnings": "Kazançlar",
+    "aiConfig": "AI ayarları",
     "signOut": "Çıkış yap"
   },
   "lang": {
@@ -303,6 +304,9 @@
     "changePick": "Değiştir",
     "defaultOption": "Varsayılan",
     "sourceLabel": "Şununla test et",
+    "modelLabel": "YZ modeli",
+    "modelHint": "Öneksiz ad = doğrudan Gemini. OR … = OpenRouter. Karşılaştırmak için tekrar Ayrıştır. Canlı WhatsApp sunucu varsayılanını kullanır.",
+    "modelUsed": "model {{model}}",
     "source": {
       "app": "Uygulama (bot gibi)",
       "appLlm": "Uygulama + yapay zeka",
@@ -688,6 +692,44 @@
         },
         "modeMock": "Mock",
         "modeLive": "Canlı"
+      }
+    },
+    "aiConfig": {
+      "title": "AI ayarları",
+      "hint": "Backend env’de tanımlı provider ve modeller arasından seç. Anahtarlar secret’ta kalır — bu sayfa sadece aç/kapa ve seçim yapar.",
+      "loading": "Yükleniyor…",
+      "loadError": "AI ayarları yüklenemedi.",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor…",
+      "saved": "Kaydedildi.",
+      "saveError": "Kayıt başarısız.",
+      "enabled": "AI intent (Tier B)",
+      "enabledOn": "Açık",
+      "enabledOff": "Kapalı",
+      "primaryProvider": "Birincil provider",
+      "primaryModel": "Birincil model",
+      "fallbackProvider": "Yedek provider",
+      "fallbackModel": "Yedek model",
+      "fallbackNone": "Yok",
+      "providerNotReady": "Hazır değil (env anahtarları eksik)",
+      "noModels": "Bu provider için env kataloğunda model yok.",
+      "status": {
+        "title": "Durum",
+        "source": "Kaynak: {{source}}",
+        "sourceEnv": "env varsayılanı",
+        "sourceFirestore": "admin seçimi",
+        "primary": "Birincil: {{label}}",
+        "primaryReady": "Birincil provider hazır (env anahtarları var)",
+        "primaryNotReady": "Birincil provider hazır değil",
+        "lastUsed": "Son çağrı: {{provider}} / {{model}} · {{when}} · {{result}}{{latency}}",
+        "lastUsedOk": "ok",
+        "lastUsedFail": "başarısız ({{error}})",
+        "lastUsedLatency": " · {{ms}} ms",
+        "lastUsedNever": "Son çağrı: yok (henüz LLM denemesi kaydı yok)",
+        "fallbackOn": "Yedek yapılandırıldı",
+        "fallbackOff": "Yedek yok",
+        "dailyCalls": "Bugün (UTC): {{count}} yanıt / cap {{cap}} ({{attempts}} çağrı)",
+        "trustHint": "Başarı = model cevap verdi. Hata = timeout, kota veya provider hatası. Bu sayfa sadece config ve geçmiş."
       }
     },
     "restaurants": {

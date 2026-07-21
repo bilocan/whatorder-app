@@ -1,5 +1,6 @@
 const { setSession } = require('../sessionStore');
 const { sendText } = require('../../lib/whatsapp');
+const { applyBusinessInfoIdentity } = require('../../lib/messageIdentity');
 const { t } = require('../templates');
 const {
   getBusinessesInfo,
@@ -68,6 +69,7 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
       return;
     }
     const selectedInfo = await getBusinessInfo(selectedBid);
+    applyBusinessInfoIdentity(selectedInfo);
     if (!isOrderingOpen(selectedInfo.schedule, selectedInfo.timezone || 'Europe/Vienna')) {
       const _w = getTodayOrderWindow(selectedInfo.schedule, selectedInfo.timezone || 'Europe/Vienna');
       await sendText(from, t('restaurantClosed', lang, selectedInfo.name, _w?.firstOrderTime ?? null, _w?.lastOrderTime ?? null));

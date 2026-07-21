@@ -28,7 +28,7 @@ jest.mock('../whatsappReturn', () => ({
 jest.mock('../whatsappRouting', () => jest.requireActual('../whatsappRouting'));
 jest.mock('../templates', () => ({ t: jest.fn((_k, _lang, shortId) => `paid:${shortId}`) }));
 
-const { ordersRef, stripeEventRef } = require('../collections');
+const { ordersRef, stripeEventRef, businessRef } = require('../collections');
 const { getStripe } = require('../stripe');
 const { getFeeConfig, calcFeeCents } = require('../feeConfig');
 const { sendText, sendButtonMessage } = require('../whatsapp');
@@ -47,6 +47,12 @@ beforeEach(() => {
   process.env.BACKEND_URL = 'http://localhost:3000';
   ordersRef.mockReturnValue({
     doc: jest.fn(() => ({ get: mockOrderGet, update: mockOrderUpdate })),
+  });
+  businessRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({
+      exists: true,
+      data: () => ({ name: 'Döner Palace', address: 'Musterstrasse 1, 1010 Wien' }),
+    }),
   });
   stripeEventRef.mockReturnValue({
     get: jest.fn().mockResolvedValue({ exists: false }),

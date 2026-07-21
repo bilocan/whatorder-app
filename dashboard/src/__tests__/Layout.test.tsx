@@ -81,4 +81,10 @@ describe('Layout nav visibility', () => {
     expect(screen.queryByText('Customizations')).not.toBeInTheDocument()
     expect(screen.queryByText('Settings')).not.toBeInTheDocument()
   })
+
+  it('shows AI config link for admin', () => {
+    mockUseAuth.mockReturnValue(auth({ isAdmin: true, businessId: null }))
+    render(<Layout />)
+    expect(screen.getByText('AI config')).toBeInTheDocument()
+  })
 })
