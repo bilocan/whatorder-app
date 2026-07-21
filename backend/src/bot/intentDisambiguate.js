@@ -194,15 +194,83 @@ async function finishIntentFromDisambiguation({ from, session, lang, businessId,
   });
 }
 
+const DISAMBIGUATION_CLEAR = {
+  state: 'browsing',
+  disambiguation: undefined,
+  pendingIntentItems: undefined,
+  unmatchedIntentItems: undefined,
+};
+
+/** Drop disambiguation state without sending a prompt (caller continues the turn). */
+async function clearDisambiguationState(from, session) {
+  await patchSession(from, DISAMBIGUATION_CLEAR, session);
+  return { ...session, ...DISAMBIGUATION_CLEAR };
+}
+
 async function abortDisambiguation({ from, session, lang, businessId, basket }) {
-  await patchSession(from, {
-    state: 'browsing',
-    disambiguation: undefined,
-    pendingIntentItems: undefined,
-    unmatchedIntentItems: undefined,
-  }, session);
+  const cleared = await clearDisambiguationState(from, session);
   const { sendOrderEntryPrompt } = require('./orderEntry');
-  await sendOrderEntryPrompt({ from, session, lang, businessId, basket });
+  await sendOrderEntryPrompt({ from, session: cleared, lang, businessId, basket });
+}
+
+/**
+ * When a typed reply is not a candidate pick, re-run the full intent path so
+ * trained phrases / multi-item orders are not trapped in disambiguating_intent.
+ * Protects pendingRest: short single-item replies (e.g. "cola") do not clear the
+ * in-progress multi-line disambiguation.
+ * @returns {Promise<boolean>} true if the turn was handled
+ */
+function shouldEscapeDisambiguation(text, cleaned, disambiguation) {
+  const { looksLikeOrderText } = require('./intentParser');
+  if (!looksLikeOrderText(text, cleaned)) return false;
+
+  const pendingRest = disambiguation?.pendingRest ?? [];
+  if (!pendingRest.length) return true;
+
+  // Trailing lines still waiting — only escape for a clearly new / extended order.
+  if (/\b(und|and|ve)\b/i.test(cleaned) || /[,+]/.test(cleaned)) return true;
+  const raw = norm(disambiguation?.rawName ?? '');
+  if (raw && cleaned.includes(raw) && cleaned.trim().length > raw.length + 1) return true;
+  return false;
+}
+
+async function tryEscapeDisambiguationWithOrderText({
+  from, session, lang, businessId, basket, text, norm: textNorm, disambiguation,
+}) {
+  const { isFreshStartCommand } = require('./intentParser');
+  const cleaned = (textNorm ?? text.trim().toLowerCase());
+
+  if (isFreshStartCommand(cleaned)) {
+    const cleared = await clearDisambiguationState(from, session);
+    const { sendOrderEntryPrompt } = require('./orderEntry');
+    await sendOrderEntryPrompt({ from, session: cleared, lang, businessId, basket });
+    return true;
+  }
+
+  if (!shouldEscapeDisambiguation(text, cleaned, disambiguation)) return false;
+
+  const cleared = await clearDisambiguationState(from, session);
+  const { tryTextIntentOrder } = require('./intentOrder');
+  const handled = await tryTextIntentOrder({
+    from, session: cleared, lang, businessId, basket, text, norm: cleaned,
+  });
+  if (handled === true) return true;
+
+  const { sendOrderEntryPrompt } = require('./orderEntry');
+  if (handled === 'llm_failed') {
+    await sendOrderEntryPrompt({
+      from, session: cleared, lang, businessId, basket,
+      bodyOverride: t('intentParseFailed', lang),
+    });
+    return true;
+  }
+
+  // Order-like but unmatched — leave the old pick-list; do not resurrect it.
+  await sendOrderEntryPrompt({
+    from, session: cleared, lang, businessId, basket,
+    bodyOverride: t('intentNoMatch', lang, text.trim()),
+  });
+  return true;
 }
 
 async function continueAfterLineResolved({ from, session, lang, businessId, basket, matched, unmatched, disambiguation }) {
@@ -406,6 +474,13 @@ async function handleDisambiguatingIntent({ from, session, lang, businessId, bas
     return;
   }
 
+  if (type === 'text' && text?.trim()
+    && await tryEscapeDisambiguationWithOrderText({
+      from, session, lang, businessId, basket, text, norm, disambiguation,
+    })) {
+    return;
+  }
+
   await sendDisambiguationList({ from, session, lang, businessId, basket, disambiguation });
 }
 
@@ -420,4 +495,5 @@ module.exports = {
   mergePendingLine,
   pickBestCandidate,
   tryAutoResolveDisambiguation,
+  shouldEscapeDisambiguation,
 };
