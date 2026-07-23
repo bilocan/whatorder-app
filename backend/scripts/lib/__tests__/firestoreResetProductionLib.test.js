@@ -14,7 +14,7 @@ const {
 
 describe('DEFAULT_GOLDEN_INFRA_BACKUP', () => {
   it('is pinned to known golden export', () => {
-    expect(DEFAULT_GOLDEN_INFRA_BACKUP).toBe('2026-07-14-infra');
+    expect(DEFAULT_GOLDEN_INFRA_BACKUP).toBe('2026-07-23-infra');
   });
 
   it('is not one of the known-empty 2026-06-27 exports', () => {
@@ -86,9 +86,9 @@ describe('parseResetProductionArgs', () => {
     const opts = parseResetProductionArgs(['--confirm']);
     expect(opts.dryRun).toBe(false);
     expect(opts.confirm).toBe(true);
-    expect(opts.infraBackup).toBe('2026-07-14-infra');
+    expect(opts.infraBackup).toBe('2026-07-23-infra');
     expect(opts.project).toBe('whatorder-fire');
-    expect(opts.gcsImportUri).toBe('gs://whatorder-fire-backups/manual/2026-07-14-infra');
+    expect(opts.gcsImportUri).toBe('gs://whatorder-fire-backups/manual/2026-07-23-infra');
   });
 
   it('parses custom infra backup', () => {
