@@ -10,7 +10,7 @@ describe('e2e-wa WaE2eSession', () => {
       customerAccessToken: 't',
       customerPhoneNumberId: 'cust',
       customerDisplay: '+436602585284',
-      businessDisplay: '+436603926263',
+      businessDisplay: '+4368120575797',
       businessId: 'biz_enes_kebap_9450w',
       graphApiVersion: 'v21.0',
     };
@@ -22,7 +22,7 @@ describe('e2e-wa WaE2eSession', () => {
 
     const before = Date.now();
     await session.sendText('hi');
-    expect(session.graph.sendText).toHaveBeenCalledWith('+436603926263', 'hi');
+    expect(session.graph.sendText).toHaveBeenCalledWith('+4368120575797', 'hi');
     expect(session._lastSendAt).toBeGreaterThanOrEqual(before);
 
     setTimeout(() => buffer.push({ from: 'biz', text: 'Hallo Menü', timestamp: Date.now() }), 30);

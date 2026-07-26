@@ -6,6 +6,9 @@ const express = require('express');
  * Meta Cloud API webhook for the *customer* WABA.
  * Inbound messages (bot replies to the E2E customer) land in ReplyBuffer.
  *
+ * Path is /webhooks/customer only — do not use /webhooks/whatsapp (that is the
+ * business bot webhook on local/Test Cloud Run).
+ *
  * @param {{ buffer: import('./replyBuffer').ReplyBuffer, verifyToken: string }} opts
  */
 function createReplyApp(opts) {

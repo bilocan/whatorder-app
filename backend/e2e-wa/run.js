@@ -19,14 +19,18 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env.local') });
 require('dotenv').config();
 
-const { loadConfig, TEST_BUSINESS_PHONE_NUMBER_ID } = require('./lib/config');
+const { loadConfig, targetFromArgv, TARGETS } = require('./lib/config');
 const { WaE2eSession } = require('./lib/session');
 const { BY_ID, resolveScenarioIds, listScenarios } = require('./scenarios');
 
 function printHelp() {
-  console.log(`e2e-wa — real Meta WhatsApp E2E against Test line
+  console.log(`e2e-wa — real Meta WhatsApp E2E (configurable bot target)
+
+Targets (E2E_WA_TARGET or --target):
+${Object.entries(TARGETS).map(([k, v]) => `  ${k.padEnd(12)} ${v.businessDisplay}  (${v.label})`).join('\n')}
 
 Options:
+  --target <name>   test | test-benat | preprod | prod (prod needs E2E_WA_ALLOW_PROD=1)
   --scenario <id>   Run one scenario (repeatable)
   --all-pack-a      happy_cash_pickup + owner_status_path
   --all-pack-b      neg_closed + neg_delivery_minimum + neg_cancel
@@ -34,7 +38,7 @@ Options:
   --list            List scenario ids
   --help
 
-Default (no flags): pack A (happy + owner).
+Default: --target test, pack A (happy + owner).
 
 Scenarios:
 ${listScenarios().map((s) => `  ${s.id}  (pack ${s.pack})`).join('\n')}
@@ -51,14 +55,14 @@ async function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
-  if (!process.env.E2E_WA_BUSINESS_PHONE_NUMBER_ID) {
-    process.env.E2E_WA_BUSINESS_PHONE_NUMBER_ID = TEST_BUSINESS_PHONE_NUMBER_ID;
-  }
+  const targetArg = targetFromArgv(argv);
+  if (targetArg) process.env.E2E_WA_TARGET = targetArg;
+
   if (!process.env.E2E_WA_REPLY_BUFFER_URL) {
     process.env.E2E_WA_REPLY_BUFFER_URL = `http://127.0.0.1:${process.env.E2E_WA_REPLY_PORT || 3099}`;
   }
 
-  const cfg = loadConfig(process.env, { requireSecrets: true });
+  const cfg = loadConfig(process.env, { requireSecrets: true, target: process.env.E2E_WA_TARGET });
   const ids = resolveScenarioIds(argv);
 
   for (const id of ids) {
@@ -67,7 +71,8 @@ async function main(argv = process.argv.slice(2)) {
     }
   }
 
-  console.log(`[e2e-wa] business=${cfg.businessDisplay} customer=${cfg.customerDisplay} biz=${cfg.businessId}`);
+  console.log(`[e2e-wa] target=${cfg.target} (${cfg.targetLabel}) business=${cfg.businessDisplay}`);
+  console.log(`[e2e-wa] customer=${cfg.customerDisplay} biz=${cfg.businessId}`);
   console.log(`[e2e-wa] scenarios: ${ids.join(', ')}`);
   console.log(`[e2e-wa] reply buffer: ${cfg.replyBufferUrl}`);
 
