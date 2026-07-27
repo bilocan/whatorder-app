@@ -21,8 +21,12 @@ function createGraphCustomer(cfg) {
       type: 'text',
       text: { preview_url: false, body: String(body) },
     };
-    const res = await axios.post(url, payload, { headers });
-    return res.data?.messages?.[0]?.id ?? null;
+    try {
+      const res = await axios.post(url, payload, { headers });
+      return res.data?.messages?.[0]?.id ?? null;
+    } catch (err) {
+      throw graphHttpError(err, `POST ${url}`);
+    }
   }
 
   /**
@@ -39,4 +43,22 @@ function createGraphCustomer(cfg) {
   return { sendText, sendInteractiveButtonReply, url };
 }
 
-module.exports = { createGraphCustomer };
+/**
+ * Surface Meta Graph error JSON instead of opaque axios "status code 400".
+ * @param {import('axios').AxiosError} err
+ * @param {string} hint
+ */
+function graphHttpError(err, hint) {
+  const status = err.response?.status;
+  const data = err.response?.data;
+  const meta = data?.error;
+  const detail = meta
+    ? `Graph ${meta.code}/${meta.error_subcode || '-'}: ${meta.message}`
+    : (typeof data === 'string' ? data : JSON.stringify(data || err.message));
+  const e = new Error(`${hint} failed (${status}): ${detail}`);
+  e.cause = err;
+  e.response = err.response;
+  return e;
+}
+
+module.exports = { createGraphCustomer, graphHttpError };

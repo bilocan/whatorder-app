@@ -28,4 +28,28 @@ describe('e2e-wa graphCustomer', () => {
     );
     expect(TEST_BUSINESS_PHONE_NUMBER_ID).toBeTruthy();
   });
+
+  test('sendText surfaces Meta Graph error body', async () => {
+    axios.post.mockRejectedValue({
+      message: 'Request failed with status code 400',
+      response: {
+        status: 400,
+        data: {
+          error: {
+            message: 'Object does not exist',
+            code: 100,
+            error_subcode: 33,
+            type: 'GraphMethodException',
+          },
+        },
+      },
+    });
+    const client = createGraphCustomer({
+      customerAccessToken: 'token',
+      customerPhoneNumberId: 'cust_phone_id',
+    });
+    await expect(client.sendText('+4368120575797', 'hi')).rejects.toThrow(
+      /Graph 100\/33: Object does not exist/,
+    );
+  });
 });

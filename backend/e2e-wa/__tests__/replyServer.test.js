@@ -62,6 +62,32 @@ describe('e2e-wa replyServer', () => {
     expect(buffer.messages[0].text).toBe('Bestellung bestätigt');
   });
 
+  test('POST status is exposed on /statuses', async () => {
+    const { app } = appWithBuffer();
+    const payload = {
+      object: 'whatsapp_business_account',
+      entry: [{
+        changes: [{
+          value: {
+            statuses: [{
+              id: 'wamid.OUT',
+              status: 'failed',
+              timestamp: '1700000001',
+              recipient_id: '4368120575797',
+              errors: [{ code: 131026, title: 'Message undeliverable' }],
+            }],
+          },
+        }],
+      }],
+    };
+    await request(app).post('/webhooks/customer').send(payload);
+    const res = await request(app).get('/statuses');
+    expect(res.status).toBe(200);
+    expect(res.body.statuses).toHaveLength(1);
+    expect(res.body.statuses[0].status).toBe('failed');
+    expect(res.body.statuses[0].errors[0].code).toBe(131026);
+  });
+
   test('extractText for button_reply', () => {
     expect(extractText({
       type: 'interactive',

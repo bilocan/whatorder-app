@@ -13,6 +13,7 @@ const express = require('express');
  */
 function createReplyApp(opts) {
   const { buffer, verifyToken } = opts;
+  const statuses = [];
   const app = express();
   app.use(express.json({ limit: '1mb' }));
 
@@ -29,14 +30,14 @@ function createReplyApp(opts) {
   app.post('/webhooks/customer', (req, res) => {
     res.sendStatus(200);
     try {
-      ingestWebhook(buffer, req.body);
+      ingestWebhook(buffer, statuses, req.body);
     } catch (err) {
       console.error('[e2e-wa reply] ingest error', err.message);
     }
   });
 
   app.get('/health', (_req, res) => {
-    res.json({ ok: true, buffered: buffer.messages.length });
+    res.json({ ok: true, buffered: buffer.messages.length, statuses: statuses.length });
   });
 
   /** Poll helper for runners that do not share the in-process buffer. */
@@ -62,23 +63,63 @@ function createReplyApp(opts) {
     res.json({ messages: matches });
   });
 
+  /** Outbound delivery statuses for Graph sends from the E2E customer number. */
+  app.get('/statuses', (req, res) => {
+    const afterTs = Number(req.query.afterTs || 0);
+    const matches = statuses.filter((s) => s.timestamp > afterTs);
+    res.json({ statuses: matches });
+  });
+
   return app;
 }
 
-function ingestWebhook(buffer, body) {
+function ingestWebhook(buffer, statusesOrBody, maybeBody) {
+  // Back-compat: ingestWebhook(buffer, body)
+  const statuses = maybeBody === undefined && !Array.isArray(statusesOrBody)
+    ? []
+    : (statusesOrBody || []);
+  const body = maybeBody === undefined ? statusesOrBody : maybeBody;
   const entries = body?.entry || [];
   for (const entry of entries) {
     for (const change of entry.changes || []) {
       const value = change.value || {};
       for (const message of value.messages || []) {
-        buffer.push({
+        const entryMsg = {
           id: message.id,
           from: message.from,
           type: message.type,
           text: extractText(message),
           timestamp: Number(message.timestamp) * 1000 || Date.now(),
           raw: message,
-        });
+        };
+        buffer.push(entryMsg);
+        console.log(
+          '[e2e-wa reply] message',
+          `from=${entryMsg.from}`,
+          `type=${entryMsg.type}`,
+          `text=${String(entryMsg.text).slice(0, 80)}`,
+        );
+      }
+      for (const st of value.statuses || []) {
+        const row = {
+          id: st.id,
+          status: st.status,
+          recipient_id: st.recipient_id,
+          timestamp: Number(st.timestamp) * 1000 || Date.now(),
+          errors: st.errors || [],
+          raw: st,
+        };
+        statuses.push(row);
+        const errHint = (st.errors || [])
+          .map((e) => `${e.code}:${e.title || e.message || ''}`)
+          .join(',') || '-';
+        console.log(
+          '[e2e-wa reply] status',
+          `id=${st.id}`,
+          `status=${st.status}`,
+          `to=${st.recipient_id}`,
+          `errors=${errHint}`,
+        );
       }
     }
   }
