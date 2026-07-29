@@ -7,8 +7,9 @@ Automates customer ↔ Test business WhatsApp against **real** Meta Cloud API. N
 
 ## Status
 
-Runner + scenarios implemented. Customer phone on app `WhatOrderE2E-Customer` **registered 2026-07-26** (`+43 660 2585284` / id `1176672252201658`).  
-**Next:** `E2E_WA_CUSTOMER_ACCESS_TOKEN` + customer webhook (Asana `1216870799462735`).
+Runner + scenarios implemented. Customer phone on app `WhatOrderE2E-Customer` **registered 2026-07-26** (`+43 660 2585284` / id `1176672252201658`).
+
+**Live pack A blocked:** restaurant Cloud API → E2E Cloud API outbound gets Meta `status: failed` (Graph accepts, reply buffer empty). See vault spec open questions.
 
 ## Offline tests
 
@@ -39,4 +40,4 @@ Or set `E2E_WA_TARGET=test` in `.env.local`. Override display/id with `E2E_WA_BU
 2. Terminal A: `npm run e2e:wa:reply-server` → ngrok → Meta customer Callback `…/webhooks/customer`.
 3. Terminal B: commands above.
 
-**Hard rule:** business phone number id must be Test `1056173694256337`. Runner aborts on prod id.
+**Hard rule:** default test bot Meta id is `1227165440469679` (`+43 681 20575797`). Runner aborts on prod id.

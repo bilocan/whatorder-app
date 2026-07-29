@@ -88,6 +88,33 @@ describe('receiveWebhook', () => {
     expect(handleMessage).not.toHaveBeenCalled();
   });
 
+  test('logs Meta error code on failed status updates', async () => {
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const req = {
+      body: {
+        entry: [{
+          changes: [{
+            value: {
+              statuses: [{
+                id: 'wamid_fail',
+                status: 'failed',
+                recipient_id: '436602585284',
+                errors: [{ code: 131026, title: 'Message undeliverable' }],
+              }],
+            },
+          }],
+        }],
+      },
+    };
+    const res = makeRes();
+    await receiveWebhook(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('status update: failed/wamid_fail errors=131026:Message undeliverable'),
+    );
+    logSpy.mockRestore();
+  });
+
   test('resolves routing from Firestore when snap exists', async () => {
     phoneRoutingRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({ exists: true, data: () => ({ businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null }) }),

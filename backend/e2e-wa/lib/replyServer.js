@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const axios = require('axios');
 
 /**
  * Meta Cloud API webhook for the *customer* WABA.
@@ -9,11 +10,16 @@ const express = require('express');
  * Path is /webhooks/customer only — do not use /webhooks/whatsapp (that is the
  * business bot webhook on local/Test Cloud Run).
  *
+ * Optional `/webhooks/business-sniff` + phone-level Meta webhook override: logs
+ * business outbound status errors, then forwards to Test Cloud Run so live
+ * traffic is not dropped.
+ *
  * @param {{ buffer: import('./replyBuffer').ReplyBuffer, verifyToken: string }} opts
  */
 function createReplyApp(opts) {
   const { buffer, verifyToken } = opts;
   const statuses = [];
+  const businessSniffStatuses = [];
   const app = express();
   app.use(express.json({ limit: '1mb' }));
 
@@ -34,6 +40,83 @@ function createReplyApp(opts) {
     } catch (err) {
       console.error('[e2e-wa reply] ingest error', err.message);
     }
+  });
+
+  /** Accept Meta verify for temporary business phone webhook overrides. */
+  app.get('/webhooks/business-sniff', (req, res) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+    const alt = process.env.E2E_WA_BUSINESS_SNIFF_VERIFY_TOKEN || verifyToken;
+    if (mode === 'subscribe' && (token === verifyToken || token === alt)) {
+      return res.status(200).send(challenge);
+    }
+    return res.sendStatus(403);
+  });
+
+  /**
+   * Temporary override target for the restaurant phone. Logs status errors,
+   * then forwards the raw body to Test Cloud Run.
+   */
+  app.post('/webhooks/business-sniff', async (req, res) => {
+    res.sendStatus(200);
+    try {
+      // Do not push business inbound messages into the customer reply buffer.
+      for (const entry of req.body?.entry || []) {
+        for (const change of entry.changes || []) {
+          for (const st of change.value?.statuses || []) {
+            const row = {
+              id: st.id,
+              status: st.status,
+              recipient_id: st.recipient_id,
+              timestamp: Number(st.timestamp) * 1000 || Date.now(),
+              errors: st.errors || [],
+              raw: st,
+            };
+            businessSniffStatuses.push(row);
+            if (st.status === 'failed') {
+              console.log(
+                '[e2e-wa business-sniff] FAILED',
+                JSON.stringify({
+                  id: st.id,
+                  recipient_id: st.recipient_id,
+                  errors: st.errors,
+                }),
+              );
+            } else {
+              console.log(
+                '[e2e-wa business-sniff] status',
+                st.status,
+                st.id,
+                st.recipient_id,
+              );
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[e2e-wa business-sniff] ingest error', err.message);
+    }
+    const forwardUrl =
+      process.env.E2E_WA_BUSINESS_SNIFF_FORWARD_URL
+      || 'https://whatorder-backend-6ehqrvd7yq-ey.a.run.app/webhooks/whatsapp';
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      const sig = req.get('x-hub-signature-256');
+      if (sig) headers['X-Hub-Signature-256'] = sig;
+      await axios.post(forwardUrl, req.body, {
+        headers,
+        timeout: 10_000,
+        validateStatus: () => true,
+      });
+    } catch (err) {
+      console.error('[e2e-wa business-sniff] forward error', err.message);
+    }
+  });
+
+  app.get('/business-sniff-statuses', (req, res) => {
+    const afterTs = Number(req.query.afterTs || 0);
+    res.json({ statuses: businessSniffStatuses.filter((s) => s.timestamp > afterTs) });
   });
 
   app.get('/health', (_req, res) => {

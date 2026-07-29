@@ -1,7 +1,10 @@
 'use strict';
 
-/** BenAT / Cloud Run Test line Meta id (links-and-config). */
-const TEST_BUSINESS_PHONE_NUMBER_ID = '1056173694256337';
+/** Operator test bot (+43 681 20575797 / Whatorderat). Cloud Run Test WHATSAPP_PHONE_NUMBER_ID. */
+const TEST_BUSINESS_PHONE_NUMBER_ID = '1227165440469679';
+
+/** Legacy Meta sandbox / BenAT row id from older Test docs — not the e2e default bot. */
+const TEST_BENAT_PHONE_NUMBER_ID = '1056173694256337';
 
 /** Production Meta line — never the default e2e target. */
 const PROD_BUSINESS_PHONE_NUMBER_ID = '1276715415516230';
@@ -25,11 +28,11 @@ const TARGETS = {
     businessPhoneNumberId: TEST_BUSINESS_PHONE_NUMBER_ID,
     businessId: 'biz_enes_kebap_9450w',
   },
-  /** BenAT display number from links-and-config Test row. */
+  /** BenAT display number from links-and-config Test row (sandbox-era Meta id). */
   'test-benat': {
     label: 'Test BenAT line',
     businessDisplay: '+436603926263',
-    businessPhoneNumberId: TEST_BUSINESS_PHONE_NUMBER_ID,
+    businessPhoneNumberId: TEST_BENAT_PHONE_NUMBER_ID,
     businessId: 'biz_enes_kebap_9450w',
   },
   /** Preprod smoke — same Meta id as prod; webhook must point at pre backend only. */
@@ -95,12 +98,14 @@ function assertSafeBusinessLine(phoneNumberId, ctx = {}) {
 
   const known = new Set([
     TEST_BUSINESS_PHONE_NUMBER_ID,
+    TEST_BENAT_PHONE_NUMBER_ID,
     PROD_BUSINESS_PHONE_NUMBER_ID,
   ]);
   if (!known.has(id)) {
     throw new Error(
       `Unknown E2E_WA_BUSINESS_PHONE_NUMBER_ID=${id}. `
-      + `Known: test=${TEST_BUSINESS_PHONE_NUMBER_ID}, prod/pre=${PROD_BUSINESS_PHONE_NUMBER_ID}. `
+      + `Known: test=${TEST_BUSINESS_PHONE_NUMBER_ID}, test-benat=${TEST_BENAT_PHONE_NUMBER_ID}, `
+      + `prod/pre=${PROD_BUSINESS_PHONE_NUMBER_ID}. `
       + 'Add the id to TARGETS in e2e-wa/lib/config.js if this is a new line.',
     );
   }
@@ -165,6 +170,7 @@ function targetFromArgv(argv = []) {
 
 module.exports = {
   TEST_BUSINESS_PHONE_NUMBER_ID,
+  TEST_BENAT_PHONE_NUMBER_ID,
   PROD_BUSINESS_PHONE_NUMBER_ID,
   DEFAULT_CUSTOMER_PHONE_NUMBER_ID,
   DEFAULT_CUSTOMER_DISPLAY,
