@@ -66,6 +66,25 @@ Do **not** use `E2E_WA_WEB_HEADLESS=1` until diagnose passes under xvfb. Do **no
 
 **Profile must match the browser that scanned the QR.** `playwright open` and the e2e runner must share `E2E_WA_WEB_USER_DATA_DIR`.
 
+### 4) Firebase Admin (Test Firestore)
+
+`waitForOrder` / owner actions need Test project Admin SDK on Contabo. Copy the same Firebase vars you use in local `backend/.env.local` (Test = `whatorder-fire`):
+
+```bash
+# in backend/.env.local on Contabo (never commit)
+FIREBASE_PROJECT_ID=whatorder-fire
+FIREBASE_CLIENT_EMAIL=…        # Test Admin SDK service account
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n…"
+# or:
+# FIREBASE_SERVICE_ACCOUNT_BASE64=…
+```
+
+Or pull secrets the usual way from the laptop/repo (`npm run env:pull` if you use GCP Secret Manager). Confirm:
+
+```bash
+cd backend && node -e "require('dotenv').config({path:'.env.local'}); require('./src/lib/firebase'); console.log('ok', process.env.FIREBASE_PROJECT_ID)"
+```
+
 
 ## Targets
 

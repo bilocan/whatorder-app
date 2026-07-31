@@ -20,7 +20,8 @@ async function run(session) {
   });
 
   log('place cash pickup order phrase');
-  await session.sendText('1 döner zum Abholen, bar');
+  // "bar zahlen" (not bare "bar") — bare bar was matched as a menu item.
+  await session.sendText('1 döner zum Abholen, bar zahlen');
   await session.waitForReply({
     includes: /gesamt|bestätigen|prüfen|fertig|€/i,
     timeoutMs: 60_000,

@@ -110,7 +110,7 @@ class WaWebCustomer {
     this._ownsBrowser = false;
     this._chatOpen = false;
     this._playwright = deps.playwright || null;
-    /** @type {string[]} snapshot of inbound texts taken just before send */
+    /** @type {Array<{ id: string, text: string }>} snapshot just before send */
     this._preSendIncoming = [];
   }
 
@@ -286,8 +286,8 @@ class WaWebCustomer {
     if (!this._chatOpen) await this.openBusinessChat();
     const compose = page.locator(SEL.composeBox).first();
     await compose.waitFor({ state: 'visible', timeout: 30_000 });
-    // Snapshot BEFORE Enter so a fast bot reply is not treated as baseline.
-    this._preSendIncoming = await this._incomingTexts();
+    // Snapshot message ids BEFORE Enter (text alone is unstable across identical bot replies).
+    this._preSendIncoming = await this._incomingMessages();
     await compose.click();
     await compose.fill('');
     await compose.type(String(body), { delay: 15 });
@@ -305,7 +305,7 @@ class WaWebCustomer {
     const label = String(title || id || '').trim();
     if (!label) throw new Error('sendButtonReply requires title or id');
 
-    this._preSendIncoming = await this._incomingTexts();
+    this._preSendIncoming = await this._incomingMessages();
     const btn = page.locator(SEL.buttonInMsg).filter({ hasText: new RegExp(`^\\s*${escapeRegExp(label)}\\s*$`, 'i') }).last();
     if (await btn.isVisible().catch(() => false)) {
       await btn.click();
@@ -326,28 +326,35 @@ class WaWebCustomer {
     const afterTs = opts.afterTs ?? 0;
     const deadline = Date.now() + timeoutMs;
 
-    const baselineSet = new Set(
-      Array.isArray(this._preSendIncoming) && this._preSendIncoming.length
-        ? this._preSendIncoming
-        : await this._incomingTexts(),
+    const baselineIds = new Set(
+      (Array.isArray(this._preSendIncoming) ? this._preSendIncoming : [])
+        .map((m) => m.id)
+        .filter(Boolean),
     );
-    let lastTexts = [];
+    let lastMessages = [];
 
     while (Date.now() < deadline) {
       if (Date.now() < afterTs) {
         await sleep(pollMs);
         continue;
       }
-      const texts = await this._incomingTexts();
-      lastTexts = texts;
-      for (const text of texts) {
-        if (baselineSet.has(text)) continue;
-        if (matchesIncludes(text, opts.includes)) {
+      const messages = await this._incomingMessages();
+      lastMessages = messages;
+      for (const msg of messages) {
+        if (msg.id && baselineIds.has(msg.id)) continue;
+        // No stable id: fall back to text-not-in-baseline-texts
+        if (!msg.id) {
+          const baselineTexts = new Set(
+            (this._preSendIncoming || []).map((m) => m.text).filter(Boolean),
+          );
+          if (baselineTexts.has(msg.text)) continue;
+        }
+        if (matchesIncludes(msg.text, opts.includes)) {
           return {
-            id: `wa-web-msg-${Date.now()}`,
+            id: msg.id || `wa-web-msg-${Date.now()}`,
             from: this.cfg.businessDisplay,
             type: 'text',
-            text,
+            text: msg.text,
             timestamp: Date.now(),
           };
         }
@@ -358,71 +365,95 @@ class WaWebCustomer {
     const hint = opts.includes instanceof RegExp
       ? `regex ${opts.includes}`
       : `includes ${JSON.stringify(opts.includes)}`;
+    const preview = lastMessages.slice(-5).map((m) => ({
+      id: (m.id || '').slice(0, 40),
+      text: String(m.text || '').slice(0, 120),
+    }));
     // eslint-disable-next-line no-console
     console.error(
-      `[e2e-wa] waitForReply timeout; scraped ${lastTexts.length} inbound bubble(s): `
-      + JSON.stringify(lastTexts.slice(-5).map((t) => t.slice(0, 120))),
+      `[e2e-wa] waitForReply timeout; scraped ${lastMessages.length} inbound bubble(s): `
+      + JSON.stringify(preview),
     );
-    await this._dumpDebug('wait-timeout', { bodyText: lastTexts.join('\n---\n') });
+    await this._dumpDebug('wait-timeout', {
+      bodyText: lastMessages.map((m) => m.text).join('\n---\n'),
+    });
     throw new Error(`waitForReply (wa-web) timed out after ${timeoutMs}ms (${hint})`);
   }
 
-  /**
-   * Collect inbound bubble texts from the open chat.
-   * Pure DOM scrape — exported helpers covered by unit tests via evaluate mock.
-   */
+  /** @returns {Promise<string[]>} */
   async _incomingTexts() {
+    const msgs = await this._incomingMessages();
+    return msgs.map((m) => m.text).filter(Boolean);
+  }
+
+  /**
+   * Inbound bubbles with stable WA Web data-id when available.
+   * @returns {Promise<Array<{ id: string, text: string }>>}
+   */
+  async _incomingMessages() {
     const page = this._requirePage();
     return page.evaluate(() => {
       const out = [];
       const seen = new Set();
 
-      function pushText(text) {
-        const t = String(text || '').replace(/\u200e|\u200f/g, '').trim();
-        if (!t || seen.has(t)) return;
-        seen.add(t);
-        out.push(t);
-      }
-
       function isOutgoing(el) {
         if (!el) return false;
         if (el.classList?.contains('message-out')) return true;
         if (el.closest?.('.message-out')) return true;
-        const id = el.getAttribute?.('data-id') || el.closest?.('[data-id]')?.getAttribute('data-id') || '';
-        // WA Web: outgoing ids typically start with "true_"
+        const id = el.getAttribute?.('data-id')
+          || el.closest?.('[data-id]')?.getAttribute('data-id')
+          || '';
         if (typeof id === 'string' && id.startsWith('true_')) return true;
         return false;
       }
 
-      const roots = [
-        ...document.querySelectorAll('[data-testid="msg-container"]'),
-        ...document.querySelectorAll('div.message-in, div.message-out'),
-        ...document.querySelectorAll('#main div[data-id]'),
-      ];
-      const uniqueRoots = [...new Set(roots)];
+      function bubbleId(node) {
+        return node.getAttribute?.('data-id')
+          || node.closest?.('[data-id]')?.getAttribute('data-id')
+          || '';
+      }
 
-      for (const node of uniqueRoots) {
-        if (isOutgoing(node)) continue;
+      function bubbleText(node) {
         const copyables = node.querySelectorAll(
           'span.selectable-text, span.copyable-text, [data-testid="msg-text"]',
         );
         if (copyables.length) {
-          const joined = Array.from(copyables)
+          return Array.from(copyables)
             .map((el) => el.innerText || '')
             .join('\n')
+            .replace(/\u200e|\u200f/g, '')
             .trim();
-          pushText(joined);
-        } else {
-          pushText(node.innerText);
         }
+        return String(node.innerText || '').replace(/\u200e|\u200f/g, '').trim();
       }
 
-      // Fallback: any selectable text in #main not under message-out
+      function push(node) {
+        if (isOutgoing(node)) return;
+        const text = bubbleText(node);
+        if (!text) return;
+        const id = bubbleId(node) || `text:${text.slice(0, 80)}`;
+        if (seen.has(id)) return;
+        seen.add(id);
+        out.push({ id, text });
+      }
+
+      const roots = [
+        ...document.querySelectorAll('[data-testid="msg-container"]'),
+        ...document.querySelectorAll('div.message-in'),
+        ...document.querySelectorAll('#main div[data-id]'),
+      ];
+      for (const node of new Set(roots)) push(node);
+
       if (out.length === 0) {
         const main = document.querySelector('#main') || document.body;
         for (const span of main.querySelectorAll('span.selectable-text, span.copyable-text')) {
           if (isOutgoing(span)) continue;
-          pushText(span.innerText);
+          const text = String(span.innerText || '').replace(/\u200e|\u200f/g, '').trim();
+          if (!text) continue;
+          const id = bubbleId(span) || `text:${text.slice(0, 80)}`;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          out.push({ id, text });
         }
       }
 

@@ -38,7 +38,7 @@ describe('e2e-wa waWebCustomer helpers', () => {
 });
 
 describe('e2e-wa WaWebCustomer with mocked page', () => {
-  function mockPage({ texts = [], composeVisible = true } = {}) {
+  function mockPage({ texts = [], messages, composeVisible = true } = {}) {
     const compose = {
       waitFor: jest.fn().mockResolvedValue(undefined),
       click: jest.fn().mockResolvedValue(undefined),
@@ -51,7 +51,7 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     const qr = {
       first: () => ({ isVisible: jest.fn().mockResolvedValue(false) }),
     };
-    let evaluateTexts = [...texts];
+    let evaluateMessages = messages || texts.map((text, i) => ({ id: `false_${i}`, text }));
     return {
       locator: (sel) => {
         if (sel === 'body') {
@@ -91,8 +91,9 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
       }),
       goto: jest.fn().mockResolvedValue(undefined),
       keyboard: { press: jest.fn().mockResolvedValue(undefined) },
-      evaluate: jest.fn().mockImplementation(async () => evaluateTexts),
-      _setTexts: (t) => { evaluateTexts = t; },
+      evaluate: jest.fn().mockImplementation(async () => evaluateMessages),
+      _setMessages: (m) => { evaluateMessages = m; },
+      _setTexts: (t) => { evaluateMessages = t.map((text, i) => ({ id: `false_${i}`, text })); },
     };
   }
 
@@ -107,19 +108,23 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     expect(page.keyboard.press).toHaveBeenCalledWith('Enter');
   });
 
-  test('waitForReply uses pre-send baseline from sendText', async () => {
-    const page = mockPage({ texts: ['old inbound'] });
+  test('waitForReply uses pre-send message-id baseline from sendText', async () => {
+    const page = mockPage({
+      messages: [{ id: 'false_old', text: 'old inbound' }],
+    });
     const customer = new WaWebCustomer(
       { businessDisplay: '+4368120575797' },
       { page },
     );
     customer._chatOpen = true;
 
-    // sendText snapshots baseline via evaluate
     await customer.sendText('1 döner');
-    expect(customer._preSendIncoming).toEqual(['old inbound']);
+    expect(customer._preSendIncoming).toEqual([{ id: 'false_old', text: 'old inbound' }]);
 
-    setTimeout(() => page._setTexts(['old inbound', 'Gesamt 12,00 € — bitte bestätigen']), 30);
+    setTimeout(() => page._setMessages([
+      { id: 'false_old', text: 'old inbound' },
+      { id: 'false_new', text: 'Gesamt 12,00 € — bitte bestätigen' },
+    ]), 30);
 
     const reply = await customer.waitForReply({
       includes: /gesamt|bestätigen|€/i,
@@ -128,6 +133,32 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
       afterTs: Date.now() - 1,
     });
     expect(reply.text).toMatch(/gesamt/i);
+  });
+
+  test('waitForReply matches new id even when text repeats', async () => {
+    const same = 'Gesamt: €7.50\nBestätigen';
+    const page = mockPage({
+      messages: [{ id: 'false_1', text: same }],
+    });
+    const customer = new WaWebCustomer(
+      { businessDisplay: '+4368120575797' },
+      { page },
+    );
+    customer._chatOpen = true;
+    customer._preSendIncoming = [{ id: 'false_1', text: same }];
+
+    setTimeout(() => page._setMessages([
+      { id: 'false_1', text: same },
+      { id: 'false_2', text: same },
+    ]), 20);
+
+    const reply = await customer.waitForReply({
+      includes: /gesamt/i,
+      timeoutMs: 2000,
+      pollMs: 15,
+      afterTs: Date.now() - 1,
+    });
+    expect(reply.id).toBe('false_2');
   });
 
   test('assertLoggedIn throws on QR', async () => {
