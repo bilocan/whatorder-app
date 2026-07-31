@@ -3,6 +3,7 @@
 const { createGraphCustomer } = require('./graphCustomer');
 const { ReplyBuffer } = require('./replyBuffer');
 const { RemoteReplyClient } = require('./remoteReplyClient');
+const { createWaWebCustomer } = require('./waWebCustomer');
 const {
   waitForOrder,
   assertNoNewOrder,
@@ -18,18 +19,20 @@ const {
 
 /**
  * Selenium-like façade for one e2e-wa run.
+ * Transport: cfg.customerTransport === 'wa-web' | 'graph'
  */
 class WaE2eSession {
   /**
    * @param {object} cfg from loadConfig()
-   * @param {{ buffer?: import('./replyBuffer').ReplyBuffer, replies?: ReplyBuffer|RemoteReplyClient }} [deps]
+   * @param {{ buffer?: import('./replyBuffer').ReplyBuffer, replies?: object, waWeb?: object, runId?: string }} [deps]
    */
   constructor(cfg, deps = {}) {
     this.cfg = cfg;
     this.runId = deps.runId || `e2e-${Date.now()}`;
     this.startedAtMs = Date.now();
     this._lastSendAt = this.startedAtMs;
-    this.graph = createGraphCustomer(cfg);
+    this.waWeb = deps.waWeb || null;
+    this.graph = this.waWeb ? null : createGraphCustomer(cfg);
     this.replies = deps.replies
       || (cfg.replyBufferUrl
         ? new RemoteReplyClient(cfg.replyBufferUrl)
@@ -40,17 +43,27 @@ class WaE2eSession {
   static async create(cfg, deps = {}) {
     // firebase admin is initialized by requiring collections/firebase in assert/owner paths
     require('../../src/lib/firebase');
-    return new WaE2eSession(cfg, deps);
+    const session = new WaE2eSession(cfg, deps);
+    if (cfg.customerTransport === 'wa-web' && !session.waWeb) {
+      session.waWeb = await createWaWebCustomer(cfg, deps);
+      session.graph = null;
+    }
+    return session;
   }
 
   async sendText(body) {
     this._lastSendAt = Date.now();
-    const id = await this.graph.sendText(this.cfg.businessDisplay, body);
-    return id;
+    if (this.waWeb) {
+      return this.waWeb.sendText(body);
+    }
+    return this.graph.sendText(this.cfg.businessDisplay, body);
   }
 
   async sendButtonReply({ id, title }) {
     this._lastSendAt = Date.now();
+    if (this.waWeb) {
+      return this.waWeb.sendButtonReply({ id, title });
+    }
     return this.graph.sendInteractiveButtonReply(this.cfg.businessDisplay, { id, title });
   }
 
@@ -58,10 +71,15 @@ class WaE2eSession {
    * @param {{ includes?: string|RegExp, timeoutMs?: number, afterTs?: number }} opts
    */
   async waitForReply(opts = {}) {
+    if (this.waWeb) {
+      return this.waWeb.waitForReply({
+        ...opts,
+        afterTs: opts.afterTs ?? this._lastSendAt,
+      });
+    }
     return this.replies.waitFor({
       ...opts,
       afterTs: opts.afterTs ?? this._lastSendAt,
-      // Bot replies appear as from the business line to the customer WABA
       from: opts.from,
     });
   }
@@ -111,6 +129,12 @@ class WaE2eSession {
 
   async withBusinessPatch(patch, fn) {
     return withBusinessPatch(this.cfg.businessId, patch, fn);
+  }
+
+  async close() {
+    if (this.waWeb && typeof this.waWeb.close === 'function') {
+      await this.waWeb.close();
+    }
   }
 }
 

@@ -53,6 +53,32 @@ describe('e2e-wa config targets', () => {
     expect(() => loadConfig({})).toThrow(/Missing e2e-wa env/);
   });
 
+  test('loadConfig wa-web requires user data dir not token', () => {
+    expect(() => loadConfig({ E2E_WA_CUSTOMER_TRANSPORT: 'wa-web' })).toThrow(/E2E_WA_WEB_USER_DATA_DIR/);
+    const cfg = loadConfig(
+      {
+        E2E_WA_CUSTOMER_TRANSPORT: 'wa-web',
+        E2E_WA_WEB_USER_DATA_DIR: '/var/lib/whatorder-e2e/wa-web-profile',
+      },
+      { requireSecrets: true },
+    );
+    expect(cfg.customerTransport).toBe('wa-web');
+    expect(cfg.webUserDataDir).toBe('/var/lib/whatorder-e2e/wa-web-profile');
+    expect(cfg.webHeadless).toBe(true);
+  });
+
+  test('loadConfig webHeadless=0 for debug', () => {
+    const cfg = loadConfig(
+      {
+        E2E_WA_CUSTOMER_TRANSPORT: 'wa-web',
+        E2E_WA_WEB_USER_DATA_DIR: '/tmp/p',
+        E2E_WA_WEB_HEADLESS: '0',
+      },
+      { requireSecrets: false },
+    );
+    expect(cfg.webHeadless).toBe(false);
+  });
+
   test('loadConfig target=test defaults', () => {
     const cfg = loadConfig(
       { E2E_WA_TARGET: 'test' },

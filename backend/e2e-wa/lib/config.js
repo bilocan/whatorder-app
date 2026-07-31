@@ -53,7 +53,22 @@ const TARGETS = {
   },
 };
 
-const REQUIRED = ['E2E_WA_CUSTOMER_ACCESS_TOKEN'];
+/** @deprecated Dual Cloud API customer — pack A uses wa-web. */
+const GRAPH_REQUIRED = ['E2E_WA_CUSTOMER_ACCESS_TOKEN'];
+const WA_WEB_REQUIRED = ['E2E_WA_WEB_USER_DATA_DIR'];
+
+/**
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {'wa-web'|'graph'}
+ */
+function resolveCustomerTransport(env = process.env) {
+  const raw = String(env.E2E_WA_CUSTOMER_TRANSPORT || 'graph').trim().toLowerCase();
+  if (raw === 'wa-web' || raw === 'web') return 'wa-web';
+  if (raw === 'graph' || raw === 'cloud-api') return 'graph';
+  throw new Error(
+    `Unknown E2E_WA_CUSTOMER_TRANSPORT=${raw}. Use wa-web (Contabo) or graph (deprecated).`,
+  );
+}
 
 /**
  * @param {string} targetName
@@ -118,11 +133,13 @@ function assertSafeBusinessLine(phoneNumberId, ctx = {}) {
 function loadConfig(env = process.env, opts = {}) {
   const requireSecrets = opts.requireSecrets !== false;
   const resolved = resolveTarget(opts.target || env.E2E_WA_TARGET, env);
+  const customerTransport = resolveCustomerTransport(env);
 
   if (requireSecrets) {
-    const missing = REQUIRED.filter((key) => !String(env[key] || '').trim());
+    const required = customerTransport === 'wa-web' ? WA_WEB_REQUIRED : GRAPH_REQUIRED;
+    const missing = required.filter((key) => !String(env[key] || '').trim());
     if (missing.length) {
-      throw new Error(`Missing e2e-wa env: ${missing.join(', ')}`);
+      throw new Error(`Missing e2e-wa env (${customerTransport}): ${missing.join(', ')}`);
     }
   }
 
@@ -141,9 +158,13 @@ function loadConfig(env = process.env, opts = {}) {
     });
   }
 
+  const headlessEnv = String(env.E2E_WA_WEB_HEADLESS || '').trim();
+  const webHeadless = headlessEnv === '' ? true : headlessEnv !== '0';
+
   return {
     target: resolved.name,
     targetLabel: resolved.label,
+    customerTransport,
     customerAccessToken: String(env.E2E_WA_CUSTOMER_ACCESS_TOKEN || '').trim(),
     customerPhoneNumberId: String(
       env.E2E_WA_CUSTOMER_PHONE_NUMBER_ID || DEFAULT_CUSTOMER_PHONE_NUMBER_ID,
@@ -156,6 +177,9 @@ function loadConfig(env = process.env, opts = {}) {
     customerVerifyToken: String(env.E2E_WA_CUSTOMER_VERIFY_TOKEN || 'e2e-wa-verify').trim(),
     replyPort: Number(env.E2E_WA_REPLY_PORT || 3099),
     graphApiVersion: String(env.E2E_WA_GRAPH_VERSION || 'v21.0').trim(),
+    webUserDataDir: String(env.E2E_WA_WEB_USER_DATA_DIR || '').trim(),
+    webHeadless,
+    webSlowMoMs: Number(env.E2E_WA_WEB_SLOW_MO_MS || 0) || 0,
   };
 }
 
@@ -176,6 +200,7 @@ module.exports = {
   DEFAULT_CUSTOMER_DISPLAY,
   TARGETS,
   resolveTarget,
+  resolveCustomerTransport,
   assertSafeBusinessLine,
   loadConfig,
   targetFromArgv,

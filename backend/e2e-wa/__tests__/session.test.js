@@ -7,6 +7,7 @@ describe('e2e-wa WaE2eSession', () => {
   test('sendText uses graph and records lastSendAt for waitForReply afterTs', async () => {
     const buffer = new ReplyBuffer();
     const cfg = {
+      customerTransport: 'graph',
       customerAccessToken: 't',
       customerPhoneNumberId: 'cust',
       customerDisplay: '+436602585284',
@@ -28,5 +29,33 @@ describe('e2e-wa WaE2eSession', () => {
     setTimeout(() => buffer.push({ from: 'biz', text: 'Hallo Menü', timestamp: Date.now() }), 30);
     const reply = await session.waitForReply({ includes: /menü/i, timeoutMs: 2000, pollMs: 20 });
     expect(reply.text).toMatch(/menü/i);
+  });
+
+  test('wa-web transport uses WaWebCustomer for send and waitForReply', async () => {
+    const waWeb = {
+      sendText: jest.fn().mockResolvedValue('wa-web-1'),
+      sendButtonReply: jest.fn().mockResolvedValue('wa-web-2'),
+      waitForReply: jest.fn().mockResolvedValue({ text: 'Menü hier' }),
+      close: jest.fn().mockResolvedValue(undefined),
+    };
+    const cfg = {
+      customerTransport: 'wa-web',
+      customerDisplay: '+436602585284',
+      businessDisplay: '+4368120575797',
+      businessId: 'biz_enes_kebap_9450w',
+      webUserDataDir: '/tmp/profile',
+    };
+    const session = new WaE2eSession(cfg, { waWeb, runId: 'test-web' });
+    expect(session.graph).toBeNull();
+
+    await session.sendText('hi');
+    expect(waWeb.sendText).toHaveBeenCalledWith('hi');
+
+    const reply = await session.waitForReply({ includes: /menü/i });
+    expect(waWeb.waitForReply).toHaveBeenCalled();
+    expect(reply.text).toMatch(/menü/i);
+
+    await session.close();
+    expect(waWeb.close).toHaveBeenCalled();
   });
 });

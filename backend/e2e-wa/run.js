@@ -3,15 +3,14 @@
 /**
  * WhatsApp real E2E CLI.
  *
- * Usage:
- *   cd backend
- *   npm run e2e:wa:reply-server   # terminal 1 (+ ngrok for Meta customer webhook)
+ * Contabo (preferred):
+ *   E2E_WA_CUSTOMER_TRANSPORT=wa-web
+ *   E2E_WA_WEB_USER_DATA_DIR=/var/lib/whatorder-e2e/wa-web-profile
  *   npm run e2e:wa -- --scenario happy_cash_pickup
- *   npm run e2e:wa -- --all-pack-a
- *   npm run e2e:wa -- --all-pack-b
- *   npm run e2e:wa -- --all
  *
- * Requires E2E_WA_CUSTOMER_ACCESS_TOKEN after Meta phone verification.
+ * Legacy dual Cloud API customer (deprecated for pack A):
+ *   npm run e2e:wa:reply-server + E2E_WA_CUSTOMER_ACCESS_TOKEN
+ *
  * Spec: whatorder-vault/.../feature-whatsapp-e2e-automation.md
  */
 
@@ -25,6 +24,10 @@ const { BY_ID, resolveScenarioIds, listScenarios } = require('./scenarios');
 
 function printHelp() {
   console.log(`e2e-wa — real Meta WhatsApp E2E (configurable bot target)
+
+Transport (E2E_WA_CUSTOMER_TRANSPORT):
+  wa-web   Contabo WhatsApp Web + Playwright (preferred)
+  graph    Dual Cloud API customer (deprecated for pack A)
 
 Targets (E2E_WA_TARGET or --target):
 ${Object.entries(TARGETS).map(([k, v]) => `  ${k.padEnd(12)} ${v.businessDisplay}  (${v.label})`).join('\n')}
@@ -58,7 +61,10 @@ async function main(argv = process.argv.slice(2)) {
   const targetArg = targetFromArgv(argv);
   if (targetArg) process.env.E2E_WA_TARGET = targetArg;
 
-  if (!process.env.E2E_WA_REPLY_BUFFER_URL) {
+  const transportPeek = String(process.env.E2E_WA_CUSTOMER_TRANSPORT || 'graph').toLowerCase();
+  const isWaWeb = transportPeek === 'wa-web' || transportPeek === 'web';
+
+  if (!isWaWeb && !process.env.E2E_WA_REPLY_BUFFER_URL) {
     process.env.E2E_WA_REPLY_BUFFER_URL = `http://127.0.0.1:${process.env.E2E_WA_REPLY_PORT || 3099}`;
   }
 
@@ -71,27 +77,36 @@ async function main(argv = process.argv.slice(2)) {
     }
   }
 
+  console.log(`[e2e-wa] transport=${cfg.customerTransport}`);
   console.log(`[e2e-wa] target=${cfg.target} (${cfg.targetLabel}) business=${cfg.businessDisplay}`);
   console.log(`[e2e-wa] customer=${cfg.customerDisplay} biz=${cfg.businessId}`);
   console.log(`[e2e-wa] scenarios: ${ids.join(', ')}`);
-  console.log(`[e2e-wa] reply buffer: ${cfg.replyBufferUrl}`);
+  if (cfg.customerTransport === 'wa-web') {
+    console.log(`[e2e-wa] wa-web profile: ${cfg.webUserDataDir} headless=${cfg.webHeadless}`);
+  } else {
+    console.log(`[e2e-wa] reply buffer: ${cfg.replyBufferUrl}`);
+  }
 
   const session = await WaE2eSession.create(cfg);
   const results = [];
 
-  for (const id of ids) {
-    const started = Date.now();
-    console.log(`\n=== ${id} ===`);
-    try {
-      const out = await BY_ID[id].run(session);
-      results.push({ id, ok: true, ms: Date.now() - started, out });
-      console.log(`[e2e-wa] PASS ${id} (${Date.now() - started}ms)`);
-    } catch (err) {
-      results.push({ id, ok: false, ms: Date.now() - started, error: err.message });
-      console.error(`[e2e-wa] FAIL ${id}: ${err.message}`);
-      // Stop pack A chain on failure so owner does not run without order
-      if (id === 'happy_cash_pickup') break;
+  try {
+    for (const id of ids) {
+      const started = Date.now();
+      console.log(`\n=== ${id} ===`);
+      try {
+        const out = await BY_ID[id].run(session);
+        results.push({ id, ok: true, ms: Date.now() - started, out });
+        console.log(`[e2e-wa] PASS ${id} (${Date.now() - started}ms)`);
+      } catch (err) {
+        results.push({ id, ok: false, ms: Date.now() - started, error: err.message });
+        console.error(`[e2e-wa] FAIL ${id}: ${err.message}`);
+        // Stop pack A chain on failure so owner does not run without order
+        if (id === 'happy_cash_pickup') break;
+      }
     }
+  } finally {
+    await session.close().catch(() => {});
   }
 
   const failed = results.filter((r) => !r.ok);
