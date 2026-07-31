@@ -20,7 +20,7 @@ npm test -- --testPathPatterns=e2e-wa
 
 ## Contabo live run (wa-web)
 
-**Important:** Chrome `headless=true` often never shows a logged-in WhatsApp Web UI. On Contabo use **headed Chromium under Xvfb**.
+**Important:** Chrome `headless=true` often never shows a logged-in WhatsApp Web UI. On Contabo use **headed Chromium under Xvfb**. Default browser channel is system **Google Chrome** (`E2E_WA_WEB_CHANNEL=chrome`) because WA Web rejects old Playwright-bundled Chromium.
 
 ```bash
 sudo apt-get install -y xvfb   # once

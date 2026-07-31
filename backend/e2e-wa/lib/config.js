@@ -163,6 +163,13 @@ function loadConfig(env = process.env, opts = {}) {
   // Explicit 1 → headless true; explicit 0 or unset → headed.
   const webHeadless = headlessEnv === '1';
 
+  // WA Web rejects old Playwright-bundled Chromium ("Chrome ab Version 100").
+  // Default to system Chrome; set E2E_WA_WEB_CHANNEL=bundled to force Playwright's build.
+  const channelRaw = String(env.E2E_WA_WEB_CHANNEL || 'chrome').trim().toLowerCase();
+  const webChannel = (channelRaw === 'bundled' || channelRaw === 'playwright' || channelRaw === 'none')
+    ? ''
+    : channelRaw;
+
   return {
     target: resolved.name,
     targetLabel: resolved.label,
@@ -182,7 +189,7 @@ function loadConfig(env = process.env, opts = {}) {
     webUserDataDir: String(env.E2E_WA_WEB_USER_DATA_DIR || '').trim(),
     webHeadless,
     webSlowMoMs: Number(env.E2E_WA_WEB_SLOW_MO_MS || 0) || 0,
-    webChannel: String(env.E2E_WA_WEB_CHANNEL || '').trim(),
+    webChannel,
     webDebugDir: String(env.E2E_WA_WEB_DEBUG_DIR || '/tmp/e2e-wa-web').trim(),
     webLoginTimeoutMs: Number(env.E2E_WA_WEB_LOGIN_TIMEOUT_MS || 60_000) || 60_000,
   };

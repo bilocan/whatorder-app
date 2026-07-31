@@ -67,6 +67,10 @@ function matchesIncludes(text, includes) {
  */
 function detectLoginFailure(signals) {
   const body = String(signals.bodyText || '');
+  if (/chrome ab version|aktualisiere chrome|update chrome|funktioniert mit google\s*chrome/i.test(body)) {
+    return 'WhatsApp Web rejected this browser (Chromium too old). '
+      + 'Use system Chrome: E2E_WA_WEB_CHANNEL=chrome (default) or install google-chrome on Contabo.';
+  }
   if (signals.hasQr) {
     return 'WhatsApp Web shows QR / login — session dead. Re-link on Contabo (CRD), then retry.';
   }
@@ -187,7 +191,10 @@ class WaWebCustomer {
         console.log('[e2e-wa] wa-web login ok (chat list visible)');
         return;
       }
-      if (hasQr || /abgemeldet|verifizieren|phone not connected/i.test(bodyText)) {
+      if (
+        hasQr
+        || /abgemeldet|verifizieren|phone not connected|chrome ab version|aktualisiere chrome/i.test(bodyText)
+      ) {
         await this._dumpDebug('login-fail', last);
         throw new Error(fail);
       }

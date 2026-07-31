@@ -65,6 +65,19 @@ describe('e2e-wa config targets', () => {
     expect(cfg.customerTransport).toBe('wa-web');
     expect(cfg.webUserDataDir).toBe('/var/lib/whatorder-e2e/wa-web-profile');
     expect(cfg.webHeadless).toBe(false);
+    expect(cfg.webChannel).toBe('chrome');
+  });
+
+  test('loadConfig webChannel=bundled clears channel', () => {
+    const cfg = loadConfig(
+      {
+        E2E_WA_CUSTOMER_TRANSPORT: 'wa-web',
+        E2E_WA_WEB_USER_DATA_DIR: '/tmp/p',
+        E2E_WA_WEB_CHANNEL: 'bundled',
+      },
+      { requireSecrets: false },
+    );
+    expect(cfg.webChannel).toBe('');
   });
 
   test('loadConfig webHeadless=1 for true headless', () => {

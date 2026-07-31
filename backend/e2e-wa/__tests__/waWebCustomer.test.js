@@ -32,6 +32,14 @@ describe('e2e-wa waWebCustomer helpers', () => {
     })).toMatch(/unhealthy|logged out|Re-link/i);
   });
 
+  test('detectLoginFailure on old Chromium reject page', () => {
+    expect(detectLoginFailure({
+      hasChatList: false,
+      hasQr: false,
+      bodyText: 'WhatsApp funktioniert mit Google Chrome ab Version 100. Aktualisiere Chrome.',
+    })).toMatch(/rejected this browser|E2E_WA_WEB_CHANNEL=chrome/i);
+  });
+
   test('detectLoginFailure ok when chat list present', () => {
     expect(detectLoginFailure({ hasChatList: true, hasQr: false, bodyText: 'Chats' })).toBeNull();
   });
