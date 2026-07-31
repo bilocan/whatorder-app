@@ -1,8 +1,8 @@
 'use strict';
 
 /**
- * Owner status path after a pending cash order exists.
- * Expects session.lastOrder or runs happy_cash_pickup first when chained from CLI.
+ * Owner status path after a pending order exists (Stripe unpaid or paid).
+ * Expects session.lastOrder or runs happy_stripe_pickup first when chained from CLI.
  *
  * @param {import('../lib/session').WaE2eSession} session
  * @param {{ orderId?: string }} [opts]
@@ -11,7 +11,7 @@ async function run(session, opts = {}) {
   const log = (...a) => console.log('[owner_status_path]', ...a);
   const orderId = opts.orderId || session.lastOrder?.id;
   if (!orderId) {
-    throw new Error('owner_status_path requires orderId or session.lastOrder from happy_cash_pickup');
+    throw new Error('owner_status_path requires orderId or session.lastOrder from happy_stripe_pickup');
   }
 
   log('approve', orderId);

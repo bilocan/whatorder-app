@@ -32,7 +32,11 @@ describe('e2e-wa firestoreAssert helpers', () => {
 
 describe('e2e-wa resolveScenarioIds', () => {
   test('default is pack a', () => {
-    expect(resolveScenarioIds([])).toEqual(['happy_cash_pickup', 'owner_status_path']);
+    expect(resolveScenarioIds([])).toEqual(['happy_stripe_pickup', 'owner_status_path']);
+  });
+
+  test('--scenario happy_cash_pickup alias resolves via BY_ID', () => {
+    expect(resolveScenarioIds(['--scenario', 'happy_cash_pickup'])).toEqual(['happy_cash_pickup']);
   });
 
   test('--scenario', () => {

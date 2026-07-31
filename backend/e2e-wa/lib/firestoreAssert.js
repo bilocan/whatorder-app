@@ -28,6 +28,7 @@ async function waitForOrder(opts) {
     customerDisplay,
     afterMs = 0,
     status = 'pending',
+    paymentMethod = null,
     timeoutMs = 90_000,
     pollMs = 1500,
   } = opts;
@@ -36,14 +37,15 @@ async function waitForOrder(opts) {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const hit = await findLatestOrder(businessId, variants, { afterMs, status });
+    const hit = await findLatestOrder(businessId, variants, { afterMs, status, paymentMethod });
     if (hit) return hit;
     await sleep(pollMs);
   }
 
   throw new Error(
     `waitForOrder timed out after ${timeoutMs}ms `
-    + `(businessId=${businessId}, customer=${normalizeCustomerPhone(customerDisplay)}, status=${status})`,
+    + `(businessId=${businessId}, customer=${normalizeCustomerPhone(customerDisplay)}, `
+    + `status=${status}${paymentMethod ? `, paymentMethod=${paymentMethod}` : ''})`,
   );
 }
 
@@ -70,7 +72,7 @@ async function assertNoNewOrder(opts) {
   }
 }
 
-async function findLatestOrder(businessId, variants, { afterMs, status }) {
+async function findLatestOrder(businessId, variants, { afterMs, status, paymentMethod = null }) {
   if (!variants.length) return null;
 
   let docs = [];
@@ -93,6 +95,7 @@ async function findLatestOrder(businessId, variants, { afterMs, status }) {
   const filtered = docs
     .filter((o) => orderCreatedMs(o) > afterMs)
     .filter((o) => (status == null ? true : o.status === status))
+    .filter((o) => (paymentMethod == null ? true : o.paymentMethod === paymentMethod))
     .sort((a, b) => orderCreatedMs(b) - orderCreatedMs(a));
 
   return filtered[0] || null;
@@ -119,6 +122,48 @@ async function getSession(customerDisplay) {
     return { id: withPlus.id, ...withPlus.data() };
   }
   return { id: snap.id, ...snap.data() };
+}
+
+/**
+ * Delete customer session doc(s) so ORDER+ starts clean (no stuck awaiting_location).
+ * @param {string} customerDisplay
+ */
+async function resetCustomerSession(customerDisplay) {
+  const digits = normalizeCustomerPhone(customerDisplay);
+  const ids = [...new Set([digits, `+${digits}`].filter(Boolean))];
+  await Promise.all(ids.map(async (id) => {
+    const ref = sessionRef(id);
+    const snap = await ref.get();
+    if (snap.exists) await ref.delete();
+  }));
+}
+
+/**
+ * Poll customer session until predicate returns true.
+ * @param {string} customerDisplay
+ * @param {(session: object|null) => boolean} predicate
+ * @param {{ timeoutMs?: number, pollMs?: number }} [opts]
+ */
+async function waitForSession(customerDisplay, predicate, opts = {}) {
+  const timeoutMs = opts.timeoutMs ?? 60_000;
+  const pollMs = opts.pollMs ?? 1000;
+  const deadline = Date.now() + timeoutMs;
+  let last = null;
+  while (Date.now() < deadline) {
+    last = await getSession(customerDisplay);
+    if (predicate(last)) return last;
+    await sleep(pollMs);
+  }
+  throw new Error(
+    `waitForSession timed out after ${timeoutMs}ms `
+    + `(customer=${normalizeCustomerPhone(customerDisplay)}, `
+    + `last=${JSON.stringify({
+      state: last?.state,
+      businessId: last?.businessId,
+      basket: last?.basket?.length,
+      pending: last?.pendingIntentItems?.length,
+    })})`,
+  );
 }
 
 /**
@@ -153,6 +198,8 @@ module.exports = {
   assertNoNewOrder,
   waitForOrderStatus,
   getSession,
+  resetCustomerSession,
+  waitForSession,
   withBusinessPatch,
   orderCreatedMs,
   findLatestOrder,

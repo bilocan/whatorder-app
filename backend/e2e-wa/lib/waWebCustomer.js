@@ -297,19 +297,40 @@ class WaWebCustomer {
 
   /**
    * Prefer clicking a visible reply button matching title; else type title/id as text.
-   * @param {{ id?: string, title?: string }} opts
+   * @param {{ id?: string, title?: string, fallback?: boolean }} opts
+   *   fallback=false → throw if no visible button (do not type the label).
    */
-  async sendButtonReply({ id, title }) {
+  async sendButtonReply({ id, title, fallback = true }) {
     const page = this._requirePage();
     if (!this._chatOpen) await this.openBusinessChat();
     const label = String(title || id || '').trim();
     if (!label) throw new Error('sendButtonReply requires title or id');
 
     this._preSendIncoming = await this._incomingMessages();
-    const btn = page.locator(SEL.buttonInMsg).filter({ hasText: new RegExp(`^\\s*${escapeRegExp(label)}\\s*$`, 'i') }).last();
-    if (await btn.isVisible().catch(() => false)) {
-      await btn.click();
-      return `wa-web-btn-${Date.now()}`;
+    const re = new RegExp(escapeRegExp(label), 'i');
+    const main = page.locator('#main');
+
+    // Prefer buttons on the newest inbound bubble (avoids stale historical replies).
+    const lastInbound = main.locator(
+      'div.message-in, div[data-testid="msg-container"]:not(.message-out)',
+    ).last();
+    const candidates = [
+      lastInbound.getByRole('button', { name: re }).last(),
+      lastInbound.locator(SEL.buttonInMsg).filter({ hasText: re }).last(),
+      // Sticky quick-replies often sit just above the composer
+      main.locator('footer').locator('xpath=preceding-sibling::*[1]').getByRole('button', { name: re }).last(),
+      main.getByRole('button', { name: re }).last(),
+    ];
+
+    for (const btn of candidates) {
+      if (await btn.isVisible().catch(() => false)) {
+        await btn.click({ timeout: 5_000 });
+        return `wa-web-btn-${Date.now()}`;
+      }
+    }
+
+    if (fallback === false) {
+      throw new Error(`No visible WA Web button matching ${JSON.stringify(label)}`);
     }
     return this.sendText(label);
   }
@@ -331,6 +352,10 @@ class WaWebCustomer {
         .map((m) => m.id)
         .filter(Boolean),
     );
+    const baselineByText = new Map();
+    for (const m of (Array.isArray(this._preSendIncoming) ? this._preSendIncoming : [])) {
+      if (m.text && !baselineByText.has(m.text)) baselineByText.set(m.text, m.id || '');
+    }
     let lastMessages = [];
 
     while (Date.now() < deadline) {
@@ -340,14 +365,14 @@ class WaWebCustomer {
       }
       const messages = await this._incomingMessages();
       lastMessages = messages;
+      const presentIds = new Set(messages.map((m) => m.id).filter(Boolean));
       for (const msg of messages) {
         if (msg.id && baselineIds.has(msg.id)) continue;
-        // No stable id: fall back to text-not-in-baseline-texts
-        if (!msg.id) {
-          const baselineTexts = new Set(
-            (this._preSendIncoming || []).map((m) => m.text).filter(Boolean),
-          );
-          if (baselineTexts.has(msg.text)) continue;
+        if (msg.text && baselineByText.has(msg.text)) {
+          const baselineId = baselineByText.get(msg.text);
+          // Remount: same text, new data-id, old id gone → not a real new reply.
+          // True duplicate: old id still present + new bubble with same text → accept.
+          if (!baselineId || !presentIds.has(baselineId)) continue;
         }
         if (matchesIncludes(msg.text, opts.includes)) {
           return {

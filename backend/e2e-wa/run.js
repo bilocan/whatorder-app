@@ -6,7 +6,7 @@
  * Contabo (preferred):
  *   E2E_WA_CUSTOMER_TRANSPORT=wa-web
  *   E2E_WA_WEB_USER_DATA_DIR=/var/lib/whatorder-e2e/wa-web-profile
- *   npm run e2e:wa -- --scenario happy_cash_pickup
+ *   npm run e2e:wa -- --scenario happy_stripe_pickup
  *
  * Legacy dual Cloud API customer (deprecated for pack A):
  *   npm run e2e:wa:reply-server + E2E_WA_CUSTOMER_ACCESS_TOKEN
@@ -35,7 +35,7 @@ ${Object.entries(TARGETS).map(([k, v]) => `  ${k.padEnd(12)} ${v.businessDisplay
 Options:
   --target <name>   test | test-benat | preprod | prod (prod needs E2E_WA_ALLOW_PROD=1)
   --scenario <id>   Run one scenario (repeatable)
-  --all-pack-a      happy_cash_pickup + owner_status_path
+  --all-pack-a      happy_stripe_pickup + owner_status_path
   --all-pack-b      neg_closed + neg_delivery_minimum + neg_cancel
   --all             All scenarios
   --list            List scenario ids
@@ -102,7 +102,7 @@ async function main(argv = process.argv.slice(2)) {
         results.push({ id, ok: false, ms: Date.now() - started, error: err.message });
         console.error(`[e2e-wa] FAIL ${id}: ${err.message}`);
         // Stop pack A chain on failure so owner does not run without order
-        if (id === 'happy_cash_pickup') break;
+        if (id === 'happy_stripe_pickup' || id === 'happy_cash_pickup') break;
       }
     }
   } finally {

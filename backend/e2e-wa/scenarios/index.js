@@ -1,13 +1,13 @@
 'use strict';
 
-const happy_cash_pickup = require('./happy_cash_pickup');
+const happy_stripe_pickup = require('./happy_stripe_pickup');
 const owner_status_path = require('./owner_status_path');
 const neg_closed = require('./neg_closed');
 const neg_delivery_minimum = require('./neg_delivery_minimum');
 const neg_cancel = require('./neg_cancel');
 
 const ALL = [
-  happy_cash_pickup,
+  happy_stripe_pickup,
   owner_status_path,
   neg_closed,
   neg_delivery_minimum,
@@ -15,6 +15,8 @@ const ALL = [
 ];
 
 const BY_ID = Object.fromEntries(ALL.map((s) => [s.id, s]));
+// Alias for older CLI / docs
+BY_ID.happy_cash_pickup = happy_stripe_pickup;
 
 function listScenarios({ pack } = {}) {
   if (!pack) return ALL;
@@ -44,7 +46,7 @@ function resolveScenarioIds(argv) {
 
   // Default pack A chain: happy then owner
   if (!ids.length) {
-    return ['happy_cash_pickup', 'owner_status_path'];
+    return ['happy_stripe_pickup', 'owner_status_path'];
   }
   return ids;
 }

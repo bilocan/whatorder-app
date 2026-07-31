@@ -59,7 +59,7 @@ xvfb-run -a env \
   E2E_WA_WEB_USER_DATA_DIR=/var/lib/whatorder-e2e/wa-web-profile \
   E2E_WA_WEB_HEADLESS=0 \
   E2E_WA_TARGET=test \
-  npm run e2e:wa -- --target test --scenario happy_cash_pickup
+  npm run e2e:wa -- --target test --scenario happy_stripe_pickup
 ```
 
 Do **not** use `E2E_WA_WEB_HEADLESS=1` until diagnose passes under xvfb. Do **not** `pkill -f chrome` (kills CRD).
@@ -92,7 +92,7 @@ cd backend && node -e "require('dotenv').config({path:'.env.local'}); require('.
 npm run e2e:wa -- --all-pack-a
 npm run e2e:wa -- --target test-benat --all-pack-a
 npm run e2e:wa -- --target preprod --all-pack-a
-E2E_WA_ALLOW_PROD=1 npm run e2e:wa -- --target prod --scenario happy_cash_pickup
+E2E_WA_ALLOW_PROD=1 npm run e2e:wa -- --target prod --scenario happy_stripe_pickup
 ```
 
 **Hard rule:** default test bot Meta id is `1227165440469679` (`+43 681 20575797`). Runner aborts on prod id unless allowed.
@@ -103,7 +103,7 @@ E2E_WA_ALLOW_PROD=1 npm run e2e:wa -- --target prod --scenario happy_cash_pickup
 # Terminal A: reply-server + ngrok → Meta customer webhook
 npm run e2e:wa:reply-server
 # Terminal B:
-E2E_WA_CUSTOMER_TRANSPORT=graph E2E_WA_CUSTOMER_ACCESS_TOKEN=… npm run e2e:wa -- --scenario happy_cash_pickup
+E2E_WA_CUSTOMER_TRANSPORT=graph E2E_WA_CUSTOMER_ACCESS_TOKEN=… npm run e2e:wa -- --scenario happy_stripe_pickup
 ```
 
 Pack A `waitForReply` fails on this path when restaurant → Cloud API customer delivery is `failed`.

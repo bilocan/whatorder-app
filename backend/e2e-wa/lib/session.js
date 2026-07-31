@@ -9,6 +9,8 @@ const {
   assertNoNewOrder,
   waitForOrderStatus,
   getSession,
+  resetCustomerSession,
+  waitForSession,
   withBusinessPatch,
 } = require('./firestoreAssert');
 const {
@@ -90,6 +92,7 @@ class WaE2eSession {
       customerDisplay: this.cfg.customerDisplay,
       afterMs: opts.afterMs ?? this.startedAtMs,
       status: opts.status !== undefined ? opts.status : 'pending',
+      paymentMethod: opts.paymentMethod !== undefined ? opts.paymentMethod : null,
       timeoutMs: opts.timeoutMs,
       pollMs: opts.pollMs,
     });
@@ -113,6 +116,14 @@ class WaE2eSession {
 
   async getSession() {
     return getSession(this.cfg.customerDisplay);
+  }
+
+  async resetCustomerSession() {
+    return resetCustomerSession(this.cfg.customerDisplay);
+  }
+
+  async waitForSession(predicate, opts = {}) {
+    return waitForSession(this.cfg.customerDisplay, predicate, opts);
   }
 
   async ownerApprove(orderId, opts = {}) {

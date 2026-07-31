@@ -51,43 +51,68 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     const qr = {
       first: () => ({ isVisible: jest.fn().mockResolvedValue(false) }),
     };
+    const invisibleBtn = {
+      isVisible: jest.fn().mockResolvedValue(false),
+      click: jest.fn(),
+    };
     let evaluateMessages = messages || texts.map((text, i) => ({ id: `false_${i}`, text }));
-    return {
-      locator: (sel) => {
-        if (sel === 'body') {
-          return { innerText: jest.fn().mockResolvedValue('Chats') };
-        }
-        if (sel.includes('pane-side') || sel.includes('chat-list')) return chatList;
-        if (sel === 'canvas') return qr;
-        if (sel.includes('contenteditable') || sel.includes('footer')) {
-          return { first: () => compose };
-        }
-        if (sel.includes('button')) {
-          return {
-            filter: () => ({
-              last: () => ({
-                isVisible: jest.fn().mockResolvedValue(false),
-                click: jest.fn(),
-              }),
-            }),
-          };
-        }
+
+    function pageLocator(sel) {
+      if (sel === 'body') {
+        return { innerText: jest.fn().mockResolvedValue('Chats') };
+      }
+      if (sel.includes('pane-side') || sel.includes('chat-list')) return chatList;
+      if (sel === 'canvas') return qr;
+      if (sel.includes('contenteditable') || sel.includes('footer')) {
         return {
-          first: () => ({
-            isVisible: jest.fn().mockResolvedValue(composeVisible),
-            waitFor: jest.fn().mockResolvedValue(undefined),
-            click: jest.fn(),
-            fill: jest.fn(),
-            type: jest.fn(),
-            innerText: jest.fn().mockResolvedValue('Chats'),
+          first: () => compose,
+          locator: () => ({
+            getByRole: () => ({ last: () => invisibleBtn }),
           }),
         };
+      }
+      if (sel.includes('message-in') || sel.includes('msg-container')) {
+        return {
+          last: () => ({
+            getByRole: () => ({ last: () => invisibleBtn }),
+            locator: () => ({
+              filter: () => ({ last: () => invisibleBtn }),
+            }),
+          }),
+        };
+      }
+      if (sel.includes('button')) {
+        return {
+          filter: () => ({
+            last: () => invisibleBtn,
+          }),
+        };
+      }
+      return {
+        first: () => ({
+          isVisible: jest.fn().mockResolvedValue(composeVisible),
+          waitFor: jest.fn().mockResolvedValue(undefined),
+          click: jest.fn(),
+          fill: jest.fn(),
+          type: jest.fn(),
+          innerText: jest.fn().mockResolvedValue('Chats'),
+        }),
+      };
+    }
+
+    return {
+      locator: (sel) => {
+        if (sel === '#main') {
+          return {
+            getByRole: () => ({ last: () => invisibleBtn }),
+            locator: (inner) => pageLocator(inner),
+          };
+        }
+        return pageLocator(sel);
       },
       getByRole: () => ({
-        first: () => ({
-          isVisible: jest.fn().mockResolvedValue(false),
-          click: jest.fn(),
-        }),
+        first: () => invisibleBtn,
+        last: () => invisibleBtn,
       }),
       goto: jest.fn().mockResolvedValue(undefined),
       keyboard: { press: jest.fn().mockResolvedValue(undefined) },
