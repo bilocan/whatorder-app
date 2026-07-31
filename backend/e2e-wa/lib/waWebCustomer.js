@@ -27,8 +27,8 @@ const SEL = {
   landingIntro: '[data-testid="intro-md-beta-logo-dark"], [data-testid="intro-md-beta-logo-light"]',
   searchBox: '[data-testid="chat-list-search"] div[contenteditable="true"], div[contenteditable="true"][data-tab="3"]',
   composeBox: 'footer div[contenteditable="true"][data-tab="10"], footer div[contenteditable="true"], div[contenteditable="true"][data-tab="10"]',
-  incomingMsg: '[data-testid="msg-container"]',
-  selectableText: 'span.selectable-text, span[data-testid="msg-text"]',
+  incomingMsg: '[data-testid="msg-container"], div.message-in, div.message-out, div[data-id]',
+  selectableText: 'span.selectable-text, span.copyable-text, span[data-testid="msg-text"]',
   buttonInMsg: 'button, div[role="button"]',
 };
 
@@ -110,6 +110,8 @@ class WaWebCustomer {
     this._ownsBrowser = false;
     this._chatOpen = false;
     this._playwright = deps.playwright || null;
+    /** @type {string[]} snapshot of inbound texts taken just before send */
+    this._preSendIncoming = [];
   }
 
   /**
@@ -284,6 +286,8 @@ class WaWebCustomer {
     if (!this._chatOpen) await this.openBusinessChat();
     const compose = page.locator(SEL.composeBox).first();
     await compose.waitFor({ state: 'visible', timeout: 30_000 });
+    // Snapshot BEFORE Enter so a fast bot reply is not treated as baseline.
+    this._preSendIncoming = await this._incomingTexts();
     await compose.click();
     await compose.fill('');
     await compose.type(String(body), { delay: 15 });
@@ -301,6 +305,7 @@ class WaWebCustomer {
     const label = String(title || id || '').trim();
     if (!label) throw new Error('sendButtonReply requires title or id');
 
+    this._preSendIncoming = await this._incomingTexts();
     const btn = page.locator(SEL.buttonInMsg).filter({ hasText: new RegExp(`^\\s*${escapeRegExp(label)}\\s*$`, 'i') }).last();
     if (await btn.isVisible().catch(() => false)) {
       await btn.click();
@@ -321,16 +326,20 @@ class WaWebCustomer {
     const afterTs = opts.afterTs ?? 0;
     const deadline = Date.now() + timeoutMs;
 
-    const baseline = await this._incomingTexts();
-    const baselineSet = new Set(baseline);
+    const baselineSet = new Set(
+      Array.isArray(this._preSendIncoming) && this._preSendIncoming.length
+        ? this._preSendIncoming
+        : await this._incomingTexts(),
+    );
+    let lastTexts = [];
 
     while (Date.now() < deadline) {
-      // afterTs gate: only start matching after wall clock if provided
       if (Date.now() < afterTs) {
         await sleep(pollMs);
         continue;
       }
       const texts = await this._incomingTexts();
+      lastTexts = texts;
       for (const text of texts) {
         if (baselineSet.has(text)) continue;
         if (matchesIncludes(text, opts.includes)) {
@@ -343,49 +352,82 @@ class WaWebCustomer {
           };
         }
       }
-      // Also accept match on last incoming even if baseline race lost the delta
-      const last = texts[texts.length - 1];
-      if (last && matchesIncludes(last, opts.includes) && !baselineSet.has(last)) {
-        return {
-          id: `wa-web-msg-${Date.now()}`,
-          from: this.cfg.businessDisplay,
-          type: 'text',
-          text: last,
-          timestamp: Date.now(),
-        };
-      }
       await sleep(pollMs);
     }
 
     const hint = opts.includes instanceof RegExp
       ? `regex ${opts.includes}`
       : `includes ${JSON.stringify(opts.includes)}`;
+    // eslint-disable-next-line no-console
+    console.error(
+      `[e2e-wa] waitForReply timeout; scraped ${lastTexts.length} inbound bubble(s): `
+      + JSON.stringify(lastTexts.slice(-5).map((t) => t.slice(0, 120))),
+    );
+    await this._dumpDebug('wait-timeout', { bodyText: lastTexts.join('\n---\n') });
     throw new Error(`waitForReply (wa-web) timed out after ${timeoutMs}ms (${hint})`);
   }
 
+  /**
+   * Collect inbound bubble texts from the open chat.
+   * Pure DOM scrape — exported helpers covered by unit tests via evaluate mock.
+   */
   async _incomingTexts() {
     const page = this._requirePage();
-    return page.evaluate((sel) => {
-      const nodes = Array.from(document.querySelectorAll(sel.incomingMsg));
+    return page.evaluate(() => {
       const out = [];
-      for (const node of nodes) {
-        // Prefer inbound: WA marks outgoing with message-out / data-id often ending differently
-        const isOut = node.classList.contains('message-out')
-          || node.querySelector('[data-testid="msg-meta"] [data-icon="msg-check"], [data-icon="msg-dblcheck"]');
-        // Heuristic: skip clear outbound; if unsure, include (bot replies are inbound)
-        const metaOut = node.getAttribute('data-id') || '';
-        const likelyOut = /true$/i.test(metaOut) || isOut;
-        if (likelyOut && node.querySelector('[data-icon="msg-check"], [data-icon="msg-dblcheck"]')) {
-          // still may be inbound without checks — only skip if has outbound check icons AND message-out
-          if (node.classList.contains('message-out')) continue;
-        }
-        if (node.classList.contains('message-out')) continue;
-        const textEl = node.querySelector(sel.selectableText);
-        const text = (textEl?.innerText || node.innerText || '').trim();
-        if (text) out.push(text);
+      const seen = new Set();
+
+      function pushText(text) {
+        const t = String(text || '').replace(/\u200e|\u200f/g, '').trim();
+        if (!t || seen.has(t)) return;
+        seen.add(t);
+        out.push(t);
       }
+
+      function isOutgoing(el) {
+        if (!el) return false;
+        if (el.classList?.contains('message-out')) return true;
+        if (el.closest?.('.message-out')) return true;
+        const id = el.getAttribute?.('data-id') || el.closest?.('[data-id]')?.getAttribute('data-id') || '';
+        // WA Web: outgoing ids typically start with "true_"
+        if (typeof id === 'string' && id.startsWith('true_')) return true;
+        return false;
+      }
+
+      const roots = [
+        ...document.querySelectorAll('[data-testid="msg-container"]'),
+        ...document.querySelectorAll('div.message-in, div.message-out'),
+        ...document.querySelectorAll('#main div[data-id]'),
+      ];
+      const uniqueRoots = [...new Set(roots)];
+
+      for (const node of uniqueRoots) {
+        if (isOutgoing(node)) continue;
+        const copyables = node.querySelectorAll(
+          'span.selectable-text, span.copyable-text, [data-testid="msg-text"]',
+        );
+        if (copyables.length) {
+          const joined = Array.from(copyables)
+            .map((el) => el.innerText || '')
+            .join('\n')
+            .trim();
+          pushText(joined);
+        } else {
+          pushText(node.innerText);
+        }
+      }
+
+      // Fallback: any selectable text in #main not under message-out
+      if (out.length === 0) {
+        const main = document.querySelector('#main') || document.body;
+        for (const span of main.querySelectorAll('span.selectable-text, span.copyable-text')) {
+          if (isOutgoing(span)) continue;
+          pushText(span.innerText);
+        }
+      }
+
       return out;
-    }, { incomingMsg: SEL.incomingMsg, selectableText: SEL.selectableText }).catch(() => []);
+    }).catch(() => []);
   }
 
   async close() {

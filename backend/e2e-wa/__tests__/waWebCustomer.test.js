@@ -107,23 +107,27 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     expect(page.keyboard.press).toHaveBeenCalledWith('Enter');
   });
 
-  test('waitForReply returns new incoming text', async () => {
-    const page = mockPage({ texts: ['old'] });
+  test('waitForReply uses pre-send baseline from sendText', async () => {
+    const page = mockPage({ texts: ['old inbound'] });
     const customer = new WaWebCustomer(
       { businessDisplay: '+4368120575797' },
       { page },
     );
     customer._chatOpen = true;
 
-    setTimeout(() => page._setTexts(['old', 'Hallo Menü bitte']), 40);
+    // sendText snapshots baseline via evaluate
+    await customer.sendText('1 döner');
+    expect(customer._preSendIncoming).toEqual(['old inbound']);
+
+    setTimeout(() => page._setTexts(['old inbound', 'Gesamt 12,00 € — bitte bestätigen']), 30);
 
     const reply = await customer.waitForReply({
-      includes: /menü/i,
+      includes: /gesamt|bestätigen|€/i,
       timeoutMs: 2000,
       pollMs: 20,
       afterTs: Date.now() - 1,
     });
-    expect(reply.text).toMatch(/menü/i);
+    expect(reply.text).toMatch(/gesamt/i);
   });
 
   test('assertLoggedIn throws on QR', async () => {
