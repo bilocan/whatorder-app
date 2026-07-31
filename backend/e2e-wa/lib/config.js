@@ -159,7 +159,9 @@ function loadConfig(env = process.env, opts = {}) {
   }
 
   const headlessEnv = String(env.E2E_WA_WEB_HEADLESS || '').trim();
-  const webHeadless = headlessEnv === '' ? true : headlessEnv !== '0';
+  // Default false: WA Web often blank in Chrome headless; use xvfb-run + HEADLESS=0 on Contabo.
+  // Explicit 1 → headless true; explicit 0 or unset → headed.
+  const webHeadless = headlessEnv === '1';
 
   return {
     target: resolved.name,

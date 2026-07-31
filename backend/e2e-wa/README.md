@@ -20,58 +20,52 @@ npm test -- --testPathPatterns=e2e-wa
 
 ## Contabo live run (wa-web)
 
-1. QR-link WhatsApp Web once in Chrome (CRD) using the **same** profile dir as Playwright, e.g. `/var/lib/whatorder-e2e/wa-web-profile`.
-2. Install Playwright browsers on the VM:
+**Important:** Chrome `headless=true` often never shows a logged-in WhatsApp Web UI. On Contabo use **headed Chromium under Xvfb**.
 
 ```bash
-cd backend
-npm install
-npm install playwright   # if not already in lockfile
-npx playwright install chromium
+sudo apt-get install -y xvfb   # once
+
+cd /home/whatorder/whatorder-app/backend
+mkdir -p /var/lib/whatorder-e2e/wa-web-profile
 ```
 
-3. Env (`.env.local` or shell on Contabo):
+### 1) QR once into the Playwright profile (inside CRD desktop)
 
 ```bash
-export E2E_WA_CUSTOMER_TRANSPORT=wa-web
-export E2E_WA_WEB_USER_DATA_DIR=/var/lib/whatorder-e2e/wa-web-profile
-export E2E_WA_WEB_HEADLESS=1          # 0 under CRD to re-QR / debug
-# optional: use system Google Chrome binary (same as CRD)
-# export E2E_WA_WEB_CHANNEL=chrome
-export E2E_WA_TARGET=test
-# Firebase Admin for Test Firestore (same as backend Test)
+# terminal inside Chrome Remote Desktop — not plain SSH
+echo $DISPLAY   # should be set, e.g. :20
+npx playwright open https://web.whatsapp.com \
+  --user-data-dir=/var/lib/whatorder-e2e/wa-web-profile
+# scan QR → chat list visible → close window
 ```
 
-**Profile must match the browser that scanned the QR.** If CRD Chrome is logged in under `~/.config/google-chrome` but Playwright uses `/var/lib/whatorder-e2e/wa-web-profile`, you get “chat list not found”. Fix:
-
-1. **Close all Chrome windows** on Contabo (profile lock).
-2. Either point `E2E_WA_WEB_USER_DATA_DIR` at Chrome’s user-data-dir:
+### 2) Diagnose (SSH ok with xvfb)
 
 ```bash
-export E2E_WA_WEB_USER_DATA_DIR=$HOME/.config/google-chrome
-export E2E_WA_WEB_CHANNEL=chrome
+xvfb-run -a env \
+  E2E_WA_CUSTOMER_TRANSPORT=wa-web \
+  E2E_WA_WEB_USER_DATA_DIR=/var/lib/whatorder-e2e/wa-web-profile \
+  E2E_WA_WEB_HEADLESS=0 \
+  node e2e-wa/scripts/wa-web-diagnose.js
 ```
 
-   Or re-QR into the Playwright dir under CRD:
+Expect `hasChatList=true`. If `hasQrCanvas=true` or login copy in body preview, re-do step 1. Check `/tmp/e2e-wa-web/*.png`.
+
+### 3) Run scenario
 
 ```bash
-export E2E_WA_WEB_HEADLESS=0
-export DISPLAY=:20   # or whatever CRD uses — run from a terminal inside CRD session
-npx playwright open https://web.whatsapp.com --user-data-dir=/var/lib/whatorder-e2e/wa-web-profile
-# scan QR, then re-run e2e with HEADLESS=1
+xvfb-run -a env \
+  E2E_WA_CUSTOMER_TRANSPORT=wa-web \
+  E2E_WA_WEB_USER_DATA_DIR=/var/lib/whatorder-e2e/wa-web-profile \
+  E2E_WA_WEB_HEADLESS=0 \
+  E2E_WA_TARGET=test \
+  npm run e2e:wa -- --target test --scenario happy_cash_pickup
 ```
 
-On login failure the runner writes a PNG under `/tmp/e2e-wa-web/`.
+Do **not** use `E2E_WA_WEB_HEADLESS=1` until diagnose passes under xvfb. Do **not** `pkill -f chrome` (kills CRD).
 
-4. Smoke:
+**Profile must match the browser that scanned the QR.** `playwright open` and the e2e runner must share `E2E_WA_WEB_USER_DATA_DIR`.
 
-```bash
-npm run e2e:wa -- --target test --scenario happy_cash_pickup
-# or pack A
-npm run e2e:wa -- --all-pack-a
-```
-
-If WA Web shows QR / “abgemeldet”, re-link via CRD before re-running. Do not wipe the profile dir between CI runs.
 
 ## Targets
 

@@ -11,7 +11,18 @@ const WA_WEB_URL = 'https://web.whatsapp.com';
 
 /** Selectors — WA Web changes often; keep centralized. */
 const SEL = {
-  chatList: '#pane-side, [data-testid="chat-list"]',
+  // WA Web DOM churns; any of these means "logged in enough to proceed"
+  chatList: [
+    '#pane-side',
+    '[data-testid="chat-list"]',
+    '[data-testid="chatlist"]',
+    'div[aria-label*="Chat-Liste"]',
+    'div[aria-label*="Chat list"]',
+    'div[aria-label*="Liste des discussions"]',
+    '[data-testid="default-user"]',
+    'header [data-testid="menu"]',
+    '#side',
+  ].join(', '),
   qrCanvas: 'canvas',
   landingIntro: '[data-testid="intro-md-beta-logo-dark"], [data-testid="intro-md-beta-logo-light"]',
   searchBox: '[data-testid="chat-list-search"] div[contenteditable="true"], div[contenteditable="true"][data-tab="3"]',
@@ -120,62 +131,78 @@ class WaWebCustomer {
     if (!userDataDir) {
       throw new Error('E2E_WA_WEB_USER_DATA_DIR is required for wa-web transport');
     }
+    const fs = require('fs');
+    fs.mkdirSync(userDataDir, { recursive: true });
+
     const pw = loadPlaywright({ playwright: this._playwright });
-    const headless = this.cfg.webHeadless !== false;
+    // True Chrome headless often never paints a logged-in WA Web UI.
+    // Prefer headed under xvfb-run on Contabo (see README).
+    const headless = this.cfg.webHeadless === true;
     /** @type {import('playwright').LaunchPersistentContextOptions} */
     const opts = {
       headless,
       slowMo: this.cfg.webSlowMoMs || 0,
-      args: ['--no-sandbox', '--disable-dev-shm-usage'],
+      args: [
+        '--no-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled',
+      ],
       viewport: { width: 1280, height: 800 },
+      ignoreDefaultArgs: ['--enable-automation'],
     };
-    // Prefer system Chrome when set (same binary family as CRD login).
     const channel = String(this.cfg.webChannel || '').trim();
     if (channel) opts.channel = channel;
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[e2e-wa] launching chromium headless=${headless} channel=${channel || 'bundled'} `
+      + `profile=${userDataDir} DISPLAY=${process.env.DISPLAY || '(none)'}`,
+    );
 
     this._context = await pw.chromium.launchPersistentContext(userDataDir, opts);
     this._ownsBrowser = true;
     this._page = this._context.pages()[0] || await this._context.newPage();
     await this._page.goto(WA_WEB_URL, { waitUntil: 'domcontentloaded', timeout: 120_000 });
-    // WA Web boots slowly
-    await sleep(3_000);
+    await sleep(5_000);
   }
 
   async assertLoggedIn() {
     const page = this._requirePage();
-    const timeoutMs = Number(this.cfg.webLoginTimeoutMs) || 60_000;
+    const timeoutMs = Number(this.cfg.webLoginTimeoutMs) || 90_000;
     const deadline = Date.now() + timeoutMs;
     let last = { hasChatList: false, hasQr: false, bodyText: '' };
 
     while (Date.now() < deadline) {
       const hasChatList = await page.locator(SEL.chatList).first().isVisible().catch(() => false);
-      // QR canvas alone is weak (other canvases exist); require login copy too
       const bodyText = await page.locator('body').innerText().catch(() => '');
       const hasQr = /zum anmelden scannen|scan to log|qr code|abgemeldet|verifizieren/i.test(bodyText)
         && await page.locator(SEL.qrCanvas).first().isVisible().catch(() => false);
-      last = { hasChatList, hasQr, bodyText: bodyText.slice(0, 500) };
+      last = { hasChatList, hasQr, bodyText: bodyText.slice(0, 800) };
 
       const fail = detectLoginFailure(last);
-      if (!fail) return;
-      // Keep waiting while still loading (no chat list, no clear QR)
+      if (!fail) {
+        // eslint-disable-next-line no-console
+        console.log('[e2e-wa] wa-web login ok (chat list visible)');
+        return;
+      }
       if (hasQr || /abgemeldet|verifizieren|phone not connected/i.test(bodyText)) {
-        await this._dumpDebug('login-fail');
+        await this._dumpDebug('login-fail', last);
         throw new Error(fail);
       }
-      await sleep(1_500);
+      await sleep(2_000);
     }
 
-    await this._dumpDebug('login-timeout');
+    await this._dumpDebug('login-timeout', last);
     const fail = detectLoginFailure(last)
       || 'WhatsApp Web chat list not found — not logged in or DOM changed.';
     throw new Error(
-      `${fail} profile=${this.cfg.webUserDataDir}. `
-      + 'Close CRD Chrome, use the same user-data-dir, or re-QR into this profile '
-      + '(E2E_WA_WEB_HEADLESS=0 under CRD). See e2e-wa/README.md.',
+      `${fail} profile=${this.cfg.webUserDataDir} DISPLAY=${process.env.DISPLAY || '(none)'}. `
+      + 'On Contabo use: xvfb-run -a env E2E_WA_WEB_HEADLESS=0 npm run e2e:wa … '
+      + 'after QR into the same profile. Screenshot/body in /tmp/e2e-wa-web/.',
     );
   }
 
-  async _dumpDebug(label) {
+  async _dumpDebug(label, last = {}) {
     const page = this._page;
     if (!page) return;
     const dir = String(this.cfg.webDebugDir || '/tmp/e2e-wa-web').trim();
@@ -184,9 +211,19 @@ class WaWebCustomer {
       fs.mkdirSync(dir, { recursive: true });
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       const shot = `${dir}/${label}-${stamp}.png`;
+      const txt = `${dir}/${label}-${stamp}.txt`;
       await page.screenshot({ path: shot, fullPage: true }).catch(() => {});
+      const body = last.bodyText || await page.locator('body').innerText().catch(() => '');
+      fs.writeFileSync(
+        txt,
+        `url=${page.url()}\ntitle=${await page.title().catch(() => '')}\n\n${body}\n`,
+      );
       // eslint-disable-next-line no-console
-      console.error(`[e2e-wa] wa-web debug screenshot: ${shot} url=${page.url()}`);
+      console.error(`[e2e-wa] wa-web debug: ${shot}`);
+      // eslint-disable-next-line no-console
+      console.error(`[e2e-wa] wa-web debug: ${txt}`);
+      // eslint-disable-next-line no-console
+      console.error(`[e2e-wa] wa-web body preview:\n${String(body).slice(0, 400)}`);
     } catch (_) {
       // ignore debug dump failures
     }
