@@ -122,12 +122,18 @@ class WaWebCustomer {
     }
     const pw = loadPlaywright({ playwright: this._playwright });
     const headless = this.cfg.webHeadless !== false;
-    this._context = await pw.chromium.launchPersistentContext(userDataDir, {
+    /** @type {import('playwright').LaunchPersistentContextOptions} */
+    const opts = {
       headless,
       slowMo: this.cfg.webSlowMoMs || 0,
       args: ['--no-sandbox', '--disable-dev-shm-usage'],
       viewport: { width: 1280, height: 800 },
-    });
+    };
+    // Prefer system Chrome when set (same binary family as CRD login).
+    const channel = String(this.cfg.webChannel || '').trim();
+    if (channel) opts.channel = channel;
+
+    this._context = await pw.chromium.launchPersistentContext(userDataDir, opts);
     this._ownsBrowser = true;
     this._page = this._context.pages()[0] || await this._context.newPage();
     await this._page.goto(WA_WEB_URL, { waitUntil: 'domcontentloaded', timeout: 120_000 });
@@ -137,13 +143,53 @@ class WaWebCustomer {
 
   async assertLoggedIn() {
     const page = this._requirePage();
-    // Give SPA time to paint chat list or QR
-    await sleep(2_000);
-    const hasChatList = await page.locator(SEL.chatList).first().isVisible().catch(() => false);
-    const hasQr = await page.locator(SEL.qrCanvas).first().isVisible().catch(() => false);
-    const bodyText = await page.locator('body').innerText().catch(() => '');
-    const fail = detectLoginFailure({ hasChatList, hasQr, bodyText });
-    if (fail) throw new Error(fail);
+    const timeoutMs = Number(this.cfg.webLoginTimeoutMs) || 60_000;
+    const deadline = Date.now() + timeoutMs;
+    let last = { hasChatList: false, hasQr: false, bodyText: '' };
+
+    while (Date.now() < deadline) {
+      const hasChatList = await page.locator(SEL.chatList).first().isVisible().catch(() => false);
+      // QR canvas alone is weak (other canvases exist); require login copy too
+      const bodyText = await page.locator('body').innerText().catch(() => '');
+      const hasQr = /zum anmelden scannen|scan to log|qr code|abgemeldet|verifizieren/i.test(bodyText)
+        && await page.locator(SEL.qrCanvas).first().isVisible().catch(() => false);
+      last = { hasChatList, hasQr, bodyText: bodyText.slice(0, 500) };
+
+      const fail = detectLoginFailure(last);
+      if (!fail) return;
+      // Keep waiting while still loading (no chat list, no clear QR)
+      if (hasQr || /abgemeldet|verifizieren|phone not connected/i.test(bodyText)) {
+        await this._dumpDebug('login-fail');
+        throw new Error(fail);
+      }
+      await sleep(1_500);
+    }
+
+    await this._dumpDebug('login-timeout');
+    const fail = detectLoginFailure(last)
+      || 'WhatsApp Web chat list not found — not logged in or DOM changed.';
+    throw new Error(
+      `${fail} profile=${this.cfg.webUserDataDir}. `
+      + 'Close CRD Chrome, use the same user-data-dir, or re-QR into this profile '
+      + '(E2E_WA_WEB_HEADLESS=0 under CRD). See e2e-wa/README.md.',
+    );
+  }
+
+  async _dumpDebug(label) {
+    const page = this._page;
+    if (!page) return;
+    const dir = String(this.cfg.webDebugDir || '/tmp/e2e-wa-web').trim();
+    try {
+      const fs = require('fs');
+      fs.mkdirSync(dir, { recursive: true });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const shot = `${dir}/${label}-${stamp}.png`;
+      await page.screenshot({ path: shot, fullPage: true }).catch(() => {});
+      // eslint-disable-next-line no-console
+      console.error(`[e2e-wa] wa-web debug screenshot: ${shot} url=${page.url()}`);
+    } catch (_) {
+      // ignore debug dump failures
+    }
   }
 
   /**

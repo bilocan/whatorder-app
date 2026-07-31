@@ -180,6 +180,9 @@ function loadConfig(env = process.env, opts = {}) {
     webUserDataDir: String(env.E2E_WA_WEB_USER_DATA_DIR || '').trim(),
     webHeadless,
     webSlowMoMs: Number(env.E2E_WA_WEB_SLOW_MO_MS || 0) || 0,
+    webChannel: String(env.E2E_WA_WEB_CHANNEL || '').trim(),
+    webDebugDir: String(env.E2E_WA_WEB_DEBUG_DIR || '/tmp/e2e-wa-web').trim(),
+    webLoginTimeoutMs: Number(env.E2E_WA_WEB_LOGIN_TIMEOUT_MS || 60_000) || 60_000,
   };
 }
 

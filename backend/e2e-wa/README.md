@@ -35,10 +35,33 @@ npx playwright install chromium
 ```bash
 export E2E_WA_CUSTOMER_TRANSPORT=wa-web
 export E2E_WA_WEB_USER_DATA_DIR=/var/lib/whatorder-e2e/wa-web-profile
-export E2E_WA_WEB_HEADLESS=1          # 0 + DISPLAY/CRD for debug
+export E2E_WA_WEB_HEADLESS=1          # 0 under CRD to re-QR / debug
+# optional: use system Google Chrome binary (same as CRD)
+# export E2E_WA_WEB_CHANNEL=chrome
 export E2E_WA_TARGET=test
 # Firebase Admin for Test Firestore (same as backend Test)
 ```
+
+**Profile must match the browser that scanned the QR.** If CRD Chrome is logged in under `~/.config/google-chrome` but Playwright uses `/var/lib/whatorder-e2e/wa-web-profile`, you get “chat list not found”. Fix:
+
+1. **Close all Chrome windows** on Contabo (profile lock).
+2. Either point `E2E_WA_WEB_USER_DATA_DIR` at Chrome’s user-data-dir:
+
+```bash
+export E2E_WA_WEB_USER_DATA_DIR=$HOME/.config/google-chrome
+export E2E_WA_WEB_CHANNEL=chrome
+```
+
+   Or re-QR into the Playwright dir under CRD:
+
+```bash
+export E2E_WA_WEB_HEADLESS=0
+export DISPLAY=:20   # or whatever CRD uses — run from a terminal inside CRD session
+npx playwright open https://web.whatsapp.com --user-data-dir=/var/lib/whatorder-e2e/wa-web-profile
+# scan QR, then re-run e2e with HEADLESS=1
+```
+
+On login failure the runner writes a PNG under `/tmp/e2e-wa-web/`.
 
 4. Smoke:
 
