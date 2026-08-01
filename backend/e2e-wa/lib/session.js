@@ -8,6 +8,7 @@ const {
   waitForOrder,
   assertNoNewOrder,
   waitForOrderStatus,
+  markOrderPaid,
   getSession,
   resetCustomerSession,
   waitForSession,
@@ -112,6 +113,10 @@ class WaE2eSession {
 
   async waitForOrderStatus(orderId, status, opts = {}) {
     return waitForOrderStatus(this.cfg.businessId, orderId, status, opts);
+  }
+
+  async markOrderPaid(orderId) {
+    return markOrderPaid(this.cfg.businessId, orderId);
   }
 
   async getSession() {

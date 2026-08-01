@@ -113,6 +113,31 @@ async function waitForOrderStatus(businessId, orderId, status, { timeoutMs = 30_
   throw new Error(`waitForOrderStatus timed out waiting for ${orderId} → ${status}`);
 }
 
+/**
+ * Mark a Stripe order paid via Admin SDK (no Checkout UI).
+ * Used by owner_status_path before kitchen transitions; mirrors the product rule
+ * that unpaid Stripe orders should not advance (gate itself is separate eng work).
+ *
+ * @param {string} businessId
+ * @param {string} orderId
+ * @returns {Promise<{ id: string, [key: string]: any }>}
+ */
+async function markOrderPaid(businessId, orderId) {
+  const ref = ordersRef(businessId).doc(orderId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error(`markOrderPaid: order not found ${orderId}`);
+  const data = snap.data();
+  if (data.paymentStatus === 'paid') {
+    return { id: snap.id, ...data };
+  }
+  await ref.update({
+    paymentStatus: 'paid',
+    paymentMethod: data.paymentMethod || 'stripe',
+  });
+  const after = await ref.get();
+  return { id: after.id, ...after.data() };
+}
+
 async function getSession(customerDisplay) {
   const digits = normalizeCustomerPhone(customerDisplay);
   const snap = await sessionRef(digits).get();
@@ -197,6 +222,7 @@ module.exports = {
   waitForOrder,
   assertNoNewOrder,
   waitForOrderStatus,
+  markOrderPaid,
   getSession,
   resetCustomerSession,
   waitForSession,

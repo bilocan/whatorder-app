@@ -1,8 +1,8 @@
 'use strict';
 
 /**
- * Owner status path after a pending order exists (Stripe unpaid or paid).
- * Expects session.lastOrder or runs happy_stripe_pickup first when chained from CLI.
+ * Owner status path after happy_stripe_pickup (or an existing orderId).
+ * Marks Stripe payment paid via Admin SDK first, then approve → preparing → ready.
  *
  * @param {import('../lib/session').WaE2eSession} session
  * @param {{ orderId?: string }} [opts]
@@ -13,6 +13,9 @@ async function run(session, opts = {}) {
   if (!orderId) {
     throw new Error('owner_status_path requires orderId or session.lastOrder from happy_stripe_pickup');
   }
+
+  log('mark paid (Admin SDK)', orderId);
+  await session.markOrderPaid(orderId);
 
   log('approve', orderId);
   await session.ownerApprove(orderId, { etaMinutes: 20 });
