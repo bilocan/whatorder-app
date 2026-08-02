@@ -135,8 +135,10 @@ describe('checkoutSlots', () => {
       expect(missing).toEqual([]);
     });
 
-    test('missing order type when delivery offered', () => {
-      expect(getMissingCheckoutSlots({ customerName: 'Max' }, info)).toContain('orderType');
+    test('defaults delivery when order type unset (address still missing)', () => {
+      const missing = getMissingCheckoutSlots({ customerName: 'Max' }, info);
+      expect(missing).not.toContain('orderType');
+      expect(missing).toContain('deliveryAddress');
     });
 
     test('missing address for delivery', () => {
