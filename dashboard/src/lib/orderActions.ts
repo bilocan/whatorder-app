@@ -14,6 +14,21 @@ export type ActionButton = {
 
 export const DEFAULT_APPROVE_ETA_MINUTES = 30;
 
+/** Stripe unpaid/failed — kitchen advances blocked; reject/cancel still allowed. */
+export function isKitchenPaymentBlocked(order: {
+  paymentMethod?: string;
+  paymentStatus?: string;
+}): boolean {
+  return (
+    order.paymentMethod === 'stripe' &&
+    (order.paymentStatus === 'pending' || order.paymentStatus === 'failed')
+  );
+}
+
+export function isKitchenAdvanceAction(action: string): boolean {
+  return action !== 'reject' && action !== 'cancel';
+}
+
 export const ACTION_NEXT_STATUS: Record<string, OrderStatus> = {
   approve: 'approved',
   reject: 'rejected',

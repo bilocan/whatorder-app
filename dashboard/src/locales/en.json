@@ -120,6 +120,7 @@
     "saving": "Saving…",
     "etaLabel": "Ready in",
     "etaMinutesUnit": "min",
+    "paymentRequiredHint": "Customer must pay before you can advance this order.",
     "status": {
       "pending": "Pending",
       "approved": "Approved",

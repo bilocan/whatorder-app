@@ -358,6 +358,55 @@ describe('Order state machine', () => {
     await expect(approveOrder(BIZ, 'ord')).rejects.toThrow('Invalid transition');
   });
 
+  test('approveOrder: blocks unpaid Stripe order', async () => {
+    makeRef({
+      ...ORDER('pending'),
+      paymentMethod: 'stripe',
+      paymentStatus: 'pending',
+    });
+    await expect(approveOrder(BIZ, 'ord')).rejects.toThrow('Payment required before kitchen status change');
+  });
+
+  test('approveOrder: allows paid Stripe order', async () => {
+    const { mockUpdate } = makeRef({
+      ...ORDER('pending'),
+      paymentMethod: 'stripe',
+      paymentStatus: 'paid',
+    });
+    t.mockReturnValue('Onaylandı!');
+    await approveOrder(BIZ, 'order_abc123');
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved' }));
+  });
+
+  test('startPreparation: blocks failed Stripe payment', async () => {
+    makeRef({
+      ...ORDER('approved'),
+      paymentMethod: 'stripe',
+      paymentStatus: 'failed',
+    });
+    await expect(startPreparation(BIZ, 'ord')).rejects.toThrow('Payment required before kitchen status change');
+  });
+
+  test('rejectOrder: still allowed on unpaid Stripe order', async () => {
+    const { mockUpdate } = makeRef({
+      ...ORDER('pending'),
+      paymentMethod: 'stripe',
+      paymentStatus: 'pending',
+    });
+    await rejectOrder(BIZ, 'order_abc123');
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'rejected' }));
+  });
+
+  test('cancelOrder: still allowed on unpaid Stripe order', async () => {
+    const { mockUpdate } = makeRef({
+      ...ORDER('pending'),
+      paymentMethod: 'stripe',
+      paymentStatus: 'pending',
+    });
+    await cancelOrder(BIZ, 'order_abc123');
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }));
+  });
+
   // ── rejectOrder ───────────────────────────────────────────────────────────
   test('rejectOrder: pending → rejected with reorder buttons', async () => {
     const { mockUpdate } = makeRef(ORDER('pending'));

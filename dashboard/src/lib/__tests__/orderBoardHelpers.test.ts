@@ -10,7 +10,7 @@ import {
   startOfLocalDayMs,
 } from '../orderBoardColumns'
 import { orderElapsed } from '../orderElapsed'
-import { getPrimaryAction, getActionButtons } from '../orderActions'
+import { getPrimaryAction, getActionButtons, isKitchenPaymentBlocked, isKitchenAdvanceAction } from '../orderActions'
 import type { Order } from '../../types'
 
 describe('orderBoardColumns', () => {
@@ -162,5 +162,22 @@ describe('orderActions helpers', () => {
   it('picks delivery vs pickup advance from preparing', () => {
     expect(getPrimaryAction('preparing', 'delivery')?.action).toBe('on-the-way')
     expect(getPrimaryAction('preparing', 'pickup')?.action).toBe('ready')
+  })
+})
+
+describe('kitchen payment gate helpers', () => {
+  it('blocks unpaid and failed Stripe orders only', () => {
+    expect(isKitchenPaymentBlocked({ paymentMethod: 'stripe', paymentStatus: 'pending' })).toBe(true)
+    expect(isKitchenPaymentBlocked({ paymentMethod: 'stripe', paymentStatus: 'failed' })).toBe(true)
+    expect(isKitchenPaymentBlocked({ paymentMethod: 'stripe', paymentStatus: 'paid' })).toBe(false)
+    expect(isKitchenPaymentBlocked({ paymentMethod: 'cash', paymentStatus: 'cash' })).toBe(false)
+    expect(isKitchenPaymentBlocked({})).toBe(false)
+  })
+
+  it('treats reject and cancel as non-kitchen advances', () => {
+    expect(isKitchenAdvanceAction('approve')).toBe(true)
+    expect(isKitchenAdvanceAction('prepare')).toBe(true)
+    expect(isKitchenAdvanceAction('reject')).toBe(false)
+    expect(isKitchenAdvanceAction('cancel')).toBe(false)
   })
 })

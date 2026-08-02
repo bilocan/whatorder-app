@@ -30,7 +30,7 @@ module.exports = async (req, res) => {
     res.json({ status: 'ok' });
   } catch (err) {
     const status = err.message === 'Order not found' ? 404
-      : err.message.startsWith('Invalid transition') ? 409
+      : err.message.startsWith('Invalid transition') || err.message.startsWith('Payment required') ? 409
       : 500;
     res.status(status).json({ error: err.message });
   }
