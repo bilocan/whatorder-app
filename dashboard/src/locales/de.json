@@ -120,6 +120,7 @@
     "saving": "Speichern…",
     "etaLabel": "Fertig in",
     "etaMinutesUnit": "Min.",
+    "paymentRequiredHint": "Der Gast muss bezahlen, bevor du den Status weiterstellen kannst.",
     "status": {
       "pending": "Ausstehend",
       "approved": "Angenommen",

@@ -11,6 +11,8 @@ import { shortId } from '../lib/shortId';
 import {
   DEFAULT_APPROVE_ETA_MINUTES,
   getActionButtons,
+  isKitchenAdvanceAction,
+  isKitchenPaymentBlocked,
   postOrderAction,
 } from '../lib/orderActions';
 import { matchesActivePhoneRouting } from '../lib/orderPhoneFilter';
@@ -141,6 +143,7 @@ export default function OrderDetailPage() {
   const buttons = getActionButtons(order.status, order.orderType);
   const statusLabel = t(`orderDetail.status.${order.status}`, { defaultValue: order.status });
   const pay = paymentBadge(order, t);
+  const paymentBlocked = isKitchenPaymentBlocked(order);
 
   return (
     <div className="order-detail">
@@ -240,12 +243,15 @@ export default function OrderDetailPage() {
               data-variant={variant}
               data-tone={tone}
               onClick={() => doAction(action)}
-              disabled={loading}
+              disabled={loading || (paymentBlocked && isKitchenAdvanceAction(action))}
             >
               {loading ? t('orderDetail.saving') : t(labelKey)}
             </button>
           ))}
         </div>
+      )}
+      {paymentBlocked && (
+        <p className="order-detail-error">{t('orderDetail.paymentRequiredHint')}</p>
       )}
       {actionError && <p className="order-detail-error">{actionError}</p>}
     </div>

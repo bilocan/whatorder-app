@@ -10,6 +10,12 @@ const { patchSession } = require('./sessionStore');
 
 const TERMINAL_REENTRY_STATUSES = new Set(['delivered', 'picked_up', 'rejected', 'cancelled']);
 
+/** Kitchen advances blocked while Stripe payment is unpaid/failed. Reject/cancel stay allowed. */
+const KITCHEN_ADVANCE_STATUSES = new Set([
+  'approved', 'preparing', 'ready', 'on_the_way', 'picked_up', 'delivered',
+]);
+const PAYMENT_REQUIRED_MSG = 'Payment required before kitchen status change';
+
 // Valid source states for each target status
 const VALID_FROM = {
   approved:   ['pending'],
@@ -21,6 +27,16 @@ const VALID_FROM = {
   delivered:  ['on_the_way'],
   cancelled:  ['pending', 'approved', 'preparing'],
 };
+
+function assertKitchenPaymentAllowed(order, toStatus) {
+  if (!KITCHEN_ADVANCE_STATUSES.has(toStatus)) return;
+  const unpaidStripe =
+    order.paymentMethod === 'stripe' &&
+    (order.paymentStatus === 'pending' || order.paymentStatus === 'failed');
+  if (unpaidStripe) {
+    throw new Error(PAYMENT_REQUIRED_MSG);
+  }
+}
 
 const STATUS_TS_FIELD = {
   approved:   'approvedAt',
@@ -163,6 +179,7 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
   if (!validFrom || !validFrom.includes(order.status)) {
     throw new Error(`Invalid transition: ${order.status} → ${toStatus}`);
   }
+  assertKitchenPaymentAllowed(order, toStatus);
 
   const update = {
     status: toStatus,

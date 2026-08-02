@@ -120,6 +120,7 @@
     "saving": "Kaydediliyor…",
     "etaLabel": "Hazır olma süresi",
     "etaMinutesUnit": "dk",
+    "paymentRequiredHint": "Durumu ilerletmeden önce müşterinin ödemesi gerekir.",
     "status": {
       "pending": "Beklemede",
       "approved": "Onaylandı",
