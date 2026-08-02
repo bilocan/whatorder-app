@@ -85,15 +85,29 @@ const {
 beforeEach(resetBotHandlerMocks);
 afterEach(clearBotHandlerEnv);
 
-describe('Delivery flow: confirming basket → awaiting_order_type (notes skipped)', () => {
-  test('delivery-enabled business shows Pickup/Delivery buttons straight from the basket', async () => {
+describe('Delivery flow: confirming basket → default delivery (notes skipped)', () => {
+  test('delivery-enabled business defaults to delivery and shows address picker with pickup', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, deliveryFee: 2.5 });
     getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing' });
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_order_type' }));
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address_choice',
+      orderType: 'delivery',
+    }));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([
+            expect.objectContaining({ id: 'delivery_addr_new' }),
+            expect.objectContaining({ id: 'delivery_addr_share' }),
+            expect.objectContaining({ id: 'delivery_addr_pickup' }),
+          ]),
+        }),
+      ]),
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: expect.arrayContaining([
         expect.objectContaining({ id: 'btn_pickup' }),
         expect.objectContaining({ id: 'btn_delivery' }),
@@ -112,6 +126,21 @@ describe('Delivery flow: confirming basket → awaiting_order_type (notes skippe
       buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_delivery' })]),
     }));
   });
+
+  test('below minimumOrderValue on confirm shows gate without address picker', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO, deliveryEnabled: true, deliveryFee: 2.5, minimumOrderValue: 20,
+    });
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing' }); // subtotal 17
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      orderType: 'delivery',
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+  });
 });
 
 describe('Delivery flow: awaiting_order_type', () => {
@@ -126,16 +155,26 @@ describe('Delivery flow: awaiting_order_type', () => {
     }));
   });
 
-  test('btn_delivery with no known addresses goes straight to awaiting_delivery_address', async () => {
+  test('btn_delivery with no known addresses still shows address picker (enter/share/pickup)', async () => {
     getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_order_type' });
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_delivery' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_delivery_address',
+      state: 'awaiting_delivery_address_choice',
       orderType: 'delivery',
     }));
-    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([
+            expect.objectContaining({ id: 'delivery_addr_new' }),
+            expect.objectContaining({ id: 'delivery_addr_share' }),
+            expect.objectContaining({ id: 'delivery_addr_pickup' }),
+          ]),
+        }),
+      ]),
+    }));
   });
 
   test('btn_delivery with session lat/lng shows address picker', async () => {
@@ -155,6 +194,7 @@ describe('Delivery flow: awaiting_order_type', () => {
             expect.objectContaining({ id: 'delivery_loc_start', description: 'Mariahilfer Str. 10, 1060 Wien' }),
             expect.objectContaining({ id: 'delivery_addr_new' }),
             expect.objectContaining({ id: 'delivery_addr_share' }),
+            expect.objectContaining({ id: 'delivery_addr_pickup' }),
           ]),
         }),
       ]),
@@ -223,7 +263,7 @@ describe('Delivery minimum order value gate', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_delivery' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_delivery_address',
+      state: 'awaiting_delivery_address_choice',
       orderType: 'delivery',
     }));
   });
@@ -251,7 +291,7 @@ describe('Delivery minimum order value gate', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_done' }));
 
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_delivery_address' }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_delivery_address_choice' }));
     expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_delivery' })]),
     }));
@@ -748,6 +788,29 @@ describe('Delivery flow: awaiting_delivery_address_choice', () => {
     expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.any(String));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_delivery_address',
+    }));
+  });
+
+  test('delivery_addr_pickup switches to pickup and continues checkout', async () => {
+    getSession.mockResolvedValue(ADDR_CHOICE_SESSION);
+
+    await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'delivery_addr_pickup' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+      orderType: 'pickup',
+      deliveryAddress: null,
+    }));
+  });
+
+  test('abholen text in address choice switches to pickup', async () => {
+    getSession.mockResolvedValue(ADDR_CHOICE_SESSION);
+
+    await handleMessage(ROUTING, msg({ text: 'Abholung' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+      orderType: 'pickup',
     }));
   });
 

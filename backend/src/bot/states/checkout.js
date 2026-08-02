@@ -300,22 +300,81 @@ async function sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue })
   return { msgId, meets };
 }
 
-// Shows the address picker (or asks for a typed/shared address) and transitions accordingly.
+// Always shows the address picker (with a pickup escape hatch) and transitions to choice state.
 async function proceedToDeliveryAddress({ from, session, lang, businessId }) {
   const rows = await getDeliveryAddressRows(session, from, businessId, lang);
-  if (rows) {
-    const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
-    await setSession(from, { ...session, state: 'awaiting_delivery_address_choice', orderType: 'delivery', pendingDeleteIds: pickerId ? [pickerId] : [] });
+  const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
+  await setSession(from, {
+    ...session,
+    state: 'awaiting_delivery_address_choice',
+    orderType: 'delivery',
+    pendingDeleteIds: pickerId ? [pickerId] : [],
+  });
+}
+
+/**
+ * Default delivery path: deliveryOpen + minimumOrderValue gates, then address picker.
+ * Pickup is offered on the address picker (not as a prior step).
+ */
+async function beginDefaultDeliveryCheckout({ from, session, lang, businessId, basket }) {
+  const info = await getBusinessInfo(businessId);
+  const delivSession = { ...session, orderType: 'delivery' };
+
+  if (info.deliveryOpen === false) {
+    const msgId = await sendButtonMessage(from, {
+      body: t('deliveryClosedByOwner', lang),
+      buttons: [{ id: 'btn_pickup', title: t('pickupBtn', lang) }],
+    });
+    await setSession(from, {
+      ...delivSession,
+      state: 'awaiting_order_type',
+      pendingDeleteIds: msgId ? [msgId] : [],
+    });
+    return;
+  }
+
+  const subtotal = basketSubtotal(basket);
+  if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    const { msgId } = await sendDeliveryBasketGate({
+      from, lang, basket, minimumOrderValue: info.minimumOrderValue,
+    });
+    await setSession(from, {
+      ...delivSession,
+      state: 'browsing',
+      confirmingOrderTypeEdit: false,
+      pendingDeleteIds: msgId ? [msgId] : [],
+    });
+    return;
+  }
+
+  await proceedToDeliveryAddress({ from, session: delivSession, lang, businessId });
+}
+
+/** Switch to pickup and continue checkout (name / confirm). Shared by order-type + address-picker. */
+async function applyPickupSelection({ from, session, lang, businessId, basket }) {
+  const newSession = { ...session, orderType: 'pickup', deliveryAddress: null };
+  if (session.confirmingOrderTypeEdit) {
+    await finishToConfirming(from, newSession, lang, businessId, basket);
+    return;
+  }
+  const info = await getBusinessInfo(businessId);
+  if (isConversationalBasket(info)) {
+    await advanceCheckoutFromSlots({ from, session: newSession, lang, businessId, basket, info });
+    return;
+  }
+  const knownName = await getKnownName(from, businessId);
+  if (knownName) {
+    await transitionToConfirming(from, newSession, lang, businessId, basket, knownName);
   } else {
-    const askId = await sendText(from, t('askDeliveryAddress', lang));
-    await setSession(from, { ...session, state: 'awaiting_delivery_address', orderType: 'delivery', pendingDeleteIds: askId ? [askId] : [] });
+    const askId = await sendText(from, t('askName', lang));
+    await setSession(from, { ...newSession, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
   }
 }
 
 // Called whenever a delivery order's basket may have changed (add more / re-submit cart)
 // while still gated on minimumOrderValue (no deliveryAddress collected yet). Re-checks the
 // minimum: if still short, re-shows the gate. If now met, resumes straight into address
-// selection. Never re-asks pickup/delivery, since that's already answered.
+// selection. Never re-asks pickup/delivery, since delivery is the default.
 async function resumeDeliveryCheckout({ from, session, lang, businessId, basket }) {
   const info = await getBusinessInfo(businessId);
   const subtotal = basketSubtotal(basket);
@@ -327,9 +386,8 @@ async function resumeDeliveryCheckout({ from, session, lang, businessId, basket 
   await proceedToDeliveryAddress({ from, session, lang, businessId });
 }
 
-// Called right after a basket is confirmed (cart submit / "Confirm" tap). Skips straight to
-// order-type selection (or name/confirmation) — notes are collected later via the "Add note"
-// button on the final confirmation screen, not as a mandatory step here.
+// Called right after a basket is confirmed (cart submit / "Confirm" tap). Defaults to
+// delivery when offered (address picker includes pickup). Notes stay optional on confirm.
 async function proceedFromConfirmedBasket({ from, session, lang, businessId, basket }) {
   const info = await getBusinessInfo(businessId);
   if (isConversationalBasket(info)) {
@@ -337,20 +395,19 @@ async function proceedFromConfirmedBasket({ from, session, lang, businessId, bas
     return;
   }
 
-  if (session.orderType === 'delivery') {
-    await proceedToDeliveryAddress({ from, session, lang, businessId });
+  if (session.orderType === 'pickup') {
+    const knownName = await getKnownName(from, businessId);
+    if (knownName) {
+      await transitionToConfirming(from, session, lang, businessId, basket, knownName);
+    } else {
+      const askId = await sendText(from, t('askName', lang));
+      await setSession(from, { ...session, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
+    }
     return;
   }
 
-  if (info.deliveryEnabled) {
-    const typeId = await sendButtonMessage(from, {
-      body: t('askOrderType', lang, info.deliveryFee ?? 0),
-      buttons: [
-        { id: 'btn_pickup',   title: t('pickupBtn', lang) },
-        { id: 'btn_delivery', title: t('deliveryBtn', lang) },
-      ],
-    });
-    await setSession(from, { ...session, state: 'awaiting_order_type', pendingDeleteIds: typeId ? [typeId] : [] });
+  if (session.orderType === 'delivery' || info.deliveryEnabled) {
+    await beginDefaultDeliveryCheckout({ from, session, lang, businessId, basket });
     return;
   }
 
@@ -368,17 +425,12 @@ async function advanceCheckoutFromSlots({ from, session, lang, businessId, baske
   const profile = await getCustomerProfile(from, businessId);
   let s = applyProfilePrefill(session, profile);
 
-  if (!s.orderType && !isDeliveryOffered(info)) {
-    s = { ...s, orderType: 'pickup' };
+  // Default: delivery when offered, else pickup. No separate pickup/delivery ask step.
+  if (!s.orderType) {
+    s = { ...s, orderType: isDeliveryOffered(info) ? 'delivery' : 'pickup' };
   }
 
   const missing = getMissingCheckoutSlots(s, info);
-
-  if (missing.includes('orderType')) {
-    const typeId = await sendOrderTypePrompt(from, lang, info.deliveryFee ?? 0);
-    await setSession(from, { ...s, state: 'awaiting_order_type', pendingDeleteIds: typeId ? [typeId] : [] });
-    return;
-  }
 
   if (s.orderType === 'delivery') {
     const subtotal = basketSubtotal(basket);
@@ -387,7 +439,11 @@ async function advanceCheckoutFromSlots({ from, session, lang, businessId, baske
         body: t('deliveryClosedByOwner', lang),
         buttons: [{ id: 'btn_pickup', title: t('pickupBtn', lang) }],
       });
-      await setSession(from, { ...s, pendingDeleteIds: msgId ? [msgId] : [] });
+      await setSession(from, {
+        ...s,
+        state: 'awaiting_order_type',
+        pendingDeleteIds: msgId ? [msgId] : [],
+      });
       return;
     }
     if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
@@ -429,7 +485,7 @@ function shouldShowOrderTypeRow(session, info) {
 
 function buildConfirmListRows(session, name, lang, info) {
   const deliveryOffered = shouldShowOrderTypeRow(session, info);
-  const orderType = session.orderType || (deliveryOffered ? 'pickup' : null);
+  const orderType = session.orderType || (deliveryOffered ? 'delivery' : null);
 
   const rows = [
     { id: 'btn_place_order', title: t('confirmBtn', lang) },
@@ -492,7 +548,7 @@ async function transitionToConfirming(from, session, lang, businessId, basket, n
   await setSession(from, { ...session, state: 'confirming', customerName: name, pendingDeleteIds: confirmId ? [confirmId] : [] });
 }
 
-// Returns rows array when known addresses exist (lat/lng or saved profile address), null to skip picker.
+// Address picker rows. Always includes enter/share + pickup escape (delivery is the default path).
 async function getDeliveryAddressRows(session, phone, businessId, lang) {
   const rows = [];
 
@@ -510,10 +566,13 @@ async function getDeliveryAddressRows(session, phone, businessId, lang) {
     }
   } catch { /* new customer or Firestore read error — skip saved option */ }
 
-  if (!rows.length) return null;
-
-  rows.push({ id: 'delivery_addr_new',   title: t('deliveryNewAddr',  lang) });
+  rows.push({ id: 'delivery_addr_new', title: t('deliveryNewAddr', lang) });
   rows.push({ id: 'delivery_addr_share', title: t('deliveryShareLoc', lang) });
+  rows.push({
+    id: 'delivery_addr_pickup',
+    title: t('deliveryPickupOption', lang),
+    description: t('deliveryPickupOptionDesc', lang).slice(0, 72),
+  });
   return rows;
 }
 
@@ -577,10 +636,8 @@ async function reshowCheckoutPrompt(ctx, session, basket) {
     }
     case 'awaiting_delivery_address_choice': {
       const rows = await getDeliveryAddressRows(session, from, businessId, lang);
-      if (rows) {
-        const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
-        await setSession(from, { ...session, basket, pendingDeleteIds: pickerId ? [pickerId] : [] });
-      }
+      const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
+      await setSession(from, { ...session, basket, pendingDeleteIds: pickerId ? [pickerId] : [] });
       return;
     }
     case 'awaiting_delivery_address_confirm': {
@@ -658,6 +715,15 @@ async function gateCheckoutTextInput(ctx) {
     }
     if (orderType === 'delivery') {
       await handleAwaitingOrderType({ ...ctx, session: liveSession, type: 'button_reply', id: 'btn_delivery' });
+      return true;
+    }
+  }
+
+  if (liveSession.state === 'awaiting_delivery_address_choice') {
+    if (parseOrderTypeKeyword(norm) === 'pickup') {
+      await handleAwaitingDeliveryAddressChoice({
+        ...ctx, session: liveSession, type: 'list_reply', id: 'delivery_addr_pickup',
+      });
       return true;
     }
   }
@@ -814,48 +880,11 @@ async function handleAwaitingOrderType({ from, session, lang, businessId, basket
 
   if (type === 'button_reply') {
     if (id === 'btn_pickup') {
-      const newSession = { ...session, orderType: 'pickup', deliveryAddress: null };
-      if (session.confirmingOrderTypeEdit) {
-        await finishToConfirming(from, newSession, lang, businessId, basket);
-        return;
-      }
-      const info = await getBusinessInfo(businessId);
-      if (isConversationalBasket(info)) {
-        await advanceCheckoutFromSlots({ from, session: newSession, lang, businessId, basket, info });
-        return;
-      }
-      const knownName = await getKnownName(from, businessId);
-      if (knownName) {
-        await transitionToConfirming(from, newSession, lang, businessId, basket, knownName);
-      } else {
-        const askId = await sendText(from, t('askName', lang));
-        await setSession(from, { ...newSession, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
-      }
+      await applyPickupSelection({ from, session, lang, businessId, basket });
       return;
     }
     if (id === 'btn_delivery') {
-      const delivInfo = await getBusinessInfo(businessId);
-      if (delivInfo.deliveryOpen === false) {
-        const msgId = await sendButtonMessage(from, {
-          body: t('deliveryClosedByOwner', lang),
-          buttons: [{ id: 'btn_pickup', title: t('pickupBtn', lang) }],
-        });
-        await setSession(from, { ...session, pendingDeleteIds: msgId ? [msgId] : [] });
-        return;
-      }
-      const subtotal = basketSubtotal(basket);
-      if (delivInfo.minimumOrderValue && subtotal < delivInfo.minimumOrderValue) {
-        const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: delivInfo.minimumOrderValue });
-        await setSession(from, {
-          ...session,
-          orderType: 'delivery',
-          state: 'browsing',
-          confirmingOrderTypeEdit: false,
-          pendingDeleteIds: msgId ? [msgId] : [],
-        });
-        return;
-      }
-      await proceedToDeliveryAddress({ from, session: { ...session, orderType: 'delivery' }, lang, businessId });
+      await beginDefaultDeliveryCheckout({ from, session, lang, businessId, basket });
       return;
     }
   }
@@ -869,6 +898,10 @@ async function handleAwaitingDeliveryAddressChoice({ from, session, lang, busine
   })) return;
 
   if (type === 'list_reply') {
+    if (id === 'delivery_addr_pickup') {
+      await applyPickupSelection({ from, session, lang, businessId, basket });
+      return;
+    }
     if (id === 'delivery_loc_start' && session.lat != null && session.lng != null) {
       const geocoded = await reverseGeocode(session.lat, session.lng);
       if (!geocoded || !isDeliverableBuildingLabel(geocoded)) {
@@ -906,10 +939,8 @@ async function handleAwaitingDeliveryAddressChoice({ from, session, lang, busine
   }
   // Re-show picker for any unrecognised input
   const rows = await getDeliveryAddressRows(session, from, businessId, lang);
-  if (rows) {
-    const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
-    await setSession(from, { ...session, pendingDeleteIds: pickerId ? [pickerId] : [] });
-  }
+  const pickerId = await sendDeliveryAddressPicker(from, rows, lang);
+  await setSession(from, { ...session, pendingDeleteIds: pickerId ? [pickerId] : [] });
 }
 
 async function handleAwaitingDeliveryAddress({ from, session, lang, businessId, basket, type, text, norm, latitude, longitude, contactName, isMulti }) {

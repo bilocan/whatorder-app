@@ -164,13 +164,15 @@ module.exports = {
   belowMinimumOrderValue: (minValue) => `Leider beträgt der Mindestbestellwert €${minValue}. Bitte fügen Sie noch etwas zu Ihrem Warenkorb hinzu.`,
 
   deliveryAddrPickerHeader: () => '📍 Lieferadresse',
-  deliveryAddrPickerBody:   () => 'Wohin sollen wir Ihre Bestellung liefern?',
+  deliveryAddrPickerBody:   () => 'Wohin sollen wir liefern? Oder wählen Sie Abholung.',
   deliveryAddrPickerBtn:    () => 'Adresse wählen',
   deliveryAddrSection:      () => 'Ihre Adressen',
   deliveryLocStart:         () => '📍 Geteilter Standort',
   deliverySavedAddr:        () => '🏠 Letzte Adresse',
   deliveryNewAddr:          () => '✏️ Adresse eingeben',
   deliveryShareLoc:         () => '📡 Standort senden',
+  deliveryPickupOption:     () => '🛍️ Abholung',
+  deliveryPickupOptionDesc: () => 'Statt Lieferung abholen',
 
   multiWelcomeBody: () => '👋 Willkommen bei WhatOrder!',
   locationRequestBody: () => '👋 Willkommen bei WhatOrder!\n\n📍 Standort teilen → nächste Restaurants auf der Karte.',

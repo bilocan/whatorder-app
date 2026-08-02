@@ -164,13 +164,15 @@ module.exports = {
   belowMinimumOrderValue: (minValue) => `Üzgünüz, minimum sipariş tutarı €${minValue}. Lütfen sepetinize biraz daha ürün ekleyin.`,
 
   deliveryAddrPickerHeader: () => '📍 Teslimat adresi',
-  deliveryAddrPickerBody:   () => 'Siparişinizi nereye teslim edelim?',
+  deliveryAddrPickerBody:   () => 'Nereye teslim edelim? Ya da gel-al seçin.',
   deliveryAddrPickerBtn:    () => 'Adres seç',
   deliveryAddrSection:      () => 'Adresleriniz',
   deliveryLocStart:         () => '📍 Paylaştığınız konum',
   deliverySavedAddr:        () => '🏠 Son adresiniz',
   deliveryNewAddr:          () => '✏️ Yeni adres girin',
   deliveryShareLoc:         () => '📡 Konum paylaş',
+  deliveryPickupOption:     () => '🛍️ Gel Al',
+  deliveryPickupOptionDesc: () => 'Teslimat yerine gel-al',
 
   multiWelcomeBody: () => '👋 WhatOrder\'a hoş geldiniz!',
   locationRequestBody: () => '👋 WhatOrder\'a hoş geldiniz!\n\n📍 Konumunuzu paylaşın → haritada en yakın restoranlar.',

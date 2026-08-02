@@ -164,13 +164,15 @@ module.exports = {
   belowMinimumOrderValue: (minValue) => `Sorry, the minimum order value is €${minValue}. Please add more items to your basket.`,
 
   deliveryAddrPickerHeader: () => '📍 Delivery address',
-  deliveryAddrPickerBody:   () => 'Where should we deliver your order?',
+  deliveryAddrPickerBody:   () => 'Where should we deliver? Or choose pickup.',
   deliveryAddrPickerBtn:    () => 'Choose address',
   deliveryAddrSection:      () => 'Your addresses',
   deliveryLocStart:         () => '📍 Location you shared',
   deliverySavedAddr:        () => '🏠 Your last address',
   deliveryNewAddr:          () => '✏️ Enter new address',
   deliveryShareLoc:         () => '📡 Share location',
+  deliveryPickupOption:     () => '🛍️ Pickup',
+  deliveryPickupOptionDesc: () => 'Pick up instead of delivery',
 
   multiWelcomeBody: () => '👋 Welcome to WhatOrder!',
   locationRequestBody: () => '👋 Welcome to WhatOrder!\n\n📍 Share your location → nearest restaurants on the map.',
