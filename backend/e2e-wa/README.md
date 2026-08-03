@@ -90,9 +90,21 @@ cd backend && node -e "require('dotenv').config({path:'.env.local'}); require('.
 
 ```bash
 npm run e2e:wa -- --all-pack-a
+npm run e2e:wa -- --all-pack-b
 npm run e2e:wa -- --target test-benat --all-pack-a
 npm run e2e:wa -- --target preprod --all-pack-a
 E2E_WA_ALLOW_PROD=1 npm run e2e:wa -- --target prod --scenario happy_stripe_pickup
+```
+
+Pack B (Contabo, after pack A green):
+
+```bash
+xvfb-run -a env \
+  E2E_WA_CUSTOMER_TRANSPORT=wa-web \
+  E2E_WA_WEB_USER_DATA_DIR=/var/lib/whatorder-e2e/wa-web-profile \
+  E2E_WA_WEB_HEADLESS=0 \
+  E2E_WA_TARGET=test \
+  npm run e2e:wa -- --target test --all-pack-b
 ```
 
 **Hard rule:** default test bot Meta id is `1227165440469679` (`+43 681 20575797`). Runner aborts on prod id unless allowed.
