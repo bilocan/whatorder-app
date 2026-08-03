@@ -4,7 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { geocodeAddress } from '../lib/geocode';
-import type { Business, DaySchedule } from '../types';
+import { isLegalComplete, missingLegalFields, normalizeUid, withCompleteFlag } from '../lib/legalProfile';
+import type { Business, BusinessLegal, DaySchedule } from '../types';
+
+type LegalFormState = Partial<Omit<BusinessLegal, 'complete'>>;
+
+const DEFAULT_LEGAL_FORM: LegalFormState = { country: 'AT' };
 
 const DEFAULT_DAY: DaySchedule = { openTime: '09:00', closeTime: '22:00', firstOrderTime: '09:00', lastOrderTime: '21:30' };
 
@@ -31,6 +36,9 @@ export default function SettingsPage() {
   const [minOrderSaveStatus, setMinOrderSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [paymentEnabled, setPaymentEnabled] = useState(false);
   const [paymentSaveStatus, setPaymentSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [paymentBlockedByLegal, setPaymentBlockedByLegal] = useState(false);
+  const [legalForm, setLegalForm] = useState<LegalFormState>(DEFAULT_LEGAL_FORM);
+  const [legalSaveStatus, setLegalSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [dayMap, setDayMap] = useState<DayMap>({
     0: null, 1: { ...DEFAULT_DAY }, 2: { ...DEFAULT_DAY },
     3: { ...DEFAULT_DAY }, 4: { ...DEFAULT_DAY }, 5: { ...DEFAULT_DAY }, 6: null,
@@ -55,6 +63,7 @@ export default function SettingsPage() {
         setDeliveryZone(data.deliveryZone ?? '');
         setMinimumOrderValue(data.minimumOrderValue != null ? String(data.minimumOrderValue) : '');
         setPaymentEnabled(data.paymentEnabled ?? false);
+        setLegalForm(data.legal ? { ...data.legal } : DEFAULT_LEGAL_FORM);
         if (data.botLanguage) setBotLanguage(data.botLanguage);
         if (data.schedule) {
           setDayMap(prev => {
@@ -135,8 +144,33 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleSaveLegal() {
+    if (!businessId) return;
+    setLegalSaveStatus('saving');
+    try {
+      const normalized = withCompleteFlag(legalForm);
+      await updateDoc(doc(db, 'businesses', businessId), { legal: normalized });
+      setBusiness(prev => prev ? { ...prev, legal: normalized } : prev);
+      setLegalForm(normalized);
+      setLegalSaveStatus('saved');
+      setTimeout(() => setLegalSaveStatus('idle'), 2500);
+    } catch {
+      setLegalSaveStatus('error');
+    }
+  }
+
+  function updateLegalField(field: keyof LegalFormState, value: string) {
+    setLegalForm(prev => ({ ...prev, [field]: value }));
+  }
+
   async function handleSavePayment() {
     if (!businessId) return;
+    if (paymentEnabled && !isLegalComplete(business?.legal)) {
+      setPaymentBlockedByLegal(true);
+      setPaymentSaveStatus('error');
+      return;
+    }
+    setPaymentBlockedByLegal(false);
     setPaymentSaveStatus('saving');
     try {
       await updateDoc(doc(db, 'businesses', businessId), { paymentEnabled });
@@ -197,6 +231,11 @@ export default function SettingsPage() {
   }
 
   if (!business) return <p className="settings-loading">{t('settings.loading')}</p>;
+
+  const legalComplete = isLegalComplete(business.legal);
+  const missingLegal = missingLegalFields(business.legal);
+  const uidTrimmed = (legalForm.uid ?? '').trim();
+  const uidInvalid = uidTrimmed.length > 0 && !normalizeUid(uidTrimmed);
 
   return (
     <div className="settings-page">
@@ -386,6 +425,119 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Legal / billing details */}
+      <section className="settings-card">
+        <h3 className="settings-card-title">{t('settings.legal.title')}</h3>
+        <p className="settings-card-desc">{t('settings.legal.description')}</p>
+        <div className="settings-grid-2">
+          <div className="settings-field settings-field-span">
+            <label className="settings-label" htmlFor="legal-name">{t('settings.legal.legalName')}</label>
+            <input
+              id="legal-name"
+              type="text"
+              className="settings-input"
+              value={legalForm.legalName ?? ''}
+              onChange={e => updateLegalField('legalName', e.target.value)}
+            />
+          </div>
+          <div className="settings-field settings-field-span">
+            <label className="settings-label" htmlFor="legal-street">{t('settings.legal.street')}</label>
+            <input
+              id="legal-street"
+              type="text"
+              className="settings-input"
+              value={legalForm.street ?? ''}
+              onChange={e => updateLegalField('street', e.target.value)}
+            />
+          </div>
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="legal-zip">{t('settings.legal.zip')}</label>
+            <input
+              id="legal-zip"
+              type="text"
+              className="settings-input"
+              value={legalForm.zip ?? ''}
+              onChange={e => updateLegalField('zip', e.target.value)}
+            />
+          </div>
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="legal-city">{t('settings.legal.city')}</label>
+            <input
+              id="legal-city"
+              type="text"
+              className="settings-input"
+              value={legalForm.city ?? ''}
+              onChange={e => updateLegalField('city', e.target.value)}
+            />
+          </div>
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="legal-country">{t('settings.legal.country')}</label>
+            <input
+              id="legal-country"
+              type="text"
+              className="settings-input"
+              value={legalForm.country ?? 'AT'}
+              onChange={e => updateLegalField('country', e.target.value)}
+            />
+          </div>
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="legal-uid">{t('settings.legal.uid')}</label>
+            <input
+              id="legal-uid"
+              type="text"
+              className="settings-input"
+              value={legalForm.uid ?? ''}
+              onChange={e => updateLegalField('uid', e.target.value)}
+              placeholder="ATU12345678"
+            />
+            {uidInvalid && <div className="settings-hint settings-status-err">{t('settings.legal.uidInvalid')}</div>}
+          </div>
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="legal-firmenbuch">{t('settings.legal.firmenbuchNr')}</label>
+            <input
+              id="legal-firmenbuch"
+              type="text"
+              className="settings-input"
+              value={legalForm.firmenbuchNr ?? ''}
+              onChange={e => updateLegalField('firmenbuchNr', e.target.value)}
+            />
+          </div>
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="legal-email">{t('settings.legal.email')}</label>
+            <input
+              id="legal-email"
+              type="email"
+              className="settings-input"
+              value={legalForm.email ?? ''}
+              onChange={e => updateLegalField('email', e.target.value)}
+            />
+          </div>
+          <div className="settings-field settings-field-span">
+            <label className="settings-label" htmlFor="legal-iban">{t('settings.legal.iban')}</label>
+            <input
+              id="legal-iban"
+              type="text"
+              className="settings-input"
+              value={legalForm.iban ?? ''}
+              onChange={e => updateLegalField('iban', e.target.value)}
+            />
+          </div>
+        </div>
+        {!legalComplete && <div className="settings-hint">{t('settings.legal.incompleteHint')}</div>}
+        <div className="settings-actions">
+          <button
+            type="button"
+            className="settings-btn-primary"
+            onClick={handleSaveLegal}
+            disabled={legalSaveStatus === 'saving'}
+          >
+            {legalSaveStatus === 'saving' ? t('settings.legal.saving') : t('settings.legal.save')}
+          </button>
+          {legalSaveStatus === 'saved' && <span className="settings-status-ok">{t('settings.legal.saved')}</span>}
+          {legalSaveStatus === 'error' && <span className="settings-status-err">{t('settings.legal.error')}</span>}
+        </div>
+      </section>
+
       <div className="settings-split">
         {/* Delivery & payment */}
         <section className="settings-card">
@@ -461,9 +613,24 @@ export default function SettingsPage() {
           </div>
 
           <label className="settings-check">
-            <input type="checkbox" checked={paymentEnabled} onChange={e => setPaymentEnabled(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={paymentEnabled}
+              disabled={!legalComplete}
+              onChange={e => setPaymentEnabled(e.target.checked)}
+            />
             <span>{t('settings.payment.acceptPayment')}</span>
           </label>
+          {!legalComplete && (
+            <div className="settings-hint">
+              {t('settings.payment.requiresLegal')}
+              <ul className="settings-checklist">
+                {missingLegal.map(field => (
+                  <li key={field}>{t(`settings.legal.${field}`)}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="settings-actions">
             <button
               type="button"
@@ -474,7 +641,11 @@ export default function SettingsPage() {
               {paymentSaveStatus === 'saving' ? t('settings.payment.saving') : t('settings.payment.save')}
             </button>
             {paymentSaveStatus === 'saved' && <span className="settings-status-ok">{t('settings.payment.saved')}</span>}
-            {paymentSaveStatus === 'error' && <span className="settings-status-err">{t('settings.payment.error')}</span>}
+            {paymentSaveStatus === 'error' && (
+              <span className="settings-status-err">
+                {paymentBlockedByLegal ? t('settings.payment.requiresLegal') : t('settings.payment.error')}
+              </span>
+            )}
           </div>
         </section>
 

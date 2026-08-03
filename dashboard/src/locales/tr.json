@@ -495,6 +495,25 @@
     "profile": {
       "title": "Restoran profili"
     },
+    "legal": {
+      "title": "Fatura bilgileri",
+      "description": "Ödeme makbuzları için gerekli. Bu bilgiler müşterilerinize gönderilen faturalarda görünür.",
+      "legalName": "Yasal işletme adı",
+      "street": "Sokak / adres",
+      "zip": "Posta kodu",
+      "city": "Şehir",
+      "country": "Ülke",
+      "uid": "KDV numarası (UID)",
+      "firmenbuchNr": "Ticaret sicil numarası (opsiyonel)",
+      "email": "Fatura e-postası (opsiyonel)",
+      "iban": "IBAN (opsiyonel)",
+      "save": "Fatura bilgilerini kaydet",
+      "saving": "Kaydediliyor…",
+      "saved": "Kaydedildi",
+      "error": "Kaydedilemedi",
+      "incompleteHint": "Kart ödemelerini etkinleştirmek için tüm zorunlu alanları doldurun.",
+      "uidInvalid": "KDV numarası ATU12345678 biçiminde olmalı."
+    },
     "deliveryPayment": {
       "title": "Teslimat ve ödeme"
     },
@@ -540,7 +559,8 @@
       "save": "Ödeme ayarlarını kaydet",
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi",
-      "error": "Kaydedilemedi"
+      "error": "Kaydedilemedi",
+      "requiresLegal": "Kart ödemelerini etkinleştirmeden önce yukarıdaki fatura bilgilerini tamamlayın."
     },
     "botLanguage": {
       "title": "Bot Dili",

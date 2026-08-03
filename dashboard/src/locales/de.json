@@ -495,6 +495,25 @@
     "profile": {
       "title": "Restaurantprofil"
     },
+    "legal": {
+      "title": "Rechnungsdaten",
+      "description": "Nötig für Zahlungsbelege. Diese Angaben erscheinen auf Rechnungen an deine Kunden.",
+      "legalName": "Firmenname (rechtlich)",
+      "street": "Straße & Hausnummer",
+      "zip": "PLZ",
+      "city": "Ort",
+      "country": "Land",
+      "uid": "UID-Nummer",
+      "firmenbuchNr": "Firmenbuchnummer (optional)",
+      "email": "Rechnungs-E-Mail (optional)",
+      "iban": "IBAN (optional)",
+      "save": "Rechnungsdaten speichern",
+      "saving": "Speichern…",
+      "saved": "Gespeichert",
+      "error": "Speichern fehlgeschlagen",
+      "incompleteHint": "Fülle alle Pflichtfelder aus, um Kartenzahlungen zu aktivieren.",
+      "uidInvalid": "UID-Nummer muss wie ATU12345678 aussehen."
+    },
     "deliveryPayment": {
       "title": "Lieferung & Zahlung"
     },
@@ -540,7 +559,8 @@
       "save": "Zahlungseinstellungen speichern",
       "saving": "Speichern…",
       "saved": "Gespeichert",
-      "error": "Speichern fehlgeschlagen"
+      "error": "Speichern fehlgeschlagen",
+      "requiresLegal": "Ergänze zuerst deine Rechnungsdaten oben, um Kartenzahlungen zu aktivieren."
     },
     "botLanguage": {
       "title": "Bot-Sprache",

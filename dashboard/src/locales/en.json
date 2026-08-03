@@ -495,6 +495,25 @@
     "profile": {
       "title": "Restaurant profile"
     },
+    "legal": {
+      "title": "Legal & billing",
+      "description": "Required for payment receipts. This information appears on invoices sent to your customers.",
+      "legalName": "Legal business name",
+      "street": "Street & house number",
+      "zip": "ZIP / postal code",
+      "city": "City",
+      "country": "Country",
+      "uid": "VAT ID (UID)",
+      "firmenbuchNr": "Company register number (optional)",
+      "email": "Invoice email (optional)",
+      "iban": "IBAN (optional)",
+      "save": "Save legal details",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "error": "Could not save",
+      "incompleteHint": "Fill in all required fields to enable card payments.",
+      "uidInvalid": "VAT ID must look like ATU12345678."
+    },
     "deliveryPayment": {
       "title": "Delivery & payment"
     },
@@ -540,7 +559,8 @@
       "save": "Save payment settings",
       "saving": "Saving…",
       "saved": "Saved",
-      "error": "Could not save"
+      "error": "Could not save",
+      "requiresLegal": "Complete your legal details above before enabling card payments."
     },
     "botLanguage": {
       "title": "Bot Language",
