@@ -104,6 +104,8 @@ module.exports = {
     return `Bestellung #${shortId} aufgegeben.\n\n${restaurantBlock}\n\n${itemLines}\n\nGesamt: €${total}${detail ? `\n${detail}` : ''}\n\nTippe unten auf den Button zum Bezahlen.`;
   },
   paymentLinkFailed: (shortId) => `Bestellung #${shortId} wurde erstellt, aber der Zahlungslink ist fehlgeschlagen. Bitte kontaktiere das Restaurant.`,
+  paymentLegalIncomplete: () => 'Kartenzahlung ist bei diesem Restaurant noch nicht freigeschaltet, deine Bestellung wurde nicht aufgegeben. Bitte kontaktiere das Restaurant direkt.',
+  paymentVatIncomplete: () => 'Wir konnten deine Bestellung nicht aufgeben: In der Speisekarte fehlen Steuerangaben. Bitte kontaktiere das Restaurant, das ist schnell behoben.',
   paymentConfirmed: (shortId) => `✅ Zahlung für Bestellung #${shortId} erhalten. Wir melden uns, wenn sie fertig ist. Danke! 🙏`,
   paymentReturnSuccessTitle: () => 'Zahlung erhalten',
   paymentReturnCancelTitle: () => 'Zahlung abgebrochen',

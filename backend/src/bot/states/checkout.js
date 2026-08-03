@@ -1,10 +1,12 @@
 const { setSession, patchSession } = require('../sessionStore');
 const { sendText, sendButtonMessage, sendListMessage, sendLocationRequest, sendCtaUrlMessage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
-const { buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView } = require('../botHelpers');
+const {
+  buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView, parseBasketItemName,
+} = require('../botHelpers');
 const { getBusinessInfo, getMenuContext } = require('../menuService');
 const { createOrder } = require('../orderService');
-const { customersRef, ordersRef } = require('../../lib/collections');
+const { customersRef, ordersRef, menuRef } = require('../../lib/collections');
 const { reverseGeocode, validateDeliveryAddress } = require('../../lib/geocode');
 const {
   hasUnitPattern,
@@ -17,6 +19,8 @@ const {
 } = require('../deliveryAddress');
 const { isStripeConfigured } = require('../../lib/stripe');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
+const { isLegalComplete, missingLegalFields } = require('../../lib/legalProfile');
+const { buildOrderTaxSnapshot } = require('../../lib/receiptMath');
 const { isStrongOrderText, isGreetingOnly, isFreshStartCommand } = require('../intentParser');
 const { isConversationalBasket } = require('../featureFlags');
 const { tryBasketUndo } = require('../conversationalBasket');
@@ -44,8 +48,9 @@ const { recordParseFailure, resetParseFailures } = require('../postOrder');
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal']);
 
+// Card payments require a Beleg, which needs a complete seller legal profile.
 function isPaymentEnabled(info) {
-  return info.paymentEnabled === true && isStripeConfigured();
+  return info.paymentEnabled === true && isStripeConfigured() && isLegalComplete(info.legal);
 }
 
 function logPaymentSkipped(businessId, info) {
@@ -53,13 +58,83 @@ function logPaymentSkipped(businessId, info) {
     console.warn(`[checkout] payment skipped for ${businessId}: paymentEnabled=${info.paymentEnabled ?? false}`);
   } else if (!isStripeConfigured()) {
     console.warn(`[checkout] payment skipped for ${businessId}: STRIPE_SECRET_KEY not set`);
+  } else if (!isLegalComplete(info.legal)) {
+    console.warn(`[checkout] payment skipped for ${businessId}: legal profile missing ${missingLegalFields(info.legal).join(', ')}`);
   }
+}
+
+function normalizeMenuName(name) {
+  return String(name ?? '').trim().toLowerCase();
+}
+
+/**
+ * Name keys to try for one basket line, most specific first. A customized line reads
+ * `Item — Opt1, Opt2`, which never matches a menu name, so the base name is the fallback.
+ */
+function menuNameKeys(line) {
+  const keys = [];
+  const fullKey = normalizeMenuName(line?.name);
+  if (fullKey) keys.push(fullKey);
+  const baseKey = normalizeMenuName(parseBasketItemName(line ?? {}).baseName);
+  if (baseKey && baseKey !== fullKey) keys.push(baseKey);
+  return keys;
+}
+
+/**
+ * Basket lines carry no vatRate — join the menu by item id, then by exact name, then by
+ * the base name of a customized line. Reads the raw menu instead of `getMenuContext` so
+ * an item that went unavailable while sitting in the basket still resolves its rate.
+ */
+async function attachMenuVatRates(businessId, basket) {
+  const lines = basket ?? [];
+  if (!lines.some(line => line.vatRate == null)) return lines;
+
+  const snap = await menuRef(businessId).get();
+  const menu = (snap.docs ?? []).map(doc => ({ ...doc.data(), id: doc.id }));
+  const byId = new Map();
+  const byName = new Map();
+  // Available items are indexed first so they win a duplicate-name collision.
+  for (const item of [...menu.filter(i => i.available !== false), ...menu.filter(i => i.available === false)]) {
+    if (item?.id != null) byId.set(String(item.id), item);
+    const nameKey = normalizeMenuName(item?.name);
+    if (nameKey && !byName.has(nameKey)) byName.set(nameKey, item);
+  }
+
+  return lines.map((line) => {
+    if (line.vatRate != null) return line;
+    const idKey = line.menuItemId ?? line.id;
+    let match = idKey != null ? byId.get(String(idKey)) : null;
+    for (const key of menuNameKeys(line)) {
+      if (match) break;
+      match = byName.get(key);
+    }
+    return match?.vatRate != null ? { ...line, vatRate: match.vatRate } : line;
+  });
 }
 
 async function placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod }) {
   const info = await getBusinessInfo(businessId);
   const { subtotal, deliveryFee, total, isDelivery } = orderTotals(basket, session, info);
   const phoneNumberId = session.whatsappPhoneNumberId || null;
+
+  // Card orders are blocked (order never created) when the Beleg data is not ready.
+  let taxSnapshot = null;
+  if (paymentMethod === 'stripe') {
+    if (!isLegalComplete(info.legal)) {
+      console.warn(`[checkout] card order blocked for ${businessId}: legal profile missing ${missingLegalFields(info.legal).join(', ')}`);
+      await sendText(from, t('paymentLegalIncomplete', lang), phoneNumberId);
+      return;
+    }
+    try {
+      const lines = await attachMenuVatRates(businessId, basket);
+      taxSnapshot = buildOrderTaxSnapshot(lines, { strict: true, deliveryFeeGross: deliveryFee });
+    } catch (err) {
+      console.warn(`[checkout] card order blocked for ${businessId}: ${err.message}`);
+      await sendText(from, t('paymentVatIncomplete', lang), phoneNumberId);
+      return;
+    }
+  }
+
   const orderId = await createOrder(businessId, {
     customerPhone: from,
     customerName: session.customerName || contactName || null,
@@ -75,6 +150,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     paymentMethod,
     paymentStatus: paymentMethod === 'stripe' ? 'pending' : 'cash',
     whatsappPhoneNumberId: session.whatsappPhoneNumberId || null,
+    taxSnapshot,
   });
   const shortId = orderId.slice(-6).toUpperCase();
   const itemLines = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });

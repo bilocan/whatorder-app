@@ -1382,6 +1382,10 @@ button:focus-visible {
   font-size: var(--text-xs);
   color: var(--danger);
 }
+.menu-form-hint {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
 .menu-form-avail {
   display: flex;
   align-items: center;
@@ -1580,6 +1584,27 @@ button:focus-visible {
 }
 .settings-hint {
   font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+.settings-hint-line {
+  margin: 0.4rem 0 0;
+}
+.settings-hint-line:first-child {
+  margin-top: 0;
+}
+.settings-checklist {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+.settings-checklist li {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+.settings-checklist li.settings-checklist-ok {
+  color: var(--success-soft-fg);
+  list-style-type: '✓ ';
+}
+.settings-checklist li.settings-checklist-pending {
   color: var(--text-tertiary);
 }
 .settings-check {

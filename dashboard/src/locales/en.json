@@ -345,6 +345,8 @@
     "unavailable": "Off",
     "expandCategory": "Expand {{category}}",
     "collapseCategory": "Collapse {{category}}",
+    "vatRate": "VAT rate",
+    "vatRateHint": "Used to split receipts into net + VAT. Defaults to 20% for drinks, 10% otherwise.",
     "form": {
       "name": "Name",
       "price": "Price (€)",
@@ -495,6 +497,25 @@
     "profile": {
       "title": "Restaurant profile"
     },
+    "legal": {
+      "title": "Legal & billing",
+      "description": "Required for payment receipts. This information appears on invoices sent to your customers.",
+      "legalName": "Legal business name",
+      "street": "Street & house number",
+      "zip": "ZIP / postal code",
+      "city": "City",
+      "country": "Country",
+      "uid": "VAT ID (UID)",
+      "firmenbuchNr": "Company register number (optional)",
+      "email": "Invoice email (optional)",
+      "iban": "IBAN (optional)",
+      "save": "Save legal details",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "error": "Could not save",
+      "incompleteHint": "Fill in all required fields to enable card payments.",
+      "uidInvalid": "VAT ID must look like ATU12345678."
+    },
     "deliveryPayment": {
       "title": "Delivery & payment"
     },
@@ -540,7 +561,9 @@
       "save": "Save payment settings",
       "saving": "Saving…",
       "saved": "Saved",
-      "error": "Could not save"
+      "error": "Could not save",
+      "requiresSetup": "Finish these steps before enabling card payments:",
+      "requiresLegal": "Complete your legal details above before enabling card payments."
     },
     "botLanguage": {
       "title": "Bot Language",
@@ -817,6 +840,7 @@
           "name": "Name",
           "price": "Price (€)",
           "category": "Category",
+          "vatRate": "VAT rate",
           "description": "Description (optional)",
           "available": "Available",
           "mains": "Mains",
@@ -907,6 +931,12 @@
       "disambiguation": "Pick list",
       "no_match": "No match",
       "error": "Error"
+    }
+  },
+  "onboarding": {
+    "checklist": {
+      "legalComplete": "Legal and billing details are complete",
+      "menuVatComplete": "Every menu item has a VAT rate"
     }
   }
 }

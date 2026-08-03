@@ -1,10 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { geocodeAddress } from '../lib/geocode';
-import type { Business, DaySchedule } from '../types';
+import { isLegalComplete, missingLegalFields, withCompleteFlag } from '../lib/legalProfile';
+import { evaluateOnboardingChecklist } from '../lib/onboardingChecklist';
+import LegalFieldsForm, { type LegalFormState } from '../components/LegalFieldsForm';
+import type { Business, DaySchedule, MenuItem } from '../types';
+
+const DEFAULT_LEGAL_FORM: LegalFormState = { country: 'AT' };
+
+/**
+ * Stand-in menu used until the real menu loads (or if the read fails): a single rate-less
+ * item keeps the payment gate shut rather than claiming VAT completeness we cannot prove.
+ */
+const MENU_VAT_UNKNOWN: { vatRate?: undefined }[] = [{}];
 
 const DEFAULT_DAY: DaySchedule = { openTime: '09:00', closeTime: '22:00', firstOrderTime: '09:00', lastOrderTime: '21:30' };
 
@@ -31,6 +42,10 @@ export default function SettingsPage() {
   const [minOrderSaveStatus, setMinOrderSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [paymentEnabled, setPaymentEnabled] = useState(false);
   const [paymentSaveStatus, setPaymentSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [paymentBlocked, setPaymentBlocked] = useState(false);
+  const [menuItems, setMenuItems] = useState<Pick<MenuItem, 'vatRate'>[] | null>(null);
+  const [legalForm, setLegalForm] = useState<LegalFormState>(DEFAULT_LEGAL_FORM);
+  const [legalSaveStatus, setLegalSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [dayMap, setDayMap] = useState<DayMap>({
     0: null, 1: { ...DEFAULT_DAY }, 2: { ...DEFAULT_DAY },
     3: { ...DEFAULT_DAY }, 4: { ...DEFAULT_DAY }, 5: { ...DEFAULT_DAY }, 6: null,
@@ -55,6 +70,7 @@ export default function SettingsPage() {
         setDeliveryZone(data.deliveryZone ?? '');
         setMinimumOrderValue(data.minimumOrderValue != null ? String(data.minimumOrderValue) : '');
         setPaymentEnabled(data.paymentEnabled ?? false);
+        setLegalForm(data.legal ? { ...data.legal } : DEFAULT_LEGAL_FORM);
         if (data.botLanguage) setBotLanguage(data.botLanguage);
         if (data.schedule) {
           setDayMap(prev => {
@@ -68,6 +84,14 @@ export default function SettingsPage() {
         }
       }
     });
+  }, [businessId]);
+
+  // Card payments require a VAT rate on every menu item, so the gate needs the menu too.
+  useEffect(() => {
+    if (!businessId) return;
+    getDocs(collection(db, 'businesses', businessId, 'menu'))
+      .then(snap => setMenuItems(snap.docs.map(d => d.data() as Pick<MenuItem, 'vatRate'>)))
+      .catch(() => setMenuItems(null));
   }, [businessId]);
 
   async function handleLookupCoords() {
@@ -135,8 +159,37 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleSaveLegal() {
+    if (!businessId) return;
+    setLegalSaveStatus('saving');
+    try {
+      const normalized = withCompleteFlag(legalForm);
+      await updateDoc(doc(db, 'businesses', businessId), { legal: normalized });
+      setBusiness(prev => prev ? { ...prev, legal: normalized } : prev);
+      setLegalForm(normalized);
+      setLegalSaveStatus('saved');
+      setTimeout(() => setLegalSaveStatus('idle'), 2500);
+    } catch {
+      setLegalSaveStatus('error');
+    }
+  }
+
+  function updateLegalField(field: keyof LegalFormState, value: string) {
+    setLegalForm(prev => ({ ...prev, [field]: value }));
+  }
+
   async function handleSavePayment() {
     if (!businessId) return;
+    // Turning payments off is always allowed, even with an incomplete checklist.
+    if (paymentEnabled && !evaluateOnboardingChecklist({
+      legal: business?.legal,
+      menuItems: menuItems ?? MENU_VAT_UNKNOWN,
+    }).readyForPayments) {
+      setPaymentBlocked(true);
+      setPaymentSaveStatus('error');
+      return;
+    }
+    setPaymentBlocked(false);
     setPaymentSaveStatus('saving');
     try {
       await updateDoc(doc(db, 'businesses', businessId), { paymentEnabled });
@@ -197,6 +250,13 @@ export default function SettingsPage() {
   }
 
   if (!business) return <p className="settings-loading">{t('settings.loading')}</p>;
+
+  const legalComplete = isLegalComplete(business.legal);
+  const missingLegal = missingLegalFields(business.legal);
+  const paymentChecklist = evaluateOnboardingChecklist({
+    legal: business.legal,
+    menuItems: menuItems ?? MENU_VAT_UNKNOWN,
+  });
 
   return (
     <div className="settings-page">
@@ -386,6 +446,26 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Legal / billing details */}
+      <section className="settings-card">
+        <h3 className="settings-card-title">{t('settings.legal.title')}</h3>
+        <p className="settings-card-desc">{t('settings.legal.description')}</p>
+        <LegalFieldsForm t={t} value={legalForm} onChange={updateLegalField} idPrefix="legal" />
+        {!legalComplete && <div className="settings-hint">{t('settings.legal.incompleteHint')}</div>}
+        <div className="settings-actions">
+          <button
+            type="button"
+            className="settings-btn-primary"
+            onClick={handleSaveLegal}
+            disabled={legalSaveStatus === 'saving'}
+          >
+            {legalSaveStatus === 'saving' ? t('settings.legal.saving') : t('settings.legal.save')}
+          </button>
+          {legalSaveStatus === 'saved' && <span className="settings-status-ok">{t('settings.legal.saved')}</span>}
+          {legalSaveStatus === 'error' && <span className="settings-status-err">{t('settings.legal.error')}</span>}
+        </div>
+      </section>
+
       <div className="settings-split">
         {/* Delivery & payment */}
         <section className="settings-card">
@@ -461,9 +541,36 @@ export default function SettingsPage() {
           </div>
 
           <label className="settings-check">
-            <input type="checkbox" checked={paymentEnabled} onChange={e => setPaymentEnabled(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={paymentEnabled}
+              disabled={!paymentChecklist.readyForPayments && !paymentEnabled}
+              onChange={e => setPaymentEnabled(e.target.checked)}
+            />
             <span>{t('settings.payment.acceptPayment')}</span>
           </label>
+          {!paymentChecklist.readyForPayments && (
+            <div className="settings-hint">
+              <p className="settings-hint-line">{t('settings.payment.requiresSetup')}</p>
+              <ul className="settings-checklist">
+                {paymentChecklist.items.map(({ id, ok, labelKey }) => (
+                  <li key={id} className={ok ? 'settings-checklist-ok' : 'settings-checklist-pending'}>
+                    {t(labelKey)}
+                  </li>
+                ))}
+              </ul>
+              {!legalComplete && (
+                <>
+                  <p className="settings-hint-line">{t('settings.payment.requiresLegal')}</p>
+                  <ul className="settings-checklist">
+                    {missingLegal.map(field => (
+                      <li key={field}>{t(`settings.legal.${field}`)}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
           <div className="settings-actions">
             <button
               type="button"
@@ -474,7 +581,11 @@ export default function SettingsPage() {
               {paymentSaveStatus === 'saving' ? t('settings.payment.saving') : t('settings.payment.save')}
             </button>
             {paymentSaveStatus === 'saved' && <span className="settings-status-ok">{t('settings.payment.saved')}</span>}
-            {paymentSaveStatus === 'error' && <span className="settings-status-err">{t('settings.payment.error')}</span>}
+            {paymentSaveStatus === 'error' && (
+              <span className="settings-status-err">
+                {paymentBlocked ? t('settings.payment.requiresSetup') : t('settings.payment.error')}
+              </span>
+            )}
           </div>
         </section>
 

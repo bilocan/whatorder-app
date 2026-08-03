@@ -185,6 +185,86 @@ describe('createOrder', () => {
     expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ pickupTime: null }));
   });
 
+  // ── Tax snapshot (Phase 0 receipts) ────────────────────────────────────────
+
+  test('persists tax snapshot items, totalsByVat and currency when provided', async () => {
+    const { mockSet } = makeOrdersRef();
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+    const taxSnapshot = {
+      items: [{ name: 'Döner', qty: 2, price: 8.5, unitPriceGross: 8.5, vatRate: 10, net: 15.45, vat: 1.55, gross: 17 }],
+      totalsByVat: { 10: { net: 15.45, vat: 1.55, gross: 17 } },
+      totalGross: 17,
+    };
+
+    await createOrder(BIZ, { ...ORDER_PARAMS, taxSnapshot });
+
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({
+      items: taxSnapshot.items,
+      totalsByVat: taxSnapshot.totalsByVat,
+      currency: 'EUR',
+      total: 17,
+      totalGross: 17,
+    }));
+  });
+
+  test('keeps the tagged delivery fee line out of persisted items', async () => {
+    const { mockSet } = makeOrdersRef();
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+    const basketLine = { name: 'Döner', qty: 2, price: 8.5, unitPriceGross: 8.5, vatRate: 10, net: 15.45, vat: 1.55, gross: 17 };
+    const feeLine = { name: 'Delivery fee', kind: 'fee', qty: 1, price: 2.5, unitPriceGross: 2.5, vatRate: 10, net: 2.27, vat: 0.23, gross: 2.5 };
+    const taxSnapshot = {
+      items: [basketLine, feeLine],
+      totalsByVat: { 10: { net: 17.72, vat: 1.78, gross: 19.5 } },
+      totalGross: 19.5,
+    };
+
+    await createOrder(BIZ, {
+      ...ORDER_PARAMS,
+      orderType: 'delivery',
+      deliveryAddress: 'Naschmarkt 5, 1040 Wien',
+      deliveryFee: 2.5,
+      taxSnapshot,
+    });
+
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({
+      items: [basketLine],
+      totalsByVat: taxSnapshot.totalsByVat,
+      total: 19.5,
+      totalGross: 19.5,
+    }));
+  });
+
+  test('filters the fee line by kind regardless of its position', async () => {
+    const { mockSet } = makeOrdersRef();
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+    const basketLine = { name: 'Döner', qty: 2, price: 8.5, vatRate: 10, net: 15.45, vat: 1.55, gross: 17 };
+    const feeLine = { name: 'Delivery fee', kind: 'fee', qty: 1, price: 2.5, vatRate: 10, net: 2.27, vat: 0.23, gross: 2.5 };
+
+    await createOrder(BIZ, {
+      ...ORDER_PARAMS,
+      taxSnapshot: {
+        items: [feeLine, basketLine],
+        totalsByVat: { 10: { net: 17.72, vat: 1.78, gross: 19.5 } },
+        totalGross: 19.5,
+      },
+    });
+
+    expect(mockSet.mock.calls[0][0].items).toEqual([basketLine]);
+  });
+
+  test('stores bare basket items when no tax snapshot is provided', async () => {
+    const { mockSet } = makeOrdersRef();
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+
+    await createOrder(BIZ, ORDER_PARAMS);
+
+    const doc = mockSet.mock.calls[0][0];
+    expect(doc.items).toEqual(ORDER_PARAMS.items);
+    expect(doc.totalsByVat).toBeUndefined();
+    expect(doc.currency).toBeUndefined();
+    expect(doc.totalGross).toBeUndefined();
+  });
+
   test('stores whatsappPhoneNumberId when provided', async () => {
     const { mockSet } = makeOrdersRef();
     businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });

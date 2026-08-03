@@ -8,6 +8,9 @@ const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('
 const { sendText, sendButtonMessage } = require('./whatsapp');
 const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } = require('./messageIdentity');
 const { t } = require('./templates');
+const { isLegalComplete } = require('./legalProfile');
+
+const LEGAL_PROFILE_INCOMPLETE = 'LEGAL_PROFILE_INCOMPLETE';
 
 function paymentBaseUrl() {
   const url = process.env.BACKEND_URL?.replace(/\/$/, '');
@@ -21,6 +24,12 @@ function paymentBaseUrl() {
 async function createCheckoutSessionForOrder(businessId, orderId, { totalEuros, restaurantName, shortId, lang = 'en' }) {
   const stripe = getStripe();
   if (!stripe) throw new Error('Stripe is not configured');
+
+  // Defense in depth: the bot already gates on legal completeness, but a Beleg
+  // cannot be issued for a seller without legal identity, so never charge either.
+  const bizSnap = await businessRef(businessId).get();
+  const legal = bizSnap.exists ? bizSnap.data()?.legal : null;
+  if (!isLegalComplete(legal)) throw new Error(LEGAL_PROFILE_INCOMPLETE);
 
   const amountCents = Math.round(totalEuros * 100);
   if (amountCents < 50) throw new Error('Order total too low for card payment');
@@ -154,6 +163,7 @@ async function processStripeWebhookEvent(event) {
 }
 
 module.exports = {
+  LEGAL_PROFILE_INCOMPLETE,
   createCheckoutSessionForOrder,
   handleCheckoutSessionCompleted,
   processStripeWebhookEvent,

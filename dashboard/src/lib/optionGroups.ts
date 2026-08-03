@@ -1,4 +1,4 @@
-import type { MenuOption, MenuOptionGroup, MenuItem, OptionGroupTemplate } from '../types';
+import type { MenuOption, MenuOptionGroup, MenuItem, OptionGroupTemplate, VatRate } from '../types';
 import { deleteField } from 'firebase/firestore';
 import { parseOptionPrice } from './optionPricing';
 
@@ -297,12 +297,18 @@ export function resolveMenuItemOptionGroups(
   return item.optionGroups ?? [];
 }
 
+/** Mirrors backend/src/lib/receiptMath.js defaultVatRateForCategory — keep in sync. */
+export function defaultVatRateForCategory(category: string): VatRate {
+  return String(category ?? '').trim().toLowerCase() === 'drinks' ? 20 : 10;
+}
+
 type MenuCoreFields = {
   name: string;
   price: string | number;
   category: string;
   description: string;
   available: boolean;
+  vatRate: VatRate;
   optionGroupIds: string[];
   photoUrl?: string | null;
 };
@@ -314,6 +320,7 @@ export function buildMenuPayload(values: MenuCoreFields, forUpdate = false) {
     category: values.category,
     description: String(values.description).trim(),
     available: values.available,
+    vatRate: values.vatRate,
   };
   const withPhoto = values.photoUrl
     ? { ...base, photoUrl: values.photoUrl }

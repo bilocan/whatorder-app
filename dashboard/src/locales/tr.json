@@ -345,6 +345,8 @@
     "unavailable": "Mevcut değil",
     "expandCategory": "{{category}} bölümünü aç",
     "collapseCategory": "{{category}} bölümünü kapat",
+    "vatRate": "KDV oranı",
+    "vatRateHint": "Fişleri net + KDV olarak ayırmak için kullanılır. Varsayılan içecekler için %20, diğerleri için %10.",
     "form": {
       "name": "Ad",
       "price": "Fiyat (€)",
@@ -495,6 +497,25 @@
     "profile": {
       "title": "Restoran profili"
     },
+    "legal": {
+      "title": "Fatura bilgileri",
+      "description": "Ödeme makbuzları için gerekli. Bu bilgiler müşterilerinize gönderilen faturalarda görünür.",
+      "legalName": "Yasal işletme adı",
+      "street": "Sokak / adres",
+      "zip": "Posta kodu",
+      "city": "Şehir",
+      "country": "Ülke",
+      "uid": "KDV numarası (UID)",
+      "firmenbuchNr": "Ticaret sicil numarası (opsiyonel)",
+      "email": "Fatura e-postası (opsiyonel)",
+      "iban": "IBAN (opsiyonel)",
+      "save": "Fatura bilgilerini kaydet",
+      "saving": "Kaydediliyor…",
+      "saved": "Kaydedildi",
+      "error": "Kaydedilemedi",
+      "incompleteHint": "Kart ödemelerini etkinleştirmek için tüm zorunlu alanları doldurun.",
+      "uidInvalid": "KDV numarası ATU12345678 biçiminde olmalı."
+    },
     "deliveryPayment": {
       "title": "Teslimat ve ödeme"
     },
@@ -540,7 +561,9 @@
       "save": "Ödeme ayarlarını kaydet",
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi",
-      "error": "Kaydedilemedi"
+      "error": "Kaydedilemedi",
+      "requiresSetup": "Kart ödemelerini etkinleştirmek için bu adımları tamamlayın:",
+      "requiresLegal": "Kart ödemelerini etkinleştirmeden önce yukarıdaki fatura bilgilerini tamamlayın."
     },
     "botLanguage": {
       "title": "Bot Dili",
@@ -817,6 +840,7 @@
           "name": "Ad",
           "price": "Fiyat (€)",
           "category": "Kategori",
+          "vatRate": "KDV oranı",
           "description": "Açıklama (isteğe bağlı)",
           "available": "Mevcut",
           "mains": "Ana Yemekler",
@@ -907,6 +931,12 @@
       "disambiguation": "Seçim listesi",
       "no_match": "Eşleşme yok",
       "error": "Hata"
+    }
+  },
+  "onboarding": {
+    "checklist": {
+      "legalComplete": "Fatura ve şirket bilgileri tamam",
+      "menuVatComplete": "Her menü öğesinin KDV oranı var"
     }
   }
 }
