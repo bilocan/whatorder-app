@@ -29,6 +29,7 @@ const {
   branchSyncState,
   planVaultRelease,
   applyVaultRelease,
+  extractUserVisibleNotes,
   printHelp,
   printReleaseOverview,
   printNextSteps,
@@ -307,7 +308,19 @@ async function commitAndPushVault(vaultRootDir, rotation, tag, { dryRun, skipVau
     if (!ok) throw new Error('Vault commit cancelled.');
   }
 
-  applyVaultRelease(rotation);
+  // Write first, then commit, then pull --rebase. Never pull while dirty:
+  // vault uses pull.rebase=true, which refuses unstaged rotation files.
+  runInDir(vaultRootDir, 'git', ['checkout', 'master']);
+
+  if (fs.existsSync(rotation.releasedFile)) {
+    console.log(`  ${path.basename(rotation.releasedFile)} already exists — skipping write.`);
+    const unreleasedNow = fs.readFileSync(rotation.unreleasedFile, 'utf8');
+    if (extractUserVisibleNotes(unreleasedNow)) {
+      fs.writeFileSync(rotation.unreleasedFile, rotation.freshMarkdown, 'utf8');
+    }
+  } else {
+    applyVaultRelease(rotation);
+  }
 
   logStep('Vault git commit');
   const dirty = vaultGitStatus(vaultRootDir);
@@ -318,10 +331,9 @@ async function commitAndPushVault(vaultRootDir, rotation, tag, { dryRun, skipVau
 
   console.log(dirty);
 
-  runInDir(vaultRootDir, 'git', ['checkout', 'master']);
-  runInDir(vaultRootDir, 'git', ['pull', 'origin', 'master']);
   runInDir(vaultRootDir, 'git', ['add', 'Projects/WhatOrder/releases/']);
   runInDir(vaultRootDir, 'git', ['commit', '-m', `chore(release): rotate changelog for ${tag}`]);
+  runInDir(vaultRootDir, 'git', ['pull', 'origin', 'master']);
   runInDir(vaultRootDir, 'git', ['push', 'origin', 'master']);
   console.log('  Vault pushed to origin/master.');
 }
