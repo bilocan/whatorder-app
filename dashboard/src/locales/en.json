@@ -345,6 +345,8 @@
     "unavailable": "Off",
     "expandCategory": "Expand {{category}}",
     "collapseCategory": "Collapse {{category}}",
+    "vatRate": "VAT rate",
+    "vatRateHint": "Used to split receipts into net + VAT. Defaults to 20% for drinks, 10% otherwise.",
     "form": {
       "name": "Name",
       "price": "Price (€)",
@@ -837,6 +839,7 @@
           "name": "Name",
           "price": "Price (€)",
           "category": "Category",
+          "vatRate": "VAT rate",
           "description": "Description (optional)",
           "available": "Available",
           "mains": "Mains",

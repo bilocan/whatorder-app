@@ -237,7 +237,7 @@ describe('RestaurantDetailPage — bot toggle', () => {
     renderPage();
     await waitForLoad();
 
-    expect(screen.getByRole('button', { name: /details/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^details$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /menu/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /owners/i })).toBeInTheDocument();
   });

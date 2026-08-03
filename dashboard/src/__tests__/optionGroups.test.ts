@@ -4,6 +4,7 @@ import {
   slugifyId,
   draftGroupsFromMenu,
   buildMenuPayload,
+  defaultVatRateForCategory,
   resolveMenuItemOptionGroups,
   indexMenuItemsByOptionGroup,
   expandOptionGroup,
@@ -214,6 +215,16 @@ describe('indexMenuItemsByOptionGroup', () => {
   });
 });
 
+describe('defaultVatRateForCategory', () => {
+  it('defaults drinks to 20% and everything else to 10%', () => {
+    expect(defaultVatRateForCategory('drinks')).toBe(20);
+    expect(defaultVatRateForCategory('Drinks')).toBe(20);
+    expect(defaultVatRateForCategory('mains')).toBe(10);
+    expect(defaultVatRateForCategory('sides')).toBe(10);
+    expect(defaultVatRateForCategory('')).toBe(10);
+  });
+});
+
 describe('buildMenuPayload', () => {
   const base = {
     name: 'Dürüm',
@@ -221,6 +232,7 @@ describe('buildMenuPayload', () => {
     category: 'mains',
     description: 'Chicken wrap',
     available: true,
+    vatRate: 10 as const,
     photoUrl: null as string | null,
   };
 
@@ -228,5 +240,10 @@ describe('buildMenuPayload', () => {
     const payload = buildMenuPayload({ ...base, optionGroupIds: ['inserts', 'protein'] }, true);
     expect(payload).toMatchObject({ optionGroupIds: ['inserts', 'protein'] });
     expect(payload.optionGroups).toBeDefined();
+  });
+
+  it('includes vatRate in the payload', () => {
+    const payload = buildMenuPayload({ ...base, vatRate: 20, optionGroupIds: [] });
+    expect(payload).toMatchObject({ vatRate: 20 });
   });
 });

@@ -345,6 +345,8 @@
     "unavailable": "Mevcut değil",
     "expandCategory": "{{category}} bölümünü aç",
     "collapseCategory": "{{category}} bölümünü kapat",
+    "vatRate": "KDV oranı",
+    "vatRateHint": "Fişleri net + KDV olarak ayırmak için kullanılır. Varsayılan içecekler için %20, diğerleri için %10.",
     "form": {
       "name": "Ad",
       "price": "Fiyat (€)",
@@ -837,6 +839,7 @@
           "name": "Ad",
           "price": "Fiyat (€)",
           "category": "Kategori",
+          "vatRate": "KDV oranı",
           "description": "Açıklama (isteğe bağlı)",
           "available": "Mevcut",
           "mains": "Ana Yemekler",

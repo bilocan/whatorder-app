@@ -4,10 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { geocodeAddress } from '../lib/geocode';
-import { isLegalComplete, missingLegalFields, normalizeUid, withCompleteFlag } from '../lib/legalProfile';
-import type { Business, BusinessLegal, DaySchedule } from '../types';
-
-type LegalFormState = Partial<Omit<BusinessLegal, 'complete'>>;
+import { isLegalComplete, missingLegalFields, withCompleteFlag } from '../lib/legalProfile';
+import LegalFieldsForm, { type LegalFormState } from '../components/LegalFieldsForm';
+import type { Business, DaySchedule } from '../types';
 
 const DEFAULT_LEGAL_FORM: LegalFormState = { country: 'AT' };
 
@@ -234,8 +233,6 @@ export default function SettingsPage() {
 
   const legalComplete = isLegalComplete(business.legal);
   const missingLegal = missingLegalFields(business.legal);
-  const uidTrimmed = (legalForm.uid ?? '').trim();
-  const uidInvalid = uidTrimmed.length > 0 && !normalizeUid(uidTrimmed);
 
   return (
     <div className="settings-page">
@@ -429,100 +426,7 @@ export default function SettingsPage() {
       <section className="settings-card">
         <h3 className="settings-card-title">{t('settings.legal.title')}</h3>
         <p className="settings-card-desc">{t('settings.legal.description')}</p>
-        <div className="settings-grid-2">
-          <div className="settings-field settings-field-span">
-            <label className="settings-label" htmlFor="legal-name">{t('settings.legal.legalName')}</label>
-            <input
-              id="legal-name"
-              type="text"
-              className="settings-input"
-              value={legalForm.legalName ?? ''}
-              onChange={e => updateLegalField('legalName', e.target.value)}
-            />
-          </div>
-          <div className="settings-field settings-field-span">
-            <label className="settings-label" htmlFor="legal-street">{t('settings.legal.street')}</label>
-            <input
-              id="legal-street"
-              type="text"
-              className="settings-input"
-              value={legalForm.street ?? ''}
-              onChange={e => updateLegalField('street', e.target.value)}
-            />
-          </div>
-          <div className="settings-field">
-            <label className="settings-label" htmlFor="legal-zip">{t('settings.legal.zip')}</label>
-            <input
-              id="legal-zip"
-              type="text"
-              className="settings-input"
-              value={legalForm.zip ?? ''}
-              onChange={e => updateLegalField('zip', e.target.value)}
-            />
-          </div>
-          <div className="settings-field">
-            <label className="settings-label" htmlFor="legal-city">{t('settings.legal.city')}</label>
-            <input
-              id="legal-city"
-              type="text"
-              className="settings-input"
-              value={legalForm.city ?? ''}
-              onChange={e => updateLegalField('city', e.target.value)}
-            />
-          </div>
-          <div className="settings-field">
-            <label className="settings-label" htmlFor="legal-country">{t('settings.legal.country')}</label>
-            <input
-              id="legal-country"
-              type="text"
-              className="settings-input"
-              value={legalForm.country ?? 'AT'}
-              onChange={e => updateLegalField('country', e.target.value)}
-            />
-          </div>
-          <div className="settings-field">
-            <label className="settings-label" htmlFor="legal-uid">{t('settings.legal.uid')}</label>
-            <input
-              id="legal-uid"
-              type="text"
-              className="settings-input"
-              value={legalForm.uid ?? ''}
-              onChange={e => updateLegalField('uid', e.target.value)}
-              placeholder="ATU12345678"
-            />
-            {uidInvalid && <div className="settings-hint settings-status-err">{t('settings.legal.uidInvalid')}</div>}
-          </div>
-          <div className="settings-field">
-            <label className="settings-label" htmlFor="legal-firmenbuch">{t('settings.legal.firmenbuchNr')}</label>
-            <input
-              id="legal-firmenbuch"
-              type="text"
-              className="settings-input"
-              value={legalForm.firmenbuchNr ?? ''}
-              onChange={e => updateLegalField('firmenbuchNr', e.target.value)}
-            />
-          </div>
-          <div className="settings-field">
-            <label className="settings-label" htmlFor="legal-email">{t('settings.legal.email')}</label>
-            <input
-              id="legal-email"
-              type="email"
-              className="settings-input"
-              value={legalForm.email ?? ''}
-              onChange={e => updateLegalField('email', e.target.value)}
-            />
-          </div>
-          <div className="settings-field settings-field-span">
-            <label className="settings-label" htmlFor="legal-iban">{t('settings.legal.iban')}</label>
-            <input
-              id="legal-iban"
-              type="text"
-              className="settings-input"
-              value={legalForm.iban ?? ''}
-              onChange={e => updateLegalField('iban', e.target.value)}
-            />
-          </div>
-        </div>
+        <LegalFieldsForm t={t} value={legalForm} onChange={updateLegalField} idPrefix="legal" />
         {!legalComplete && <div className="settings-hint">{t('settings.legal.incompleteHint')}</div>}
         <div className="settings-actions">
           <button

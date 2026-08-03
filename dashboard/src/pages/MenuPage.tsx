@@ -7,12 +7,14 @@ import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import OptionGroupAssigner from '../components/OptionGroupAssigner';
-import { customizationSummary, buildMenuPayload, resolveMenuItemOptionGroups } from '../lib/optionGroups';
+import { customizationSummary, buildMenuPayload, defaultVatRateForCategory, resolveMenuItemOptionGroups } from '../lib/optionGroups';
 import { useOptionGroupLibrary } from '../hooks/useOptionGroupLibrary';
 import { uploadMenuPhoto, deleteMenuPhotoBestEffort, MenuPhotoError } from '../lib/menuPhoto';
 import { useConfirm } from '../components/ConfirmDialog';
 import type { DashboardT } from '../i18n';
-import type { MenuItem } from '../types';
+import type { MenuItem, VatRate } from '../types';
+
+const VAT_RATES: VatRate[] = [0, 10, 20];
 
 const TrashIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -57,13 +59,14 @@ type FormValues = {
   category: MenuItem['category'];
   description: string;
   available: boolean;
+  vatRate: VatRate;
   optionGroupIds: string[];
   photoFile: File | null;
   photoUrl: string | null;
 };
 
 const EMPTY: FormValues = {
-  name: '', price: '', category: 'mains', description: '', available: true, optionGroupIds: [],
+  name: '', price: '', category: 'mains', description: '', available: true, vatRate: defaultVatRateForCategory('mains'), optionGroupIds: [],
   photoFile: null, photoUrl: null,
 };
 
@@ -80,6 +83,8 @@ interface MenuFormProps {
   templatesById?: Record<string, import('../types').OptionGroupTemplate>;
   anchorId?: string;
   availCheckId: string;
+  /** New (not-yet-saved) items re-default vatRate when the category changes; edits leave a saved vatRate alone. */
+  isNew: boolean;
 }
 
 function menuItemToFormValues(item: MenuItem): FormValues {
@@ -89,6 +94,7 @@ function menuItemToFormValues(item: MenuItem): FormValues {
     category: item.category,
     description: item.description ?? '',
     available: item.available,
+    vatRate: item.vatRate ?? defaultVatRateForCategory(item.category),
     optionGroupIds: item.optionGroupIds ?? [],
     photoFile: null,
     photoUrl: item.photoUrl ?? null,
@@ -97,7 +103,7 @@ function menuItemToFormValues(item: MenuItem): FormValues {
 
 function MenuForm({
   values, onChange, onSubmit, onCancel, submitting, submitLabel, photoError,
-  optionGroupLibrary, libraryLoading, templatesById, anchorId, availCheckId,
+  optionGroupLibrary, libraryLoading, templatesById, anchorId, availCheckId, isNew,
 }: MenuFormProps) {
   const { t } = useTranslation();
   const categoryOptions = STANDARD_CATEGORIES.map((c) => ({ value: c, label: t(`menu.category.${c}`) }));
@@ -143,12 +149,30 @@ function MenuForm({
         <select
           className="menu-form-input"
           value={values.category}
-          onChange={(e) => onChange({ ...values, category: e.target.value as MenuItem['category'] })}
+          onChange={(e) => {
+            const category = e.target.value as MenuItem['category'];
+            onChange(isNew
+              ? { ...values, category, vatRate: defaultVatRateForCategory(category) }
+              : { ...values, category });
+          }}
         >
           {categoryOptions.map((c) => (
             <option key={c.value} value={c.value}>{c.label}</option>
           ))}
         </select>
+      </div>
+      <div className="menu-form-field menu-form-field-category">
+        <label className="menu-form-label">{t('menu.vatRate')}</label>
+        <select
+          className="menu-form-input"
+          value={values.vatRate}
+          onChange={(e) => onChange({ ...values, vatRate: Number(e.target.value) as VatRate })}
+        >
+          {VAT_RATES.map((rate) => (
+            <option key={rate} value={rate}>{rate}%</option>
+          ))}
+        </select>
+        <span className="menu-form-hint">{t('menu.vatRateHint')}</span>
       </div>
       <div className="menu-form-field menu-form-field-grow">
         <label className="menu-form-label">{t('menu.form.description')}</label>
@@ -388,6 +412,7 @@ export default function MenuPage() {
           libraryLoading={libraryLoading}
           templatesById={optionGroupsById}
           availCheckId="menu-avail-add"
+          isNew
         />
       )}
 
@@ -432,6 +457,7 @@ export default function MenuPage() {
                         libraryLoading={libraryLoading}
                         templatesById={optionGroupsById}
                         availCheckId={`menu-avail-edit-${item.id}`}
+                        isNew={false}
                       />
                     ) : (
                       <div key={item.id} className="menu-row">

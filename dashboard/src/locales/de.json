@@ -345,6 +345,8 @@
     "unavailable": "Nicht verfügbar",
     "expandCategory": "{{category}} aufklappen",
     "collapseCategory": "{{category}} zuklappen",
+    "vatRate": "MwSt.-Satz",
+    "vatRateHint": "Wird verwendet, um Belege in Netto + MwSt. aufzuteilen. Standard 20% für Getränke, sonst 10%.",
     "form": {
       "name": "Name",
       "price": "Preis (€)",
@@ -837,6 +839,7 @@
           "name": "Name",
           "price": "Preis (€)",
           "category": "Kategorie",
+          "vatRate": "MwSt.-Satz",
           "description": "Beschreibung (optional)",
           "available": "Verfügbar",
           "mains": "Hauptgerichte",

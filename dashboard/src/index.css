@@ -1382,6 +1382,10 @@ button:focus-visible {
   font-size: var(--text-xs);
   color: var(--danger);
 }
+.menu-form-hint {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
 .menu-form-avail {
   display: flex;
   align-items: center;
