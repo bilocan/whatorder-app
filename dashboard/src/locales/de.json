@@ -562,6 +562,7 @@
       "saving": "Speichern…",
       "saved": "Gespeichert",
       "error": "Speichern fehlgeschlagen",
+      "requiresSetup": "Erledige diese Schritte, um Kartenzahlungen zu aktivieren:",
       "requiresLegal": "Ergänze zuerst deine Rechnungsdaten oben, um Kartenzahlungen zu aktivieren."
     },
     "botLanguage": {
@@ -930,6 +931,12 @@
       "disambiguation": "Auswahlliste",
       "no_match": "Kein Treffer",
       "error": "Fehler"
+    }
+  },
+  "onboarding": {
+    "checklist": {
+      "legalComplete": "Rechnungs- und Firmendaten sind vollständig",
+      "menuVatComplete": "Jeder Menüpunkt hat einen Steuersatz"
     }
   }
 }

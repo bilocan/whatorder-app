@@ -1,10 +1,12 @@
 const { setSession, patchSession } = require('../sessionStore');
 const { sendText, sendButtonMessage, sendListMessage, sendLocationRequest, sendCtaUrlMessage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
-const { buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView } = require('../botHelpers');
+const {
+  buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView, parseBasketItemName,
+} = require('../botHelpers');
 const { getBusinessInfo, getMenuContext } = require('../menuService');
 const { createOrder } = require('../orderService');
-const { customersRef, ordersRef } = require('../../lib/collections');
+const { customersRef, ordersRef, menuRef } = require('../../lib/collections');
 const { reverseGeocode, validateDeliveryAddress } = require('../../lib/geocode');
 const {
   hasUnitPattern,
@@ -65,21 +67,47 @@ function normalizeMenuName(name) {
   return String(name ?? '').trim().toLowerCase();
 }
 
-/** Basket lines carry no vatRate — join the live menu by item id, else by name. */
+/**
+ * Name keys to try for one basket line, most specific first. A customized line reads
+ * `Item — Opt1, Opt2`, which never matches a menu name, so the base name is the fallback.
+ */
+function menuNameKeys(line) {
+  const keys = [];
+  const fullKey = normalizeMenuName(line?.name);
+  if (fullKey) keys.push(fullKey);
+  const baseKey = normalizeMenuName(parseBasketItemName(line ?? {}).baseName);
+  if (baseKey && baseKey !== fullKey) keys.push(baseKey);
+  return keys;
+}
+
+/**
+ * Basket lines carry no vatRate — join the menu by item id, then by exact name, then by
+ * the base name of a customized line. Reads the raw menu instead of `getMenuContext` so
+ * an item that went unavailable while sitting in the basket still resolves its rate.
+ */
 async function attachMenuVatRates(businessId, basket) {
-  const { menu } = await getMenuContext(businessId);
+  const lines = basket ?? [];
+  if (!lines.some(line => line.vatRate == null)) return lines;
+
+  const snap = await menuRef(businessId).get();
+  const menu = (snap.docs ?? []).map(doc => ({ ...doc.data(), id: doc.id }));
   const byId = new Map();
   const byName = new Map();
-  for (const item of menu ?? []) {
+  // Available items are indexed first so they win a duplicate-name collision.
+  for (const item of [...menu.filter(i => i.available !== false), ...menu.filter(i => i.available === false)]) {
     if (item?.id != null) byId.set(String(item.id), item);
     const nameKey = normalizeMenuName(item?.name);
     if (nameKey && !byName.has(nameKey)) byName.set(nameKey, item);
   }
 
-  return (basket ?? []).map((line) => {
+  return lines.map((line) => {
     if (line.vatRate != null) return line;
     const idKey = line.menuItemId ?? line.id;
-    const match = (idKey != null ? byId.get(String(idKey)) : null) ?? byName.get(normalizeMenuName(line.name));
+    let match = idKey != null ? byId.get(String(idKey)) : null;
+    for (const key of menuNameKeys(line)) {
+      if (match) break;
+      match = byName.get(key);
+    }
     return match?.vatRate != null ? { ...line, vatRate: match.vatRate } : line;
   });
 }

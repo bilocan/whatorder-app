@@ -1,5 +1,7 @@
 const {
   ALLOWED_VAT_RATES,
+  DEFAULT_DELIVERY_FEE_VAT_RATE,
+  FEE_LINE_KIND,
   splitGrossCents,
   buildOrderTaxSnapshot,
   defaultVatRateForCategory,
@@ -55,5 +57,44 @@ describe('receiptMath', () => {
       [{ name: 'X', qty: 1, price: 1 }],
       { strict: true },
     )).toThrow(/vatRate/);
+  });
+
+  test('tags the delivery fee line and taxes it at 10% by default', () => {
+    const snap = buildOrderTaxSnapshot(
+      [{ name: 'Döner', qty: 1, price: 8.5, vatRate: 10 }],
+      { deliveryFeeGross: 2.5 },
+    );
+
+    expect(DEFAULT_DELIVERY_FEE_VAT_RATE).toBe(10);
+    expect(snap.items[1]).toMatchObject({ name: 'Delivery fee', kind: FEE_LINE_KIND, vatRate: 10 });
+    expect(snap.totalsByVat['10'].gross).toBeCloseTo(11, 5);
+  });
+
+  test('accepts a deliveryFeeVatRate override and keeps the fee in totalsByVat', () => {
+    const snap = buildOrderTaxSnapshot(
+      [{ name: 'Döner', qty: 1, price: 8.5, vatRate: 10 }],
+      { deliveryFeeGross: 2.4, deliveryFeeVatRate: 20 },
+    );
+
+    expect(snap.items[1]).toMatchObject({ kind: FEE_LINE_KIND, vatRate: 20 });
+    expect(snap.totalsByVat['20']).toEqual({ net: 2, vat: 0.4, gross: 2.4 });
+    expect(snap.totalGross).toBeCloseTo(10.9, 5);
+  });
+
+  test('rejects an unsupported deliveryFeeVatRate', () => {
+    expect(() => buildOrderTaxSnapshot(
+      [{ name: 'Döner', qty: 1, price: 8.5, vatRate: 10 }],
+      { deliveryFeeGross: 2.5, deliveryFeeVatRate: 13 },
+    )).toThrow(/deliveryFeeVatRate/);
+  });
+
+  test('leaves basket lines untagged so only the fee is filterable', () => {
+    const snap = buildOrderTaxSnapshot(
+      [{ name: 'Döner', qty: 1, price: 8.5, vatRate: 10 }],
+      { deliveryFeeGross: 2.5 },
+    );
+
+    expect(snap.items.filter(item => item.kind === FEE_LINE_KIND)).toHaveLength(1);
+    expect(snap.items[0].kind).toBeUndefined();
   });
 });

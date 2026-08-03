@@ -3,16 +3,19 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import SettingsPage from '../pages/SettingsPage'
 
-const { mockUseAuth, mockGetDoc, mockUpdateDoc } = vi.hoisted(() => ({
+const { mockUseAuth, mockGetDoc, mockGetDocs, mockUpdateDoc } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
   mockGetDoc: vi.fn(),
+  mockGetDocs: vi.fn(),
   mockUpdateDoc: vi.fn(() => Promise.resolve()),
 }))
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: mockUseAuth }))
 vi.mock('firebase/firestore', () => ({
+  collection: vi.fn(() => 'mock-collection-ref'),
   doc: vi.fn(() => 'mock-doc-ref'),
   getDoc: mockGetDoc,
+  getDocs: mockGetDocs,
   updateDoc: mockUpdateDoc,
 }))
 
@@ -40,11 +43,18 @@ function mockBusiness(overrides: Record<string, unknown> = {}) {
   })
 }
 
+function mockMenu(items: Record<string, unknown>[]) {
+  mockGetDocs.mockResolvedValue({
+    docs: items.map((data, i) => ({ id: `item-${i}`, data: () => data })),
+  })
+}
+
 describe('SettingsPage — legal profile and payment gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUpdateDoc.mockResolvedValue(undefined)
     mockUseAuth.mockReturnValue({ businessId: 'biz-1' })
+    mockMenu([{ vatRate: 10 }, { vatRate: 20 }])
   })
 
   it('disables card payments and lists missing fields when legal profile is incomplete', async () => {
@@ -94,6 +104,61 @@ describe('SettingsPage — legal profile and payment gate', () => {
     await waitFor(() => {
       expect(mockUpdateDoc).toHaveBeenCalledWith('mock-doc-ref', { paymentEnabled: true })
     })
+  })
+
+  it('blocks enabling payments while a menu item has no VAT rate, even with complete legal', async () => {
+    mockBusiness({ legal: COMPLETE_LEGAL })
+    mockMenu([{ vatRate: 10 }, {}])
+    render(<SettingsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Finish these steps before enabling card payments:')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('checkbox', { name: 'Accept card payments' })).toBeDisabled()
+    expect(screen.getByText('Legal and billing details are complete')).toHaveClass('settings-checklist-ok')
+    expect(screen.getByText('Every menu item has a VAT rate')).toHaveClass('settings-checklist-pending')
+  })
+
+  it('shows both checklist rows as met and enables the checkbox when the menu is fully rated', async () => {
+    mockBusiness({ legal: COMPLETE_LEGAL })
+    render(<SettingsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('checkbox', { name: 'Accept card payments' })).not.toBeDisabled()
+    })
+
+    expect(screen.queryByText('Finish these steps before enabling card payments:')).not.toBeInTheDocument()
+  })
+
+  it('lets an owner turn card payments off while the checklist is incomplete', async () => {
+    mockBusiness({ paymentEnabled: true })
+    mockMenu([{}])
+    render(<SettingsPage />)
+
+    const checkbox = await waitFor(() => screen.getByRole('checkbox', { name: 'Accept card payments' }))
+    await waitFor(() => expect(checkbox).toBeChecked())
+    expect(checkbox).not.toBeDisabled()
+
+    const user = userEvent.setup()
+    await user.click(checkbox)
+    await user.click(screen.getByRole('button', { name: 'Save payment settings' }))
+
+    await waitFor(() => {
+      expect(mockUpdateDoc).toHaveBeenCalledWith('mock-doc-ref', { paymentEnabled: false })
+    })
+  })
+
+  it('keeps the gate shut when the menu read fails', async () => {
+    mockBusiness({ legal: COMPLETE_LEGAL })
+    mockGetDocs.mockRejectedValue(new Error('permission denied'))
+    render(<SettingsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Every menu item has a VAT rate')).toHaveClass('settings-checklist-pending')
+    })
+
+    expect(screen.getByRole('checkbox', { name: 'Accept card payments' })).toBeDisabled()
   })
 
   it('saves the legal profile with a normalized, complete flag via withCompleteFlag', async () => {

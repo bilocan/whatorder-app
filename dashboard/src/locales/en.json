@@ -562,6 +562,7 @@
       "saving": "Saving…",
       "saved": "Saved",
       "error": "Could not save",
+      "requiresSetup": "Finish these steps before enabling card payments:",
       "requiresLegal": "Complete your legal details above before enabling card payments."
     },
     "botLanguage": {
@@ -930,6 +931,12 @@
       "disambiguation": "Pick list",
       "no_match": "No match",
       "error": "Error"
+    }
+  },
+  "onboarding": {
+    "checklist": {
+      "legalComplete": "Legal and billing details are complete",
+      "menuVatComplete": "Every menu item has a VAT rate"
     }
   }
 }

@@ -1,5 +1,14 @@
 const ALLOWED_VAT_RATES = Object.freeze([0, 10, 20]);
 
+/**
+ * Delivery of prepared food is billed at the food rate in Austria. Steuerberater must
+ * confirm this before we bill delivery as a separate 20% service for any business.
+ */
+const DEFAULT_DELIVERY_FEE_VAT_RATE = 10;
+
+/** Marks the synthetic delivery-fee line so consumers filter it without positional slicing. */
+const FEE_LINE_KIND = 'fee';
+
 function isValidVatRate(value) {
   return ALLOWED_VAT_RATES.includes(value);
 }
@@ -69,14 +78,22 @@ function buildOrderTaxSnapshot(basketLines, options = {}) {
     throw new TypeError('basketLines must be an array');
   }
 
-  const { strict = false, deliveryFeeGross } = options;
+  const {
+    strict = false,
+    deliveryFeeGross,
+    deliveryFeeVatRate = DEFAULT_DELIVERY_FEE_VAT_RATE,
+  } = options;
   const sourceLines = [...basketLines];
   if (deliveryFeeGross != null && Number(deliveryFeeGross) !== 0) {
+    if (!isValidVatRate(deliveryFeeVatRate)) {
+      throw new TypeError(`Invalid deliveryFeeVatRate: ${deliveryFeeVatRate}`);
+    }
     sourceLines.push({
       name: 'Delivery fee',
+      kind: FEE_LINE_KIND,
       qty: 1,
       price: deliveryFeeGross,
-      vatRate: 10,
+      vatRate: deliveryFeeVatRate,
     });
   }
 
@@ -117,6 +134,8 @@ function buildOrderTaxSnapshot(basketLines, options = {}) {
 
 module.exports = {
   ALLOWED_VAT_RATES,
+  DEFAULT_DELIVERY_FEE_VAT_RATE,
+  FEE_LINE_KIND,
   isValidVatRate,
   defaultVatRateForCategory,
   splitGrossCents,

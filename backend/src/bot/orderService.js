@@ -6,6 +6,7 @@ const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } =
 const { formatBasketItemsText } = require('./botHelpers');
 const { t } = require('./templates');
 const { normalizeCustomerPhone, customerPhoneVariants } = require('../lib/phone');
+const { FEE_LINE_KIND } = require('../lib/receiptMath');
 const { patchSession } = require('./sessionStore');
 
 const TERMINAL_REENTRY_STATUSES = new Set(['delivered', 'picked_up', 'rejected', 'cancelled']);
@@ -122,9 +123,9 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
     doc.total = total + (deliveryFee || 0);
   }
   if (taxSnapshot) {
-    // The snapshot appends a delivery-fee line after the basket lines. Kitchen and
-    // dashboard views render that fee from `deliveryFee`, so persist basket lines only.
-    doc.items = taxSnapshot.items.slice(0, items.length);
+    // Kitchen and dashboard views render the delivery fee from `deliveryFee`, so the
+    // synthetic fee line stays out of `items` while `totalsByVat` still counts it.
+    doc.items = taxSnapshot.items.filter(item => item.kind !== FEE_LINE_KIND);
     doc.totalsByVat = taxSnapshot.totalsByVat;
     doc.currency = 'EUR';
   }

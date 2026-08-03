@@ -37,6 +37,7 @@ jest.mock('../../lib/paymentService', () => ({
 const mockOrderUpdate = jest.fn().mockResolvedValue(undefined);
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  menuRef: jest.fn(),
   ordersRef: jest.fn(() => ({
     doc: jest.fn(() => ({ update: mockOrderUpdate })),
     limit: jest.fn(() => ({ get: jest.fn().mockResolvedValue({ docs: [] }) })),
@@ -52,7 +53,7 @@ const {
   sendFlowMessage, sendLocationRequest, sendImage,
 } = require('../../lib/whatsapp');
 const { reverseGeocode } = require('../../lib/geocode');
-const { customersRef } = require('../../lib/collections');
+const { customersRef, menuRef } = require('../../lib/collections');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
 const { t } = require('../templates');
 
@@ -102,9 +103,22 @@ function confirmingSession(overrides = {}) {
   };
 }
 
-function useMenu(menu) {
-  getMenu.mockResolvedValue(menu);
-  getMenuContext.mockResolvedValue({ menu, menuMatch: null, menuTokenIndex: null });
+/**
+ * `getMenu*` feeds ordering/matching (available items only); `menuRef` feeds the VAT join,
+ * which reads the raw collection so unavailable items still resolve their rate.
+ */
+function useMenu(menu, rawMenu = menu) {
+  getMenu.mockResolvedValue(menu.filter(i => i.available !== false));
+  getMenuContext.mockResolvedValue({
+    menu: menu.filter(i => i.available !== false),
+    menuMatch: null,
+    menuTokenIndex: null,
+  });
+  menuRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({
+      docs: rawMenu.map(({ id, ...data }) => ({ id, data: () => data })),
+    }),
+  });
 }
 
 const placeOrderMsg = {
@@ -182,6 +196,50 @@ describe('Stripe checkout gates on legal profile and VAT', () => {
     expect(taxSnapshot.totalGross).toBeCloseTo(21.5, 5);
     expect(taxSnapshot.totalsByVat[10].gross).toBeCloseTo(19.5, 5);
     expect(taxSnapshot.items).toHaveLength(3);
+    // Tagged rather than positional, so persistence can filter the synthetic line.
+    expect(taxSnapshot.items[2]).toMatchObject({ name: 'Delivery fee', kind: 'fee', vatRate: 10 });
+    expect(taxSnapshot.items.filter(item => item.kind === 'fee')).toHaveLength(1);
+  });
+
+  test('joins VAT for a customized line whose name carries option modifiers', async () => {
+    getSession.mockResolvedValue(confirmingSession({
+      basket: [
+        { name: 'Döner — Chicken, Tomato, Salad', qty: 1, price: 9 },
+        { name: 'Ayran — Large', qty: 1, price: 2.5 },
+      ],
+    }));
+
+    await handleMessage(ROUTING, placeOrderMsg);
+
+    expect(sendText).not.toHaveBeenCalledWith(FROM, t('paymentVatIncomplete', 'en'), 'test_phone_id');
+    const { taxSnapshot } = createOrder.mock.calls[0][1];
+    expect(taxSnapshot.items).toEqual([
+      expect.objectContaining({ name: 'Döner — Chicken, Tomato, Salad', vatRate: 10 }),
+      expect.objectContaining({ name: 'Ayran — Large', vatRate: 20 }),
+    ]);
+    expect(createCheckoutSessionForOrder).toHaveBeenCalled();
+  });
+
+  test('joins VAT for an item that went unavailable while sitting in the basket', async () => {
+    useMenu([{ ...MENU_WITH_VAT[0], available: false }, MENU_WITH_VAT[1]]);
+    getSession.mockResolvedValue(confirmingSession());
+
+    await handleMessage(ROUTING, placeOrderMsg);
+
+    const { taxSnapshot } = createOrder.mock.calls[0][1];
+    expect(taxSnapshot.items[0]).toMatchObject({ name: 'Döner', vatRate: 10 });
+    expect(createCheckoutSessionForOrder).toHaveBeenCalled();
+  });
+
+  test('still blocks the card order when a customized line has no menu match at all', async () => {
+    getSession.mockResolvedValue(confirmingSession({
+      basket: [{ name: 'Mystery Plate — Extra', qty: 1, price: 5 }],
+    }));
+
+    await handleMessage(ROUTING, placeOrderMsg);
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, t('paymentVatIncomplete', 'en'), 'test_phone_id');
   });
 
   test('falls back to cash when the legal profile is incomplete', async () => {

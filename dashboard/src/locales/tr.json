@@ -562,6 +562,7 @@
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi",
       "error": "Kaydedilemedi",
+      "requiresSetup": "Kart ödemelerini etkinleştirmek için bu adımları tamamlayın:",
       "requiresLegal": "Kart ödemelerini etkinleştirmeden önce yukarıdaki fatura bilgilerini tamamlayın."
     },
     "botLanguage": {
@@ -930,6 +931,12 @@
       "disambiguation": "Seçim listesi",
       "no_match": "Eşleşme yok",
       "error": "Hata"
+    }
+  },
+  "onboarding": {
+    "checklist": {
+      "legalComplete": "Fatura ve şirket bilgileri tamam",
+      "menuVatComplete": "Her menü öğesinin KDV oranı var"
     }
   }
 }

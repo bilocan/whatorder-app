@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { geocodeAddress } from '../lib/geocode';
 import { isLegalComplete, missingLegalFields, withCompleteFlag } from '../lib/legalProfile';
+import { evaluateOnboardingChecklist } from '../lib/onboardingChecklist';
 import LegalFieldsForm, { type LegalFormState } from '../components/LegalFieldsForm';
-import type { Business, DaySchedule } from '../types';
+import type { Business, DaySchedule, MenuItem } from '../types';
 
 const DEFAULT_LEGAL_FORM: LegalFormState = { country: 'AT' };
+
+/**
+ * Stand-in menu used until the real menu loads (or if the read fails): a single rate-less
+ * item keeps the payment gate shut rather than claiming VAT completeness we cannot prove.
+ */
+const MENU_VAT_UNKNOWN: { vatRate?: undefined }[] = [{}];
 
 const DEFAULT_DAY: DaySchedule = { openTime: '09:00', closeTime: '22:00', firstOrderTime: '09:00', lastOrderTime: '21:30' };
 
@@ -35,7 +42,8 @@ export default function SettingsPage() {
   const [minOrderSaveStatus, setMinOrderSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [paymentEnabled, setPaymentEnabled] = useState(false);
   const [paymentSaveStatus, setPaymentSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [paymentBlockedByLegal, setPaymentBlockedByLegal] = useState(false);
+  const [paymentBlocked, setPaymentBlocked] = useState(false);
+  const [menuItems, setMenuItems] = useState<Pick<MenuItem, 'vatRate'>[] | null>(null);
   const [legalForm, setLegalForm] = useState<LegalFormState>(DEFAULT_LEGAL_FORM);
   const [legalSaveStatus, setLegalSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [dayMap, setDayMap] = useState<DayMap>({
@@ -76,6 +84,14 @@ export default function SettingsPage() {
         }
       }
     });
+  }, [businessId]);
+
+  // Card payments require a VAT rate on every menu item, so the gate needs the menu too.
+  useEffect(() => {
+    if (!businessId) return;
+    getDocs(collection(db, 'businesses', businessId, 'menu'))
+      .then(snap => setMenuItems(snap.docs.map(d => d.data() as Pick<MenuItem, 'vatRate'>)))
+      .catch(() => setMenuItems(null));
   }, [businessId]);
 
   async function handleLookupCoords() {
@@ -164,12 +180,16 @@ export default function SettingsPage() {
 
   async function handleSavePayment() {
     if (!businessId) return;
-    if (paymentEnabled && !isLegalComplete(business?.legal)) {
-      setPaymentBlockedByLegal(true);
+    // Turning payments off is always allowed, even with an incomplete checklist.
+    if (paymentEnabled && !evaluateOnboardingChecklist({
+      legal: business?.legal,
+      menuItems: menuItems ?? MENU_VAT_UNKNOWN,
+    }).readyForPayments) {
+      setPaymentBlocked(true);
       setPaymentSaveStatus('error');
       return;
     }
-    setPaymentBlockedByLegal(false);
+    setPaymentBlocked(false);
     setPaymentSaveStatus('saving');
     try {
       await updateDoc(doc(db, 'businesses', businessId), { paymentEnabled });
@@ -233,6 +253,10 @@ export default function SettingsPage() {
 
   const legalComplete = isLegalComplete(business.legal);
   const missingLegal = missingLegalFields(business.legal);
+  const paymentChecklist = evaluateOnboardingChecklist({
+    legal: business.legal,
+    menuItems: menuItems ?? MENU_VAT_UNKNOWN,
+  });
 
   return (
     <div className="settings-page">
@@ -520,19 +544,31 @@ export default function SettingsPage() {
             <input
               type="checkbox"
               checked={paymentEnabled}
-              disabled={!legalComplete}
+              disabled={!paymentChecklist.readyForPayments && !paymentEnabled}
               onChange={e => setPaymentEnabled(e.target.checked)}
             />
             <span>{t('settings.payment.acceptPayment')}</span>
           </label>
-          {!legalComplete && (
+          {!paymentChecklist.readyForPayments && (
             <div className="settings-hint">
-              {t('settings.payment.requiresLegal')}
+              <p className="settings-hint-line">{t('settings.payment.requiresSetup')}</p>
               <ul className="settings-checklist">
-                {missingLegal.map(field => (
-                  <li key={field}>{t(`settings.legal.${field}`)}</li>
+                {paymentChecklist.items.map(({ id, ok, labelKey }) => (
+                  <li key={id} className={ok ? 'settings-checklist-ok' : 'settings-checklist-pending'}>
+                    {t(labelKey)}
+                  </li>
                 ))}
               </ul>
+              {!legalComplete && (
+                <>
+                  <p className="settings-hint-line">{t('settings.payment.requiresLegal')}</p>
+                  <ul className="settings-checklist">
+                    {missingLegal.map(field => (
+                      <li key={field}>{t(`settings.legal.${field}`)}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           )}
           <div className="settings-actions">
@@ -547,7 +583,7 @@ export default function SettingsPage() {
             {paymentSaveStatus === 'saved' && <span className="settings-status-ok">{t('settings.payment.saved')}</span>}
             {paymentSaveStatus === 'error' && (
               <span className="settings-status-err">
-                {paymentBlockedByLegal ? t('settings.payment.requiresLegal') : t('settings.payment.error')}
+                {paymentBlocked ? t('settings.payment.requiresSetup') : t('settings.payment.error')}
               </span>
             )}
           </div>
