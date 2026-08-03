@@ -92,7 +92,7 @@ const STATUS_NOTIFY_KEY = {
   cancelled:  'orderCancelled',
 };
 
-async function createOrder(businessId, { customerPhone, customerName, restaurantName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus, whatsappPhoneNumberId }) {
+async function createOrder(businessId, { customerPhone, customerName, restaurantName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus, whatsappPhoneNumberId, taxSnapshot }) {
   const ref = ordersRef(businessId).doc();
   const resolvedName = customerName || 'WhatsApp Customer';
   const phone = normalizeCustomerPhone(customerPhone) || customerPhone;
@@ -120,6 +120,13 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
     doc.deliveryAddress = deliveryAddress;
     doc.deliveryFee = deliveryFee || 0;
     doc.total = total + (deliveryFee || 0);
+  }
+  if (taxSnapshot) {
+    // The snapshot appends a delivery-fee line after the basket lines. Kitchen and
+    // dashboard views render that fee from `deliveryFee`, so persist basket lines only.
+    doc.items = taxSnapshot.items.slice(0, items.length);
+    doc.totalsByVat = taxSnapshot.totalsByVat;
+    doc.currency = 'EUR';
   }
   await ref.set(doc);
 

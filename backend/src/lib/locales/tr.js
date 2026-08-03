@@ -104,6 +104,8 @@ module.exports = {
     return `Sipariş #${shortId} alındı.\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}${detail ? `\n${detail}` : ''}\n\nÖdemek için aşağıdaki düğmeye dokunun.`;
   },
   paymentLinkFailed: (shortId) => `Sipariş #${shortId} oluşturuldu ancak ödeme bağlantısı başarısız oldu. Lütfen restoranla iletişime geçin.`,
+  paymentLegalIncomplete: () => 'Bu restoranda kartla ödeme henüz aktif değil, siparişiniz oluşturulmadı. Lütfen doğrudan restoranla iletişime geçin.',
+  paymentVatIncomplete: () => 'Siparişinizi oluşturamadık: menüde vergi bilgileri eksik. Lütfen restoranla iletişime geçin, hızlıca düzeltilebilir.',
   paymentConfirmed: (shortId) => `✅ Sipariş #${shortId} için ödeme alındı. Hazır olunca haber vereceğiz. Teşekkürler! 🙏`,
   paymentReturnSuccessTitle: () => 'Ödeme alındı',
   paymentReturnCancelTitle: () => 'Ödeme iptal edildi',

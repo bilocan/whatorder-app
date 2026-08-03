@@ -42,17 +42,34 @@ const {
 const mockOrderUpdate = jest.fn();
 const mockOrderGet = jest.fn();
 
+const COMPLETE_LEGAL = {
+  legalName: 'Gus Partners GmbH',
+  street: 'Kupetzkygasse 16',
+  zip: '1220',
+  city: 'Wien',
+  country: 'AT',
+  uid: 'ATU81252038',
+};
+
+function mockBusiness(data) {
+  businessRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({
+      exists: !!data,
+      data: () => data,
+    }),
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   process.env.BACKEND_URL = 'http://localhost:3000';
   ordersRef.mockReturnValue({
     doc: jest.fn(() => ({ get: mockOrderGet, update: mockOrderUpdate })),
   });
-  businessRef.mockReturnValue({
-    get: jest.fn().mockResolvedValue({
-      exists: true,
-      data: () => ({ name: 'Döner Palace', address: 'Musterstrasse 1, 1010 Wien' }),
-    }),
+  mockBusiness({
+    name: 'Döner Palace',
+    address: 'Musterstrasse 1, 1010 Wien',
+    legal: COMPLETE_LEGAL,
   });
   stripeEventRef.mockReturnValue({
     get: jest.fn().mockResolvedValue({ exists: false }),
@@ -93,6 +110,36 @@ describe('createCheckoutSessionForOrder', () => {
     getStripe.mockReturnValue(null);
     await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
       .rejects.toThrow('Stripe is not configured');
+  });
+
+  test('refuses when the legal profile is incomplete', async () => {
+    const create = jest.fn();
+    getStripe.mockReturnValue({ checkout: { sessions: { create } } });
+    mockBusiness({ name: 'Döner Palace', legal: { ...COMPLETE_LEGAL, uid: '' } });
+
+    await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
+      .rejects.toThrow('LEGAL_PROFILE_INCOMPLETE');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  test('refuses when the business has no legal profile at all', async () => {
+    const create = jest.fn();
+    getStripe.mockReturnValue({ checkout: { sessions: { create } } });
+    mockBusiness({ name: 'Döner Palace' });
+
+    await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
+      .rejects.toThrow('LEGAL_PROFILE_INCOMPLETE');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  test('refuses when the business document is missing', async () => {
+    const create = jest.fn();
+    getStripe.mockReturnValue({ checkout: { sessions: { create } } });
+    mockBusiness(null);
+
+    await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
+      .rejects.toThrow('LEGAL_PROFILE_INCOMPLETE');
+    expect(create).not.toHaveBeenCalled();
   });
 });
 

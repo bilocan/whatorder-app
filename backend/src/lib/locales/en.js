@@ -104,6 +104,8 @@ module.exports = {
     return `Order #${shortId} placed.\n\n${restaurantBlock}\n\n${itemLines}\n\nTotal: €${total}${detail ? `\n${detail}` : ''}\n\nTap the button below to pay securely.`;
   },
   paymentLinkFailed: (shortId) => `Order #${shortId} was created but the payment link failed. Please contact the restaurant or try again.`,
+  paymentLegalIncomplete: () => 'Card payment is not activated for this restaurant yet, so your order was not placed. Please contact the restaurant to order directly.',
+  paymentVatIncomplete: () => 'We could not place your order: tax details are missing on the menu. Please contact the restaurant, they can fix this quickly.',
   paymentConfirmed: (shortId) => `✅ Payment received for order #${shortId}. We'll notify you when it's ready. Thank you! 🙏`,
   paymentReturnSuccessTitle: () => 'Payment received',
   paymentReturnCancelTitle: () => 'Payment cancelled',

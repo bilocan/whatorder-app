@@ -17,6 +17,8 @@ const {
 } = require('../deliveryAddress');
 const { isStripeConfigured } = require('../../lib/stripe');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
+const { isLegalComplete, missingLegalFields } = require('../../lib/legalProfile');
+const { buildOrderTaxSnapshot } = require('../../lib/receiptMath');
 const { isStrongOrderText, isGreetingOnly, isFreshStartCommand } = require('../intentParser');
 const { isConversationalBasket } = require('../featureFlags');
 const { tryBasketUndo } = require('../conversationalBasket');
@@ -44,8 +46,9 @@ const { recordParseFailure, resetParseFailures } = require('../postOrder');
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal']);
 
+// Card payments require a Beleg, which needs a complete seller legal profile.
 function isPaymentEnabled(info) {
-  return info.paymentEnabled === true && isStripeConfigured();
+  return info.paymentEnabled === true && isStripeConfigured() && isLegalComplete(info.legal);
 }
 
 function logPaymentSkipped(businessId, info) {
@@ -53,13 +56,57 @@ function logPaymentSkipped(businessId, info) {
     console.warn(`[checkout] payment skipped for ${businessId}: paymentEnabled=${info.paymentEnabled ?? false}`);
   } else if (!isStripeConfigured()) {
     console.warn(`[checkout] payment skipped for ${businessId}: STRIPE_SECRET_KEY not set`);
+  } else if (!isLegalComplete(info.legal)) {
+    console.warn(`[checkout] payment skipped for ${businessId}: legal profile missing ${missingLegalFields(info.legal).join(', ')}`);
   }
+}
+
+function normalizeMenuName(name) {
+  return String(name ?? '').trim().toLowerCase();
+}
+
+/** Basket lines carry no vatRate — join the live menu by item id, else by name. */
+async function attachMenuVatRates(businessId, basket) {
+  const { menu } = await getMenuContext(businessId);
+  const byId = new Map();
+  const byName = new Map();
+  for (const item of menu ?? []) {
+    if (item?.id != null) byId.set(String(item.id), item);
+    const nameKey = normalizeMenuName(item?.name);
+    if (nameKey && !byName.has(nameKey)) byName.set(nameKey, item);
+  }
+
+  return (basket ?? []).map((line) => {
+    if (line.vatRate != null) return line;
+    const idKey = line.menuItemId ?? line.id;
+    const match = (idKey != null ? byId.get(String(idKey)) : null) ?? byName.get(normalizeMenuName(line.name));
+    return match?.vatRate != null ? { ...line, vatRate: match.vatRate } : line;
+  });
 }
 
 async function placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod }) {
   const info = await getBusinessInfo(businessId);
   const { subtotal, deliveryFee, total, isDelivery } = orderTotals(basket, session, info);
   const phoneNumberId = session.whatsappPhoneNumberId || null;
+
+  // Card orders are blocked (order never created) when the Beleg data is not ready.
+  let taxSnapshot = null;
+  if (paymentMethod === 'stripe') {
+    if (!isLegalComplete(info.legal)) {
+      console.warn(`[checkout] card order blocked for ${businessId}: legal profile missing ${missingLegalFields(info.legal).join(', ')}`);
+      await sendText(from, t('paymentLegalIncomplete', lang), phoneNumberId);
+      return;
+    }
+    try {
+      const lines = await attachMenuVatRates(businessId, basket);
+      taxSnapshot = buildOrderTaxSnapshot(lines, { strict: true, deliveryFeeGross: deliveryFee });
+    } catch (err) {
+      console.warn(`[checkout] card order blocked for ${businessId}: ${err.message}`);
+      await sendText(from, t('paymentVatIncomplete', lang), phoneNumberId);
+      return;
+    }
+  }
+
   const orderId = await createOrder(businessId, {
     customerPhone: from,
     customerName: session.customerName || contactName || null,
@@ -75,6 +122,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     paymentMethod,
     paymentStatus: paymentMethod === 'stripe' ? 'pending' : 'cash',
     whatsappPhoneNumberId: session.whatsappPhoneNumberId || null,
+    taxSnapshot,
   });
   const shortId = orderId.slice(-6).toUpperCase();
   const itemLines = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });
