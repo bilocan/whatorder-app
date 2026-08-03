@@ -7,6 +7,7 @@ import { ConfirmDialogProvider } from '../components/ConfirmDialog';
 // ── hoisted mocks ──────────────────────────────────────────────────────────
 
 const mockSetDoc = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockUpdateDoc = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockOnSnapshot = vi.hoisted(() => vi.fn(() => vi.fn()));
 const mockArrayUnion = vi.hoisted(() => vi.fn((v) => ({ type: 'arrayUnion', value: v })));
 const mockArrayRemove = vi.hoisted(() => vi.fn((v) => ({ type: 'arrayRemove', value: v })));
@@ -14,7 +15,7 @@ const mockArrayRemove = vi.hoisted(() => vi.fn((v) => ({ type: 'arrayRemove', va
 vi.mock('firebase/firestore', () => ({
   doc: vi.fn((_db, ...segments) => ({ path: segments.join('/') })),
   collection: vi.fn((_db, ...segments) => ({ path: segments.join('/') })),
-  updateDoc: vi.fn().mockResolvedValue(undefined),
+  updateDoc: mockUpdateDoc,
   addDoc: vi.fn().mockResolvedValue({ id: 'new-item-id' }),
   deleteDoc: vi.fn().mockResolvedValue(undefined),
   onSnapshot: mockOnSnapshot,
@@ -240,5 +241,57 @@ describe('RestaurantDetailPage — bot toggle', () => {
     expect(screen.getByRole('button', { name: /^details$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /menu/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /owners/i })).toBeInTheDocument();
+  });
+});
+
+describe('RestaurantDetailPage — Legal & billing card', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('saves the legal profile with a normalized, complete flag via withCompleteFlag', async () => {
+    setupMocks();
+    renderPage();
+    await waitForLoad();
+
+    fireEvent.change(screen.getByLabelText('Legal business name'), { target: { value: 'Döner Palace GmbH' } });
+    fireEvent.change(screen.getByLabelText('Street & house number'), { target: { value: 'Hauptstrasse 1' } });
+    fireEvent.change(screen.getByLabelText('ZIP / postal code'), { target: { value: '1010' } });
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Wien' } });
+    fireEvent.change(screen.getByLabelText('Country'), { target: { value: 'AT' } });
+    fireEvent.change(screen.getByLabelText('VAT ID (UID)'), { target: { value: 'atu 1234 5678' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save legal details' }));
+
+    await waitFor(() => {
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: `businesses/${BUSINESS_ID}` }),
+        {
+          legal: expect.objectContaining({
+            legalName: 'Döner Palace GmbH',
+            uid: 'ATU12345678',
+            complete: true,
+          }),
+        },
+      );
+    });
+  });
+
+  it('does not mark the legal profile complete when a required field is missing', async () => {
+    setupMocks();
+    renderPage();
+    await waitForLoad();
+
+    fireEvent.change(screen.getByLabelText('Legal business name'), { target: { value: 'Döner Palace GmbH' } });
+    // Street/zip/city/uid left blank.
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save legal details' }));
+
+    await waitFor(() => {
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: `businesses/${BUSINESS_ID}` }),
+        { legal: expect.objectContaining({ complete: false }) },
+      );
+    });
   });
 });

@@ -249,4 +249,58 @@ describe('MenuPage', () => {
     expect(mockUploadBytes).toHaveBeenCalledTimes(1)
     expect(mockAddDoc.mock.calls[0][1]).toMatchObject({ photoUrl: 'https://cdn.example.com/doner.jpg' })
   })
+
+  describe('VAT rate', () => {
+    it('offers 0%, 10%, and 20% options on the add form', () => {
+      mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+        cb({ docs: [] })
+        return vi.fn()
+      })
+      const { container } = renderPage()
+      fireEvent.click(screen.getByText('+ Add item'))
+
+      const vatSelect = container.querySelectorAll('select')[1] as HTMLSelectElement
+      expect(Array.from(vatSelect.options).map((o) => o.value)).toEqual(['0', '10', '20'])
+    })
+
+    it('defaults a new item vatRate by category (drinks -> 20, others -> 10)', () => {
+      mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+        cb({ docs: [] })
+        return vi.fn()
+      })
+      const { container } = renderPage()
+      fireEvent.click(screen.getByText('+ Add item'))
+
+      const [categorySelect, vatSelect] = container.querySelectorAll('select') as unknown as [HTMLSelectElement, HTMLSelectElement]
+      expect(vatSelect.value).toBe('10') // default category is mains
+
+      fireEvent.change(categorySelect, { target: { value: 'drinks' } })
+      expect(vatSelect.value).toBe('20')
+
+      fireEvent.change(categorySelect, { target: { value: 'sides' } })
+      expect(vatSelect.value).toBe('10')
+    })
+
+    it('preserves the stored vatRate when editing, ignoring category-based defaults', async () => {
+      const itemsWithVat = [
+        { id: 'm1', name: 'Ayran Zero', description: '', price: 2, category: 'drinks', available: true, vatRate: 0 },
+      ]
+      mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+        cb({ docs: itemsWithVat.map(({ id, ...data }) => ({ id, data: () => data })) })
+        return vi.fn()
+      })
+      const { container } = renderPage()
+      fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('Ayran Zero')).toBeInTheDocument()
+      })
+
+      const [categorySelect, vatSelect] = container.querySelectorAll('select') as unknown as [HTMLSelectElement, HTMLSelectElement]
+      expect(vatSelect.value).toBe('0')
+
+      // Changing category while editing must not silently recompute vatRate.
+      fireEvent.change(categorySelect, { target: { value: 'mains' } })
+      expect(vatSelect.value).toBe('0')
+    })
+  })
 })
