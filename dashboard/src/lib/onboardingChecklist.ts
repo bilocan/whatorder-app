@@ -11,12 +11,25 @@ export interface OnboardingChecklistItem {
 
 export interface OnboardingChecklistInput {
   legal?: Partial<BusinessLegal> | null;
-  menuItems: ReadonlyArray<{ vatRate?: VatRate }>;
+  menuItems: ReadonlyArray<{ vatRate?: number | null }>;
 }
 
 export interface OnboardingChecklistResult {
   items: OnboardingChecklistItem[];
   readyForPayments: boolean;
+}
+
+const ALLOWED_VAT_RATES: ReadonlySet<number> = new Set([0, 10, 20]);
+
+function isValidMenuVatRate(vatRate: unknown): vatRate is VatRate {
+  return typeof vatRate === 'number' && ALLOWED_VAT_RATES.has(vatRate);
+}
+
+/** True only when the menu has ≥1 item and every item has vatRate 0 | 10 | 20. */
+export function isMenuVatComplete(
+  menuItems: ReadonlyArray<{ vatRate?: number | null }>,
+): boolean {
+  return menuItems.length > 0 && menuItems.every(({ vatRate }) => isValidMenuVatRate(vatRate));
 }
 
 export function evaluateOnboardingChecklist({
@@ -31,7 +44,7 @@ export function evaluateOnboardingChecklist({
     },
     {
       id: 'menu_vat_complete',
-      ok: menuItems.every(({ vatRate }) => vatRate !== undefined),
+      ok: isMenuVatComplete(menuItems),
       labelKey: 'onboarding.checklist.menuVatComplete',
     },
   ];

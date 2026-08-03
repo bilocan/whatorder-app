@@ -203,6 +203,7 @@ describe('createOrder', () => {
       totalsByVat: taxSnapshot.totalsByVat,
       currency: 'EUR',
       total: 17,
+      totalGross: 17,
     }));
   });
 
@@ -229,6 +230,7 @@ describe('createOrder', () => {
       items: [basketLine],
       totalsByVat: taxSnapshot.totalsByVat,
       total: 19.5,
+      totalGross: 19.5,
     }));
   });
 
@@ -260,6 +262,7 @@ describe('createOrder', () => {
     expect(doc.items).toEqual(ORDER_PARAMS.items);
     expect(doc.totalsByVat).toBeUndefined();
     expect(doc.currency).toBeUndefined();
+    expect(doc.totalGross).toBeUndefined();
   });
 
   test('stores whatsappPhoneNumberId when provided', async () => {

@@ -44,6 +44,26 @@ describe('evaluateOnboardingChecklist', () => {
     expect(result.readyForPayments).toBe(false);
   });
 
+  it('is not ready when the menu is empty', () => {
+    const result = evaluateOnboardingChecklist({
+      legal: completeLegal,
+      menuItems: [],
+    });
+
+    expect(result.items.find(({ id }) => id === 'menu_vat_complete')?.ok).toBe(false);
+    expect(result.readyForPayments).toBe(false);
+  });
+
+  it('is not ready when a menu item has an invalid VAT rate', () => {
+    const result = evaluateOnboardingChecklist({
+      legal: completeLegal,
+      menuItems: [{ vatRate: 13 }],
+    });
+
+    expect(result.items.find(({ id }) => id === 'menu_vat_complete')?.ok).toBe(false);
+    expect(result.readyForPayments).toBe(false);
+  });
+
   it('is not ready when legal details are incomplete', () => {
     const result = evaluateOnboardingChecklist({
       legal: { ...completeLegal, uid: 'ATU123' },

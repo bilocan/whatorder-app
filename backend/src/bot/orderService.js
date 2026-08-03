@@ -128,6 +128,10 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
     doc.items = taxSnapshot.items.filter(item => item.kind !== FEE_LINE_KIND);
     doc.totalsByVat = taxSnapshot.totalsByVat;
     doc.currency = 'EUR';
+    // Cent-rounded Beleg total; keep `doc.total` for kitchen/UI float total.
+    if (typeof taxSnapshot.totalGross === 'number') {
+      doc.totalGross = taxSnapshot.totalGross;
+    }
   }
   await ref.set(doc);
 
