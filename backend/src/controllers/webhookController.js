@@ -85,6 +85,17 @@ async function releaseProcessedMessage(wamid) {
   await processedMessageRef(wamid).delete();
 }
 
+/** Compact status log; includes Meta error code/title on failures. */
+function formatStatusLog(st) {
+  const base = `${st.status}/${st.id}`;
+  const errors = Array.isArray(st.errors) ? st.errors : [];
+  if (!errors.length) return base;
+  const hint = errors
+    .map((e) => `${e.code}:${e.title || e.message || ''}`.slice(0, 120))
+    .join(';');
+  return `${base} errors=${hint}`;
+}
+
 async function receiveWebhook(req, res) {
   const sig = assertWebhookSignature(req);
   if (!sig.ok) {
@@ -101,7 +112,7 @@ async function receiveWebhook(req, res) {
   if (!msg) {
     const statuses = change?.statuses;
     if (statuses) {
-      console.log(`[webhook] status update: ${statuses.map(s => `${s.status}/${s.id}`).join(', ')}`);
+      console.log(`[webhook] status update: ${statuses.map(formatStatusLog).join(', ')}`);
     } else {
       console.log('[webhook] non-message event received', redactLogValue(req.body?.entry?.[0]?.changes?.[0]?.field ?? req.body));
     }
@@ -215,5 +226,6 @@ module.exports = {
   receiveWebhook,
   isAlreadyExistsError,
   claimProcessedMessage,
+  formatStatusLog,
   CLAIM_STALE_MS,
 };

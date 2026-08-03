@@ -23,12 +23,14 @@
     "intent:init-restaurant": "node src/scripts/initRestaurantCorpus.js",
     "intent:refresh-corpus": "node scripts/intent-refresh-corpus.js",
     "intent:harvest": "node scripts/intent-harvest.js",
-    "generate:flow": "node src/scripts/generateFlow.js"
+    "generate:flow": "node src/scripts/generateFlow.js",
+    "e2e:wa": "node e2e-wa/run.js",
+    "e2e:wa:reply-server": "node e2e-wa/reply-server.js"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.4",
-    "axios": "^1.6.0",
-    "body-parser": "^1.20.0",
+    "axios": "^1.18.1",
+    "body-parser": "^1.20.6",
     "cors": "^2.8.5",
     "dotenv": "^16.0.0",
     "express": "^4.18.0",
@@ -38,6 +40,7 @@
   "devDependencies": {
     "jest": "^30.4.2",
     "nodemon": "^3.0.0",
+    "playwright": "^1.62.1",
     "supertest": "^7.2.2"
   },
   "engines": {

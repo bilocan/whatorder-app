@@ -237,11 +237,15 @@ function isDeliveryOffered(info) {
   return info?.deliveryEnabled === true || info?.deliveryEnabled === 'true';
 }
 
-/** Required checkout slots still missing after profile pre-fill. */
+/**
+ * Required checkout slots still missing after profile pre-fill.
+ * orderType is not listed: delivery is the default when offered (set in advanceCheckoutFromSlots).
+ */
 function getMissingCheckoutSlots(session, info) {
   const missing = [];
-  if (isDeliveryOffered(info) && !session.orderType) missing.push('orderType');
-  if (session.orderType === 'delivery' && !session.deliveryAddress) missing.push('deliveryAddress');
+  const orderType = session.orderType
+    || (isDeliveryOffered(info) ? 'delivery' : 'pickup');
+  if (orderType === 'delivery' && !session.deliveryAddress) missing.push('deliveryAddress');
   if (!isFilledName(session.customerName)) missing.push('customerName');
   return missing;
 }

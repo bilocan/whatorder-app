@@ -26,7 +26,7 @@ on:
       infra_backup_folder:
         description: 'GCS folder under gs://<project>-backups/manual/ (golden infra export)'
         required: true
-        default: '2026-07-06-infra'
+        default: '2026-07-23-infra'
         type: string
       database:
         description: 'Firestore database to reset (preprod exists only in whatorder-fire-prod)'

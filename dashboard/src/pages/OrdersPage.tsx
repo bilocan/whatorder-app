@@ -14,6 +14,8 @@ import {
   DEFAULT_APPROVE_ETA_MINUTES,
   getActionButtons,
   getPrimaryAction,
+  isKitchenAdvanceAction,
+  isKitchenPaymentBlocked,
   postOrderAction,
 } from '../lib/orderActions';
 import { orderElapsed } from '../lib/orderElapsed';
@@ -314,6 +316,7 @@ export default function OrdersPage() {
                     const primary = getPrimaryAction(order.status, order.orderType);
                     const pay = paymentBadge(order, t);
                     const loading = loadingIds.has(order.id);
+                    const paymentBlocked = isKitchenPaymentBlocked(order);
                     return (
                       <div
                         key={order.id}
@@ -350,13 +353,16 @@ export default function OrdersPage() {
                           <PaymentBadge kind={pay.kind} label={pay.label} />
                           <StatusBadge status={order.status} label={statusLabel(order.status)} />
                         </div>
+                        {paymentBlocked && (
+                          <p className="kitchen-payment-hint">{t('orderDetail.paymentRequiredHint')}</p>
+                        )}
                         {primary && (
                           <button
                             type="button"
                             className="order-action-btn kitchen-card-action"
                             data-variant={primary.variant}
                             data-tone={primary.tone}
-                            disabled={loading}
+                            disabled={loading || (paymentBlocked && isKitchenAdvanceAction(primary.action))}
                             onClick={(e) => {
                               e.stopPropagation();
                               void runAction(order, primary.action);
@@ -562,7 +568,10 @@ export default function OrdersPage() {
                       className="order-action-btn"
                       data-variant={variant}
                       data-tone={tone}
-                      disabled={loadingIds.has(openOrder.id)}
+                      disabled={
+                        loadingIds.has(openOrder.id) ||
+                        (isKitchenPaymentBlocked(openOrder) && isKitchenAdvanceAction(action))
+                      }
                       onClick={() => void runAction(openOrder, action)}
                     >
                       {loadingIds.has(openOrder.id)
@@ -572,6 +581,9 @@ export default function OrdersPage() {
                   ),
                 )}
               </div>
+            )}
+            {isKitchenPaymentBlocked(openOrder) && (
+              <p className="order-detail-error">{t('orderDetail.paymentRequiredHint')}</p>
             )}
             <Link
               className="kitchen-modal-full"

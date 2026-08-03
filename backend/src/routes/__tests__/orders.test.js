@@ -60,6 +60,13 @@ describe('Order transition endpoints', () => {
     expect(res.status).toBe(409);
   });
 
+  test('409 when Stripe payment still required', async () => {
+    approveOrder.mockRejectedValue(new Error('Payment required before kitchen status change'));
+    const res = await request(app).post('/businesses/biz1/orders/ord1/approve');
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: 'Payment required before kitchen status change' });
+  });
+
   test('500 on unexpected error', async () => {
     approveOrder.mockRejectedValue(new Error('Database connection failed'));
     const res = await request(app).post('/businesses/biz1/orders/ord1/approve');

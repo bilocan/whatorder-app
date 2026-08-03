@@ -9,6 +9,17 @@ const router = express.Router();
 
 router.use('/businesses/:businessId/orders/:orderId', requireOwnerOfBusiness);
 
+function transitionHttpStatus(message) {
+  if (message === 'Order not found') return 404;
+  if (
+    message.startsWith('Invalid transition') ||
+    message.startsWith('Payment required')
+  ) {
+    return 409;
+  }
+  return 500;
+}
+
 function handleTransition(fn) {
   return async (req, res) => {
     const { businessId, orderId } = req.params;
@@ -16,10 +27,7 @@ function handleTransition(fn) {
       await fn(businessId, orderId);
       res.json({ status: 'ok' });
     } catch (err) {
-      const status = err.message === 'Order not found' ? 404
-        : err.message.startsWith('Invalid transition') ? 409
-        : 500;
-      res.status(status).json({ error: err.message });
+      res.status(transitionHttpStatus(err.message)).json({ error: err.message });
     }
   };
 }
@@ -30,10 +38,7 @@ router.post('/businesses/:businessId/orders/:orderId/approve', async (req, res) 
     await approveOrder(businessId, orderId, req.body?.etaMinutes);
     res.json({ status: 'ok' });
   } catch (err) {
-    const status = err.message === 'Order not found' ? 404
-      : err.message.startsWith('Invalid transition') ? 409
-      : 500;
-    res.status(status).json({ error: err.message });
+    res.status(transitionHttpStatus(err.message)).json({ error: err.message });
   }
 });
 router.post('/businesses/:businessId/orders/:orderId/reject',     handleTransition(rejectOrder));

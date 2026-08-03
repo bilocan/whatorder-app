@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 /** Golden infra-only GCS folder under gs://<project>-backups/manual/ */
-const DEFAULT_GOLDEN_INFRA_BACKUP = '2026-07-14-infra';
+const DEFAULT_GOLDEN_INFRA_BACKUP = '2026-07-23-infra';
 
 /**
  * The 2026-06-27 exports were empty (316 bytes of metadata, zero documents) —
