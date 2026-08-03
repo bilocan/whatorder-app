@@ -33,6 +33,10 @@ mobile/.idea/
 # Superpowers brainstorm companion (local mockups)
 .superpowers/
 
+# Accidental WA Web / Playwright debug captures at repo root
+/e2e-timeout*.png
+/e2e-wa-web-*.png
+
 # IDE
 .vscode/
 .idea/

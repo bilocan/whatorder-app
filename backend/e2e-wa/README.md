@@ -122,6 +122,8 @@ gh workflow run e2e-wa.yml --ref feature/whatsapp-e2e-automation
 
 Diagnose exit codes: `0` ok, `2` session dead (workflow soft-skips packs), `1` unexpected error. Secrets: Contabo `backend/.env.local` (symlinked into the job workspace).
 
+**Safety:** `loadConfig` requires `FIREBASE_PROJECT_ID=whatorder-fire` for `target=test` (refuses `whatorder-fire-prod` unless preprod/prod + allow). Reply-server binds `127.0.0.1` by default (`E2E_WA_REPLY_HOST` to override).
+
 ## Legacy graph transport (deprecated)
 
 ```bash

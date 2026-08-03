@@ -116,7 +116,9 @@ class WaE2eSession {
   }
 
   async markOrderPaid(orderId) {
-    return markOrderPaid(this.cfg.businessId, orderId);
+    return markOrderPaid(this.cfg.businessId, orderId, {
+      customerDisplay: this.cfg.customerDisplay,
+    });
   }
 
   async getSession() {

@@ -61,7 +61,7 @@ async function run(session) {
   });
 
   log('assert no new order');
-  await session.assertNoNewOrder({ timeoutMs: 12_000 });
+  await session.assertNoNewOrder({ timeoutMs: 45_000 });
   return { ok: true };
 }
 

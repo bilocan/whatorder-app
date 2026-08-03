@@ -9,6 +9,12 @@ const TEST_BENAT_PHONE_NUMBER_ID = '1056173694256337';
 /** Production Meta line — never the default e2e target. */
 const PROD_BUSINESS_PHONE_NUMBER_ID = '1276715415516230';
 
+/** Test GCP / Firebase project (Admin SDK). */
+const TEST_FIREBASE_PROJECT_ID = 'whatorder-fire';
+
+/** Prod / preprod GCP / Firebase project. */
+const PROD_FIREBASE_PROJECT_ID = 'whatorder-fire-prod';
+
 /** Dedicated E2E customer WABA (WhatOrder E2E customer). Non-secret. */
 const DEFAULT_CUSTOMER_PHONE_NUMBER_ID = '1176672252201658';
 const DEFAULT_CUSTOMER_DISPLAY = '+436602585284';
@@ -91,6 +97,59 @@ function resolveTarget(targetName, env = process.env) {
 }
 
 /**
+ * Refuse Admin SDK against the wrong Firebase project for the chosen target.
+ * @param {string} targetName
+ * @param {NodeJS.ProcessEnv} [env]
+ */
+function assertSafeFirebaseTarget(targetName, env = process.env) {
+  const name = String(targetName || env.E2E_WA_TARGET || 'test').trim().toLowerCase();
+  const projectId = String(env.FIREBASE_PROJECT_ID || '').trim();
+  if (!projectId) {
+    throw new Error(
+      'FIREBASE_PROJECT_ID is required for e2e-wa (Admin SDK order/session asserts). '
+      + `For target=test use ${TEST_FIREBASE_PROJECT_ID}.`,
+    );
+  }
+
+  const allowProd = env.E2E_WA_ALLOW_PROD === '1';
+
+  if (name === 'test' || name === 'test-benat') {
+    if (projectId !== TEST_FIREBASE_PROJECT_ID) {
+      throw new Error(
+        `Refusing FIREBASE_PROJECT_ID=${projectId} for target=${name}. `
+        + `Expected ${TEST_FIREBASE_PROJECT_ID}.`,
+      );
+    }
+    return;
+  }
+
+  if (name === 'preprod') {
+    if (projectId !== PROD_FIREBASE_PROJECT_ID && projectId !== TEST_FIREBASE_PROJECT_ID) {
+      throw new Error(
+        `Refusing FIREBASE_PROJECT_ID=${projectId} for target=preprod. `
+        + `Expected ${PROD_FIREBASE_PROJECT_ID} (or ${TEST_FIREBASE_PROJECT_ID} for dry runs).`,
+      );
+    }
+    return;
+  }
+
+  if (name === 'prod') {
+    if (!allowProd) {
+      throw new Error('Refusing target=prod without E2E_WA_ALLOW_PROD=1.');
+    }
+    if (projectId !== PROD_FIREBASE_PROJECT_ID) {
+      throw new Error(
+        `Refusing FIREBASE_PROJECT_ID=${projectId} for target=prod. `
+        + `Expected ${PROD_FIREBASE_PROJECT_ID}.`,
+      );
+    }
+    return;
+  }
+
+  throw new Error(`Unknown target for Firebase guard: ${name}`);
+}
+
+/**
  * Safety for explicit phone number id overrides.
  * @param {string} phoneNumberId
  * @param {{ targetName: string, allowProdTwin?: boolean, allowProd?: boolean }} ctx
@@ -158,6 +217,10 @@ function loadConfig(env = process.env, opts = {}) {
     });
   }
 
+  if (requireSecrets) {
+    assertSafeFirebaseTarget(resolved.name, env);
+  }
+
   const headlessEnv = String(env.E2E_WA_WEB_HEADLESS || '').trim();
   // Default false: WA Web often blank in Chrome headless; use xvfb-run + HEADLESS=0 on Contabo.
   // Explicit 1 → headless true; explicit 0 or unset → headed.
@@ -208,12 +271,15 @@ module.exports = {
   TEST_BUSINESS_PHONE_NUMBER_ID,
   TEST_BENAT_PHONE_NUMBER_ID,
   PROD_BUSINESS_PHONE_NUMBER_ID,
+  TEST_FIREBASE_PROJECT_ID,
+  PROD_FIREBASE_PROJECT_ID,
   DEFAULT_CUSTOMER_PHONE_NUMBER_ID,
   DEFAULT_CUSTOMER_DISPLAY,
   TARGETS,
   resolveTarget,
   resolveCustomerTransport,
   assertSafeBusinessLine,
+  assertSafeFirebaseTarget,
   loadConfig,
   targetFromArgv,
 };

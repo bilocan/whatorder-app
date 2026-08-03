@@ -2,13 +2,22 @@
 
 const {
   assertSafeBusinessLine,
+  assertSafeFirebaseTarget,
   loadConfig,
   resolveTarget,
   TARGETS,
   TEST_BUSINESS_PHONE_NUMBER_ID,
+  TEST_FIREBASE_PROJECT_ID,
   PROD_BUSINESS_PHONE_NUMBER_ID,
+  PROD_FIREBASE_PROJECT_ID,
   targetFromArgv,
 } = require('../lib/config');
+
+const TEST_WA_WEB_ENV = {
+  E2E_WA_CUSTOMER_TRANSPORT: 'wa-web',
+  E2E_WA_WEB_USER_DATA_DIR: '/var/lib/whatorder-e2e/wa-web-profile',
+  FIREBASE_PROJECT_ID: TEST_FIREBASE_PROJECT_ID,
+};
 
 describe('e2e-wa config targets', () => {
   test('resolveTarget defaults to test', () => {
@@ -55,17 +64,37 @@ describe('e2e-wa config targets', () => {
 
   test('loadConfig wa-web requires user data dir not token', () => {
     expect(() => loadConfig({ E2E_WA_CUSTOMER_TRANSPORT: 'wa-web' })).toThrow(/E2E_WA_WEB_USER_DATA_DIR/);
-    const cfg = loadConfig(
-      {
-        E2E_WA_CUSTOMER_TRANSPORT: 'wa-web',
-        E2E_WA_WEB_USER_DATA_DIR: '/var/lib/whatorder-e2e/wa-web-profile',
-      },
-      { requireSecrets: true },
-    );
+    expect(() => loadConfig({
+      E2E_WA_CUSTOMER_TRANSPORT: 'wa-web',
+      E2E_WA_WEB_USER_DATA_DIR: '/var/lib/whatorder-e2e/wa-web-profile',
+    })).toThrow(/FIREBASE_PROJECT_ID/);
+    const cfg = loadConfig(TEST_WA_WEB_ENV, { requireSecrets: true });
     expect(cfg.customerTransport).toBe('wa-web');
     expect(cfg.webUserDataDir).toBe('/var/lib/whatorder-e2e/wa-web-profile');
     expect(cfg.webHeadless).toBe(false);
     expect(cfg.webChannel).toBe('chrome');
+  });
+
+  test('assertSafeFirebaseTarget refuses prod project on test', () => {
+    expect(() => assertSafeFirebaseTarget('test', {
+      FIREBASE_PROJECT_ID: PROD_FIREBASE_PROJECT_ID,
+    })).toThrow(/whatorder-fire/);
+  });
+
+  test('assertSafeFirebaseTarget accepts test project', () => {
+    expect(() => assertSafeFirebaseTarget('test', {
+      FIREBASE_PROJECT_ID: TEST_FIREBASE_PROJECT_ID,
+    })).not.toThrow();
+  });
+
+  test('assertSafeFirebaseTarget prod needs allow flag', () => {
+    expect(() => assertSafeFirebaseTarget('prod', {
+      FIREBASE_PROJECT_ID: PROD_FIREBASE_PROJECT_ID,
+    })).toThrow(/ALLOW_PROD/);
+    expect(() => assertSafeFirebaseTarget('prod', {
+      FIREBASE_PROJECT_ID: PROD_FIREBASE_PROJECT_ID,
+      E2E_WA_ALLOW_PROD: '1',
+    })).not.toThrow();
   });
 
   test('loadConfig webChannel=bundled clears channel', () => {

@@ -57,7 +57,7 @@ async function assertNoNewOrder(opts) {
     businessId,
     customerDisplay,
     afterMs = 0,
-    timeoutMs = 20_000,
+    timeoutMs = 45_000,
     pollMs = 1500,
   } = opts;
 
@@ -75,19 +75,36 @@ async function assertNoNewOrder(opts) {
 async function findLatestOrder(businessId, variants, { afterMs, status, paymentMethod = null }) {
   if (!variants.length) return null;
 
+  const phoneSlice = variants.slice(0, 10);
   let docs = [];
+
   for (const field of ['customerPhone', 'customerId']) {
+    // Prefer createdAt desc so nightly history cannot bury the newest order.
+    try {
+      let q = ordersRef(businessId).where(field, 'in', phoneSlice);
+      if (afterMs > 0) {
+        q = q.where('createdAt', '>', new Date(afterMs));
+      }
+      const snap = await q.orderBy('createdAt', 'desc').limit(10).get();
+      if (!snap.empty) {
+        docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        break;
+      }
+    } catch (err) {
+      // Missing composite index (FAILED_PRECONDITION) — fall back below.
+      if (err.code !== 9) throw err;
+    }
+
     try {
       const snap = await ordersRef(businessId)
-        .where(field, 'in', variants.slice(0, 10))
-        .limit(25)
+        .where(field, 'in', phoneSlice)
+        .limit(50)
         .get();
       if (!snap.empty) {
         docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         break;
       }
     } catch (err) {
-      // Missing composite index or empty — try other field
       if (err.code !== 9) throw err;
     }
   }
@@ -122,11 +139,22 @@ async function waitForOrderStatus(businessId, orderId, status, { timeoutMs = 30_
  * @param {string} orderId
  * @returns {Promise<{ id: string, [key: string]: any }>}
  */
-async function markOrderPaid(businessId, orderId) {
+async function markOrderPaid(businessId, orderId, opts = {}) {
   const ref = ordersRef(businessId).doc(orderId);
   const snap = await ref.get();
   if (!snap.exists) throw new Error(`markOrderPaid: order not found ${orderId}`);
   const data = snap.data();
+  if (opts.customerDisplay) {
+    const allowed = new Set(customerPhoneVariants(opts.customerDisplay));
+    const phone = String(data.customerPhone || data.customerId || '').replace(/\D/g, '');
+    const ok = [...allowed].some((v) => String(v).replace(/\D/g, '') === phone);
+    if (!ok) {
+      throw new Error(
+        `markOrderPaid: order ${orderId} customerPhone=${data.customerPhone} `
+        + `does not match e2e customer ${opts.customerDisplay}`,
+      );
+    }
+  }
   if (data.paymentStatus === 'paid') {
     return { id: snap.id, ...data };
   }

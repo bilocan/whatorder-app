@@ -43,6 +43,10 @@ describe('e2e-wa waWebCustomer helpers', () => {
   test('detectLoginFailure ok when chat list present', () => {
     expect(detectLoginFailure({ hasChatList: true, hasQr: false, bodyText: 'Chats' })).toBeNull();
   });
+
+  test('detectLoginFailure ok when chat list present even if canvas exists', () => {
+    expect(detectLoginFailure({ hasChatList: true, hasQr: true, bodyText: 'Chats' })).toBeNull();
+  });
 });
 
 describe('e2e-wa WaWebCustomer with mocked page', () => {

@@ -21,6 +21,7 @@ const verifyToken = process.env.E2E_WA_CUSTOMER_VERIFY_TOKEN || cfg.customerVeri
 const port = Number(process.env.E2E_WA_REPLY_PORT || cfg.replyPort || 3099);
 
 const app = createReplyApp({ buffer, verifyToken });
-app.listen(port, () => {
-  console.log(`[e2e-wa] reply server on :${port}  POST/GET /webhooks/customer  verify_token set`);
+const host = process.env.E2E_WA_REPLY_HOST || '127.0.0.1';
+app.listen(port, host, () => {
+  console.log(`[e2e-wa] reply server on ${host}:${port}  POST/GET /webhooks/customer  verify_token set`);
 });

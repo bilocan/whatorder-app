@@ -66,6 +66,9 @@ function matchesIncludes(text, includes) {
  * @returns {string|null} error message or null if ok
  */
 function detectLoginFailure(signals) {
+  // Chat list wins: WA Web often keeps a canvas in the DOM while logged in.
+  if (signals.hasChatList) return null;
+
   const body = String(signals.bodyText || '');
   if (/chrome ab version|aktualisiere chrome|update chrome|funktioniert mit google\s*chrome/i.test(body)) {
     return 'WhatsApp Web rejected this browser (Chromium too old). '
@@ -77,10 +80,7 @@ function detectLoginFailure(signals) {
   if (/phone not connected|telefon.*nicht verbunden|abgemeldet|verifizieren|logged out/i.test(body)) {
     return 'WhatsApp Web session unhealthy (logged out or phone not connected). Re-link required.';
   }
-  if (!signals.hasChatList) {
-    return 'WhatsApp Web chat list not found — not logged in or DOM changed.';
-  }
-  return null;
+  return 'WhatsApp Web chat list not found — not logged in or DOM changed.';
 }
 
 function loadPlaywright(deps = {}) {
@@ -217,7 +217,8 @@ class WaWebCustomer {
     const dir = String(this.cfg.webDebugDir || '/tmp/e2e-wa-web').trim();
     try {
       const fs = require('fs');
-      fs.mkdirSync(dir, { recursive: true });
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+      try { fs.chmodSync(dir, 0o700); } catch (_) { /* ignore */ }
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       const shot = `${dir}/${label}-${stamp}.png`;
       const txt = `${dir}/${label}-${stamp}.txt`;
