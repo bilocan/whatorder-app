@@ -1,0 +1,89 @@
+# Real Meta WhatsApp E2E on Contabo (WA Web + Playwright).
+# Never attach to pull_request — burns Meta traffic and needs a logged-in browser.
+#
+# Spec: whatorder-vault/.../feature-whatsapp-e2e-automation.md
+# Runner: self-hosted on Contabo, label e2e-wa-web
+
+name: WhatsApp E2E (Contabo)
+
+on:
+  schedule:
+    # 03:00 UTC nightly
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  e2e-wa:
+    name: Pack A + B (Test)
+    runs-on: [self-hosted, e2e-wa-web]
+    # Secrets come from Contabo backend/.env.local (linked below), not GitHub Environment.
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        working-directory: backend
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Link Contabo .env.local
+        run: |
+          if [ ! -f /home/whatorder/whatorder-app/backend/.env.local ]; then
+            echo "::error::Missing /home/whatorder/whatorder-app/backend/.env.local on Contabo"
+            exit 1
+          fi
+          ln -sfn /home/whatorder/whatorder-app/backend/.env.local .env.local
+          # Ensure dotenv also sees FILE if cwd differs
+          test -f .env.local
+
+      - name: Install backend deps
+        run: npm ci
+
+      - name: Diagnose WA Web session
+        id: diagnose
+        env:
+          E2E_WA_CUSTOMER_TRANSPORT: wa-web
+          E2E_WA_WEB_USER_DATA_DIR: /var/lib/whatorder-e2e/wa-web-profile
+          E2E_WA_WEB_HEADLESS: '0'
+          E2E_WA_WEB_CHANNEL: chrome
+          E2E_WA_TARGET: test
+        run: |
+          set +e
+          xvfb-run -a node e2e-wa/scripts/wa-web-diagnose.js
+          code=$?
+          set -e
+          echo "diagnose_exit=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" -eq 2 ]; then
+            echo "::warning::WA Web session dead (diagnose exit 2). Re-link via Contabo CRD, then re-run. Soft-skipping packs."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "::error::WA Web diagnose failed unexpectedly (exit $code)"
+            exit "$code"
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Pack A (happy + owner)
+        if: steps.diagnose.outputs.skip != 'true'
+        env:
+          E2E_WA_CUSTOMER_TRANSPORT: wa-web
+          E2E_WA_WEB_USER_DATA_DIR: /var/lib/whatorder-e2e/wa-web-profile
+          E2E_WA_WEB_HEADLESS: '0'
+          E2E_WA_WEB_CHANNEL: chrome
+          E2E_WA_TARGET: test
+        run: |
+          xvfb-run -a npm run e2e:wa -- --target test --all-pack-a
+
+      - name: Pack B (negatives)
+        if: steps.diagnose.outputs.skip != 'true'
+        env:
+          E2E_WA_CUSTOMER_TRANSPORT: wa-web
+          E2E_WA_WEB_USER_DATA_DIR: /var/lib/whatorder-e2e/wa-web-profile
+          E2E_WA_WEB_HEADLESS: '0'
+          E2E_WA_WEB_CHANNEL: chrome
+          E2E_WA_TARGET: test
+        run: |
+          xvfb-run -a npm run e2e:wa -- --target test --all-pack-b

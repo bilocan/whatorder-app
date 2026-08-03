@@ -109,6 +109,19 @@ xvfb-run -a env \
 
 **Hard rule:** default test bot Meta id is `1227165440469679` (`+43 681 20575797`). Runner aborts on prod id unless allowed.
 
+## Nightly / on-demand (GitHub Actions)
+
+Self-hosted runner on Contabo: label `e2e-wa-web`, host `contabo-e2e-wa`.
+
+Workflow: `.github/workflows/e2e-wa.yml` — `schedule` (03:00 UTC) + `workflow_dispatch` only. **Not** on PRs.
+
+```bash
+# after workflow is on the remote branch:
+gh workflow run e2e-wa.yml --ref feature/whatsapp-e2e-automation
+```
+
+Diagnose exit codes: `0` ok, `2` session dead (workflow soft-skips packs), `1` unexpected error. Secrets: Contabo `backend/.env.local` (symlinked into the job workspace).
+
 ## Legacy graph transport (deprecated)
 
 ```bash

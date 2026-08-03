@@ -3,9 +3,12 @@
 /**
  * Contabo diagnose: open WA Web with the e2e profile and print login signals.
  *
+ * Exit codes (Phase 8 nightly contract):
+ *   0 — hasChatList, usable
+ *   2 — session dead (QR / no chat list / login failure) → workflow soft-skip
+ *   1 — unexpected error
+ *
  *   xvfb-run -a node e2e-wa/scripts/wa-web-diagnose.js
- *   # or inside CRD:
- *   E2E_WA_WEB_HEADLESS=0 node e2e-wa/scripts/wa-web-diagnose.js
  */
 
 const path = require('path');
@@ -13,7 +16,7 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 require('dotenv').config();
 
 const { loadConfig } = require('../lib/config');
-const { WaWebCustomer, SEL } = require('../lib/waWebCustomer');
+const { WaWebCustomer, SEL, detectLoginFailure } = require('../lib/waWebCustomer');
 
 async function main() {
   process.env.E2E_WA_CUSTOMER_TRANSPORT = process.env.E2E_WA_CUSTOMER_TRANSPORT || 'wa-web';
@@ -44,6 +47,19 @@ async function main() {
 
   await customer._dumpDebug('diagnose', { bodyText: body });
   await customer.close();
+
+  const fail = detectLoginFailure({ hasChatList, hasQr, bodyText: body });
+  if (fail) {
+    console.error('SESSION_DEAD:', fail);
+    console.error('Re-link WhatsApp Web on Contabo via Chrome Remote Desktop, then re-run.');
+    process.exit(2);
+  }
+  if (!hasChatList) {
+    console.error('SESSION_DEAD: chat list not visible');
+    process.exit(2);
+  }
+  console.log('diagnose ok');
+  process.exit(0);
 }
 
 main().catch((err) => {
