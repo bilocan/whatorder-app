@@ -67,6 +67,18 @@ service cloud.firestore {
         allow update, delete: if isOwnerOf(businessId) || isAdmin();
       }
 
+      // Customer Belege metadata — written by backend; owners may list/read for Documents UI.
+      // PDF bytes are private in Storage; download via backend signed URL only.
+      match /receipts/{receiptId} {
+        allow read: if isOwnerOf(businessId) || isAdmin();
+        allow write: if false;
+      }
+
+      // Beleg / settlement counters — backend only.
+      match /counters/{counterId} {
+        allow read, write: if false;
+      }
+
       // Bot-learned order phrases (backend writes; owner may review and delete).
       match /intentLearnings/{keyHash} {
         allow read, delete: if isOwnerOf(businessId) || isAdmin();

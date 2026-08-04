@@ -1065,6 +1065,13 @@ button:focus-visible {
   color: var(--text-quiet);
   font-size: var(--text-sm);
 }
+.order-detail-receipt {
+  margin: 1rem 0;
+}
+.order-detail-receipt-title {
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
 .order-detail-eta {
   display: flex;
   align-items: center;

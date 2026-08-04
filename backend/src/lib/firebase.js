@@ -17,7 +17,15 @@ if (!admin.apps.length) {
     // Cloud Run / GCP: use the runtime service account via ADC (no key needed)
     credential = admin.credential.applicationDefault();
   }
-  admin.initializeApp({ credential, projectId: process.env.FIREBASE_PROJECT_ID });
+  const storageBucket = process.env.FIREBASE_STORAGE_BUCKET
+    || (process.env.FIREBASE_PROJECT_ID
+      ? `${process.env.FIREBASE_PROJECT_ID}.appspot.com`
+      : undefined);
+  admin.initializeApp({
+    credential,
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    ...(storageBucket ? { storageBucket } : {}),
+  });
 }
 
 // Preprod runs against the named "preprod" database in the prod project so

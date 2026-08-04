@@ -121,6 +121,17 @@
     "etaLabel": "Fertig in",
     "etaMinutesUnit": "Min.",
     "paymentRequiredHint": "Der Gast muss bezahlen, bevor du den Status weiterstellen kannst.",
+    "receipt": {
+      "title": "Kundenbeleg",
+      "download": "Beleg herunterladen",
+      "resend": "Per WhatsApp erneut senden",
+      "downloading": "Download wird vorbereitet…",
+      "resending": "Wird gesendet…",
+      "resent": "Beleg per WhatsApp gesendet.",
+      "failed": "Für diese Zahlung konnte kein Beleg erzeugt werden.",
+      "missing": "Für diese Bestellung gibt es noch keinen Beleg.",
+      "draftNote": "Rechtlicher PDF-Entwurf — nicht RKSV-signiert."
+    },
     "status": {
       "pending": "Ausstehend",
       "approved": "Angenommen",

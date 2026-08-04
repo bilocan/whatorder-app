@@ -96,3 +96,44 @@ export async function postOrderAction(
   if (!nextStatus) return { ok: false, error: `Unknown action: ${action}` };
   return { ok: true, nextStatus };
 }
+
+export type ReceiptDownloadResult =
+  | { ok: true; belegNumber: string; status: string; downloadUrl: string }
+  | { ok: false; error: string; status?: number };
+
+export async function fetchOrderReceipt(
+  businessId: string,
+  orderId: string,
+): Promise<ReceiptDownloadResult> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_URL}/api/businesses/${businessId}/orders/${orderId}/receipt`, {
+    headers,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    return { ok: false, error: body.error ?? `Request failed (${res.status})`, status: res.status };
+  }
+  const body = await res.json() as { belegNumber: string; status: string; downloadUrl: string };
+  return { ok: true, ...body };
+}
+
+export type ReceiptResendResult =
+  | { ok: true; belegNumber: string }
+  | { ok: false; error: string };
+
+export async function resendOrderReceipt(
+  businessId: string,
+  orderId: string,
+): Promise<ReceiptResendResult> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_URL}/api/businesses/${businessId}/orders/${orderId}/receipt/resend`, {
+    method: 'POST',
+    headers,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    return { ok: false, error: body.error ?? `Request failed (${res.status})` };
+  }
+  const body = await res.json() as { belegNumber?: string };
+  return { ok: true, belegNumber: body.belegNumber ?? '' };
+}

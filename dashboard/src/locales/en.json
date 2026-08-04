@@ -121,6 +121,17 @@
     "etaLabel": "Ready in",
     "etaMinutesUnit": "min",
     "paymentRequiredHint": "Customer must pay before you can advance this order.",
+    "receipt": {
+      "title": "Customer receipt",
+      "download": "Download Beleg",
+      "resend": "Resend via WhatsApp",
+      "downloading": "Preparing download…",
+      "resending": "Sending…",
+      "resent": "Receipt sent on WhatsApp.",
+      "failed": "Receipt could not be generated for this payment.",
+      "missing": "No receipt yet for this order.",
+      "draftNote": "Draft legal PDF — not RKSV-signed."
+    },
     "status": {
       "pending": "Pending",
       "approved": "Approved",

@@ -107,6 +107,7 @@ module.exports = {
   paymentLegalIncomplete: () => 'Card payment is not activated for this restaurant yet, so your order was not placed. Please contact the restaurant to order directly.',
   paymentVatIncomplete: () => 'We could not place your order: tax details are missing on the menu. Please contact the restaurant, they can fix this quickly.',
   paymentConfirmed: (shortId) => `✅ Payment received for order #${shortId}. We'll notify you when it's ready. Thank you! 🙏`,
+  paymentBelegCaption: (belegNumber) => `Your receipt (${belegNumber})`,
   paymentReturnSuccessTitle: () => 'Payment received',
   paymentReturnCancelTitle: () => 'Payment cancelled',
   paymentReturnSuccessNoLink: () => 'You can close this page and return to WhatsApp.',
