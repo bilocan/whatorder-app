@@ -128,6 +128,7 @@ jobs:
             NODE_ENV=production
             LOG_LEVEL=info
             FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT }}
+            FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
             BACKEND_URL=https://whatorder-backend-87472938058.europe-west3.run.app
             MAP_PUBLIC_URL=https://whatorder-fire.web.app
             WHATSAPP_BUSINESS_ACCOUNT_ID=2622868251461145
