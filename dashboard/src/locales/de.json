@@ -494,8 +494,24 @@
     "status": "Status",
     "statusActive": "Aktiv",
     "statusPaused": "Pausiert",
+    "tabs": {
+      "restaurant": "Restaurant",
+      "hours": "Zeiten",
+      "ordering": "Bestellung",
+      "payments": "Zahlung & Rechtliches",
+      "bot": "Bot"
+    },
+    "advanced": {
+      "coords": "Erweitert — Kartenkoordinaten",
+      "orderWindow": "Erweitert — letzte Bestellzeiten (Bot-Cutoff)"
+    },
     "profile": {
-      "title": "Restaurantprofil"
+      "title": "Restaurant",
+      "description": "Name und Alert-Nummer sind fest. Adresse für Nearby-Suche und Lieferung bearbeiten."
+    },
+    "ordering": {
+      "title": "Bestellung",
+      "description": "Lieferung und Mindestbestellwert für Lieferbestellungen."
     },
     "legal": {
       "title": "Rechnungsdaten",
@@ -576,9 +592,10 @@
     },
     "hours": {
       "title": "Öffnungszeiten",
-      "description": "Zeiten pro Tag festlegen. Der Bot lehnt Bestellungen außerhalb des Bestellfensters ab. Geschlossene Tage werden als gesperrt angezeigt.",
+      "description": "Festlegen, wann der Laden an welchem Tag offen ist. Geschlossene Tage erscheinen im Restaurant-Picker als geschlossen.",
       "shopHours": "Laden öffnet – schließt",
       "orderWindow": "Erste – letzte Bestellung",
+      "orderWindowHint": "Der Bot lehnt Bestellungen außerhalb dieses Fensters ab. Bleibt unberührt, wenn du die Ladenzeiten nutzt.",
       "open": "Geöffnet",
       "closed": "Geschlossen",
       "opens": "Öffnet",

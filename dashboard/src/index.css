@@ -1444,6 +1444,81 @@ button:focus-visible {
   color: var(--text-strong);
   font-weight: 700;
 }
+.settings-tabs {
+  display: flex;
+  gap: 0.15rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-bottom: 1px solid var(--surface-border-strong);
+  margin: 0 0 0.25rem;
+  scrollbar-width: thin;
+}
+.settings-tab {
+  flex: 0 0 auto;
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 0.65rem 0.85rem;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-quiet);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.settings-tab:hover {
+  color: var(--text-strong);
+}
+.settings-tab.is-active {
+  color: var(--text-strong);
+  font-weight: 600;
+  border-bottom-color: var(--green-500);
+}
+.settings-tab:focus-visible {
+  outline: 2px solid var(--green-500);
+  outline-offset: 2px;
+}
+.settings-advanced {
+  border: 1px dashed var(--surface-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-control);
+  padding: 0;
+}
+.settings-advanced-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.75rem 0.9rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  user-select: none;
+}
+.settings-advanced-summary::-webkit-details-marker {
+  display: none;
+}
+.settings-advanced-summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 0.4rem;
+  color: var(--text-quiet);
+  transition: transform 0.12s ease;
+}
+.settings-advanced[open] > .settings-advanced-summary::before {
+  transform: rotate(90deg);
+}
+.settings-advanced-body {
+  padding: 0 0.9rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.settings-payments-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
 .settings-loading {
   color: var(--text-quiet);
 }
@@ -1681,11 +1756,16 @@ button:focus-visible {
 }
 .settings-hour-row {
   display: grid;
-  grid-template-columns: 6.75rem minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 0.65rem;
   align-items: center;
   padding: 0.55rem 0;
   border-bottom: 1px solid var(--surface-border);
+}
+.settings-hour-row-primary {
+  grid-template-columns: 6.75rem minmax(0, 1fr) auto;
+}
+.settings-hour-row-order {
+  grid-template-columns: 6.75rem minmax(0, 1fr);
 }
 .settings-hour-row:last-child {
   border-bottom: none;
