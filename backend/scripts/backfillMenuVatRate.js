@@ -1,13 +1,18 @@
 /**
  * Backfill missing menu VAT rates.
  *
+ * Targets the Firebase project in backend/.env.local (FIREBASE_PROJECT_ID +
+ * credentials; optional FIRESTORE_DATABASE_ID for named DBs like preprod).
+ * Record each env run in vault:
+ *   Projects/WhatOrder/notes/ops-firestore-data-migrations.md
+ *
  * Usage (dry-run by default):
  *   node scripts/backfillMenuVatRate.js <businessId>
  *   node scripts/backfillMenuVatRate.js --all
  *
  * Options:
  *   --write      Persist the proposed VAT rates
- *   --drinks-20  Use 20% for category === "drinks" (all other items use 10%)
+ *   --drinks-20  Use 20% for drink categories (drinks / Getränke / Getraenke); else 10%
  */
 
 const USAGE =
@@ -34,8 +39,18 @@ function parseArgs(args) {
   };
 }
 
+/** Canonical drinks + DE free-text labels used by pilot menus (e.g. Enes Kebap). */
+function isDrinkCategory(category) {
+  const key = String(category ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+  return key === 'drinks' || key === 'getranke' || key === 'getraenke';
+}
+
 function proposedVatRate(item, drinks20) {
-  return drinks20 && item.category === 'drinks' ? 20 : 10;
+  return drinks20 && isDrinkCategory(item.category) ? 20 : 10;
 }
 
 async function businessIdsFor(options, refs) {
@@ -131,6 +146,7 @@ if (require.main === module) {
 module.exports = {
   backfillBusiness,
   businessIdsFor,
+  isDrinkCategory,
   parseArgs,
   proposedVatRate,
   run,
