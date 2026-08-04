@@ -159,6 +159,7 @@ jobs:
             DEPLOY_ENV=test
             GIT_SHA=${{ github.sha }}
             APP_VERSION=dev-${{ github.sha }}
+            FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
 
   deploy-dashboard:
     name: Deploy Dashboard to Firebase Hosting
