@@ -1,6 +1,11 @@
 /**
  * Backfill missing menu VAT rates.
  *
+ * Targets the Firebase project in backend/.env.local (FIREBASE_PROJECT_ID +
+ * credentials; optional FIRESTORE_DATABASE_ID for named DBs like preprod).
+ * Record each env run in vault:
+ *   Projects/WhatOrder/notes/ops-firestore-data-migrations.md
+ *
  * Usage (dry-run by default):
  *   node scripts/backfillMenuVatRate.js <businessId>
  *   node scripts/backfillMenuVatRate.js --all
