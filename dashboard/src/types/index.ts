@@ -57,6 +57,8 @@ export interface Order {
   deliveryFee?: number;
   paymentStatus?: 'pending' | 'paid' | 'cash' | 'failed' | 'refunded';
   paymentMethod?: 'stripe' | 'cash';
+  receiptId?: string;
+  belegNumber?: string;
   settlementStatus?: 'none' | 'pending' | 'included_in_payout' | 'paid_out' | 'refunded';
   grossAmountCents?: number;
   whatorderFeeCents?: number;

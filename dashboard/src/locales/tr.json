@@ -121,6 +121,17 @@
     "etaLabel": "Hazır olma süresi",
     "etaMinutesUnit": "dk",
     "paymentRequiredHint": "Durumu ilerletmeden önce müşterinin ödemesi gerekir.",
+    "receipt": {
+      "title": "Müşteri fişi",
+      "download": "Fişi indir",
+      "resend": "WhatsApp ile yeniden gönder",
+      "downloading": "İndirme hazırlanıyor…",
+      "resending": "Gönderiliyor…",
+      "resent": "Fiş WhatsApp ile gönderildi.",
+      "failed": "Bu ödeme için fiş oluşturulamadı.",
+      "missing": "Bu sipariş için henüz fiş yok.",
+      "draftNote": "Taslak yasal PDF — RKSV imzalı değil."
+    },
     "status": {
       "pending": "Beklemede",
       "approved": "Onaylandı",

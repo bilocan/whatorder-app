@@ -107,6 +107,7 @@ module.exports = {
   paymentLegalIncomplete: () => 'Bu restoranda kartla ödeme henüz aktif değil, siparişiniz oluşturulmadı. Lütfen doğrudan restoranla iletişime geçin.',
   paymentVatIncomplete: () => 'Siparişinizi oluşturamadık: menüde vergi bilgileri eksik. Lütfen restoranla iletişime geçin, hızlıca düzeltilebilir.',
   paymentConfirmed: (shortId) => `✅ Sipariş #${shortId} için ödeme alındı. Hazır olunca haber vereceğiz. Teşekkürler! 🙏`,
+  paymentBelegCaption: (belegNumber) => `Fişiniz (${belegNumber})`,
   paymentReturnSuccessTitle: () => 'Ödeme alındı',
   paymentReturnCancelTitle: () => 'Ödeme iptal edildi',
   paymentReturnSuccessNoLink: () => 'Bu sayfayı kapatabilir ve WhatsApp\'a dönebilirsiniz.',

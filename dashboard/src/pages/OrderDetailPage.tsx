@@ -14,6 +14,8 @@ import {
   isKitchenAdvanceAction,
   isKitchenPaymentBlocked,
   postOrderAction,
+  fetchOrderReceipt,
+  resendOrderReceipt,
 } from '../lib/orderActions';
 import { matchesActivePhoneRouting } from '../lib/orderPhoneFilter';
 import type { DashboardT } from '../i18n';
@@ -96,6 +98,8 @@ export default function OrderDetailPage() {
   const [actionError, setActionError] = useState('');
   const [loading, setLoading] = useState(false);
   const [etaMinutes, setEtaMinutes] = useState(DEFAULT_APPROVE_ETA_MINUTES);
+  const [receiptBusy, setReceiptBusy] = useState<'download' | 'resend' | null>(null);
+  const [receiptMessage, setReceiptMessage] = useState('');
 
   useEffect(() => {
     if (!orderId || !businessId) return;
@@ -122,6 +126,44 @@ export default function OrderDetailPage() {
       setActionError(t('orderDetail.networkError'));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function downloadReceipt() {
+    if (!orderId || !businessId) return;
+    setReceiptBusy('download');
+    setReceiptMessage('');
+    setActionError('');
+    try {
+      const result = await fetchOrderReceipt(businessId, orderId);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
+    } catch {
+      setActionError(t('orderDetail.networkError'));
+    } finally {
+      setReceiptBusy(null);
+    }
+  }
+
+  async function resendReceipt() {
+    if (!orderId || !businessId) return;
+    setReceiptBusy('resend');
+    setReceiptMessage('');
+    setActionError('');
+    try {
+      const result = await resendOrderReceipt(businessId, orderId);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      setReceiptMessage(t('orderDetail.receipt.resent'));
+    } catch {
+      setActionError(t('orderDetail.networkError'));
+    } finally {
+      setReceiptBusy(null);
     }
   }
 
@@ -216,6 +258,43 @@ export default function OrderDetailPage() {
       </div>
 
       <SettlementInfo order={order} t={t} />
+
+      {order.paymentStatus === 'paid' && order.paymentMethod === 'stripe' && (
+        <div className="order-detail-receipt">
+          <p className="order-detail-receipt-title">{t('orderDetail.receipt.title')}</p>
+          {order.belegNumber && (
+            <p className="order-detail-settlement-line quiet">{order.belegNumber}</p>
+          )}
+          <p className="order-detail-settlement-line quiet">{t('orderDetail.receipt.draftNote')}</p>
+          <div className="order-detail-actions">
+            <button
+              type="button"
+              className="order-action-btn"
+              data-variant="primary"
+              onClick={() => void downloadReceipt()}
+              disabled={receiptBusy !== null || !order.receiptId}
+            >
+              {receiptBusy === 'download'
+                ? t('orderDetail.receipt.downloading')
+                : t('orderDetail.receipt.download')}
+            </button>
+            <button
+              type="button"
+              className="order-action-btn"
+              onClick={() => void resendReceipt()}
+              disabled={receiptBusy !== null || !order.receiptId}
+            >
+              {receiptBusy === 'resend'
+                ? t('orderDetail.receipt.resending')
+                : t('orderDetail.receipt.resend')}
+            </button>
+          </div>
+          {!order.receiptId && (
+            <p className="order-detail-settlement-line muted">{t('orderDetail.receipt.missing')}</p>
+          )}
+          {receiptMessage && <p className="order-detail-settlement-line ok">{receiptMessage}</p>}
+        </div>
+      )}
 
       {order.status === 'pending' && (
         <div className="order-detail-eta">
