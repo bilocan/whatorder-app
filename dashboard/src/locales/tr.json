@@ -494,8 +494,24 @@
     "status": "Durum",
     "statusActive": "Aktif",
     "statusPaused": "Duraklatıldı",
+    "tabs": {
+      "restaurant": "Restoran",
+      "hours": "Saatler",
+      "ordering": "Sipariş",
+      "payments": "Ödeme ve yasal",
+      "bot": "Bot"
+    },
+    "advanced": {
+      "coords": "Gelişmiş — harita koordinatları",
+      "orderWindow": "Gelişmiş — son sipariş saatleri (bot kesimi)"
+    },
     "profile": {
-      "title": "Restoran profili"
+      "title": "Restoran",
+      "description": "Ad ve uyarı numarası sabittir. Yakındaki arama ve teslimat için adresi düzenleyin."
+    },
+    "ordering": {
+      "title": "Sipariş",
+      "description": "Teslimat seçenekleri ve teslimat siparişleri için minimum sepet tutarı."
     },
     "legal": {
       "title": "Fatura bilgileri",
@@ -576,9 +592,10 @@
     },
     "hours": {
       "title": "Çalışma Saatleri",
-      "description": "Günlük saatleri ayarlayın. Bot, sipariş penceresi dışındaki siparişleri reddeder. Kapalı günler restoran seçicisinde \"🔒 Kapalı\" olarak gösterilir.",
+      "description": "Dükkanın hangi gün açık olduğunu ayarlayın. Kapalı günler restoran seçicisinde kapalı görünür.",
       "shopHours": "Dükkan açılış – kapanış",
       "orderWindow": "İlk – son sipariş",
+      "orderWindowHint": "Bot, bu pencere dışındaki siparişleri reddeder. Değiştirmezseniz dükkan saatlerini takip eder.",
       "open": "Açık",
       "closed": "Kapalı",
       "opens": "Açılış",

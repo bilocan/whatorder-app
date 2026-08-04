@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import SettingsPage from '../pages/SettingsPage'
 
@@ -49,6 +50,90 @@ function mockMenu(items: Record<string, unknown>[]) {
   })
 }
 
+function renderSettings(initialPath = '/settings') {
+  return render(
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Routes>
+        <Route path="/settings" element={<SettingsPage />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+describe('SettingsPage — tabs and Advanced', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUpdateDoc.mockResolvedValue(undefined)
+    mockUseAuth.mockReturnValue({ businessId: 'biz-1' })
+    mockMenu([{ vatRate: 10 }, { vatRate: 20 }])
+    mockBusiness()
+  })
+
+  it('defaults to Restaurant and hides payment controls', async () => {
+    renderSettings('/settings')
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Address')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByRole('checkbox', { name: 'Accept card payments' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Latitude')).not.toBeInTheDocument()
+  })
+
+  it('opens Hours from ?tab=hours and hides order-window until Advanced expands', async () => {
+    renderSettings('/settings?tab=hours')
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Opening hours' })).toBeInTheDocument()
+    })
+
+    expect(screen.queryByLabelText('Monday First order')).not.toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByText('Advanced — last order times (bot cutoff)'))
+
+    expect(screen.getByLabelText('Monday First order')).toBeInTheDocument()
+  })
+
+  it('shows lat/lng after expanding Restaurant Advanced', async () => {
+    renderSettings('/settings')
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Address')).toBeInTheDocument()
+    })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByText('Advanced — map coordinates'))
+
+    expect(screen.getByLabelText('Latitude')).toBeInTheDocument()
+    expect(screen.getByLabelText('Longitude')).toBeInTheDocument()
+  })
+
+  it('switches to Ordering via tab click', async () => {
+    renderSettings('/settings')
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Ordering' })).toBeInTheDocument()
+    })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Ordering' }))
+
+    expect(screen.getByRole('checkbox', { name: 'Accept delivery orders' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Ordering' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('falls back to Restaurant for an invalid ?tab', async () => {
+    renderSettings('/settings?tab=nope')
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Address')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('tab', { name: 'Restaurant' })).toHaveAttribute('aria-selected', 'true')
+  })
+})
+
 describe('SettingsPage — legal profile and payment gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -59,7 +144,7 @@ describe('SettingsPage — legal profile and payment gate', () => {
 
   it('disables card payments and lists missing fields when legal profile is incomplete', async () => {
     mockBusiness()
-    render(<SettingsPage />)
+    renderSettings('/settings?tab=payments')
 
     await waitFor(() => {
       expect(screen.getByText('Accept card payments')).toBeInTheDocument()
@@ -74,7 +159,7 @@ describe('SettingsPage — legal profile and payment gate', () => {
 
   it('does not save paymentEnabled: true when legal profile is incomplete', async () => {
     mockBusiness()
-    render(<SettingsPage />)
+    renderSettings('/settings?tab=payments')
 
     await waitFor(() => {
       expect(screen.getByText('Accept card payments')).toBeInTheDocument()
@@ -91,7 +176,7 @@ describe('SettingsPage — legal profile and payment gate', () => {
 
   it('enables the checkbox once legal is complete and saves paymentEnabled: true', async () => {
     mockBusiness({ legal: COMPLETE_LEGAL })
-    render(<SettingsPage />)
+    renderSettings('/settings?tab=payments')
 
     await waitFor(() => {
       expect(screen.getByRole('checkbox', { name: 'Accept card payments' })).not.toBeDisabled()
@@ -109,7 +194,7 @@ describe('SettingsPage — legal profile and payment gate', () => {
   it('blocks enabling payments while a menu item has no VAT rate, even with complete legal', async () => {
     mockBusiness({ legal: COMPLETE_LEGAL })
     mockMenu([{ vatRate: 10 }, {}])
-    render(<SettingsPage />)
+    renderSettings('/settings?tab=payments')
 
     await waitFor(() => {
       expect(screen.getByText('Finish these steps before enabling card payments:')).toBeInTheDocument()
@@ -122,7 +207,7 @@ describe('SettingsPage — legal profile and payment gate', () => {
 
   it('shows both checklist rows as met and enables the checkbox when the menu is fully rated', async () => {
     mockBusiness({ legal: COMPLETE_LEGAL })
-    render(<SettingsPage />)
+    renderSettings('/settings?tab=payments')
 
     await waitFor(() => {
       expect(screen.getByRole('checkbox', { name: 'Accept card payments' })).not.toBeDisabled()
@@ -134,7 +219,7 @@ describe('SettingsPage — legal profile and payment gate', () => {
   it('lets an owner turn card payments off while the checklist is incomplete', async () => {
     mockBusiness({ paymentEnabled: true })
     mockMenu([{}])
-    render(<SettingsPage />)
+    renderSettings('/settings?tab=payments')
 
     const checkbox = await waitFor(() => screen.getByRole('checkbox', { name: 'Accept card payments' }))
     await waitFor(() => expect(checkbox).toBeChecked())
@@ -152,7 +237,7 @@ describe('SettingsPage — legal profile and payment gate', () => {
   it('keeps the gate shut when the menu read fails', async () => {
     mockBusiness({ legal: COMPLETE_LEGAL })
     mockGetDocs.mockRejectedValue(new Error('permission denied'))
-    render(<SettingsPage />)
+    renderSettings('/settings?tab=payments')
 
     await waitFor(() => {
       expect(screen.getByText('Every menu item has a VAT rate')).toHaveClass('settings-checklist-pending')
@@ -163,7 +248,7 @@ describe('SettingsPage — legal profile and payment gate', () => {
 
   it('saves the legal profile with a normalized, complete flag via withCompleteFlag', async () => {
     mockBusiness()
-    render(<SettingsPage />)
+    renderSettings('/settings?tab=payments')
 
     const user = userEvent.setup()
     await waitFor(() => {

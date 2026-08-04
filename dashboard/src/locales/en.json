@@ -494,8 +494,24 @@
     "status": "Status",
     "statusActive": "Active",
     "statusPaused": "Paused",
+    "tabs": {
+      "restaurant": "Restaurant",
+      "hours": "Hours",
+      "ordering": "Ordering",
+      "payments": "Payments & legal",
+      "bot": "Bot"
+    },
+    "advanced": {
+      "coords": "Advanced — map coordinates",
+      "orderWindow": "Advanced — last order times (bot cutoff)"
+    },
     "profile": {
-      "title": "Restaurant profile"
+      "title": "Restaurant",
+      "description": "Name and alert number are fixed. Edit the address for nearby search and delivery."
+    },
+    "ordering": {
+      "title": "Ordering",
+      "description": "Delivery options and the minimum cart value for delivery orders."
     },
     "legal": {
       "title": "Legal & billing",
@@ -576,9 +592,10 @@
     },
     "hours": {
       "title": "Opening hours",
-      "description": "Set hours per day. Bot rejects orders outside the order window. Closed days show as closed in the restaurant picker.",
+      "description": "Set when the shop is open each day. Closed days show as closed in the restaurant picker.",
       "shopHours": "Shop open – close",
       "orderWindow": "First – last order",
+      "orderWindowHint": "The bot rejects orders outside this window. Defaults track shop hours if you never change them.",
       "open": "Open",
       "closed": "Closed",
       "opens": "Opens",
