@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   isLegalComplete,
+  isSettlementIbanComplete,
   isValidAustrianUid,
+  isValidIban,
   missingLegalFields,
+  normalizeIban,
   normalizeUid,
   withCompleteFlag,
 } from '../lib/legalProfile';
@@ -53,5 +56,20 @@ describe('legalProfile', () => {
       email: null,
       complete: true,
     });
+  });
+
+  it('accepts and normalizes a valid Austrian IBAN', () => {
+    expect(isValidIban('AT611904300234573201')).toBe(true);
+    expect(normalizeIban('at61 1904 3002 3457 3201')).toBe('AT611904300234573201');
+  });
+
+  it('rejects invalid IBANs', () => {
+    expect(isValidIban('AT611904300234573200')).toBe(false);
+    expect(normalizeIban('DE89')).toBeNull();
+  });
+
+  it('treats settlement IBAN as independent of legal.complete', () => {
+    expect(isSettlementIbanComplete({ iban: 'AT611904300234573201' })).toBe(true);
+    expect(isSettlementIbanComplete({ ...completeLegal, iban: null })).toBe(false);
   });
 });

@@ -526,7 +526,7 @@
     },
     "legal": {
       "title": "Fatura bilgileri",
-      "description": "Ödeme makbuzları için gerekli. Bu bilgiler müşterilerinize gönderilen faturalarda görünür.",
+      "description": "Ödeme makbuzları ve haftalık ödemeler için gerekli. Yasal bilgiler müşteri faturalarında görünür; IBAN restoran ödemeleri içindir.",
       "legalName": "Yasal işletme adı",
       "street": "Sokak / adres",
       "zip": "Posta kodu",
@@ -535,7 +535,9 @@
       "uid": "KDV numarası (UID)",
       "firmenbuchNr": "Ticaret sicil numarası (opsiyonel)",
       "email": "Fatura e-postası (opsiyonel)",
-      "iban": "IBAN (opsiyonel)",
+      "iban": "IBAN (ödemeler için)",
+      "ibanHint": "Kart ödemelerinden önce gerekli. Haftalık ödemeler bu hesaba gider.",
+      "ibanInvalid": "Geçerli bir IBAN girin (örn. AT61 1904 3002 3457 3201).",
       "save": "Fatura bilgilerini kaydet",
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi",
@@ -964,7 +966,8 @@
   "onboarding": {
     "checklist": {
       "legalComplete": "Fatura ve şirket bilgileri tamam",
-      "menuVatComplete": "Her menü öğesinin KDV oranı var"
+      "menuVatComplete": "Her menü öğesinin KDV oranı var",
+      "settlementIbanComplete": "Ödeme IBAN'ı girildi"
     }
   }
 }

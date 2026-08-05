@@ -526,7 +526,7 @@
     },
     "legal": {
       "title": "Rechnungsdaten",
-      "description": "Nötig für Zahlungsbelege. Diese Angaben erscheinen auf Rechnungen an deine Kunden.",
+      "description": "Nötig für Zahlungsbelege und wöchentliche Auszahlungen. Firmendaten erscheinen auf Kundenbelegen; die IBAN ist für deine Auszahlungen.",
       "legalName": "Firmenname (rechtlich)",
       "street": "Straße & Hausnummer",
       "zip": "PLZ",
@@ -535,7 +535,9 @@
       "uid": "UID-Nummer",
       "firmenbuchNr": "Firmenbuchnummer (optional)",
       "email": "Rechnungs-E-Mail (optional)",
-      "iban": "IBAN (optional)",
+      "iban": "IBAN (für Auszahlungen)",
+      "ibanHint": "Brauchst du vor Kartenzahlungen. Wöchentliche Auszahlungen gehen auf dieses Konto.",
+      "ibanInvalid": "Gib eine gültige IBAN ein (z. B. AT61 1904 3002 3457 3201).",
       "save": "Rechnungsdaten speichern",
       "saving": "Speichern…",
       "saved": "Gespeichert",
@@ -964,7 +966,8 @@
   "onboarding": {
     "checklist": {
       "legalComplete": "Rechnungs- und Firmendaten sind vollständig",
-      "menuVatComplete": "Jeder Menüpunkt hat einen Steuersatz"
+      "menuVatComplete": "Jeder Menüpunkt hat einen Steuersatz",
+      "settlementIbanComplete": "Auszahlungs-IBAN ist hinterlegt"
     }
   }
 }
