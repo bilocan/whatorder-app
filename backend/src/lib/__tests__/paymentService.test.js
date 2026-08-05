@@ -65,6 +65,7 @@ const COMPLETE_LEGAL = {
   city: 'Wien',
   country: 'AT',
   uid: 'ATU81252038',
+  iban: 'AT611904300234573201',
 };
 
 function mockBusiness(data) {
@@ -158,6 +159,26 @@ describe('createCheckoutSessionForOrder', () => {
 
     await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
       .rejects.toThrow('LEGAL_PROFILE_INCOMPLETE');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  test('refuses when the settlement IBAN is missing', async () => {
+    const create = jest.fn();
+    getStripe.mockReturnValue({ checkout: { sessions: { create } } });
+    mockBusiness({ name: 'Döner Palace', legal: { ...COMPLETE_LEGAL, iban: null } });
+
+    await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
+      .rejects.toThrow('SETTLEMENT_IBAN_INCOMPLETE');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  test('refuses when the settlement IBAN is invalid', async () => {
+    const create = jest.fn();
+    getStripe.mockReturnValue({ checkout: { sessions: { create } } });
+    mockBusiness({ name: 'Döner Palace', legal: { ...COMPLETE_LEGAL, iban: 'AT611904300234573200' } });
+
+    await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
+      .rejects.toThrow('SETTLEMENT_IBAN_INCOMPLETE');
     expect(create).not.toHaveBeenCalled();
   });
 });
