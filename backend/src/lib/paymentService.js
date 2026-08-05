@@ -5,9 +5,13 @@ const { getFeeConfig, calcFeeCents } = require('./feeConfig');
 const { getSettlementConfig, computeHoldEndsAt, computeExpectedPayoutAt } = require('./settlementConfig');
 const { resolveWhatsAppReturnPhoneDigits, waMeUrl, resolvePaymentLang } = require('./whatsappReturn');
 const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('./whatsappRouting');
-const { sendText, sendButtonMessage } = require('./whatsapp');
+const { sendText, sendButtonMessage, uploadMedia, sendDocument } = require('./whatsapp');
 const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } = require('./messageIdentity');
 const { t } = require('./templates');
+const { isLegalComplete } = require('./legalProfile');
+const { issueCustomerBeleg } = require('./receiptService');
+
+const LEGAL_PROFILE_INCOMPLETE = 'LEGAL_PROFILE_INCOMPLETE';
 
 function paymentBaseUrl() {
   const url = process.env.BACKEND_URL?.replace(/\/$/, '');
@@ -21,6 +25,12 @@ function paymentBaseUrl() {
 async function createCheckoutSessionForOrder(businessId, orderId, { totalEuros, restaurantName, shortId, lang = 'en' }) {
   const stripe = getStripe();
   if (!stripe) throw new Error('Stripe is not configured');
+
+  // Defense in depth: the bot already gates on legal completeness, but a Beleg
+  // cannot be issued for a seller without legal identity, so never charge either.
+  const bizSnap = await businessRef(businessId).get();
+  const legal = bizSnap.exists ? bizSnap.data()?.legal : null;
+  if (!isLegalComplete(legal)) throw new Error(LEGAL_PROFILE_INCOMPLETE);
 
   const amountCents = Math.round(totalEuros * 100);
   if (amountCents < 50) throw new Error('Order total too low for card payment');
@@ -81,7 +91,6 @@ async function handleCheckoutSessionCompleted(session) {
   }
 
   const order = orderSnap.data();
-  if (order.paymentNotifiedAt) return;
 
   const alreadyPaid = order.paymentStatus === 'paid';
   const grossAmountCents = session.amount_total ?? Math.round((order.total || 0) * 100);
@@ -109,6 +118,16 @@ async function handleCheckoutSessionCompleted(session) {
     });
   }
 
+  // Best-effort Beleg: never roll back paid status on PDF/GCS failure.
+  let beleg = null;
+  try {
+    beleg = await issueCustomerBeleg(businessId, orderId, session);
+  } catch (err) {
+    console.error(`[stripe] Beleg issue failed businessId=${businessId} orderId=${orderId}: ${err.message}`);
+  }
+
+  if (order.paymentNotifiedAt) return;
+
   try {
     const phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);
     const shortId = orderId.slice(-6).toUpperCase();
@@ -130,6 +149,28 @@ async function handleCheckoutSessionCompleted(session) {
           { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
         ],
       }, phoneNumberId);
+
+      if (beleg?.status === 'ready' && beleg.gcsPath) {
+        try {
+          const { downloadReceiptPdf } = require('./receipts/gcsReceiptStorage');
+          const pdfBuffer = await downloadReceiptPdf(beleg.gcsPath);
+          const filename = `${beleg.belegNumber}.pdf`;
+          const mediaId = await uploadMedia(pdfBuffer, {
+            mimeType: 'application/pdf',
+            filename,
+            phoneNumberId,
+          });
+          await sendDocument(order.customerPhone, {
+            mediaId,
+            filename,
+            caption: t('paymentBelegCaption', lang, beleg.belegNumber),
+          }, phoneNumberId);
+          const { receiptRef } = require('./collections');
+          await receiptRef(businessId, beleg.receiptId).set({ whatsappMediaId: mediaId }, { merge: true });
+        } catch (docErr) {
+          console.error(`[stripe] Beleg WhatsApp document failed orderId=${orderId}: ${docErr.message}`);
+        }
+      }
     });
   } catch (err) {
     const msg = err.name === 'WhatsAppRoutingError'
@@ -154,6 +195,7 @@ async function processStripeWebhookEvent(event) {
 }
 
 module.exports = {
+  LEGAL_PROFILE_INCOMPLETE,
   createCheckoutSessionForOrder,
   handleCheckoutSessionCompleted,
   processStripeWebhookEvent,

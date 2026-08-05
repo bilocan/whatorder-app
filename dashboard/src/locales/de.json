@@ -121,6 +121,17 @@
     "etaLabel": "Fertig in",
     "etaMinutesUnit": "Min.",
     "paymentRequiredHint": "Der Gast muss bezahlen, bevor du den Status weiterstellen kannst.",
+    "receipt": {
+      "title": "Kundenbeleg",
+      "download": "Beleg herunterladen",
+      "resend": "Per WhatsApp erneut senden",
+      "downloading": "Download wird vorbereitet…",
+      "resending": "Wird gesendet…",
+      "resent": "Beleg per WhatsApp gesendet.",
+      "failed": "Für diese Zahlung konnte kein Beleg erzeugt werden.",
+      "missing": "Für diese Bestellung gibt es noch keinen Beleg.",
+      "draftNote": "Rechtlicher PDF-Entwurf — nicht RKSV-signiert."
+    },
     "status": {
       "pending": "Ausstehend",
       "approved": "Angenommen",
@@ -345,6 +356,8 @@
     "unavailable": "Nicht verfügbar",
     "expandCategory": "{{category}} aufklappen",
     "collapseCategory": "{{category}} zuklappen",
+    "vatRate": "MwSt.-Satz",
+    "vatRateHint": "Wird verwendet, um Belege in Netto + MwSt. aufzuteilen. Standard 20% für Getränke, sonst 10%.",
     "form": {
       "name": "Name",
       "price": "Preis (€)",
@@ -492,8 +505,43 @@
     "status": "Status",
     "statusActive": "Aktiv",
     "statusPaused": "Pausiert",
+    "tabs": {
+      "restaurant": "Restaurant",
+      "hours": "Zeiten",
+      "ordering": "Bestellung",
+      "payments": "Zahlung & Rechtliches",
+      "bot": "Bot"
+    },
+    "advanced": {
+      "coords": "Erweitert — Kartenkoordinaten",
+      "orderWindow": "Erweitert — letzte Bestellzeiten (Bot-Cutoff)"
+    },
     "profile": {
-      "title": "Restaurantprofil"
+      "title": "Restaurant",
+      "description": "Name und Alert-Nummer sind fest. Adresse für Nearby-Suche und Lieferung bearbeiten."
+    },
+    "ordering": {
+      "title": "Bestellung",
+      "description": "Lieferung und Mindestbestellwert für Lieferbestellungen."
+    },
+    "legal": {
+      "title": "Rechnungsdaten",
+      "description": "Nötig für Zahlungsbelege. Diese Angaben erscheinen auf Rechnungen an deine Kunden.",
+      "legalName": "Firmenname (rechtlich)",
+      "street": "Straße & Hausnummer",
+      "zip": "PLZ",
+      "city": "Ort",
+      "country": "Land",
+      "uid": "UID-Nummer",
+      "firmenbuchNr": "Firmenbuchnummer (optional)",
+      "email": "Rechnungs-E-Mail (optional)",
+      "iban": "IBAN (optional)",
+      "save": "Rechnungsdaten speichern",
+      "saving": "Speichern…",
+      "saved": "Gespeichert",
+      "error": "Speichern fehlgeschlagen",
+      "incompleteHint": "Fülle alle Pflichtfelder aus, um Kartenzahlungen zu aktivieren.",
+      "uidInvalid": "UID-Nummer muss wie ATU12345678 aussehen."
     },
     "deliveryPayment": {
       "title": "Lieferung & Zahlung"
@@ -540,7 +588,9 @@
       "save": "Zahlungseinstellungen speichern",
       "saving": "Speichern…",
       "saved": "Gespeichert",
-      "error": "Speichern fehlgeschlagen"
+      "error": "Speichern fehlgeschlagen",
+      "requiresSetup": "Erledige diese Schritte, um Kartenzahlungen zu aktivieren:",
+      "requiresLegal": "Ergänze zuerst deine Rechnungsdaten oben, um Kartenzahlungen zu aktivieren."
     },
     "botLanguage": {
       "title": "Bot-Sprache",
@@ -553,9 +603,10 @@
     },
     "hours": {
       "title": "Öffnungszeiten",
-      "description": "Zeiten pro Tag festlegen. Der Bot lehnt Bestellungen außerhalb des Bestellfensters ab. Geschlossene Tage werden als gesperrt angezeigt.",
+      "description": "Festlegen, wann der Laden an welchem Tag offen ist. Geschlossene Tage erscheinen im Restaurant-Picker als geschlossen.",
       "shopHours": "Laden öffnet – schließt",
       "orderWindow": "Erste – letzte Bestellung",
+      "orderWindowHint": "Der Bot lehnt Bestellungen außerhalb dieses Fensters ab. Bleibt unberührt, wenn du die Ladenzeiten nutzt.",
       "open": "Geöffnet",
       "closed": "Geschlossen",
       "opens": "Öffnet",
@@ -817,6 +868,7 @@
           "name": "Name",
           "price": "Preis (€)",
           "category": "Kategorie",
+          "vatRate": "MwSt.-Satz",
           "description": "Beschreibung (optional)",
           "available": "Verfügbar",
           "mains": "Hauptgerichte",
@@ -907,6 +959,12 @@
       "disambiguation": "Auswahlliste",
       "no_match": "Kein Treffer",
       "error": "Fehler"
+    }
+  },
+  "onboarding": {
+    "checklist": {
+      "legalComplete": "Rechnungs- und Firmendaten sind vollständig",
+      "menuVatComplete": "Jeder Menüpunkt hat einen Steuersatz"
     }
   }
 }

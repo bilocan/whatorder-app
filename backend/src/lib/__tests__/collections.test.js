@@ -11,6 +11,7 @@ jest.mock('../firebase', () => {
 const { db } = require('../firebase');
 const {
   businessRef, businessesCollectionRef, menuRef, optionGroupsRef, ordersRef, customersRef, phoneRoutingRef,
+  receiptsRef, receiptRef, receiptCounterRef,
   ownerRef, adminRef, processedMessageRef, stripeEventRef, configRef,
   settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, commandLearningRef,
   seededIntentRef, seedOverridesRef,
@@ -73,6 +74,35 @@ describe('customersRef', () => {
     expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
     expect(db.doc).toHaveBeenCalledWith('biz_test');
     expect(db.collection).toHaveBeenNthCalledWith(2, 'customers');
+  });
+});
+
+describe('receiptsRef', () => {
+  test('builds path: businesses/{id}/receipts', () => {
+    receiptsRef('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
+    expect(db.doc).toHaveBeenCalledWith('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(2, 'receipts');
+  });
+});
+
+describe('receiptRef', () => {
+  test('builds path: businesses/{id}/receipts/{receiptId}', () => {
+    receiptRef('biz_test', 'cs_1');
+    expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
+    expect(db.doc).toHaveBeenNthCalledWith(1, 'biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(2, 'receipts');
+    expect(db.doc).toHaveBeenNthCalledWith(2, 'cs_1');
+  });
+});
+
+describe('receiptCounterRef', () => {
+  test('builds path: businesses/{id}/counters/receipts', () => {
+    receiptCounterRef('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
+    expect(db.doc).toHaveBeenCalledWith('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(2, 'counters');
+    expect(db.doc).toHaveBeenCalledWith('receipts');
   });
 });
 

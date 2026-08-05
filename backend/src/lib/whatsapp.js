@@ -239,6 +239,61 @@ async function sendImage(to, { url, caption }) {
   return send({ messaging_product: 'whatsapp', to: normalized, type: 'image', image });
 }
 
+/**
+ * Upload media to WhatsApp Cloud API (Section: Upload media /{PHONE_NUMBER_ID}/media).
+ * @returns {Promise<string>} media id
+ */
+async function uploadMedia(buffer, { mimeType, filename, phoneNumberId } = {}) {
+  if (!Buffer.isBuffer(buffer) && !(buffer instanceof Uint8Array)) {
+    throw new TypeError('uploadMedia requires a Buffer');
+  }
+  const id = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (process.env.NODE_ENV === 'test') {
+    console.log(`\n[WA UPLOAD MEDIA] phoneNumberId=${id} mime=${mimeType} file=${filename} bytes=${buffer.length}\n`);
+    return `test-media-${Date.now()}`;
+  }
+
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', mimeType || 'application/pdf');
+  form.append(
+    'file',
+    new Blob([buffer], { type: mimeType || 'application/pdf' }),
+    filename || 'document.pdf'
+  );
+
+  const response = await axios.post(`${BASE_URL}/${id}/media`, form, {
+    headers: headers(),
+    maxBodyLength: Infinity,
+  });
+  const mediaId = response.data?.id;
+  if (!mediaId) throw new Error('WhatsApp media upload returned no id');
+  return mediaId;
+}
+
+/**
+ * Send a document by media id (not a public link).
+ */
+async function sendDocument(to, { mediaId, filename, caption }, phoneNumberId) {
+  const normalized = normalizePhone(to);
+  const { body: identifiedCaption } = caption
+    ? applyOutboundIdentity({ body: caption, kind: 'text' })
+    : { body: caption };
+  if (process.env.NODE_ENV === 'test') {
+    console.log(`\n[WA DOCUMENT → ${normalized}]\nmediaId=${mediaId} file=${filename}\ncaption=${identifiedCaption ?? ''}\n`);
+    return testId();
+  }
+  const document = { id: mediaId };
+  if (filename) document.filename = filename;
+  if (identifiedCaption) document.caption = identifiedCaption;
+  return send({
+    messaging_product: 'whatsapp',
+    to: normalized,
+    type: 'document',
+    document,
+  }, phoneNumberId);
+}
+
 // Non-fatal: logs on failure rather than throwing.
 async function deleteMessage(messageId) {
   if (!messageId) return;
@@ -261,5 +316,6 @@ async function deleteMessage(messageId) {
 
 module.exports = {
   sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendCatalogMessage, sendFlowMessage,
-  sendLocationRequest, sendImage, deleteMessage, clampWaButtonTitle, clampWaListRowTitle, sanitizeListSections, WA_BUTTON_TITLE_MAX, WA_LIST_ROW_TITLE_MAX,
+  sendLocationRequest, sendImage, uploadMedia, sendDocument, deleteMessage,
+  clampWaButtonTitle, clampWaListRowTitle, sanitizeListSections, WA_BUTTON_TITLE_MAX, WA_LIST_ROW_TITLE_MAX,
 };

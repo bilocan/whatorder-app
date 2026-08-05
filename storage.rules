@@ -17,5 +17,15 @@ service firebase.storage {
         )
       );
     }
+
+    // Customer Belege / settlement PDFs — Admin SDK upload only; no client ACL.
+    // Dashboard downloads use short-lived signed URLs from the backend.
+    match /businesses/{businessId}/receipts/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    match /businesses/{businessId}/settlement/{allPaths=**} {
+      allow read, write: if false;
+    }
   }
 }

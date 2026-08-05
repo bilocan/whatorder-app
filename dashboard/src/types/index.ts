@@ -1,5 +1,20 @@
 import type { Timestamp } from 'firebase/firestore';
 
+export type VatRate = 0 | 10 | 20;
+
+export interface BusinessLegal {
+  legalName: string;
+  street: string;
+  zip: string;
+  city: string;
+  country: string;
+  uid: string;
+  firmenbuchNr?: string | null;
+  email?: string | null;
+  iban?: string | null;
+  complete?: boolean;
+}
+
 export type OrderStatus =
   | 'pending'
   | 'approved'
@@ -42,6 +57,8 @@ export interface Order {
   deliveryFee?: number;
   paymentStatus?: 'pending' | 'paid' | 'cash' | 'failed' | 'refunded';
   paymentMethod?: 'stripe' | 'cash';
+  receiptId?: string;
+  belegNumber?: string;
   settlementStatus?: 'none' | 'pending' | 'included_in_payout' | 'paid_out' | 'refunded';
   grossAmountCents?: number;
   whatorderFeeCents?: number;
@@ -98,6 +115,7 @@ export interface MenuItem {
   name: string;
   description: string;
   price: number;
+  vatRate?: VatRate;
   category: 'mains' | 'sides' | 'drinks' | string;
   photoUrl?: string;
   available: boolean;
@@ -138,6 +156,7 @@ export interface Business {
   schedule?: BusinessSchedule;
   botLanguage?: 'de' | 'tr' | 'en';
   paymentEnabled?: boolean;
+  legal?: BusinessLegal;
   imageUrl?: string;
   menuMatch?: MenuMatch;
 }

@@ -121,6 +121,17 @@
     "etaLabel": "Hazır olma süresi",
     "etaMinutesUnit": "dk",
     "paymentRequiredHint": "Durumu ilerletmeden önce müşterinin ödemesi gerekir.",
+    "receipt": {
+      "title": "Müşteri fişi",
+      "download": "Fişi indir",
+      "resend": "WhatsApp ile yeniden gönder",
+      "downloading": "İndirme hazırlanıyor…",
+      "resending": "Gönderiliyor…",
+      "resent": "Fiş WhatsApp ile gönderildi.",
+      "failed": "Bu ödeme için fiş oluşturulamadı.",
+      "missing": "Bu sipariş için henüz fiş yok.",
+      "draftNote": "Taslak yasal PDF — RKSV imzalı değil."
+    },
     "status": {
       "pending": "Beklemede",
       "approved": "Onaylandı",
@@ -345,6 +356,8 @@
     "unavailable": "Mevcut değil",
     "expandCategory": "{{category}} bölümünü aç",
     "collapseCategory": "{{category}} bölümünü kapat",
+    "vatRate": "KDV oranı",
+    "vatRateHint": "Fişleri net + KDV olarak ayırmak için kullanılır. Varsayılan içecekler için %20, diğerleri için %10.",
     "form": {
       "name": "Ad",
       "price": "Fiyat (€)",
@@ -492,8 +505,43 @@
     "status": "Durum",
     "statusActive": "Aktif",
     "statusPaused": "Duraklatıldı",
+    "tabs": {
+      "restaurant": "Restoran",
+      "hours": "Saatler",
+      "ordering": "Sipariş",
+      "payments": "Ödeme ve yasal",
+      "bot": "Bot"
+    },
+    "advanced": {
+      "coords": "Gelişmiş — harita koordinatları",
+      "orderWindow": "Gelişmiş — son sipariş saatleri (bot kesimi)"
+    },
     "profile": {
-      "title": "Restoran profili"
+      "title": "Restoran",
+      "description": "Ad ve uyarı numarası sabittir. Yakındaki arama ve teslimat için adresi düzenleyin."
+    },
+    "ordering": {
+      "title": "Sipariş",
+      "description": "Teslimat seçenekleri ve teslimat siparişleri için minimum sepet tutarı."
+    },
+    "legal": {
+      "title": "Fatura bilgileri",
+      "description": "Ödeme makbuzları için gerekli. Bu bilgiler müşterilerinize gönderilen faturalarda görünür.",
+      "legalName": "Yasal işletme adı",
+      "street": "Sokak / adres",
+      "zip": "Posta kodu",
+      "city": "Şehir",
+      "country": "Ülke",
+      "uid": "KDV numarası (UID)",
+      "firmenbuchNr": "Ticaret sicil numarası (opsiyonel)",
+      "email": "Fatura e-postası (opsiyonel)",
+      "iban": "IBAN (opsiyonel)",
+      "save": "Fatura bilgilerini kaydet",
+      "saving": "Kaydediliyor…",
+      "saved": "Kaydedildi",
+      "error": "Kaydedilemedi",
+      "incompleteHint": "Kart ödemelerini etkinleştirmek için tüm zorunlu alanları doldurun.",
+      "uidInvalid": "KDV numarası ATU12345678 biçiminde olmalı."
     },
     "deliveryPayment": {
       "title": "Teslimat ve ödeme"
@@ -540,7 +588,9 @@
       "save": "Ödeme ayarlarını kaydet",
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi",
-      "error": "Kaydedilemedi"
+      "error": "Kaydedilemedi",
+      "requiresSetup": "Kart ödemelerini etkinleştirmek için bu adımları tamamlayın:",
+      "requiresLegal": "Kart ödemelerini etkinleştirmeden önce yukarıdaki fatura bilgilerini tamamlayın."
     },
     "botLanguage": {
       "title": "Bot Dili",
@@ -553,9 +603,10 @@
     },
     "hours": {
       "title": "Çalışma Saatleri",
-      "description": "Günlük saatleri ayarlayın. Bot, sipariş penceresi dışındaki siparişleri reddeder. Kapalı günler restoran seçicisinde \"🔒 Kapalı\" olarak gösterilir.",
+      "description": "Dükkanın hangi gün açık olduğunu ayarlayın. Kapalı günler restoran seçicisinde kapalı görünür.",
       "shopHours": "Dükkan açılış – kapanış",
       "orderWindow": "İlk – son sipariş",
+      "orderWindowHint": "Bot, bu pencere dışındaki siparişleri reddeder. Değiştirmezseniz dükkan saatlerini takip eder.",
       "open": "Açık",
       "closed": "Kapalı",
       "opens": "Açılış",
@@ -817,6 +868,7 @@
           "name": "Ad",
           "price": "Fiyat (€)",
           "category": "Kategori",
+          "vatRate": "KDV oranı",
           "description": "Açıklama (isteğe bağlı)",
           "available": "Mevcut",
           "mains": "Ana Yemekler",
@@ -907,6 +959,12 @@
       "disambiguation": "Seçim listesi",
       "no_match": "Eşleşme yok",
       "error": "Hata"
+    }
+  },
+  "onboarding": {
+    "checklist": {
+      "legalComplete": "Fatura ve şirket bilgileri tamam",
+      "menuVatComplete": "Her menü öğesinin KDV oranı var"
     }
   }
 }

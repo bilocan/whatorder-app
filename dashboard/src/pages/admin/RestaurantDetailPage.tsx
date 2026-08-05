@@ -9,11 +9,16 @@ import { useTranslation } from 'react-i18next';
 import { auth, db } from '../../lib/firebase';
 import { geocodeAddress } from '../../lib/geocode';
 import OptionGroupAssigner from '../../components/OptionGroupAssigner';
-import { customizationSummary, buildMenuPayload, resolveMenuItemOptionGroups } from '../../lib/optionGroups';
+import { customizationSummary, buildMenuPayload, defaultVatRateForCategory, resolveMenuItemOptionGroups } from '../../lib/optionGroups';
 import { useOptionGroupLibrary } from '../../hooks/useOptionGroupLibrary';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { useAdminPhoneLine } from '../../contexts/AdminPhoneLineContext';
-import type { Business, MenuItem, Owner } from '../../types';
+import { isLegalComplete, withCompleteFlag } from '../../lib/legalProfile';
+import LegalFieldsForm, { type LegalFormState } from '../../components/LegalFieldsForm';
+import type { Business, MenuItem, Owner, VatRate } from '../../types';
+
+const VAT_RATES: VatRate[] = [0, 10, 20];
+const DEFAULT_LEGAL_FORM: LegalFormState = { country: 'AT' };
 
 const PencilIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -111,6 +116,9 @@ export default function RestaurantDetailPage() {
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState(false);
 
+  const [legalForm, setLegalForm] = useState<LegalFormState>(DEFAULT_LEGAL_FORM);
+  const [legalSaveStatus, setLegalSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
   const [botEnabled, setBotEnabled] = useState(false);
   const [botLoading, setBotLoading] = useState(!!phoneNumberId);
   const [togglingBot, setTogglingBot] = useState(false);
@@ -123,11 +131,12 @@ type MenuFormState = {
   category: MenuItem['category'];
   description: string;
   available: boolean;
+  vatRate: VatRate;
   optionGroupIds: string[];
 };
 
 const EMPTY_MENU: MenuFormState = {
-  name: '', price: '', category: 'mains', description: '', available: true, optionGroupIds: [],
+  name: '', price: '', category: 'mains', description: '', available: true, vatRate: defaultVatRateForCategory('mains'), optionGroupIds: [],
 };
 
   const [newItem, setNewItem] = useState<MenuFormState>(EMPTY_MENU);
@@ -158,6 +167,7 @@ const EMPTY_MENU: MenuFormState = {
       setEditLat(data.lat != null ? String(data.lat) : '');
       setEditLng(data.lng != null ? String(data.lng) : '');
       setEditImageUrl(data.imageUrl ?? '');
+      setLegalForm(data.legal ? { ...data.legal } : DEFAULT_LEGAL_FORM);
     });
 
     const menuUnsub = onSnapshot(collection(db, 'businesses', id, 'menu'), (snap) => {
@@ -226,6 +236,25 @@ const EMPTY_MENU: MenuFormState = {
     setEditing(false);
   }
 
+  function updateLegalField(field: keyof LegalFormState, value: string) {
+    setLegalForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSaveLegal() {
+    if (!id) return;
+    setLegalSaveStatus('saving');
+    try {
+      const normalized = withCompleteFlag(legalForm);
+      await updateDoc(doc(db, 'businesses', id), { legal: normalized });
+      setBusiness((prev) => (prev ? { ...prev, legal: normalized } : prev));
+      setLegalForm(normalized);
+      setLegalSaveStatus('saved');
+      setTimeout(() => setLegalSaveStatus('idle'), 2500);
+    } catch {
+      setLegalSaveStatus('error');
+    }
+  }
+
   async function toggleBot() {
     if (!id || !phoneNumberId) return;
     setTogglingBot(true);
@@ -259,6 +288,7 @@ const EMPTY_MENU: MenuFormState = {
       category: item.category,
       description: item.description ?? '',
       available: item.available,
+      vatRate: item.vatRate ?? defaultVatRateForCategory(item.category),
       optionGroupIds: item.optionGroupIds ?? [],
     });
     setShowMenuForm(false);
@@ -382,6 +412,7 @@ const EMPTY_MENU: MenuFormState = {
 
       {/* ── Details ── */}
       {tab === 'details' && (
+        <>
         <div style={{ maxWidth: 400 }}>
           {phoneNumberId && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.85rem', background: '#f9fafb', border: '1px solid #eee', borderRadius: 8, marginBottom: '1.25rem' }}>
@@ -503,6 +534,26 @@ const EMPTY_MENU: MenuFormState = {
             </form>
           )}
         </div>
+
+        <section className="settings-card" style={{ maxWidth: 560, marginTop: '1.5rem' }}>
+          <h3 className="settings-card-title">{t('settings.legal.title')}</h3>
+          <p className="settings-card-desc">{t('settings.legal.description')}</p>
+          <LegalFieldsForm t={t} value={legalForm} onChange={updateLegalField} idPrefix="admin-legal" />
+          {!isLegalComplete(business.legal) && <div className="settings-hint">{t('settings.legal.incompleteHint')}</div>}
+          <div className="settings-actions">
+            <button
+              type="button"
+              className="settings-btn-primary"
+              onClick={handleSaveLegal}
+              disabled={legalSaveStatus === 'saving'}
+            >
+              {legalSaveStatus === 'saving' ? t('settings.legal.saving') : t('settings.legal.save')}
+            </button>
+            {legalSaveStatus === 'saved' && <span className="settings-status-ok">{t('settings.legal.saved')}</span>}
+            {legalSaveStatus === 'error' && <span className="settings-status-err">{t('settings.legal.error')}</span>}
+          </div>
+        </section>
+        </>
       )}
 
       {/* ── Menu ── */}
@@ -541,6 +592,14 @@ const EMPTY_MENU: MenuFormState = {
                                 <option value="mains">{t('admin.restaurantDetail.menu.form.mains')}</option>
                                 <option value="sides">{t('admin.restaurantDetail.menu.form.sides')}</option>
                                 <option value="drinks">{t('admin.restaurantDetail.menu.form.drinks')}</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label style={labelStyle}>{t('admin.restaurantDetail.menu.form.vatRate')}</label>
+                              <select value={editItem.vatRate} onChange={(e) => setEditItem({ ...editItem, vatRate: Number(e.target.value) as VatRate })} style={{ ...inputStyle, width: '100%' }}>
+                                {VAT_RATES.map((rate) => (
+                                  <option key={rate} value={rate}>{rate}%</option>
+                                ))}
                               </select>
                             </div>
                             <div>
@@ -612,10 +671,25 @@ const EMPTY_MENU: MenuFormState = {
                 </div>
                 <div>
                   <label style={labelStyle}>{t('admin.restaurantDetail.menu.form.category')}</label>
-                  <select value={newItem.category} onChange={(e) => setNewItem({ ...newItem, category: e.target.value as MenuItem['category'] })} style={{ ...inputStyle, width: '100%' }}>
+                  <select
+                    value={newItem.category}
+                    onChange={(e) => {
+                      const category = e.target.value as MenuItem['category'];
+                      setNewItem({ ...newItem, category, vatRate: defaultVatRateForCategory(category) });
+                    }}
+                    style={{ ...inputStyle, width: '100%' }}
+                  >
                     <option value="mains">{t('admin.restaurantDetail.menu.form.mains')}</option>
                     <option value="sides">{t('admin.restaurantDetail.menu.form.sides')}</option>
                     <option value="drinks">{t('admin.restaurantDetail.menu.form.drinks')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>{t('admin.restaurantDetail.menu.form.vatRate')}</label>
+                  <select value={newItem.vatRate} onChange={(e) => setNewItem({ ...newItem, vatRate: Number(e.target.value) as VatRate })} style={{ ...inputStyle, width: '100%' }}>
+                    {VAT_RATES.map((rate) => (
+                      <option key={rate} value={rate}>{rate}%</option>
+                    ))}
                   </select>
                 </div>
                 <div>

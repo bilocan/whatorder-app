@@ -16,6 +16,7 @@ const { admin, db } = require('../lib/firebase');
 const { businessRef, menuRef } = require('../lib/collections');
 const { buildMenuMatchIndex } = require('../bot/menuMapper');
 const { suggestItemAliases } = require('../bot/menuItemAliases');
+const { defaultVatRateForCategory, isValidVatRate } = require('../lib/receiptMath');
 
 const BATCH_SIZE = 400;
 
@@ -82,13 +83,17 @@ function csvRowToMenuItem(headers, values) {
 
   const now = new Date();
   const name = row.title?.trim() || id;
+  const category = mapCategory(row.product_type);
   return {
     id,
     data: {
       name,
       description: row.description?.trim() || name,
       price: parsePrice(row.price),
-      category: mapCategory(row.product_type),
+      category,
+      // Card orders need a rate on every item; a re-import must not strip it. Owners
+      // override per item in the dashboard when the category default is wrong.
+      vatRate: defaultVatRateForCategory(category),
       photoUrl: row.image_link?.trim() || null,
       available: String(row.availability ?? '').toLowerCase() === 'in stock',
       aliases: suggestItemAliases(name),
@@ -96,6 +101,25 @@ function csvRowToMenuItem(headers, values) {
       updatedAt: now,
     },
   };
+}
+
+/** Owner VAT overrides set in the dashboard must survive a re-import of the same item id. */
+async function readExistingVatRates(businessId) {
+  const snap = await menuRef(businessId).get();
+  const rates = new Map();
+  for (const doc of snap.docs) {
+    const { vatRate } = doc.data();
+    if (isValidVatRate(vatRate)) rates.set(doc.id, vatRate);
+  }
+  return rates;
+}
+
+function applyExistingVatRates(items, existingRates) {
+  return items.map(item => (
+    existingRates.has(item.id)
+      ? { ...item, data: { ...item.data, vatRate: existingRates.get(item.id) } }
+      : item
+  ));
 }
 
 async function clearMenu(businessId) {
@@ -144,7 +168,7 @@ async function main() {
   }
 
   const headers = rows[0];
-  const items = rows.slice(1).map(values => csvRowToMenuItem(headers, values));
+  let items = rows.slice(1).map(values => csvRowToMenuItem(headers, values));
 
   console.log(`Business: ${businessId}`);
   console.log(`CSV: ${csvPath}`);
@@ -163,6 +187,10 @@ async function main() {
     process.exit(1);
   }
   console.log(`Business found: ${bizSnap.data().name}`);
+
+  const existingRates = await readExistingVatRates(businessId);
+  items = applyExistingVatRates(items, existingRates);
+  console.log(`Kept ${existingRates.size} existing VAT override(s)`);
 
   const deleted = await clearMenu(businessId);
   console.log(`Deleted ${deleted} existing menu item(s)`);
@@ -183,7 +211,17 @@ async function main() {
   console.log('Done.');
 }
 
-main().catch(err => {
-  console.error('Failed:', err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error('Failed:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  parseCsv,
+  parsePrice,
+  mapCategory,
+  csvRowToMenuItem,
+  applyExistingVatRates,
+};

@@ -6,6 +6,7 @@ const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } =
 const { formatBasketItemsText } = require('./botHelpers');
 const { t } = require('./templates');
 const { normalizeCustomerPhone, customerPhoneVariants } = require('../lib/phone');
+const { FEE_LINE_KIND } = require('../lib/receiptMath');
 const { patchSession } = require('./sessionStore');
 
 const TERMINAL_REENTRY_STATUSES = new Set(['delivered', 'picked_up', 'rejected', 'cancelled']);
@@ -92,7 +93,7 @@ const STATUS_NOTIFY_KEY = {
   cancelled:  'orderCancelled',
 };
 
-async function createOrder(businessId, { customerPhone, customerName, restaurantName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus, whatsappPhoneNumberId }) {
+async function createOrder(businessId, { customerPhone, customerName, restaurantName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus, whatsappPhoneNumberId, taxSnapshot }) {
   const ref = ordersRef(businessId).doc();
   const resolvedName = customerName || 'WhatsApp Customer';
   const phone = normalizeCustomerPhone(customerPhone) || customerPhone;
@@ -120,6 +121,17 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
     doc.deliveryAddress = deliveryAddress;
     doc.deliveryFee = deliveryFee || 0;
     doc.total = total + (deliveryFee || 0);
+  }
+  if (taxSnapshot) {
+    // Kitchen and dashboard views render the delivery fee from `deliveryFee`, so the
+    // synthetic fee line stays out of `items` while `totalsByVat` still counts it.
+    doc.items = taxSnapshot.items.filter(item => item.kind !== FEE_LINE_KIND);
+    doc.totalsByVat = taxSnapshot.totalsByVat;
+    doc.currency = 'EUR';
+    // Cent-rounded Beleg total; keep `doc.total` for kitchen/UI float total.
+    if (typeof taxSnapshot.totalGross === 'number') {
+      doc.totalGross = taxSnapshot.totalGross;
+    }
   }
   await ref.set(doc);
 

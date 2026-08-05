@@ -19,6 +19,19 @@ jest.mock('../settlementConfig', () => ({
 jest.mock('../whatsapp', () => ({
   sendText: jest.fn().mockResolvedValue('msg_1'),
   sendButtonMessage: jest.fn().mockResolvedValue('msg_2'),
+  uploadMedia: jest.fn().mockResolvedValue('media_1'),
+  sendDocument: jest.fn().mockResolvedValue('msg_3'),
+}));
+jest.mock('../receiptService', () => ({
+  issueCustomerBeleg: jest.fn().mockResolvedValue({
+    receiptId: 'cs_1',
+    belegNumber: 'WO-2026-000001',
+    status: 'ready',
+    gcsPath: 'businesses/biz1/receipts/2026/WO-2026-000001.pdf',
+  }),
+}));
+jest.mock('../receipts/gcsReceiptStorage', () => ({
+  downloadReceiptPdf: jest.fn().mockResolvedValue(Buffer.from('%PDF-test')),
 }));
 jest.mock('../whatsappReturn', () => ({
   ...jest.requireActual('../whatsappReturn'),
@@ -26,12 +39,15 @@ jest.mock('../whatsappReturn', () => ({
   waMeUrl: jest.fn((d) => (d ? `https://wa.me/${d}` : null)),
 }));
 jest.mock('../whatsappRouting', () => jest.requireActual('../whatsappRouting'));
-jest.mock('../templates', () => ({ t: jest.fn((_k, _lang, shortId) => `paid:${shortId}`) }));
+jest.mock('../templates', () => ({
+  t: jest.fn((key, _lang, arg) => `${key}:${arg}`),
+}));
 
-const { ordersRef, stripeEventRef, businessRef } = require('../collections');
+const { ordersRef, stripeEventRef, businessRef, receiptRef } = require('../collections');
 const { getStripe } = require('../stripe');
 const { getFeeConfig, calcFeeCents } = require('../feeConfig');
-const { sendText, sendButtonMessage } = require('../whatsapp');
+const { sendText, sendButtonMessage, uploadMedia, sendDocument } = require('../whatsapp');
+const { issueCustomerBeleg } = require('../receiptService');
 const {
   createCheckoutSessionForOrder,
   handleCheckoutSessionCompleted,
@@ -42,20 +58,40 @@ const {
 const mockOrderUpdate = jest.fn();
 const mockOrderGet = jest.fn();
 
+const COMPLETE_LEGAL = {
+  legalName: 'Gus Partners GmbH',
+  street: 'Kupetzkygasse 16',
+  zip: '1220',
+  city: 'Wien',
+  country: 'AT',
+  uid: 'ATU81252038',
+};
+
+function mockBusiness(data) {
+  businessRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({
+      exists: !!data,
+      data: () => data,
+    }),
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   process.env.BACKEND_URL = 'http://localhost:3000';
   ordersRef.mockReturnValue({
     doc: jest.fn(() => ({ get: mockOrderGet, update: mockOrderUpdate })),
   });
-  businessRef.mockReturnValue({
-    get: jest.fn().mockResolvedValue({
-      exists: true,
-      data: () => ({ name: 'Döner Palace', address: 'Musterstrasse 1, 1010 Wien' }),
-    }),
+  mockBusiness({
+    name: 'Döner Palace',
+    address: 'Musterstrasse 1, 1010 Wien',
+    legal: COMPLETE_LEGAL,
   });
   stripeEventRef.mockReturnValue({
     get: jest.fn().mockResolvedValue({ exists: false }),
+    set: jest.fn().mockResolvedValue(),
+  });
+  receiptRef.mockReturnValue({
     set: jest.fn().mockResolvedValue(),
   });
   getFeeConfig.mockResolvedValue({ feeType: 'fixed', feeValue: 0.5 });
@@ -93,6 +129,36 @@ describe('createCheckoutSessionForOrder', () => {
     getStripe.mockReturnValue(null);
     await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
       .rejects.toThrow('Stripe is not configured');
+  });
+
+  test('refuses when the legal profile is incomplete', async () => {
+    const create = jest.fn();
+    getStripe.mockReturnValue({ checkout: { sessions: { create } } });
+    mockBusiness({ name: 'Döner Palace', legal: { ...COMPLETE_LEGAL, uid: '' } });
+
+    await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
+      .rejects.toThrow('LEGAL_PROFILE_INCOMPLETE');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  test('refuses when the business has no legal profile at all', async () => {
+    const create = jest.fn();
+    getStripe.mockReturnValue({ checkout: { sessions: { create } } });
+    mockBusiness({ name: 'Döner Palace' });
+
+    await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
+      .rejects.toThrow('LEGAL_PROFILE_INCOMPLETE');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  test('refuses when the business document is missing', async () => {
+    const create = jest.fn();
+    getStripe.mockReturnValue({ checkout: { sessions: { create } } });
+    mockBusiness(null);
+
+    await expect(createCheckoutSessionForOrder('biz1', 'order_1', { totalEuros: 10, shortId: 'X' }))
+      .rejects.toThrow('LEGAL_PROFILE_INCOMPLETE');
+    expect(create).not.toHaveBeenCalled();
   });
 });
 
@@ -151,9 +217,14 @@ describe('handleCheckoutSessionCompleted', () => {
       restaurantNetCents: 2850,
       settlementStatus: 'pending',
     }));
-    expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123', 'prod_phone_id');
+    expect(sendText).toHaveBeenCalledWith('+431234', 'paymentConfirmed:ABC123', 'prod_phone_id');
     expect(sendButtonMessage).toHaveBeenCalledWith('+431234', expect.objectContaining({
       buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_post_cancel' })]),
+    }), 'prod_phone_id');
+    expect(issueCustomerBeleg).toHaveBeenCalledWith('biz1', 'order_abc123', expect.objectContaining({ id: 'cs_1' }));
+    expect(uploadMedia).toHaveBeenCalled();
+    expect(sendDocument).toHaveBeenCalledWith('+431234', expect.objectContaining({
+      filename: 'WO-2026-000001.pdf',
     }), 'prod_phone_id');
     expect(mockOrderUpdate).toHaveBeenCalledTimes(2);
     expect(mockOrderUpdate.mock.calls[1][0]).toEqual({ paymentNotifiedAt: 'TS' });
@@ -175,15 +246,16 @@ describe('handleCheckoutSessionCompleted', () => {
       metadata: { business_id: 'biz1', order_id: 'order_abc123' },
     });
 
+    expect(issueCustomerBeleg).toHaveBeenCalled();
     expect(mockOrderUpdate).toHaveBeenCalledTimes(1);
     expect(mockOrderUpdate.mock.calls[0][0]).toEqual({ paymentNotifiedAt: 'TS' });
-    expect(sendText).toHaveBeenCalledWith('+431234', 'paid:ABC123', 'prod_phone_id');
+    expect(sendText).toHaveBeenCalledWith('+431234', 'paymentConfirmed:ABC123', 'prod_phone_id');
     expect(sendButtonMessage).toHaveBeenCalledWith('+431234', expect.objectContaining({
       buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_post_cancel' })]),
     }), 'prod_phone_id');
   });
 
-  test('skips when payment already notified', async () => {
+  test('issues Beleg but skips notify when payment already notified', async () => {
     mockOrderGet.mockResolvedValue({
       exists: true,
       data: () => ({ paymentStatus: 'paid', paymentNotifiedAt: 'TS' }),
@@ -194,6 +266,7 @@ describe('handleCheckoutSessionCompleted', () => {
       metadata: { business_id: 'biz1', order_id: 'order_1' },
     });
 
+    expect(issueCustomerBeleg).toHaveBeenCalled();
     expect(mockOrderUpdate).not.toHaveBeenCalled();
     expect(sendText).not.toHaveBeenCalled();
   });
@@ -219,6 +292,33 @@ describe('handleCheckoutSessionCompleted', () => {
     expect(mockOrderUpdate).toHaveBeenCalledTimes(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringMatching(/whatsappPhoneNumberId/));
 
+    errorSpy.mockRestore();
+  });
+
+  test('keeps order paid when Beleg issue fails', async () => {
+    issueCustomerBeleg.mockRejectedValueOnce(new Error('GCS down'));
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'pending',
+        total: 29,
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    await handleCheckoutSessionCompleted({
+      id: 'cs_1',
+      amount_total: 2900,
+      payment_intent: 'pi_1',
+      metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+    });
+
+    expect(mockOrderUpdate).toHaveBeenCalledWith(expect.objectContaining({ paymentStatus: 'paid' }));
+    expect(sendText).toHaveBeenCalled();
+    expect(sendDocument).not.toHaveBeenCalled();
     errorSpy.mockRestore();
   });
 });

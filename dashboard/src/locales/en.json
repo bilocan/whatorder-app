@@ -121,6 +121,17 @@
     "etaLabel": "Ready in",
     "etaMinutesUnit": "min",
     "paymentRequiredHint": "Customer must pay before you can advance this order.",
+    "receipt": {
+      "title": "Customer receipt",
+      "download": "Download Beleg",
+      "resend": "Resend via WhatsApp",
+      "downloading": "Preparing download…",
+      "resending": "Sending…",
+      "resent": "Receipt sent on WhatsApp.",
+      "failed": "Receipt could not be generated for this payment.",
+      "missing": "No receipt yet for this order.",
+      "draftNote": "Draft legal PDF — not RKSV-signed."
+    },
     "status": {
       "pending": "Pending",
       "approved": "Approved",
@@ -345,6 +356,8 @@
     "unavailable": "Off",
     "expandCategory": "Expand {{category}}",
     "collapseCategory": "Collapse {{category}}",
+    "vatRate": "VAT rate",
+    "vatRateHint": "Used to split receipts into net + VAT. Defaults to 20% for drinks, 10% otherwise.",
     "form": {
       "name": "Name",
       "price": "Price (€)",
@@ -492,8 +505,43 @@
     "status": "Status",
     "statusActive": "Active",
     "statusPaused": "Paused",
+    "tabs": {
+      "restaurant": "Restaurant",
+      "hours": "Hours",
+      "ordering": "Ordering",
+      "payments": "Payments & legal",
+      "bot": "Bot"
+    },
+    "advanced": {
+      "coords": "Advanced — map coordinates",
+      "orderWindow": "Advanced — last order times (bot cutoff)"
+    },
     "profile": {
-      "title": "Restaurant profile"
+      "title": "Restaurant",
+      "description": "Name and alert number are fixed. Edit the address for nearby search and delivery."
+    },
+    "ordering": {
+      "title": "Ordering",
+      "description": "Delivery options and the minimum cart value for delivery orders."
+    },
+    "legal": {
+      "title": "Legal & billing",
+      "description": "Required for payment receipts. This information appears on invoices sent to your customers.",
+      "legalName": "Legal business name",
+      "street": "Street & house number",
+      "zip": "ZIP / postal code",
+      "city": "City",
+      "country": "Country",
+      "uid": "VAT ID (UID)",
+      "firmenbuchNr": "Company register number (optional)",
+      "email": "Invoice email (optional)",
+      "iban": "IBAN (optional)",
+      "save": "Save legal details",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "error": "Could not save",
+      "incompleteHint": "Fill in all required fields to enable card payments.",
+      "uidInvalid": "VAT ID must look like ATU12345678."
     },
     "deliveryPayment": {
       "title": "Delivery & payment"
@@ -540,7 +588,9 @@
       "save": "Save payment settings",
       "saving": "Saving…",
       "saved": "Saved",
-      "error": "Could not save"
+      "error": "Could not save",
+      "requiresSetup": "Finish these steps before enabling card payments:",
+      "requiresLegal": "Complete your legal details above before enabling card payments."
     },
     "botLanguage": {
       "title": "Bot Language",
@@ -553,9 +603,10 @@
     },
     "hours": {
       "title": "Opening hours",
-      "description": "Set hours per day. Bot rejects orders outside the order window. Closed days show as closed in the restaurant picker.",
+      "description": "Set when the shop is open each day. Closed days show as closed in the restaurant picker.",
       "shopHours": "Shop open – close",
       "orderWindow": "First – last order",
+      "orderWindowHint": "The bot rejects orders outside this window. Defaults track shop hours if you never change them.",
       "open": "Open",
       "closed": "Closed",
       "opens": "Opens",
@@ -817,6 +868,7 @@
           "name": "Name",
           "price": "Price (€)",
           "category": "Category",
+          "vatRate": "VAT rate",
           "description": "Description (optional)",
           "available": "Available",
           "mains": "Mains",
@@ -907,6 +959,12 @@
       "disambiguation": "Pick list",
       "no_match": "No match",
       "error": "Error"
+    }
+  },
+  "onboarding": {
+    "checklist": {
+      "legalComplete": "Legal and billing details are complete",
+      "menuVatComplete": "Every menu item has a VAT rate"
     }
   }
 }

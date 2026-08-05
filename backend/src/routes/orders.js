@@ -4,6 +4,7 @@ const {
   approveOrder, rejectOrder, startPreparation,
   markReady, markOnTheWay, markPickedUp, markDelivered, cancelOrder,
 } = require('../bot/orderService');
+const { getReceiptDownload, resendReceiptWhatsApp } = require('../lib/receiptService');
 
 const router = express.Router();
 
@@ -17,6 +18,12 @@ function transitionHttpStatus(message) {
   ) {
     return 409;
   }
+  return 500;
+}
+
+function receiptHttpStatus(err) {
+  if (err.code === 'NOT_FOUND') return 404;
+  if (err.code === 'CONFLICT') return 409;
   return 500;
 }
 
@@ -48,5 +55,25 @@ router.post('/businesses/:businessId/orders/:orderId/on-the-way', handleTransiti
 router.post('/businesses/:businessId/orders/:orderId/picked-up',  handleTransition(markPickedUp));
 router.post('/businesses/:businessId/orders/:orderId/delivered',  handleTransition(markDelivered));
 router.post('/businesses/:businessId/orders/:orderId/cancel',     handleTransition(cancelOrder));
+
+router.get('/businesses/:businessId/orders/:orderId/receipt', async (req, res) => {
+  const { businessId, orderId } = req.params;
+  try {
+    const result = await getReceiptDownload(businessId, orderId);
+    res.json(result);
+  } catch (err) {
+    res.status(receiptHttpStatus(err)).json({ error: err.message });
+  }
+});
+
+router.post('/businesses/:businessId/orders/:orderId/receipt/resend', async (req, res) => {
+  const { businessId, orderId } = req.params;
+  try {
+    const result = await resendReceiptWhatsApp(businessId, orderId);
+    res.json(result);
+  } catch (err) {
+    res.status(receiptHttpStatus(err)).json({ error: err.message });
+  }
+});
 
 module.exports = router;
