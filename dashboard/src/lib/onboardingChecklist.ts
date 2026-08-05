@@ -1,7 +1,10 @@
 import type { BusinessLegal, VatRate } from '../types';
-import { isLegalComplete } from './legalProfile';
+import { isLegalComplete, isSettlementIbanComplete } from './legalProfile';
 
-export type OnboardingChecklistItemId = 'legal_complete' | 'menu_vat_complete';
+export type OnboardingChecklistItemId =
+  | 'legal_complete'
+  | 'menu_vat_complete'
+  | 'settlement_iban_complete';
 
 export interface OnboardingChecklistItem {
   id: OnboardingChecklistItemId;
@@ -46,6 +49,11 @@ export function evaluateOnboardingChecklist({
       id: 'menu_vat_complete',
       ok: isMenuVatComplete(menuItems),
       labelKey: 'onboarding.checklist.menuVatComplete',
+    },
+    {
+      id: 'settlement_iban_complete',
+      ok: isSettlementIbanComplete(legal),
+      labelKey: 'onboarding.checklist.settlementIbanComplete',
     },
   ];
 

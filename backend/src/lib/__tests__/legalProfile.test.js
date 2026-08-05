@@ -4,6 +4,9 @@ const {
   isLegalComplete,
   missingLegalFields,
   normalizeLegal,
+  isValidIban,
+  normalizeIban,
+  isSettlementIbanComplete,
 } = require('../legalProfile');
 
 describe('legalProfile', () => {
@@ -28,5 +31,22 @@ describe('legalProfile', () => {
     });
     expect(isLegalComplete(good)).toBe(true);
     expect(missingLegalFields({ legalName: 'X' })).toContain('uid');
+  });
+
+  test('accepts and normalizes a valid Austrian IBAN', () => {
+    expect(isValidIban('AT611904300234573201')).toBe(true);
+    expect(normalizeIban('at61 1904 3002 3457 3201')).toBe('AT611904300234573201');
+  });
+
+  test('rejects invalid IBANs', () => {
+    expect(isValidIban('AT611904300234573200')).toBe(false);
+    expect(isValidIban('AT61')).toBe(false);
+    expect(normalizeIban('not-an-iban')).toBeNull();
+  });
+
+  test('isSettlementIbanComplete is independent of legal.complete', () => {
+    expect(isSettlementIbanComplete({ iban: 'AT611904300234573201' })).toBe(true);
+    expect(isSettlementIbanComplete({ legalName: 'X', iban: null })).toBe(false);
+    expect(isSettlementIbanComplete(null)).toBe(false);
   });
 });

@@ -19,7 +19,7 @@ const {
 } = require('../deliveryAddress');
 const { isStripeConfigured } = require('../../lib/stripe');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
-const { isLegalComplete, missingLegalFields } = require('../../lib/legalProfile');
+const { isLegalComplete, missingLegalFields, isSettlementIbanComplete } = require('../../lib/legalProfile');
 const { buildOrderTaxSnapshot } = require('../../lib/receiptMath');
 const { isStrongOrderText, isGreetingOnly, isFreshStartCommand } = require('../intentParser');
 const { isConversationalBasket } = require('../featureFlags');
@@ -48,9 +48,12 @@ const { recordParseFailure, resetParseFailures } = require('../postOrder');
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal']);
 
-// Card payments require a Beleg, which needs a complete seller legal profile.
+// Card payments require Beleg seller data + settlement IBAN (defense in depth vs Settings UI gate).
 function isPaymentEnabled(info) {
-  return info.paymentEnabled === true && isStripeConfigured() && isLegalComplete(info.legal);
+  return info.paymentEnabled === true
+    && isStripeConfigured()
+    && isLegalComplete(info.legal)
+    && isSettlementIbanComplete(info.legal);
 }
 
 function logPaymentSkipped(businessId, info) {
@@ -60,6 +63,8 @@ function logPaymentSkipped(businessId, info) {
     console.warn(`[checkout] payment skipped for ${businessId}: STRIPE_SECRET_KEY not set`);
   } else if (!isLegalComplete(info.legal)) {
     console.warn(`[checkout] payment skipped for ${businessId}: legal profile missing ${missingLegalFields(info.legal).join(', ')}`);
+  } else if (!isSettlementIbanComplete(info.legal)) {
+    console.warn(`[checkout] payment skipped for ${businessId}: settlement IBAN missing or invalid`);
   }
 }
 
@@ -117,11 +122,16 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
   const { subtotal, deliveryFee, total, isDelivery } = orderTotals(basket, session, info);
   const phoneNumberId = session.whatsappPhoneNumberId || null;
 
-  // Card orders are blocked (order never created) when the Beleg data is not ready.
+  // Card orders are blocked (order never created) when the Beleg / settlement data is not ready.
   let taxSnapshot = null;
   if (paymentMethod === 'stripe') {
     if (!isLegalComplete(info.legal)) {
       console.warn(`[checkout] card order blocked for ${businessId}: legal profile missing ${missingLegalFields(info.legal).join(', ')}`);
+      await sendText(from, t('paymentLegalIncomplete', lang), phoneNumberId);
+      return;
+    }
+    if (!isSettlementIbanComplete(info.legal)) {
+      console.warn(`[checkout] card order blocked for ${businessId}: settlement IBAN missing or invalid`);
       await sendText(from, t('paymentLegalIncomplete', lang), phoneNumberId);
       return;
     }

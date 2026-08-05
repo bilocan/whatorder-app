@@ -526,7 +526,7 @@
     },
     "legal": {
       "title": "Legal & billing",
-      "description": "Required for payment receipts. This information appears on invoices sent to your customers.",
+      "description": "Required for payment receipts and weekly payouts. Legal details appear on customer invoices; IBAN is for your restaurant payouts.",
       "legalName": "Legal business name",
       "street": "Street & house number",
       "zip": "ZIP / postal code",
@@ -535,7 +535,9 @@
       "uid": "VAT ID (UID)",
       "firmenbuchNr": "Company register number (optional)",
       "email": "Invoice email (optional)",
-      "iban": "IBAN (optional)",
+      "iban": "IBAN (for payouts)",
+      "ibanHint": "Needed before card payments. Weekly payouts go to this account.",
+      "ibanInvalid": "Enter a valid IBAN (e.g. AT61 1904 3002 3457 3201).",
       "save": "Save legal details",
       "saving": "Saving…",
       "saved": "Saved",
@@ -964,7 +966,8 @@
   "onboarding": {
     "checklist": {
       "legalComplete": "Legal and billing details are complete",
-      "menuVatComplete": "Every menu item has a VAT rate"
+      "menuVatComplete": "Every menu item has a VAT rate",
+      "settlementIbanComplete": "Payout IBAN is set"
     }
   }
 }

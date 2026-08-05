@@ -68,6 +68,7 @@ const COMPLETE_LEGAL = {
   city: 'Wien',
   country: 'AT',
   uid: 'ATU81252038',
+  iban: 'AT611904300234573201',
 };
 
 const MENU_WITH_VAT = [
@@ -244,6 +245,17 @@ describe('Stripe checkout gates on legal profile and VAT', () => {
 
   test('falls back to cash when the legal profile is incomplete', async () => {
     getBusinessInfo.mockResolvedValue({ ...PAY_INFO, legal: { ...COMPLETE_LEGAL, uid: '' } });
+    getSession.mockResolvedValue(confirmingSession());
+
+    await handleMessage(ROUTING, placeOrderMsg);
+
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({ paymentMethod: 'cash' }));
+    expect(createCheckoutSessionForOrder).not.toHaveBeenCalled();
+    expect(sendCtaUrlMessage).not.toHaveBeenCalled();
+  });
+
+  test('falls back to cash when the settlement IBAN is missing', async () => {
+    getBusinessInfo.mockResolvedValue({ ...PAY_INFO, legal: { ...COMPLETE_LEGAL, iban: null } });
     getSession.mockResolvedValue(confirmingSession());
 
     await handleMessage(ROUTING, placeOrderMsg);

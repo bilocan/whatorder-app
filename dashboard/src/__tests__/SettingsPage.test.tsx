@@ -33,6 +33,17 @@ const COMPLETE_LEGAL = {
   city: 'Wien',
   country: 'AT',
   uid: 'ATU81252038',
+  iban: 'AT611904300234573201',
+  complete: true,
+}
+
+const LEGAL_WITHOUT_IBAN = {
+  legalName: 'Gus Partners GmbH',
+  street: 'Kupetzkygasse 16',
+  zip: '1220',
+  city: 'Wien',
+  country: 'AT',
+  uid: 'ATU81252038',
   complete: true,
 }
 
@@ -174,6 +185,20 @@ describe('SettingsPage — legal profile and payment gate', () => {
     })
   })
 
+  it('blocks enabling payments while settlement IBAN is missing, even with complete legal + VAT', async () => {
+    mockBusiness({ legal: LEGAL_WITHOUT_IBAN })
+    renderSettings('/settings?tab=payments')
+
+    await waitFor(() => {
+      expect(screen.getByText('Finish these steps before enabling card payments:')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('checkbox', { name: 'Accept card payments' })).toBeDisabled()
+    expect(screen.getByText('Legal and billing details are complete')).toHaveClass('settings-checklist-ok')
+    expect(screen.getByText('Every menu item has a VAT rate')).toHaveClass('settings-checklist-ok')
+    expect(screen.getByText('Payout IBAN is set')).toHaveClass('settings-checklist-pending')
+  })
+
   it('enables the checkbox once legal is complete and saves paymentEnabled: true', async () => {
     mockBusiness({ legal: COMPLETE_LEGAL })
     renderSettings('/settings?tab=payments')
@@ -205,7 +230,7 @@ describe('SettingsPage — legal profile and payment gate', () => {
     expect(screen.getByText('Every menu item has a VAT rate')).toHaveClass('settings-checklist-pending')
   })
 
-  it('shows both checklist rows as met and enables the checkbox when the menu is fully rated', async () => {
+  it('shows checklist rows as met and enables the checkbox when legal, VAT, and IBAN are set', async () => {
     mockBusiness({ legal: COMPLETE_LEGAL })
     renderSettings('/settings?tab=payments')
 
