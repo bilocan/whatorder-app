@@ -30,6 +30,15 @@ function splitLineLabel(name) {
   return { title: title || raw, detail: detail || null };
 }
 
+/** Absolute-positioned rows do not auto-paginate; break before drawing when space is tight. */
+function ensureSpace(doc, margin, neededPt) {
+  const bottom = doc.page.height - margin;
+  if (doc.y + neededPt <= bottom) return;
+  doc.addPage();
+  doc.x = margin;
+  doc.y = margin;
+}
+
 /**
  * Render a customer Beleg PDF (DE primary layout).
  * @returns {Promise<Buffer>}
@@ -54,6 +63,8 @@ function renderCustomerBelegPdf({
     doc.on('error', reject);
 
     const pageWidth = doc.page.width - margin * 2;
+    const rowBudgetPt = 44;
+    const footerBudgetPt = 72;
     const shortOrder = orderId ? String(orderId).slice(-6).toUpperCase() : '';
     const dateStr = issuedAt instanceof Date
       ? issuedAt.toLocaleDateString('de-AT')
@@ -124,6 +135,7 @@ function renderCustomerBelegPdf({
       .moveTo(margin, doc.y).lineTo(margin + pageWidth, doc.y).stroke();
 
     for (const line of lines || []) {
+      ensureSpace(doc, margin, rowBudgetPt);
       const label = line.name || (line.kind === 'fee' ? 'Liefergebühr' : '');
       const { title, detail } = splitLineLabel(label);
       const qty = line.qty ?? 1;
@@ -149,10 +161,12 @@ function renderCustomerBelegPdf({
       doc.strokeColor('#eeeeee').moveTo(margin, doc.y).lineTo(margin + pageWidth, doc.y).stroke();
     }
 
+    const rates = Object.keys(totalsByVat || {}).sort((a, b) => Number(a) - Number(b));
+    ensureSpace(doc, margin, Math.max(footerBudgetPt, 16 + rates.length * 14 + footerBudgetPt));
     doc.moveDown(0.6);
     doc.font('Helvetica').fontSize(9).fillColor('#555555');
-    const rates = Object.keys(totalsByVat || {}).sort((a, b) => Number(a) - Number(b));
     for (const rate of rates) {
+      ensureSpace(doc, margin, 16);
       const t = totalsByVat[rate];
       const sumY = doc.y;
       doc.text(`Summe USt ${rate}%`, margin, sumY, { width: pageWidth - 80 });
@@ -161,6 +175,7 @@ function renderCustomerBelegPdf({
       doc.y = Math.max(afterLabelY, doc.y);
     }
 
+    ensureSpace(doc, margin, footerBudgetPt);
     doc.moveDown(1.2);
     const footY = doc.y;
     doc.strokeColor('#e5e5e5').moveTo(margin, footY).lineTo(margin + pageWidth, footY).stroke();

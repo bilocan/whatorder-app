@@ -176,4 +176,42 @@ describe('renderCustomerBelegPdf', () => {
     expect(text).not.toContain('whatorderFee');
     expect(text).toContain('cs_test_a16');
   });
+
+  test('paginates long Positionen lists instead of clipping past page bottom', async () => {
+    const manyLines = Array.from({ length: 28 }, (_, i) => ({
+      name: `Artikel ${i + 1} — Extra Optionen und Beilagen`,
+      qty: 1,
+      vatRate: 10,
+      net: 9.09,
+      vat: 0.91,
+      gross: 10,
+    }));
+
+    const buf = await renderCustomerBelegPdf({
+      belegNumber: 'WO-2026-000099',
+      issuedAt: new Date('2026-08-04T12:00:00Z'),
+      orderId: 'order_long',
+      sellerSnapshot: {
+        legalName: 'Test Restaurant',
+        street: 'Testgasse 1',
+        zip: '1010',
+        city: 'Wien',
+        uid: 'ATU1',
+      },
+      buyerSnapshot: { name: 'Kunde' },
+      lines: manyLines,
+      totalsByVat: { '10': { net: 254.52, vat: 25.48, gross: 280 } },
+      totalGross: 280,
+      paymentRef: 'cs_test_long',
+    });
+
+    const pageCount = (buf.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length;
+    expect(pageCount).toBeGreaterThanOrEqual(2);
+
+    const text = pdfExtractText(buf);
+    expect(text).toContain('Artikel 1');
+    expect(text).toContain('Artikel 28');
+    expect(text).toContain('Summe USt 10%');
+    expect(text).toContain('WhatOrder');
+  });
 });
