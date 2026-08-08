@@ -9,7 +9,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
-const { colorTileBase64, colorForSeed } = require('../lib/flowImages');
+const { colorTileBase64 } = require('../lib/flowImages');
 
 const OUT = path.join(__dirname, '../flows/menu-flow.json');
 const ENES_MENU = require('../../fixtures/intent-corpus/restaurants/enes/menu.json');
@@ -20,7 +20,6 @@ const LIST_OPTION_PROPS = {
   description: { type: 'string' },
   image: { type: 'string' },
   'alt-text': { type: 'string' },
-  color: { type: 'string' },
 };
 
 const CATEGORY_OPTION_PROPS = {
@@ -28,7 +27,6 @@ const CATEGORY_OPTION_PROPS = {
   title: { type: 'string' },
   image: { type: 'string' },
   'alt-text': { type: 'string' },
-  color: { type: 'string' },
 };
 
 /** WhatsApp Flows RadioButtonsGroup title max length. */
@@ -43,7 +41,6 @@ async function withTileImage(opt) {
     ...opt,
     image,
     'alt-text': opt.title || opt.id,
-    color: colorForSeed(opt.id),
   };
 }
 

@@ -126,9 +126,17 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
     }
   }
 
-  // DEV only: send flow on keyword "flow" — disabled in production
-  if (process.env.NODE_ENV !== 'production' && type === 'text' && norm === 'flow') {
-    const bid = session.businessId || routing.defaultBusinessId || routing.businessIds[0];
+  // Test/local only: keyword "flow" opens the menu Flow.
+  // Gate on DEPLOY_ENV — Cloud Run images set NODE_ENV=production even for Test.
+  const deployEnv = process.env.DEPLOY_ENV;
+  const flowKeywordEnv = deployEnv === 'test'
+    || (!deployEnv && process.env.NODE_ENV !== 'production');
+  if (flowKeywordEnv && type === 'text' && norm === 'flow') {
+    // Same Rule 1 validation as the main path — never trust a stale session.businessId.
+    const sessionBidValid = session.businessId && routing.businessIds.includes(session.businessId);
+    const bid = sessionBidValid
+      ? session.businessId
+      : (routing.defaultBusinessId || routing.businessIds[0]);
     await sendFlowMessage(from, {
       flowId: process.env.WHATSAPP_FLOW_ID || '1465498598663384',
       flowToken: `${from}|${bid}`,
