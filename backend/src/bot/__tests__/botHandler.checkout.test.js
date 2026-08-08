@@ -33,9 +33,18 @@ jest.mock('../menuService');
 jest.mock('../orderService');
 jest.mock('../../lib/whatsapp');
 jest.mock('../../lib/geocode');
+jest.mock('../../lib/stripe', () => ({
+  isStripeConfigured: jest.fn(() => true),
+  getStripe: jest.fn(),
+}));
+jest.mock('../../lib/paymentService', () => ({
+  createCheckoutSessionForOrder: jest.fn(),
+}));
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  menuRef: jest.fn(),
   ordersRef: jest.fn(() => ({
+    doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
     limit: jest.fn(() => ({
       get: jest.fn().mockResolvedValue({ docs: [] }),
     })),
@@ -68,6 +77,8 @@ const {
   MENU,
   BEILAGEN_WITH_CHILI,
   BIZ_INFO,
+  CARD_READY_BIZ,
+  useMenuWithVat,
   ROUTING_MULTI,
   BIZ_A_INFO,
   BIZ_B_INFO,
@@ -81,8 +92,14 @@ const {
   resetBotHandlerMocks,
   clearBotHandlerEnv,
 } = require('./helpers/botHandlerTestFixtures');
+const { menuRef } = require('../../lib/collections');
+const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
 
-beforeEach(resetBotHandlerMocks);
+beforeEach(() => {
+  resetBotHandlerMocks();
+  useMenuWithVat(menuRef);
+  createCheckoutSessionForOrder.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/cs_1', sessionId: 'cs_1' });
+});
 afterEach(clearBotHandlerEnv);
 
 describe('Add note / Back to cart on the final confirmation screen', () => {
@@ -169,7 +186,8 @@ describe('Cancel flow', () => {
 });
 
 describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
-  test('order confirmed → browsing state + receipt + post-order action buttons', async () => {
+  test('order confirmed → browsing state + Stripe pay link', async () => {
+    getBusinessInfo.mockResolvedValue(CARD_READY_BIZ);
     getSession.mockResolvedValue({
       language: 'en',
       state: 'confirming',
@@ -183,13 +201,11 @@ describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Confirm ✅' }));
 
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({ paymentMethod: 'stripe' }));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'), 'test_phone_id');
-    expect(sendButtonMessage).toHaveBeenCalledWith(
-      FROM,
-      expect.objectContaining({ buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_post_cancel' })]) }),
-      'test_phone_id',
-    );
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: 'https://checkout.stripe.com/pay/cs_1',
+    }), 'test_phone_id');
   });
 
   test('order cancelled → browsing state + catalog (no button message)', async () => {
@@ -437,6 +453,7 @@ describe('Confirming state: ambiguous input', () => {
   });
 
   test('text "yes" confirms order (text-path CONFIRM keyword)', async () => {
+    getBusinessInfo.mockResolvedValue(CARD_READY_BIZ);
     getSession.mockResolvedValue({
       language: 'en', state: 'confirming',
       basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
@@ -445,7 +462,7 @@ describe('Confirming state: ambiguous input', () => {
 
     await handleMessage(ROUTING, msg({ text: 'yes' }));
 
-    expect(createOrder).toHaveBeenCalled();
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({ paymentMethod: 'stripe' }));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
   });
 
@@ -619,7 +636,7 @@ describe('Checkout confirm Flow', () => {
     }));
   });
 
-  test('place_order Flow completion applies submitted checkout fields and places the order', async () => {
+  test('place_order Flow completion applies submitted fields then soft-blocks when card gate fails', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true });
     getSession.mockResolvedValue({
       ...BASE_SESSION,
@@ -641,13 +658,9 @@ describe('Checkout confirm Flow', () => {
       },
     }));
 
-    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({
-      customerName: 'Ahmet Yilmaz',
-      orderType: 'pickup',
-      deliveryAddress: null,
-      notes: 'No onions',
-      paymentMethod: 'cash',
-    }));
+    // Fields are validated before the payment gate; card is mandatory so unpaid cash is not created.
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/card payment|Kartenzahlung|Kart/i), 'test_phone_id');
   });
 
   test('pickup → delivery switch below the minimum is gated instead of placed', async () => {

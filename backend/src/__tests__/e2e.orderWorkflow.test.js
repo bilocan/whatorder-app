@@ -29,18 +29,26 @@ jest.mock('../bot/menuService');
 jest.mock('../lib/geocode');
 jest.mock('../lib/schedule');
 jest.mock('../lib/distance');
+jest.mock('../lib/stripe', () => ({
+  isStripeConfigured: jest.fn(() => true),
+  getStripe: jest.fn(),
+}));
+jest.mock('../lib/paymentService', () => ({
+  createCheckoutSessionForOrder: jest.fn(),
+}));
 
 // Real business logic
 const { handleMessage } = require('../bot/botHandler');
 const { markReady, approveOrder, startPreparation } = require('../bot/orderService');
 
 const { sendText, sendButtonMessage, sendFlowMessage, sendListMessage,
-  sendLocationRequest, deleteMessage } = require('../lib/whatsapp');
+  sendLocationRequest, sendCtaUrlMessage, deleteMessage } = require('../lib/whatsapp');
 const { getSession, setSession } = require('../bot/sessionStore');
 const { getMenu, getBusinessInfo } = require('../bot/menuService');
-const { ordersRef, businessRef, customersRef } = require('../lib/collections');
+const { ordersRef, businessRef, customersRef, menuRef } = require('../lib/collections');
 const { isOpenNow, isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { sortByDistance } = require('../lib/distance');
+const { createCheckoutSessionForOrder } = require('../lib/paymentService');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -51,9 +59,20 @@ const OWNER_PHONE    = '+43699999999';
 const ORDER_ID       = 'order_E2ETEST';
 
 const MENU = [
-  { id: 'item_1', name: 'Döner', price: 8.50, category: 'mains', available: true },
-  { id: 'item_2', name: 'Ayran', price: 2.00, category: 'drinks', available: true },
+  { id: 'item_1', name: 'Döner', price: 8.50, category: 'mains', available: true, vatRate: 10 },
+  { id: 'item_2', name: 'Ayran', price: 2.00, category: 'drinks', available: true, vatRate: 20 },
 ];
+
+const COMPLETE_LEGAL = {
+  legalName: 'Gus Partners GmbH',
+  street: 'Kupetzkygasse 16',
+  zip: '1220',
+  city: 'Wien',
+  country: 'AT',
+  uid: 'ATU81252038',
+  iban: 'AT611904300234573201',
+  complete: true,
+};
 
 const BIZ_INFO = {
   name: 'Döner Palace',
@@ -64,15 +83,26 @@ const BIZ_INFO = {
   botLanguage: 'de',
   schedule: null,
   timezone: 'Europe/Vienna',
+  paymentEnabled: true,
+  legal: COMPLETE_LEGAL,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeOrdersRefForCreate() {
   const mockSet = jest.fn().mockResolvedValue(undefined);
-  const newDocRef = { id: ORDER_ID, set: mockSet };
+  const mockUpdate = jest.fn().mockResolvedValue(undefined);
+  const newDocRef = { id: ORDER_ID, set: mockSet, update: mockUpdate };
   ordersRef.mockReturnValue({ doc: jest.fn().mockReturnValue(newDocRef) });
   return mockSet;
+}
+
+function makeMenuRef() {
+  menuRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({
+      docs: MENU.map(({ id, ...data }) => ({ id, data: () => data })),
+    }),
+  });
 }
 
 function makeOrdersRefForTransition(status) {
@@ -133,14 +163,20 @@ beforeEach(() => {
   sendFlowMessage.mockResolvedValue(null);
   sendListMessage.mockResolvedValue('wamid_list');
   sendLocationRequest.mockResolvedValue(undefined);
+  sendCtaUrlMessage.mockResolvedValue('wamid_cta');
   deleteMessage.mockResolvedValue(undefined);
 
   // Session store stubs
   setSession.mockResolvedValue(undefined);
 
-  // Menu + business info stubs
+  // Menu + business info stubs (card-ready: payment gate + VAT join)
   getMenu.mockResolvedValue(MENU);
   getBusinessInfo.mockResolvedValue(BIZ_INFO);
+  makeMenuRef();
+  createCheckoutSessionForOrder.mockResolvedValue({
+    url: 'https://checkout.stripe.com/pay/cs_e2e',
+    sessionId: 'cs_e2e',
+  });
 
   // Schedule: restaurant is always open in E2E tests
   isOpenNow.mockReturnValue(true);
@@ -183,7 +219,7 @@ describe('E2E: Pickup order workflow — place → owner notified → mark ready
     expect(ownerCall[1]).toContain('€17.00');
   });
 
-  test('Step 1: placing order sends receipt to customer with order ID', async () => {
+  test('Step 1: placing order sends Stripe pay link to customer with order ID', async () => {
     makeOrdersRefForCreate();
     makeBusinessRef();
     makeCustomersRef();
@@ -201,10 +237,14 @@ describe('E2E: Pickup order workflow — place → owner notified → mark ready
 
     await handleMessage(ROUTING, inMsg({ type: 'button_reply', id: 'btn_place_order', title: 'Onayla ✅' }));
 
-    const customerCall = sendText.mock.calls.find(([to]) => to === CUSTOMER_PHONE);
-    expect(customerCall).toBeDefined();
-    // shortId = last 6 chars of ORDER_ID uppercased = 'ETEST' ... wait ORDER_ID = 'order_E2ETEST' → 'ETEST' is 5 chars, slice(-6) = '2ETEST'
-    expect(customerCall[1]).toContain(ORDER_ID.slice(-6).toUpperCase());
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(
+      CUSTOMER_PHONE,
+      expect.objectContaining({
+        url: 'https://checkout.stripe.com/pay/cs_e2e',
+        body: expect.stringContaining(ORDER_ID.slice(-6).toUpperCase()),
+      }),
+      'PH_E2E',
+    );
   });
 
   test('Step 2: markReady sends "ready for pickup" notification to customer', async () => {
@@ -246,9 +286,12 @@ describe('E2E: Pickup order workflow — place → owner notified → mark ready
     const ownerCall = sendText.mock.calls.find(([to]) => to === OWNER_PHONE);
     expect(ownerCall).toBeDefined();
 
-    // Customer must have received a receipt
-    const receiptCall = sendText.mock.calls.find(([to]) => to === CUSTOMER_PHONE);
-    expect(receiptCall).toBeDefined();
+    // Customer must have received a Stripe pay link (card mandatory)
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(
+      CUSTOMER_PHONE,
+      expect.objectContaining({ url: 'https://checkout.stripe.com/pay/cs_e2e' }),
+      'PH_E2E',
+    );
 
     // ── Phase 2: Owner marks order ready ─────────────────────────────────────
     sendText.mockClear();
@@ -390,9 +433,12 @@ describe('E2E: Error resilience', () => {
       handleMessage(ROUTING, inMsg({ type: 'button_reply', id: 'btn_place_order', title: 'Onayla ✅' }))
     ).resolves.toBeUndefined();
 
-    // Customer still receives receipt
-    const customerCall = sendText.mock.calls.find(([to]) => to === CUSTOMER_PHONE);
-    expect(customerCall).toBeDefined();
+    // Customer still receives Stripe pay link
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(
+      CUSTOMER_PHONE,
+      expect.objectContaining({ url: 'https://checkout.stripe.com/pay/cs_e2e' }),
+      'PH_E2E',
+    );
   });
 
   test('markReady does not throw when customer notification fails', async () => {

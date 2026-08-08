@@ -565,7 +565,7 @@ describe('Checkout state: M3 slot-filling checkout', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringMatching(/Name/i));
   });
 
-  test('btn_place_order in confirming places order directly — no payment method step', async () => {
+  test('btn_place_order in confirming has no payment method step; blocks when card gate fails', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,
       deliveryEnabled: true,
@@ -583,7 +583,9 @@ describe('Checkout state: M3 slot-filling checkout', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Bestätigen ✅' }));
 
-    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({ paymentMethod: 'cash' }));
+    // Card is mandatory — unpaid cash fallback is gone. Default BIZ_INFO is not payment-ready.
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/Kartenzahlung|card payment|Kart/i), 'test_phone_id');
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_payment_method' }));
     expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringMatching(/Zahlungsart|payment/i),

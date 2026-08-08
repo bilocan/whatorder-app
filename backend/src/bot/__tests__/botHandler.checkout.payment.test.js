@@ -243,26 +243,28 @@ describe('Stripe checkout gates on legal profile and VAT', () => {
     expect(sendText).toHaveBeenCalledWith(FROM, t('paymentVatIncomplete', 'en'), 'test_phone_id');
   });
 
-  test('falls back to cash when the legal profile is incomplete', async () => {
+  test('blocks the order when the legal profile is incomplete', async () => {
     getBusinessInfo.mockResolvedValue({ ...PAY_INFO, legal: { ...COMPLETE_LEGAL, uid: '' } });
     getSession.mockResolvedValue(confirmingSession());
 
     await handleMessage(ROUTING, placeOrderMsg);
 
-    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({ paymentMethod: 'cash' }));
+    expect(createOrder).not.toHaveBeenCalled();
     expect(createCheckoutSessionForOrder).not.toHaveBeenCalled();
     expect(sendCtaUrlMessage).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, t('paymentLegalIncomplete', 'en'), 'test_phone_id');
   });
 
-  test('falls back to cash when the settlement IBAN is missing', async () => {
+  test('blocks the order when the settlement IBAN is missing', async () => {
     getBusinessInfo.mockResolvedValue({ ...PAY_INFO, legal: { ...COMPLETE_LEGAL, iban: null } });
     getSession.mockResolvedValue(confirmingSession());
 
     await handleMessage(ROUTING, placeOrderMsg);
 
-    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({ paymentMethod: 'cash' }));
+    expect(createOrder).not.toHaveBeenCalled();
     expect(createCheckoutSessionForOrder).not.toHaveBeenCalled();
     expect(sendCtaUrlMessage).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, t('paymentLegalIncomplete', 'en'), 'test_phone_id');
   });
 
   test('blocks the card order when a basket line has no VAT rate on the menu', async () => {
@@ -276,16 +278,17 @@ describe('Stripe checkout gates on legal profile and VAT', () => {
     expect(sendText).toHaveBeenCalledWith(FROM, t('paymentVatIncomplete', 'en'), 'test_phone_id');
   });
 
-  test('cash orders are unaffected by missing VAT rates', async () => {
+  test('blocks the order when paymentEnabled is off — no cash fallback', async () => {
     useMenu([{ ...MENU_WITH_VAT[0], vatRate: undefined }, MENU_WITH_VAT[1]]);
     getBusinessInfo.mockResolvedValue({ ...PAY_INFO, paymentEnabled: false });
     getSession.mockResolvedValue(confirmingSession());
 
     await handleMessage(ROUTING, placeOrderMsg);
 
-    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({ paymentMethod: 'cash' }));
-    const { taxSnapshot } = createOrder.mock.calls[0][1];
-    expect(taxSnapshot).toBeNull();
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(createCheckoutSessionForOrder).not.toHaveBeenCalled();
+    expect(sendCtaUrlMessage).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, t('paymentLegalIncomplete', 'en'), 'test_phone_id');
   });
 });
 

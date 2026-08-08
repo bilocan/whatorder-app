@@ -33,9 +33,18 @@ jest.mock('../menuService');
 jest.mock('../orderService');
 jest.mock('../../lib/whatsapp');
 jest.mock('../../lib/geocode');
+jest.mock('../../lib/stripe', () => ({
+  isStripeConfigured: jest.fn(() => true),
+  getStripe: jest.fn(),
+}));
+jest.mock('../../lib/paymentService', () => ({
+  createCheckoutSessionForOrder: jest.fn(),
+}));
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  menuRef: jest.fn(),
   ordersRef: jest.fn(() => ({
+    doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
     limit: jest.fn(() => ({
       get: jest.fn().mockResolvedValue({ docs: [] }),
     })),
@@ -68,6 +77,8 @@ const {
   MENU,
   BEILAGEN_WITH_CHILI,
   BIZ_INFO,
+  CARD_READY_BIZ,
+  useMenuWithVat,
   ROUTING_MULTI,
   BIZ_A_INFO,
   BIZ_B_INFO,
@@ -81,8 +92,14 @@ const {
   resetBotHandlerMocks,
   clearBotHandlerEnv,
 } = require('./helpers/botHandlerTestFixtures');
+const { menuRef } = require('../../lib/collections');
+const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
 
-beforeEach(resetBotHandlerMocks);
+beforeEach(() => {
+  resetBotHandlerMocks();
+  useMenuWithVat(menuRef);
+  createCheckoutSessionForOrder.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/cs_1', sessionId: 'cs_1' });
+});
 afterEach(clearBotHandlerEnv);
 
 describe('Full flow: language detection → catalog → cart → name → confirm → order', () => {
@@ -158,7 +175,8 @@ describe('Full flow: language detection → catalog → cart → name → confir
     expect(rows.some(r => r.id === 'confirm_edit_order_type')).toBe(false);
   });
 
-  test('Step 4: btn_place_order creates order with notes and sends confirmation', async () => {
+  test('Step 4: btn_place_order creates Stripe order with notes and sends pay link', async () => {
+    getBusinessInfo.mockResolvedValue(CARD_READY_BIZ);
     getSession.mockResolvedValue({
       language: 'tr', state: 'confirming',
       basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
@@ -175,9 +193,12 @@ describe('Full flow: language detection → catalog → cart → name → confir
       total: 17,
       pickupTime: '14:30',
       notes: 'Extra spicy',
+      paymentMethod: 'stripe',
     }));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'), 'test_phone_id');
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: 'https://checkout.stripe.com/pay/cs_1',
+    }), 'test_phone_id');
   });
 
 });

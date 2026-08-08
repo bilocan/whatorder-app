@@ -76,6 +76,23 @@ function logPaymentSkipped(businessId, info) {
   }
 }
 
+/**
+ * Confirm → place. Card is mandatory: Stripe when the full payment gate passes, otherwise
+ * soft-block with no order. There is no cash fallback.
+ */
+async function placeConfirmedOrder({ from, session, lang, businessId, basket, isMulti, contactName, info }) {
+  if (isPaymentEnabled(info)) {
+    await placeOrderAndNotify({
+      from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'stripe',
+    });
+    return;
+  }
+
+  logPaymentSkipped(businessId, info);
+  const phoneNumberId = session.whatsappPhoneNumberId || null;
+  await sendText(from, t('paymentLegalIncomplete', lang), phoneNumberId);
+}
+
 function normalizeMenuName(name) {
   return String(name ?? '').trim().toLowerCase();
 }
@@ -1295,15 +1312,8 @@ async function handleConfirming({
       && await gateDeliverySubmit({ from, session: submittedSession, lang, basket, info })) {
       return;
     }
-    if (isPaymentEnabled(info)) {
-      await placeOrderAndNotify({
-        from, session: submittedSession, lang, businessId, basket, isMulti, contactName, paymentMethod: 'stripe',
-      });
-      return;
-    }
-    logPaymentSkipped(businessId, info);
-    await placeOrderAndNotify({
-      from, session: submittedSession, lang, businessId, basket, isMulti, contactName, paymentMethod: 'cash',
+    await placeConfirmedOrder({
+      from, session: submittedSession, lang, businessId, basket, isMulti, contactName, info,
     });
     return;
   }
@@ -1356,12 +1366,7 @@ async function handleConfirming({
 
   if (isConfirm) {
     const info = await getBusinessInfo(businessId);
-    if (isPaymentEnabled(info)) {
-      await placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'stripe' });
-      return;
-    }
-    logPaymentSkipped(businessId, info);
-    await placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod: 'cash' });
+    await placeConfirmedOrder({ from, session, lang, businessId, basket, isMulti, contactName, info });
     return;
   }
 
