@@ -1,0 +1,130 @@
+{
+  "version": "7.3",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "CHECKOUT_REVIEW": []
+  },
+  "screens": [
+    {
+      "id": "CHECKOUT_REVIEW",
+      "title": "Review order",
+      "terminal": true,
+      "data": {
+        "receipt_text": {
+          "type": "string",
+          "__example__": "1x Chicken Dürüm  €8.50\n1x Falafel Box  €6.90\n\nTotal: €15.40"
+        },
+        "customer_name": {
+          "type": "string",
+          "__example__": "Alex Smith"
+        },
+        "order_type": {
+          "type": "string",
+          "__example__": "pickup"
+        },
+        "order_type_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "pickup",
+              "title": "Pickup"
+            },
+            {
+              "id": "delivery",
+              "title": "Delivery"
+            }
+          ]
+        },
+        "delivery_address": {
+          "type": "string",
+          "__example__": "Main Street 12, 1010 Vienna"
+        },
+        "note": {
+          "type": "string",
+          "__example__": "Please ring the bell."
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "checkout_form",
+            "init-values": {
+              "customer_name": "${data.customer_name}",
+              "order_type": "${data.order_type}",
+              "delivery_address": "${data.delivery_address}",
+              "note": "${data.note}"
+            },
+            "children": [
+              {
+                "type": "TextBody",
+                "text": "${data.receipt_text}"
+              },
+              {
+                "type": "TextInput",
+                "label": "Name",
+                "name": "customer_name",
+                "required": true
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "label": "Order type",
+                "name": "order_type",
+                "required": true,
+                "data-source": "${data.order_type_options}"
+              },
+              {
+                "type": "TextInput",
+                "label": "Delivery address",
+                "name": "delivery_address",
+                "required": false
+              },
+              {
+                "type": "TextArea",
+                "label": "Note",
+                "name": "note",
+                "required": false
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "Back to cart",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "back_to_cart"
+                  }
+                }
+              },
+              {
+                "type": "Footer",
+                "label": "Place order",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "checkout_action": "place_order",
+                    "customer_name": "${form.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "delivery_address": "${form.delivery_address}",
+                    "note": "${form.note}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

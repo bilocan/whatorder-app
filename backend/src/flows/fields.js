@@ -10,6 +10,7 @@ const SCREENS = {
   CART_REVIEW:  'CART_REVIEW',  // editable cart round 1
   CART_UPDATED: 'CART_UPDATED', // editable cart round 2 (identical UI, different ID to satisfy DAG)
   CART_DONE:    'CART_DONE',    // final summary — no remove UI, just place order
+  CHECKOUT_REVIEW: 'CHECKOUT_REVIEW',
 };
 
 const FIELDS = {
@@ -54,6 +55,14 @@ const FIELDS = {
   TOTAL_LABEL:  'total_label',
   BASKET_ITEMS: 'basket_items',
   REMOVE_ITEMS: 'remove_items', // CheckboxGroup — multi-select removal
+
+  // CHECKOUT_REVIEW
+  RECEIPT_TEXT:       'receipt_text',
+  CUSTOMER_NAME:      'customer_name',
+  ORDER_TYPE:         'order_type',
+  ORDER_TYPE_OPTIONS: 'order_type_options',
+  DELIVERY_ADDRESS:   'delivery_address',
+  CHECKOUT_NOTE:      'note',
 };
 
 module.exports = { SCREENS, FIELDS };

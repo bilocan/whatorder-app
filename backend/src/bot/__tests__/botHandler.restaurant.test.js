@@ -33,9 +33,18 @@ jest.mock('../menuService');
 jest.mock('../orderService');
 jest.mock('../../lib/whatsapp');
 jest.mock('../../lib/geocode');
+jest.mock('../../lib/stripe', () => ({
+  isStripeConfigured: jest.fn(() => true),
+  getStripe: jest.fn(),
+}));
+jest.mock('../../lib/paymentService', () => ({
+  createCheckoutSessionForOrder: jest.fn(),
+}));
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  menuRef: jest.fn(),
   ordersRef: jest.fn(() => ({
+    doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
     limit: jest.fn(() => ({
       get: jest.fn().mockResolvedValue({ docs: [] }),
     })),
@@ -68,6 +77,8 @@ const {
   MENU,
   BEILAGEN_WITH_CHILI,
   BIZ_INFO,
+  COMPLETE_LEGAL,
+  useMenuWithVat,
   ROUTING_MULTI,
   BIZ_A_INFO,
   BIZ_B_INFO,
@@ -81,8 +92,14 @@ const {
   resetBotHandlerMocks,
   clearBotHandlerEnv,
 } = require('./helpers/botHandlerTestFixtures');
+const { menuRef } = require('../../lib/collections');
+const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
 
-beforeEach(resetBotHandlerMocks);
+beforeEach(() => {
+  resetBotHandlerMocks();
+  useMenuWithVat(menuRef);
+  createCheckoutSessionForOrder.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/cs_1', sessionId: 'cs_1' });
+});
 afterEach(clearBotHandlerEnv);
 
 describe('Multi-restaurant: first-time customer', () => {
@@ -350,14 +367,16 @@ describe('Multi-restaurant: late location share in selecting_restaurant', () => 
 
 // ─── Use case: order confirmed → silent receipt, session reset ────────────────
 
-describe('Multi-restaurant: order confirmed sends receipt and resets session', () => {
+describe('Multi-restaurant: order confirmed sends Stripe pay link and resets session', () => {
   beforeEach(() => {
     getBusinessInfo.mockImplementation(id =>
-      Promise.resolve(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO)
+      Promise.resolve(id === 'biz_a'
+        ? { ...BIZ_A_INFO, paymentEnabled: true, legal: COMPLETE_LEGAL }
+        : { ...BIZ_B_INFO, paymentEnabled: true, legal: COMPLETE_LEGAL })
     );
   });
 
-  test('sets state to browsing with businessId null and sends receipt text', async () => {
+  test('sets state to browsing with businessId null and sends pay link', async () => {
     getSession.mockResolvedValue(multiSession({
       state: 'confirming',
       basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
@@ -368,20 +387,19 @@ describe('Multi-restaurant: order confirmed sends receipt and resets session', (
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Confirm ✅' }));
 
+    expect(createOrder).toHaveBeenCalledWith('biz_a', expect.objectContaining({ paymentMethod: 'stripe' }));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'browsing',
       businessId: null,
       basket: [],
     }));
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Döner Palace'), 'test_phone_id');
-    expect(sendButtonMessage).toHaveBeenCalledWith(
-      FROM,
-      expect.objectContaining({ buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_post_cancel' })]) }),
-      'test_phone_id',
-    );
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: 'https://checkout.stripe.com/pay/cs_1',
+      body: expect.stringContaining('Döner Palace'),
+    }), 'test_phone_id');
   });
 
-  test('receipt text includes the order short ID', async () => {
+  test('pay link body includes the order short ID', async () => {
     getSession.mockResolvedValue(multiSession({
       state: 'confirming',
       basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
@@ -393,12 +411,10 @@ describe('Multi-restaurant: order confirmed sends receipt and resets session', (
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Confirm ✅' }));
 
-    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('ABC123'), 'test_phone_id');
-    expect(sendButtonMessage).toHaveBeenCalledWith(
-      FROM,
-      expect.objectContaining({ buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_post_cancel' })]) }),
-      'test_phone_id',
-    );
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: 'https://checkout.stripe.com/pay/cs_1',
+      body: expect.stringContaining('ABC123'),
+    }), 'test_phone_id');
   });
 });
 
