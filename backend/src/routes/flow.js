@@ -10,6 +10,11 @@ const {
   selectionsFromOrderItemPayload,
 } = require('../lib/optionPricing');
 const { attachCategoryImages, attachMenuItemImages } = require('../lib/flowImages');
+const { parseCheckoutFlowToken } = require('../bot/checkoutConfirmFlow');
+const {
+  buildCheckoutInitResponse,
+  buildCheckoutDataExchangeResponse,
+} = require('./flowCheckout');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -148,11 +153,20 @@ router.post('/flow/exchange', async (req, res) => {
       return reply({ version, data: { status: 'active' } });
     }
 
-    // flow_token format: "phone|businessId"
-    const [phone, businessId] = (flow_token ?? '').split('|');
-    if (!businessId) {
+    // flow_token format: "phone|businessId" or "phone|businessId|checkout"
+    const parsedToken = parseCheckoutFlowToken(flow_token);
+    if (!parsedToken) {
       console.error(`[flow/exchange] invalid flow_token "${flow_token}" — expected "phone|businessId"`);
       return res.status(400).json({ error: 'Invalid flow_token. Set it to "phone|businessId" in the Flow Tester.' });
+    }
+    const { phone, businessId } = parsedToken;
+
+    if (action === 'INIT' && parsedToken.isCheckout) {
+      return reply(await buildCheckoutInitResponse({ phone, businessId, version }));
+    }
+
+    if (action === 'data_exchange' && parsedToken.isCheckout && screen === S.CHECKOUT_REVIEW) {
+      return reply(buildCheckoutDataExchangeResponse({ payload, flow_token, version }));
     }
 
     // ── INIT → CART_REVIEW (if basket non-empty) or CATEGORY_SELECT ─────────

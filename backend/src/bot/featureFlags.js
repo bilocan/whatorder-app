@@ -10,6 +10,12 @@ function isConversationalBasket(business) {
   return business.conversationalBasket !== false;
 }
 
+function isCheckoutConfirmFlow(business) {
+  if (!business) return false;
+  return business.checkoutConfirmFlow === true;
+}
+
 module.exports = {
   isConversationalBasket,
+  isCheckoutConfirmFlow,
 };

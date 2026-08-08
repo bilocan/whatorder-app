@@ -20,11 +20,12 @@ jest.mock('../../lib/flowImages', () => ({
 
 const request = require('supertest');
 const app = require('../../index');
-const { getMenu } = require('../../bot/menuService');
+const { getMenu, getBusinessInfo } = require('../../bot/menuService');
 const { sessionRef } = require('../../lib/collections');
 const { decryptRequest } = require('../../lib/flowCrypto');
 const { SCREENS: S, FIELDS: F } = require('../../flows/fields');
 const { attachCategoryImages, attachMenuItemImages } = require('../../lib/flowImages');
+const { checkoutFlowToken } = require('../../bot/checkoutConfirmFlow');
 
 const TOKEN = 'phone1|biz1';
 const V = '3.0';
@@ -103,6 +104,119 @@ test('INIT non-empty basket → CART_REVIEW', async () => {
   expect(body.screen).toBe(S.CART_REVIEW);
   expect(body.data[F.BASKET_ITEMS]).toBeDefined();
   expect(body.data[F.TOTAL_LABEL]).toContain('10.00');
+});
+
+test('checkout INIT → CHECKOUT_REVIEW with session prefill', async () => {
+  const session = {
+    language: 'en',
+    basket: [{ name: 'Burger', qty: 1, price: 10 }],
+    customerName: 'Alex',
+    orderType: 'delivery',
+    deliveryAddress: 'Main Street 12',
+    specialRequests: 'Ring twice',
+  };
+  const ref = {
+    get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
+    set: jest.fn(),
+  };
+  sessionRef.mockReturnValue(ref);
+  getBusinessInfo.mockResolvedValue({
+    name: 'Test Bistro',
+    deliveryEnabled: true,
+    deliveryFee: 2.5,
+  });
+
+  const res = await post({
+    action: 'INIT',
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+  });
+  const body = parsed(res);
+
+  expect(body.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(body.data).toMatchObject({
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.DELIVERY_ADDRESS]: 'Main Street 12',
+    [F.CHECKOUT_NOTE]: 'Ring twice',
+  });
+  expect(body.data[F.RECEIPT_TEXT]).toContain('Test Bistro');
+  expect(getBusinessInfo).toHaveBeenCalledWith('biz1');
+  expect(getMenu).not.toHaveBeenCalled();
+  expect(ref.set).not.toHaveBeenCalled();
+});
+
+test('checkout INIT with a foreign businessId returns a neutral screen without session PII', async () => {
+  const ref = {
+    get: jest.fn().mockResolvedValue({
+      exists: true,
+      data: () => ({
+        language: 'en',
+        businessId: 'other-biz',
+        basket: [{ name: 'Burger', qty: 1, price: 10 }],
+        customerName: 'Alex',
+        deliveryAddress: 'Main Street 12',
+        specialRequests: 'Ring twice',
+      }),
+    }),
+    set: jest.fn(),
+  };
+  sessionRef.mockReturnValue(ref);
+  getBusinessInfo.mockResolvedValue({ name: 'Test Bistro', deliveryEnabled: true });
+
+  const res = await post({
+    action: 'INIT',
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+  });
+  const body = parsed(res);
+
+  expect(body.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(body.data[F.CUSTOMER_NAME]).toBe('');
+  expect(body.data[F.DELIVERY_ADDRESS]).toBe('');
+  expect(body.data[F.CHECKOUT_NOTE]).toBe('');
+  expect(body.data[F.RECEIPT_TEXT]).not.toContain('Alex');
+  expect(body.data[F.RECEIPT_TEXT]).not.toContain('Main Street 12');
+  expect(body.data[F.RECEIPT_TEXT]).not.toContain('Burger');
+  expect(ref.set).not.toHaveBeenCalled();
+});
+
+test('checkout INIT with empty basket still returns CHECKOUT_REVIEW', async () => {
+  const ref = {
+    get: jest.fn().mockResolvedValue({
+      exists: true,
+      data: () => ({ language: 'de', basket: [] }),
+    }),
+    set: jest.fn(),
+  };
+  sessionRef.mockReturnValue(ref);
+  getBusinessInfo.mockResolvedValue({ name: 'Empty Bistro', deliveryEnabled: false });
+
+  const res = await post({
+    action: 'INIT',
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+  });
+
+  expect(parsed(res).screen).toBe(S.CHECKOUT_REVIEW);
+  expect(ref.set).not.toHaveBeenCalled();
+});
+
+test('checkout data_exchange back_to_cart → SUCCESS with checkout_action', async () => {
+  const token = checkoutFlowToken('phone1', 'biz1');
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_REVIEW,
+    version: V,
+    flow_token: token,
+    data: { checkout_action: 'back_to_cart' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe('SUCCESS');
+  expect(body.data.extension_message_response.params).toEqual({
+    flow_token: token,
+    checkout_action: 'back_to_cart',
+  });
 });
 
 // ── CATEGORY_SELECT → MENU_BROWSE ─────────────────────────────────────────────
