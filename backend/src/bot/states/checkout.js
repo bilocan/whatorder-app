@@ -465,10 +465,11 @@ async function beginDefaultDeliveryCheckout({ from, session, lang, businessId, b
  * Delivery gates for an order type chosen inside the confirm Flow (no chat step ran them).
  * Mirrors `beginDefaultDeliveryCheckout`: paused delivery offers pickup, a basket below
  * minimumOrderValue drops back to browsing with the gated basket view.
+ * Also blocks delivery when the restaurant does not offer it at all (`deliveryEnabled`).
  * @returns {Promise<boolean>} true when the submit was blocked and handled
  */
 async function gateDeliverySubmit({ from, session, lang, basket, info }) {
-  if (info.deliveryOpen === false) {
+  if (!isDeliveryOffered(info) || info.deliveryOpen === false) {
     const msgId = await sendButtonMessage(from, {
       body: t('deliveryClosedByOwner', lang),
       buttons: [{ id: 'btn_pickup', title: t('pickupBtn', lang) }],
@@ -1301,6 +1302,19 @@ async function handleConfirming({
         { ...session, confirmFlowDraft: buildConfirmFlowDraft(payload) },
         lang, businessId, basket,
       );
+      return;
+    }
+
+    if (!Array.isArray(basket) || basket.length === 0) {
+      const nextSession = { ...session, state: 'browsing', basket: [] };
+      await sendOrderEntryPrompt({
+        from,
+        session: nextSession,
+        lang,
+        businessId,
+        bodyOverride: t('basketEmpty', lang),
+      });
+      await setSession(from, { ...nextSession, pendingDeleteIds: [] });
       return;
     }
 
