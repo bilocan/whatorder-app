@@ -1,5 +1,12 @@
 const { setSession, patchSession } = require('../sessionStore');
-const { sendText, sendButtonMessage, sendListMessage, sendLocationRequest, sendCtaUrlMessage } = require('../../lib/whatsapp');
+const {
+  sendText,
+  sendButtonMessage,
+  sendListMessage,
+  sendFlowMessage,
+  sendLocationRequest,
+  sendCtaUrlMessage,
+} = require('../../lib/whatsapp');
 const { t } = require('../templates');
 const {
   buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView, parseBasketItemName,
@@ -20,10 +27,18 @@ const {
 const { isStripeConfigured } = require('../../lib/stripe');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
 const { isLegalComplete, missingLegalFields, isSettlementIbanComplete } = require('../../lib/legalProfile');
+const { isPaymentEnabled } = require('../paymentGate');
 const { buildOrderTaxSnapshot } = require('../../lib/receiptMath');
 const { isStrongOrderText, isGreetingOnly, isFreshStartCommand } = require('../intentParser');
-const { isConversationalBasket } = require('../featureFlags');
+const { isConversationalBasket, isCheckoutConfirmFlow } = require('../featureFlags');
 const { tryBasketUndo } = require('../conversationalBasket');
+const {
+  checkoutFlowToken,
+  validateCheckoutSubmit,
+  applyCheckoutSubmitToSession,
+  buildCheckoutReviewData,
+  buildConfirmFlowDraft,
+} = require('../checkoutConfirmFlow');
 const { isBasketUndoPhrase, detectBotCommandAsync, BOT_COMMAND } = require('../botCommands');
 const {
   parseOrderTypeKeyword,
@@ -31,6 +46,7 @@ const {
   tryCheckoutBasketOp,
 } = require('../checkoutOps');
 const { BASKET_CLEAR_PATCH } = require('../basketOps');
+const { FIELDS: F } = require('../../flows/fields');
 const {
   applyProfilePrefill,
   getMissingCheckoutSlots,
@@ -47,14 +63,6 @@ const { recordParseFailure, resetParseFailures } = require('../postOrder');
 // M2: bare `1` no longer confirms — use list row btn_place_order only (digit disambiguation).
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
 const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal']);
-
-// Card payments require Beleg seller data + settlement IBAN (defense in depth vs Settings UI gate).
-function isPaymentEnabled(info) {
-  return info.paymentEnabled === true
-    && isStripeConfigured()
-    && isLegalComplete(info.legal)
-    && isSettlementIbanComplete(info.legal);
-}
 
 function logPaymentSkipped(businessId, info) {
   if (info.paymentEnabled !== true) {
@@ -436,6 +444,43 @@ async function beginDefaultDeliveryCheckout({ from, session, lang, businessId, b
   await proceedToDeliveryAddress({ from, session: delivSession, lang, businessId });
 }
 
+/**
+ * Delivery gates for an order type chosen inside the confirm Flow (no chat step ran them).
+ * Mirrors `beginDefaultDeliveryCheckout`: paused delivery offers pickup, a basket below
+ * minimumOrderValue drops back to browsing with the gated basket view.
+ * @returns {Promise<boolean>} true when the submit was blocked and handled
+ */
+async function gateDeliverySubmit({ from, session, lang, basket, info }) {
+  if (info.deliveryOpen === false) {
+    const msgId = await sendButtonMessage(from, {
+      body: t('deliveryClosedByOwner', lang),
+      buttons: [{ id: 'btn_pickup', title: t('pickupBtn', lang) }],
+    });
+    await setSession(from, {
+      ...session,
+      state: 'awaiting_order_type',
+      confirmingOrderTypeEdit: true,
+      pendingDeleteIds: msgId ? [msgId] : [],
+    });
+    return true;
+  }
+
+  if (info.minimumOrderValue && basketSubtotal(basket) < info.minimumOrderValue) {
+    const { msgId } = await sendDeliveryBasketGate({
+      from, lang, basket, minimumOrderValue: info.minimumOrderValue,
+    });
+    await setSession(from, {
+      ...session,
+      state: 'browsing',
+      confirmingOrderTypeEdit: false,
+      pendingDeleteIds: msgId ? [msgId] : [],
+    });
+    return true;
+  }
+
+  return false;
+}
+
 /** Switch to pickup and continue checkout (name / confirm). Shared by order-type + address-picker. */
 async function applyPickupSelection({ from, session, lang, businessId, basket }) {
   const newSession = { ...session, orderType: 'pickup', deliveryAddress: null };
@@ -615,6 +660,51 @@ async function sendConfirmList(from, session, lang, businessId, basket, name) {
   });
 }
 
+// flow_action `navigate` never calls the endpoint INIT, so the screen renders empty unless
+// the prefill ships inside flow_action_payload.data (see sendFlowMessage).
+async function sendCheckoutConfirmFlow(from, session, lang, businessId, basket, name, info) {
+  const reviewSession = { ...session, customerName: name || session.customerName };
+  const { total: displayTotal } = orderTotals(basket, reviewSession, info);
+  return sendFlowMessage(from, {
+    flowId: process.env.WHATSAPP_CHECKOUT_FLOW_ID,
+    flowToken: checkoutFlowToken(from, businessId),
+    flowCta: t('confirmFlowCta', lang),
+    screen: 'CHECKOUT_REVIEW',
+    body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null, session.specialRequests || null, isPaymentEnabled(info) ? 'stripe' : null),
+    data: buildCheckoutReviewData({ session: reviewSession, basket, info, lang, t }),
+  });
+}
+
+async function sendConfirmUi(from, session, lang, businessId, basket, name, businessInfo = null) {
+  const info = businessInfo ?? await getBusinessInfo(businessId);
+  let confirmId = null;
+  if (isCheckoutConfirmFlow(info) && process.env.WHATSAPP_CHECKOUT_FLOW_ID) {
+    try {
+      confirmId = await sendCheckoutConfirmFlow(from, session, lang, businessId, basket, name, info);
+    } catch (err) {
+      console.warn('[checkout] confirm Flow send failed, falling back to list', err.message);
+    }
+  }
+  if (!confirmId) {
+    confirmId = await sendConfirmList(from, session, lang, businessId, basket, name);
+  }
+  return confirmId;
+}
+
+// `confirmFlowDraft` is not a persisted session field (see sessionStore whitelist), so it
+// survives exactly one re-offer and is dropped by the next session write — place, back to
+// cart, or any other transition all clear it without extra bookkeeping.
+async function reofferConfirming(from, session, lang, businessId, basket) {
+  const confirmId = await sendConfirmUi(
+    from, session, lang, businessId, basket, session.customerName,
+  );
+  await patchSession(from, {
+    state: 'confirming',
+    ...(session.confirmFlowDraft ? { confirmFlowDraft: session.confirmFlowDraft } : {}),
+    pendingDeleteIds: confirmId ? [confirmId] : [],
+  });
+}
+
 // Sends the final confirmation message and sets state to 'confirming'.
 // Call instead of transitioning to awaiting_name when a known name is available.
 async function transitionToConfirming(from, session, lang, businessId, basket, name) {
@@ -630,7 +720,7 @@ async function transitionToConfirming(from, session, lang, businessId, basket, n
     return;
   }
 
-  const confirmId = await sendConfirmList(from, session, lang, businessId, basket, name);
+  const confirmId = await sendConfirmUi(from, session, lang, businessId, basket, name, info);
   await setSession(from, { ...session, state: 'confirming', customerName: name, pendingDeleteIds: confirmId ? [confirmId] : [] });
 }
 
@@ -1161,10 +1251,62 @@ async function handleAwaitingName({ from, session, lang, businessId, basket, typ
   await sendText(from, t('confirmSummary', lang, buildBasketText(basket, lang), session.prepMins, session.pickupTime));
 }
 
-async function handleConfirming({ from, contactName, session, lang, businessId, basket, isMulti, type, id, norm, text }) {
+async function handleConfirming({
+  from, contactName, session, lang, businessId, basket, isMulti, type, id, norm, text, data,
+}) {
   if (type === 'text' && await gateCheckoutTextInput({
     from, session, lang, businessId, basket, type, text, norm, contactName, isMulti,
   })) return;
+
+  if (type === 'flow_completion') {
+    const payload = data ?? {};
+    if (payload.checkout_action === 'back_to_cart') {
+      const msgId = await sendBasketView(from, lang, basket, session.specialRequests);
+      await patchSession(from, {
+        state: 'browsing',
+        pendingDeleteIds: msgId ? [msgId] : [],
+      });
+      return;
+    }
+
+    const hasCheckoutFields = [F.CUSTOMER_NAME, F.ORDER_TYPE, F.DELIVERY_ADDRESS, F.CHECKOUT_NOTE]
+      .some(field => Object.prototype.hasOwnProperty.call(payload, field));
+    if (payload.checkout_action !== 'place_order' && !hasCheckoutFields) {
+      await reofferConfirming(from, session, lang, businessId, basket);
+      return;
+    }
+
+    const validation = validateCheckoutSubmit(payload);
+    if (!validation.ok) {
+      await sendText(from, t(validation.errorKey, lang));
+      await reofferConfirming(
+        from,
+        { ...session, confirmFlowDraft: buildConfirmFlowDraft(payload) },
+        lang, businessId, basket,
+      );
+      return;
+    }
+
+    const submittedSession = applyCheckoutSubmitToSession(session, validation.values);
+    const info = await getBusinessInfo(businessId);
+    // A pickup → delivery switch inside the Flow skipped the chat gates, so re-run them
+    // here: an order that could never be delivered must not be placed.
+    if (submittedSession.orderType === 'delivery'
+      && await gateDeliverySubmit({ from, session: submittedSession, lang, basket, info })) {
+      return;
+    }
+    if (isPaymentEnabled(info)) {
+      await placeOrderAndNotify({
+        from, session: submittedSession, lang, businessId, basket, isMulti, contactName, paymentMethod: 'stripe',
+      });
+      return;
+    }
+    logPaymentSkipped(businessId, info);
+    await placeOrderAndNotify({
+      from, session: submittedSession, lang, businessId, basket, isMulti, contactName, paymentMethod: 'cash',
+    });
+    return;
+  }
 
   const replyId = (type === 'list_reply' || type === 'button_reply') ? id : null;
   const isConfirm = replyId === 'btn_place_order' || CONFIRM.has(norm);
@@ -1205,7 +1347,10 @@ async function handleConfirming({ from, contactName, session, lang, businessId, 
 
   if (replyId === 'btn_back_to_cart') {
     const msgId = await sendBasketView(from, lang, basket, session.specialRequests);
-    await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
+    await patchSession(from, {
+      state: 'browsing',
+      pendingDeleteIds: msgId ? [msgId] : [],
+    });
     return;
   }
 
