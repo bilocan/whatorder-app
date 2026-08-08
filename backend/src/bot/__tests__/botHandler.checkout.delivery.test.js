@@ -33,9 +33,18 @@ jest.mock('../menuService');
 jest.mock('../orderService');
 jest.mock('../../lib/whatsapp');
 jest.mock('../../lib/geocode');
+jest.mock('../../lib/stripe', () => ({
+  isStripeConfigured: jest.fn(() => true),
+  getStripe: jest.fn(),
+}));
+jest.mock('../../lib/paymentService', () => ({
+  createCheckoutSessionForOrder: jest.fn(),
+}));
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  menuRef: jest.fn(),
   ordersRef: jest.fn(() => ({
+    doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
     limit: jest.fn(() => ({
       get: jest.fn().mockResolvedValue({ docs: [] }),
     })),
@@ -68,6 +77,8 @@ const {
   MENU,
   BEILAGEN_WITH_CHILI,
   BIZ_INFO,
+  CARD_READY_BIZ,
+  useMenuWithVat,
   ROUTING_MULTI,
   BIZ_A_INFO,
   BIZ_B_INFO,
@@ -81,8 +92,14 @@ const {
   resetBotHandlerMocks,
   clearBotHandlerEnv,
 } = require('./helpers/botHandlerTestFixtures');
+const { menuRef } = require('../../lib/collections');
+const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
 
-beforeEach(resetBotHandlerMocks);
+beforeEach(() => {
+  resetBotHandlerMocks();
+  useMenuWithVat(menuRef);
+  createCheckoutSessionForOrder.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/cs_1', sessionId: 'cs_1' });
+});
 afterEach(clearBotHandlerEnv);
 
 describe('Delivery flow: confirming basket → default delivery (notes skipped)', () => {
@@ -679,7 +696,7 @@ describe('Delivery flow: awaiting_delivery_address_confirm + unit', () => {
 
 describe('Delivery flow: confirming → createOrder', () => {
   test('delivery order passes orderType, deliveryAddress, deliveryFee and null pickupTime to createOrder', async () => {
-    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryFee: 2.5 });
+    getBusinessInfo.mockResolvedValue({ ...CARD_READY_BIZ, deliveryEnabled: true, deliveryFee: 2.5 });
     getSession.mockResolvedValue({
       ...BASE_SESSION,
       state: 'confirming',
@@ -695,10 +712,12 @@ describe('Delivery flow: confirming → createOrder', () => {
       deliveryAddress: 'Mariahilfer Str. 10, 1060 Wien',
       deliveryFee: 2.5,
       pickupTime: null,
+      paymentMethod: 'stripe',
     }));
   });
 
   test('pickup order passes orderType pickup, null deliveryAddress, zero deliveryFee', async () => {
+    getBusinessInfo.mockResolvedValue(CARD_READY_BIZ);
     getSession.mockResolvedValue({
       ...BASE_SESSION,
       state: 'confirming',
@@ -713,6 +732,7 @@ describe('Delivery flow: confirming → createOrder', () => {
       deliveryAddress: null,
       deliveryFee: 0,
       pickupTime: '14:30',
+      paymentMethod: 'stripe',
     }));
   });
 });

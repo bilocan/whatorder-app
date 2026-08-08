@@ -74,6 +74,48 @@ const BEILAGEN_WITH_CHILI = {
 // Legacy browse-first suites opt out explicitly; conversational tests override to true in beforeEach.
 const BIZ_INFO = { name: 'Döner Palace', avgPrepTime: 20, catalogId: 'cat_123', alertPhone: '+43699123456', address: 'Musterstrasse 1, 1010 Wien', botLanguage: 'de', conversationalBasket: false };
 
+/** Pilot-shaped legal + IBAN so `isPaymentEnabled` can pass when Stripe is mocked configured. */
+const COMPLETE_LEGAL = {
+  legalName: 'Gus Partners GmbH',
+  street: 'Kupetzkygasse 16',
+  zip: '1220',
+  city: 'Wien',
+  country: 'AT',
+  uid: 'ATU81252038',
+  iban: 'AT611904300234573201',
+  complete: true,
+};
+
+const CARD_READY_BIZ = {
+  ...BIZ_INFO,
+  paymentEnabled: true,
+  legal: COMPLETE_LEGAL,
+};
+
+/** Same items as MENU with Beleg VAT rates for the Stripe place-order path. */
+const MENU_WITH_VAT = MENU.map((item) => ({
+  ...item,
+  vatRate: item.category === 'drinks' ? 20 : 10,
+}));
+
+/**
+ * Wire menuRef (VAT join) for card place-order. Call from suites that mock
+ * `../../lib/collections` with a `menuRef` jest.fn().
+ */
+function useMenuWithVat(menuRef, menu = MENU_WITH_VAT, rawMenu = menu) {
+  getMenu.mockResolvedValue(menu.filter(i => i.available !== false));
+  getMenuContext.mockResolvedValue({
+    menu: menu.filter(i => i.available !== false),
+    menuMatch: null,
+    menuTokenIndex: null,
+  });
+  menuRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({
+      docs: rawMenu.map(({ id, ...data }) => ({ id, data: () => data })),
+    }),
+  });
+}
+
 function mockCustomerProfile(data) {
   customersRef.mockReturnValue({
     doc: jest.fn().mockReturnValue({
@@ -184,8 +226,12 @@ module.exports = {
   ROUTING,
   FROM,
   MENU,
+  MENU_WITH_VAT,
   BEILAGEN_WITH_CHILI,
   BIZ_INFO,
+  COMPLETE_LEGAL,
+  CARD_READY_BIZ,
+  useMenuWithVat,
   ROUTING_MULTI,
   BIZ_A_INFO,
   BIZ_B_INFO,
