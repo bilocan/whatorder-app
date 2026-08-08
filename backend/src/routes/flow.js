@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { decryptRequest, encryptResponse } = require('../lib/flowCrypto');
-const { getMenu, getBusinessInfo } = require('../bot/menuService');
+const { getMenu } = require('../bot/menuService');
 const { sessionRef } = require('../lib/collections');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 const {
@@ -9,6 +9,7 @@ const {
   computeLinePrice,
   selectionsFromOrderItemPayload,
 } = require('../lib/optionPricing');
+const { attachCategoryImages, attachMenuItemImages } = require('../lib/flowImages');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -16,7 +17,13 @@ function qtyOptions() {
   return [1, 2, 3].map(n => ({ id: String(n), title: String(n) }));
 }
 
-// Derive unique ordered category list from menu items.
+/** WhatsApp Flows RadioButtonsGroup title max length. */
+function flowTitle(text) {
+  const s = String(text ?? '');
+  return s.length > 30 ? s.slice(0, 28) + '…' : s;
+}
+
+// Derive unique ordered category list from menu items (text only).
 function getCategories(menu) {
   const seen = new Set();
   const cats = [];
@@ -24,7 +31,28 @@ function getCategories(menu) {
     const cat = item.category || 'other';
     if (!seen.has(cat)) { seen.add(cat); cats.push(cat); }
   }
-  return cats.map(id => ({ id, title: id.charAt(0).toUpperCase() + id.slice(1) }));
+  return cats.map(id => ({ id, title: flowTitle(id.charAt(0).toUpperCase() + id.slice(1)) }));
+}
+
+async function categoriesWithImages(menu) {
+  return attachCategoryImages(getCategories(menu), menu);
+}
+
+function mapMenuBrowseItems(items) {
+  return items.map(item => ({
+    id: item.id,
+    title: flowTitle(item.name),
+    description: `€${Number(item.price).toFixed(2)}${item.description ? ` — ${item.description}` : ''}`,
+  }));
+}
+
+async function menuBrowseData(menu, categoryId) {
+  const items = menu.filter(i => (i.category || 'other') === categoryId);
+  const mapped = mapMenuBrowseItems(items);
+  return {
+    [F.CATEGORY_TITLE]: flowTitle(categoryId.charAt(0).toUpperCase() + categoryId.slice(1)),
+    [F.MENU_ITEMS]: await attachMenuItemImages(mapped, items),
+  };
 }
 
 // Map item.optionGroups to flat top-level fields (nested object binding is unreliable in Flows).
@@ -136,25 +164,21 @@ router.post('/flow/exchange', async (req, res) => {
         return reply({ version, screen: S.CART_REVIEW, data: buildCartData(basket) });
       }
       const menu = await getMenu(businessId);
-      return reply({ version, screen: S.CATEGORY_SELECT, data: { [F.CATEGORIES]: getCategories(menu) } });
+      return reply({
+        version,
+        screen: S.CATEGORY_SELECT,
+        data: { [F.CATEGORIES]: await categoriesWithImages(menu) },
+      });
     }
 
     // ── CATEGORY_SELECT → MENU_BROWSE ───────────────────────────────────────
     if (action === 'data_exchange' && screen === S.CATEGORY_SELECT) {
       const categoryId = payload[F.CATEGORY_ID];
       const menu = await getMenu(businessId);
-      const items = menu.filter(i => (i.category || 'other') === categoryId);
       return reply({
         version,
         screen: S.MENU_BROWSE,
-        data: {
-          [F.CATEGORY_TITLE]: categoryId.charAt(0).toUpperCase() + categoryId.slice(1),
-          [F.MENU_ITEMS]: items.map(item => ({
-            id: item.id,
-            title: item.name,
-            description: `€${Number(item.price).toFixed(2)}${item.description ? ` — ${item.description}` : ''}`,
-          })),
-        },
+        data: await menuBrowseData(menu, categoryId),
       });
     }
 
@@ -222,7 +246,11 @@ router.post('/flow/exchange', async (req, res) => {
 
       if (cartAction === 'add_more') {
         const menu = await getMenu(businessId);
-        return reply({ version, screen: S.CATEGORY_SELECT_RETURN, data: { [F.CATEGORIES]: getCategories(menu) } });
+        return reply({
+          version,
+          screen: S.CATEGORY_SELECT_RETURN,
+          data: { [F.CATEGORIES]: await categoriesWithImages(menu) },
+        });
       }
 
       if (cartAction === 'remove_items') {
@@ -235,7 +263,11 @@ router.post('/flow/exchange', async (req, res) => {
         if (removeIds.includes('clear')) {
           await ref.set({ basket: [], updatedAt: new Date() }, { merge: true });
           const menu = await getMenu(businessId);
-          return reply({ version, screen: S.CATEGORY_SELECT_RETURN, data: { [F.CATEGORIES]: getCategories(menu) } });
+          return reply({
+            version,
+            screen: S.CATEGORY_SELECT_RETURN,
+            data: { [F.CATEGORIES]: await categoriesWithImages(menu) },
+          });
         }
 
         const removeSet = new Set(removeIds.map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
@@ -244,7 +276,11 @@ router.post('/flow/exchange', async (req, res) => {
 
         if (!newBasket.length) {
           const menu = await getMenu(businessId);
-          return reply({ version, screen: S.CATEGORY_SELECT_RETURN, data: { [F.CATEGORIES]: getCategories(menu) } });
+          return reply({
+            version,
+            screen: S.CATEGORY_SELECT_RETURN,
+            data: { [F.CATEGORIES]: await categoriesWithImages(menu) },
+          });
         }
         const data = nextScreen === S.CART_DONE ? basketSummary(newBasket) : buildCartData(newBasket);
         return reply({ version, screen: nextScreen, data });
@@ -261,25 +297,21 @@ router.post('/flow/exchange', async (req, res) => {
     // ── CART_DONE: add_more only ─────────────────────────────────────────────
     if (action === 'data_exchange' && screen === S.CART_DONE) {
       const menu = await getMenu(businessId);
-      return reply({ version, screen: S.CATEGORY_SELECT_RETURN, data: { [F.CATEGORIES]: getCategories(menu) } });
+      return reply({
+        version,
+        screen: S.CATEGORY_SELECT_RETURN,
+        data: { [F.CATEGORIES]: await categoriesWithImages(menu) },
+      });
     }
 
     // ── CATEGORY_SELECT_RETURN → MENU_BROWSE (same as CATEGORY_SELECT) ─────
     if (action === 'data_exchange' && screen === S.CATEGORY_SELECT_RETURN) {
       const categoryId = payload[F.CATEGORY_ID];
       const menu = await getMenu(businessId);
-      const items = menu.filter(i => (i.category || 'other') === categoryId);
       return reply({
         version,
         screen: S.MENU_BROWSE,
-        data: {
-          [F.CATEGORY_TITLE]: categoryId.charAt(0).toUpperCase() + categoryId.slice(1),
-          [F.MENU_ITEMS]: items.map(item => ({
-            id: item.id,
-            title: item.name,
-            description: `€${Number(item.price).toFixed(2)}${item.description ? ` — ${item.description}` : ''}`,
-          })),
-        },
+        data: await menuBrowseData(menu, categoryId),
       });
     }
 
