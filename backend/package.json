@@ -26,7 +26,8 @@
     "generate:flow": "node src/scripts/generateFlow.js",
     "generate:checkout-flow": "node src/scripts/generateCheckoutFlow.js",
     "e2e:wa": "node e2e-wa/run.js",
-    "e2e:wa:reply-server": "node e2e-wa/reply-server.js"
+    "e2e:wa:reply-server": "node e2e-wa/reply-server.js",
+    "wa:template-batch": "node scripts/send-template-batch.js"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.4",
