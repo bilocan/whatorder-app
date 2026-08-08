@@ -233,6 +233,58 @@ describe('Language detection', () => {
   });
 });
 
+describe('DEV flow keyword (DEPLOY_ENV)', () => {
+  const prevDeployEnv = process.env.DEPLOY_ENV;
+
+  afterEach(() => {
+    if (prevDeployEnv === undefined) delete process.env.DEPLOY_ENV;
+    else process.env.DEPLOY_ENV = prevDeployEnv;
+  });
+
+  test('DEPLOY_ENV=test sends Flow on keyword "flow"', async () => {
+    process.env.DEPLOY_ENV = 'test';
+    process.env.WHATSAPP_FLOW_ID = 'flow_test_id';
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ });
+
+    await handleMessage(ROUTING, msg({ text: 'flow' }));
+
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowToken: `${FROM}|${BIZ}`,
+      screen: 'CATEGORY_SELECT',
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+  });
+
+  test('DEPLOY_ENV=production ignores keyword "flow"', async () => {
+    process.env.DEPLOY_ENV = 'production';
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: 'flow' }));
+
+    expect(sendFlowMessage).not.toHaveBeenCalled();
+  });
+
+  test('flow keyword ignores stale session.businessId not on routing', async () => {
+    process.env.DEPLOY_ENV = 'test';
+    process.env.WHATSAPP_FLOW_ID = 'flow_test_id';
+    getSession.mockResolvedValue({
+      language: 'en',
+      state: 'browsing',
+      businessId: 'biz_removed',
+      basket: [],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'flow' }));
+
+    const expectedBid = ROUTING.defaultBusinessId || ROUTING.businessIds[0];
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowToken: `${FROM}|${expectedBid}`,
+    }));
+    expect(sendFlowMessage.mock.calls[0][1].flowToken).not.toContain('biz_removed');
+  });
+});
+
 describe('Edge cases', () => {
   test('empty cart_submitted shows catalog', async () => {
     getSession.mockResolvedValue({ language: 'en', state: 'browsing' });

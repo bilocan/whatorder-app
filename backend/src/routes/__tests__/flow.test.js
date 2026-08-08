@@ -10,13 +10,11 @@ jest.mock('../../lib/flowImages', () => ({
     ...c,
     image: `img_${c.id}`,
     'alt-text': c.title,
-    color: '112233',
   }))),
   attachMenuItemImages: jest.fn(async (items) => items.map(i => ({
     ...i,
     image: `img_${i.id}`,
     'alt-text': i.title,
-    color: '445566',
   }))),
 }));
 

@@ -148,7 +148,19 @@ describe('flowImages', () => {
     expect(out).toHaveLength(1);
     expect(out[0].image).toBeTruthy();
     expect(out[0]['alt-text']).toBe('Ayran');
-    expect(out[0].color).toMatch(/^[0-9A-F]{6}$/);
+    // Meta forbids image + color on the same list option.
+    expect(out[0]).not.toHaveProperty('color');
+  });
+
+  test('attachListImages omits color when photo image is present', async () => {
+    const jpeg = await tinyJpegBuffer();
+    global.fetch.mockResolvedValue(mockOkBody(jpeg));
+    const out = await attachListImages(
+      [{ id: 'a', title: 'Ayran' }],
+      { photoUrlById: { a: STORAGE_URL } },
+    );
+    expect(out[0].image).toBeTruthy();
+    expect(out[0]).not.toHaveProperty('color');
   });
 
   test('attachCategoryImages ignores non-allowlisted photoUrl', async () => {
