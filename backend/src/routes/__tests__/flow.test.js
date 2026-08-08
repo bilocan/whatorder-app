@@ -5,6 +5,20 @@ jest.mock('../../lib/flowCrypto', () => ({
 }));
 jest.mock('../../bot/menuService');
 jest.mock('../../lib/collections');
+jest.mock('../../lib/flowImages', () => ({
+  attachCategoryImages: jest.fn(async (cats) => cats.map(c => ({
+    ...c,
+    image: `img_${c.id}`,
+    'alt-text': c.title,
+    color: '112233',
+  }))),
+  attachMenuItemImages: jest.fn(async (items) => items.map(i => ({
+    ...i,
+    image: `img_${i.id}`,
+    'alt-text': i.title,
+    color: '445566',
+  }))),
+}));
 
 const request = require('supertest');
 const app = require('../../index');
@@ -12,6 +26,7 @@ const { getMenu } = require('../../bot/menuService');
 const { sessionRef } = require('../../lib/collections');
 const { decryptRequest } = require('../../lib/flowCrypto');
 const { SCREENS: S, FIELDS: F } = require('../../flows/fields');
+const { attachCategoryImages, attachMenuItemImages } = require('../../lib/flowImages');
 
 const TOKEN = 'phone1|biz1';
 const V = '3.0';
@@ -78,6 +93,9 @@ test('INIT empty basket → CATEGORY_SELECT with unique categories', async () =>
   expect(body.screen).toBe(S.CATEGORY_SELECT);
   // mains + sides = 2 unique categories
   expect(body.data[F.CATEGORIES]).toHaveLength(2);
+  expect(attachCategoryImages).toHaveBeenCalled();
+  expect(body.data[F.CATEGORIES][0].image).toBeTruthy();
+  expect(body.data[F.CATEGORIES][0]['alt-text']).toBeTruthy();
 });
 
 test('INIT non-empty basket → CART_REVIEW', async () => {
@@ -99,9 +117,12 @@ test('CATEGORY_SELECT → MENU_BROWSE filters by category', async () => {
   const body = parsed(res);
   expect(body.screen).toBe(S.MENU_BROWSE);
   expect(body.data[F.MENU_ITEMS]).toHaveLength(2);
+  expect(attachMenuItemImages).toHaveBeenCalled();
   // item with description uses "— description" format; item without does not
   const burger = body.data[F.MENU_ITEMS].find(i => i.id === 'b1');
   expect(burger.description).toContain('Tasty');
+  expect(burger.image).toBe('img_b1');
+  expect(burger['alt-text']).toBe('Burger');
   const pizza = body.data[F.MENU_ITEMS].find(i => i.id === 'p1');
   expect(pizza.description).not.toContain('—');
 });
