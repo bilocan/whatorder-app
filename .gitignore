@@ -86,3 +86,7 @@ coverage/
 .vercel
 backend/.env.production
 backend/.stripe-listen-secret
+# WhatsApp batch recipient lists — never commit real phone numbers
+backend/scripts/data/*
+!backend/scripts/data/template-batch.example.csv
+!backend/scripts/data/README.md
