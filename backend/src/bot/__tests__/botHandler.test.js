@@ -264,6 +264,25 @@ describe('DEV flow keyword (DEPLOY_ENV)', () => {
 
     expect(sendFlowMessage).not.toHaveBeenCalled();
   });
+
+  test('flow keyword ignores stale session.businessId not on routing', async () => {
+    process.env.DEPLOY_ENV = 'test';
+    process.env.WHATSAPP_FLOW_ID = 'flow_test_id';
+    getSession.mockResolvedValue({
+      language: 'en',
+      state: 'browsing',
+      businessId: 'biz_removed',
+      basket: [],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'flow' }));
+
+    const expectedBid = ROUTING.defaultBusinessId || ROUTING.businessIds[0];
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowToken: `${FROM}|${expectedBid}`,
+    }));
+    expect(sendFlowMessage.mock.calls[0][1].flowToken).not.toContain('biz_removed');
+  });
 });
 
 describe('Edge cases', () => {

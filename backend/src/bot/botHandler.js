@@ -132,7 +132,11 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
   const flowKeywordEnv = deployEnv === 'test'
     || (!deployEnv && process.env.NODE_ENV !== 'production');
   if (flowKeywordEnv && type === 'text' && norm === 'flow') {
-    const bid = session.businessId || routing.defaultBusinessId || routing.businessIds[0];
+    // Same Rule 1 validation as the main path — never trust a stale session.businessId.
+    const sessionBidValid = session.businessId && routing.businessIds.includes(session.businessId);
+    const bid = sessionBidValid
+      ? session.businessId
+      : (routing.defaultBusinessId || routing.businessIds[0]);
     await sendFlowMessage(from, {
       flowId: process.env.WHATSAPP_FLOW_ID || '1465498598663384',
       flowToken: `${from}|${bid}`,
