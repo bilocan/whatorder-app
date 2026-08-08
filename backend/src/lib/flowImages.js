@@ -161,7 +161,8 @@ async function mapPool(items, concurrency, mapper) {
 }
 
 /**
- * Attach `image` + `alt-text` (+ optional `color`) to list options.
+ * Attach `image` + `alt-text` to list options (Meta forbids image + color together).
+ * No-photo fallback is a solid color PNG tile as `image`, not a `color` field.
  * @param {Array<{id:string,title:string}>} options
  * @param {{ photoUrlById?: Record<string,string|null|undefined>, concurrency?: number }} [opts]
  */
@@ -171,11 +172,10 @@ async function attachListImages(options, opts = {}) {
 
   return mapPool(options, concurrency, async (opt) => {
     const alt = opt.title || opt.id || '';
-    const color = colorForSeed(opt.id);
     const resolved = resolvePhotoUrl(photoUrlById[opt.id]);
     let image = resolved ? await flowListImageFromUrl(resolved) : null;
     if (!image) image = await colorTileBase64(opt.id);
-    return { ...opt, image, 'alt-text': alt, color };
+    return { ...opt, image, 'alt-text': alt };
   });
 }
 
