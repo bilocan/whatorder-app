@@ -1,5 +1,5 @@
 import type { BusinessLegal } from '../types';
-import { normalizeUid } from '../lib/legalProfile';
+import { normalizeUid, stripIban, isValidIban } from '../lib/legalProfile';
 import type { DashboardT } from '../i18n';
 
 export type LegalFormState = Partial<Omit<BusinessLegal, 'complete'>>;
@@ -16,6 +16,8 @@ interface LegalFieldsFormProps {
 export default function LegalFieldsForm({ t, value, onChange, idPrefix = 'legal' }: LegalFieldsFormProps) {
   const uidTrimmed = (value.uid ?? '').trim();
   const uidInvalid = uidTrimmed.length > 0 && !normalizeUid(uidTrimmed);
+  const ibanTrimmed = stripIban(value.iban ?? '');
+  const ibanInvalid = ibanTrimmed.length > 0 && !isValidIban(ibanTrimmed);
 
   return (
     <div className="settings-grid-2">
@@ -109,7 +111,10 @@ export default function LegalFieldsForm({ t, value, onChange, idPrefix = 'legal'
           className="settings-input"
           value={value.iban ?? ''}
           onChange={(e) => onChange('iban', e.target.value)}
+          placeholder="AT61 1904 3002 3457 3201"
         />
+        <span className="settings-hint">{t('settings.legal.ibanHint')}</span>
+        {ibanInvalid && <div className="settings-hint settings-status-err">{t('settings.legal.ibanInvalid')}</div>}
       </div>
     </div>
   );

@@ -8,10 +8,11 @@ const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('
 const { sendText, sendButtonMessage, uploadMedia, sendDocument } = require('./whatsapp');
 const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } = require('./messageIdentity');
 const { t } = require('./templates');
-const { isLegalComplete } = require('./legalProfile');
+const { isLegalComplete, isSettlementIbanComplete } = require('./legalProfile');
 const { issueCustomerBeleg } = require('./receiptService');
 
 const LEGAL_PROFILE_INCOMPLETE = 'LEGAL_PROFILE_INCOMPLETE';
+const SETTLEMENT_IBAN_INCOMPLETE = 'SETTLEMENT_IBAN_INCOMPLETE';
 
 function paymentBaseUrl() {
   const url = process.env.BACKEND_URL?.replace(/\/$/, '');
@@ -26,11 +27,12 @@ async function createCheckoutSessionForOrder(businessId, orderId, { totalEuros, 
   const stripe = getStripe();
   if (!stripe) throw new Error('Stripe is not configured');
 
-  // Defense in depth: the bot already gates on legal completeness, but a Beleg
-  // cannot be issued for a seller without legal identity, so never charge either.
+  // Defense in depth: Settings UI gates enablement; never charge without Beleg seller
+  // identity or a valid settlement IBAN (payout account on file).
   const bizSnap = await businessRef(businessId).get();
   const legal = bizSnap.exists ? bizSnap.data()?.legal : null;
   if (!isLegalComplete(legal)) throw new Error(LEGAL_PROFILE_INCOMPLETE);
+  if (!isSettlementIbanComplete(legal)) throw new Error(SETTLEMENT_IBAN_INCOMPLETE);
 
   const amountCents = Math.round(totalEuros * 100);
   if (amountCents < 50) throw new Error('Order total too low for card payment');
@@ -196,6 +198,7 @@ async function processStripeWebhookEvent(event) {
 
 module.exports = {
   LEGAL_PROFILE_INCOMPLETE,
+  SETTLEMENT_IBAN_INCOMPLETE,
   createCheckoutSessionForOrder,
   handleCheckoutSessionCompleted,
   processStripeWebhookEvent,
