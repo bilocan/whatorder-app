@@ -746,6 +746,71 @@ describe('Checkout confirm Flow', () => {
     }));
   });
 
+  test('Flow place_order with delivery on pickup-only restaurant is gated', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO, checkoutConfirmFlow: true, deliveryEnabled: false,
+    });
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      businessId: BIZ,
+      customerName: 'John',
+      orderType: 'pickup',
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'flow_completion',
+      data: {
+        checkout_action: 'place_order',
+        customer_name: 'John',
+        order_type: 'delivery',
+        delivery_address: 'Naschmarkt 5, 1040 Wien',
+        note: '',
+      },
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Delivery is currently unavailable'),
+      buttons: [expect.objectContaining({ id: 'btn_pickup' })],
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_order_type',
+      confirmingOrderTypeEdit: true,
+    }));
+  });
+
+  test('Flow place_order with empty basket does not create an order', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ, checkoutConfirmFlow: true, deliveryEnabled: false,
+    });
+    getSession.mockResolvedValue({
+      language: 'en',
+      state: 'confirming',
+      businessId: BIZ,
+      basket: [],
+      customerName: 'John',
+      orderType: 'pickup',
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'flow_completion',
+      data: {
+        checkout_action: 'place_order',
+        customer_name: 'John',
+        order_type: 'pickup',
+        note: '',
+      },
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expectOrderEntryPrompt();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: [],
+    }));
+  });
+
   test('back_to_cart Flow completion shows the basket and moves to browsing', async () => {
     const basket = [{ name: 'Döner', qty: 1, price: 8.50 }];
     getSession.mockResolvedValue({

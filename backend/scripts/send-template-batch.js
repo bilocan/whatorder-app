@@ -109,7 +109,9 @@ function maskPhone(phone) {
 }
 
 function normalizePhone(phone) {
-  const digits = String(phone ?? '').replace(/\D/g, '');
+  let digits = String(phone ?? '').replace(/\D/g, '');
+  // Excel / international dialing often stores 00CC…; Meta wants CC… without the 00 prefix.
+  if (digits.startsWith('00')) digits = digits.slice(2);
   if (digits.length < 8) {
     throw new Error(`Invalid phone: ${maskPhone(phone)}`);
   }
@@ -172,7 +174,12 @@ function parseCsv(text) {
   }
 
   if (rows.length < 2) return [];
-  const headers = rows[0].map((h) => h.trim().toLowerCase());
+  // Strip UTF-8 BOM so Excel exports map to `phone` instead of `\ufeffphone`.
+  const headers = rows[0].map((h, idx) => {
+    let key = h.trim().toLowerCase();
+    if (idx === 0) key = key.replace(/^\ufeff/, '');
+    return key;
+  });
   return rows.slice(1)
     .filter((r) => r.some((cell) => String(cell).trim() !== ''))
     .map((r) => {
@@ -181,7 +188,9 @@ function parseCsv(text) {
         obj[h] = (r[idx] ?? '').trim();
       });
       return obj;
-    });
+    })
+    // Ignore accidental re-pasted header rows mid-file.
+    .filter((obj) => obj.phone && obj.phone.toLowerCase() !== 'phone');
 }
 
 function sleep(ms) {
