@@ -5,9 +5,19 @@ const sharp = require('sharp');
 const { resolvePhotoUrl } = require('../bot/menuService');
 
 const MAX_LIST_IMAGE_BYTES = 100 * 1024;
+/** Align with dashboard menu photo upload limit (`menuPhoto.ts`). */
+const MAX_DOWNLOAD_BYTES = 5 * 1024 * 1024;
+const FETCH_TIMEOUT_MS = 5000;
+const MAX_REDIRECTS = 3;
 const THUMB_SIZE = 96;
 const THUMB_JPEG_QUALITY = 70;
 const DEFAULT_CONCURRENCY = 6;
+
+/** Hosts we will fetch for Flow thumbs (SSRF guard). */
+const ALLOWED_PHOTO_HOSTS = new Set([
+  'firebasestorage.googleapis.com',
+  'storage.googleapis.com',
+]);
 
 const PALETTE = [
   'E85D04', 'DC2F02', '9D0208', '370617',
@@ -28,6 +38,26 @@ function colorForSeed(seed) {
   return PALETTE[hashSeed(seed) % PALETTE.length];
 }
 
+/**
+ * True when URL is https and host is Firebase/GCS storage (or *.firebasestorage.app).
+ * Rejects credentials, non-http(s), and private-looking hosts.
+ */
+function isAllowedPhotoFetchUrl(urlString) {
+  let u;
+  try {
+    u = new URL(urlString);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== 'https:') return false;
+  if (u.username || u.password) return false;
+  const host = u.hostname.toLowerCase();
+  if (ALLOWED_PHOTO_HOSTS.has(host)) return true;
+  // Firebase JS SDK download URLs (e.g. whatorder-fire.firebasestorage.app)
+  if (host.endsWith('.firebasestorage.app')) return true;
+  return false;
+}
+
 /** Tiny solid-color PNG as raw Base64 (no data: prefix). */
 async function colorTileBase64(seed) {
   const hex = colorForSeed(seed);
@@ -44,16 +74,66 @@ async function colorTileBase64(seed) {
   return buf.toString('base64');
 }
 
+async function readBodyLimited(res, maxBytes) {
+  const lenHeader = res.headers.get('content-length');
+  if (lenHeader != null) {
+    const len = Number(lenHeader);
+    if (Number.isFinite(len) && len > maxBytes) return null;
+  }
+  if (!res.body || typeof res.body.getReader !== 'function') {
+    const buf = Buffer.from(await res.arrayBuffer());
+    return buf.length > maxBytes ? null : buf;
+  }
+  const reader = res.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      try { await reader.cancel(); } catch { /* ignore */ }
+      return null;
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Fetch with manual redirect following so every hop is allowlisted.
+ */
+async function fetchAllowlisted(urlString) {
+  let current = urlString;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    if (!isAllowedPhotoFetchUrl(current)) return null;
+    const res = await fetch(current, {
+      redirect: 'manual',
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: { Accept: 'image/*,*/*;q=0.8' },
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get('location');
+      if (!loc) return null;
+      current = new URL(loc, current).href;
+      continue;
+    }
+    return res;
+  }
+  return null;
+}
+
 /**
  * Fetch a photo URL, resize to a Flow-safe JPEG thumb, return raw Base64.
- * Returns null on failure or if still over Meta's 100KB list-image limit.
+ * Returns null on failure, disallowed host, timeout, oversize, or if still over Meta's 100KB list-image limit.
  */
 async function flowListImageFromUrl(url) {
-  if (!url) return null;
+  if (!url || !isAllowedPhotoFetchUrl(url)) return null;
   try {
-    const res = await fetch(url, { redirect: 'follow' });
-    if (!res.ok) return null;
-    const input = Buffer.from(await res.arrayBuffer());
+    const res = await fetchAllowlisted(url);
+    if (!res || !res.ok) return null;
+    const input = await readBodyLimited(res, MAX_DOWNLOAD_BYTES);
+    if (!input || !input.length) return null;
     const out = await sharp(input)
       .rotate()
       .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'cover' })
@@ -107,9 +187,11 @@ async function attachListImages(options, opts = {}) {
 async function attachCategoryImages(categories, menu) {
   const photoUrlById = {};
   for (const cat of categories) {
-    const withPhoto = menu.find(
-      (i) => (i.category || 'other') === cat.id && resolvePhotoUrl(i.photoUrl),
-    );
+    const withPhoto = menu.find((i) => {
+      if ((i.category || 'other') !== cat.id) return false;
+      const resolved = resolvePhotoUrl(i.photoUrl);
+      return resolved && isAllowedPhotoFetchUrl(resolved);
+    });
     if (withPhoto) photoUrlById[cat.id] = withPhoto.photoUrl;
   }
   return attachListImages(categories, { photoUrlById });
@@ -128,10 +210,14 @@ async function attachMenuItemImages(items, menuSlice) {
 module.exports = {
   colorTileBase64,
   colorForSeed,
+  isAllowedPhotoFetchUrl,
   flowListImageFromUrl,
   attachListImages,
   attachCategoryImages,
   attachMenuItemImages,
   MAX_LIST_IMAGE_BYTES,
+  MAX_DOWNLOAD_BYTES,
+  FETCH_TIMEOUT_MS,
   THUMB_SIZE,
+  ALLOWED_PHOTO_HOSTS,
 };
