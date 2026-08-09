@@ -66,9 +66,13 @@ describe('botCommands', () => {
       'fertig', 'Fertig', 'done', 'confirm', 'bestätigen', 'bestatigen',
       'onayla', 'onay', 'checkout', 'zur kasse', 'kasse',
       // Locale doneBtn / confirmBtn labels (TR doneBtn is Tamam, not fertig)
-      'tamam', 'Tamam', 'bestellen',
+      'tamam', 'Tamam',
     ])('confirm checkout keyword: %s', (phrase) => {
       expect(detectBotCommandRules(phrase)?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
+    });
+
+    test('"bestellen" alone is not confirm checkout (order opener)', () => {
+      expect(detectBotCommandRules('bestellen')).toBeNull();
     });
 
     test.each([
@@ -92,6 +96,7 @@ describe('botCommands', () => {
       expect(detectBotCommandRules('almost done')).toBeNull();
       expect(detectBotCommandRules('ok')).toBeNull();
       expect(detectBotCommandRules('ja')).toBeNull();
+      expect(detectBotCommandRules('bestellen')).toBeNull();
     });
   });
 

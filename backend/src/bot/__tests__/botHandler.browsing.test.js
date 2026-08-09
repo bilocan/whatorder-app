@@ -352,7 +352,6 @@ describe('Browsing state: confirm-checkout text commands', () => {
     ['onayla'],
     ['tamam'],
     ['Tamam'],
-    ['bestellen'],
   ])('"%s" with non-empty basket starts checkout (same as btn_confirm)', async (phrase) => {
     getSession.mockResolvedValue({
       language: 'tr', state: 'browsing', businessId: BIZ, basket,
@@ -366,6 +365,43 @@ describe('Browsing state: confirm-checkout text commands', () => {
     expectNoSearchMissFor(phrase.replace(/[^\p{L}\p{N}\s]/gu, '').trim());
     expectNoSearchMissFor(phrase);
   });
+
+  test('"bestellen" with empty basket does not force empty-basket checkout catalog', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ, basket: [],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'bestellen' }));
+
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+    // Must not take the fertig empty-basket path (catalog with basketEmpty alone as checkout).
+    expect(outboundBodies().join('\n')).not.toMatch(/Warenkorb ist leer|basket is empty|sepetiniz boş/i);
+  });
+
+  test.each([['onayla'], ['confirm'], ['fertig']])(
+    'pending proposal + "%s" confirms intent (not empty-basket checkout)',
+    async (phrase) => {
+      getSession.mockResolvedValue({
+        language: 'tr', state: 'browsing', businessId: BIZ, basket: [],
+        pendingIntentItems: [
+          { name: 'Ayran', qty: 1, price: 2.00, menuItemId: 'item_2', optionGroups: [] },
+        ],
+      });
+
+      await handleMessage(ROUTING, msg({ text: phrase }));
+
+      expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+        state: 'browsing',
+        basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+      }));
+      expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+        state: 'awaiting_name',
+      }));
+      expectNoSearchMissFor(phrase);
+    },
+  );
 
   test('TR session + fertig after post-add CTAs does not menu-search (Contabo regression)', async () => {
     // Screenshot: lang TR, Onayla/Daha Ekle/Sepeti Gör visible, customer typed fertig → "sonuç yok".

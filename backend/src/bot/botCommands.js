@@ -39,7 +39,6 @@ const CONFIRM_CHECKOUT_PHRASES = new Set([
   'fertig', 'done', 'confirm',
   'bestatigen', 'bestaetigen', 'bestätigen',
   'onayla', 'onay', 'tamam',
-  'bestellen',
   'checkout', 'zur kasse', 'kasse',
 ]);
 

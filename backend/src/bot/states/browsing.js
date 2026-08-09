@@ -224,6 +224,12 @@ async function tryBotCommandText({
   }
 
   if (cmd.command === BOT_COMMAND.CONFIRM_CHECKOUT) {
+    // Pending AI proposal: checkout words overlap intent confirm (onayla/confirm) — merge first.
+    if (session.pendingIntentItems?.length) {
+      return handleIntentButtons({
+        from, session, lang, businessId, basket, id: 'btn_intent_confirm',
+      });
+    }
     await proceedCheckoutFromBasket({ from, session, lang, businessId, basket });
     return true;
   }
