@@ -305,6 +305,23 @@ describe('Browsing state: button actions', () => {
     }));
   });
 
+  test('text "fertig" with items starts checkout like btn_confirm', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Ayran', qty: 2, price: 2.00 }],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'fertig' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+    expect(sendListMessage).not.toHaveBeenCalledWith(
+      FROM,
+      expect.objectContaining({ body: expect.stringMatching(/fertig|sonuç|kein Ergebnis|no results/i) }),
+    );
+  });
+
   test('btn_cancel_order in browsing (single) clears basket and shows catalog', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'browsing', businessId: BIZ,

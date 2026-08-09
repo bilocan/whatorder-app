@@ -59,12 +59,22 @@ describe('botCommands', () => {
       expect(detectBotCommandRules('2x döner')).toBeNull();
       expect(detectBotCommandRules('döner')).toBeNull();
     });
+
+    test('confirm checkout keywords (fertig / done / onayla)', () => {
+      expect(detectBotCommandRules('fertig')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
+      expect(detectBotCommandRules('Fertig')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
+      expect(detectBotCommandRules('done')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
+      expect(detectBotCommandRules('confirm')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
+      expect(detectBotCommandRules('bestätigen')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
+      expect(detectBotCommandRules('onayla')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
+    });
   });
 
   describe('isBotCommandPhrase', () => {
     test('excludes basket commands from order-like guard', () => {
       expect(isBotCommandPhrase('warenkorb', 'warenkorb')).toBe(true);
       expect(isBotCommandPhrase('rückgängig', 'ruckgangig')).toBe(true);
+      expect(isBotCommandPhrase('fertig', 'fertig')).toBe(true);
       expect(isBotCommandPhrase('döner', 'doner')).toBe(false);
     });
   });

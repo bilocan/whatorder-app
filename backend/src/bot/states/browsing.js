@@ -172,6 +172,29 @@ function isGatedOnDeliveryMinimum(session) {
 
 const BASKET_KEYWORDS = new Set(['basket', 'sepet', 'warenkorb']);
 
+async function proceedCheckoutFromBasket({ from, session, lang, businessId, basket }) {
+  await patchSession(from, { basketRemovePending: undefined, basketRemoveDisambig: undefined }, session);
+  if (!basket.length) {
+    await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
+    return;
+  }
+  const info = await getBusinessInfo(businessId);
+  if (isGatedOnDeliveryMinimum(session) && !isConversationalBasket(info)) {
+    await resumeDeliveryCheckout({ from, session, lang, businessId, basket });
+    return;
+  }
+  if (!isOrderingOpen(info.schedule, info.timezone || 'Europe/Vienna')) {
+    const _w = getTodayOrderWindow(info.schedule, info.timezone || 'Europe/Vienna');
+    await sendText(from, t('restaurantClosed', lang, info.name, _w?.firstOrderTime ?? null, _w?.lastOrderTime ?? null));
+    return;
+  }
+  const prepMins = info.avgPrepTime || 30;
+  const pickupTime = new Date(Date.now() + prepMins * 60000)
+    .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', timeZone: info.timezone || 'Europe/Vienna' });
+  const newSession = { ...session, pickupTime, prepMins, pendingDeleteIds: [] };
+  await proceedFromConfirmedBasket({ from, session: newSession, lang, businessId, basket });
+}
+
 async function tryBotCommandText({
   from, session, lang, businessId, basket, text, norm, business,
 }) {
@@ -198,6 +221,11 @@ async function tryBotCommandText({
     return tryBasketUndo({
       from, session, lang, businessId, basket, business, norm, silent: false,
     });
+  }
+
+  if (cmd.command === BOT_COMMAND.CONFIRM_CHECKOUT) {
+    await proceedCheckoutFromBasket({ from, session, lang, businessId, basket });
+    return true;
   }
 
   return false;
@@ -427,26 +455,7 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
       return;
     }
     if (id === 'btn_done' || id === 'btn_confirm') {
-      await patchSession(from, { basketRemovePending: undefined, basketRemoveDisambig: undefined }, session);
-      if (!basket.length) {
-        await openCatalog(from, session, lang, businessId, t('basketEmpty', lang));
-        return;
-      }
-      const info = await getBusinessInfo(businessId);
-      if (isGatedOnDeliveryMinimum(session) && !isConversationalBasket(info)) {
-        await resumeDeliveryCheckout({ from, session, lang, businessId, basket });
-        return;
-      }
-      if (!isOrderingOpen(info.schedule, info.timezone || 'Europe/Vienna')) {
-        const _w = getTodayOrderWindow(info.schedule, info.timezone || 'Europe/Vienna');
-        await sendText(from, t('restaurantClosed', lang, info.name, _w?.firstOrderTime ?? null, _w?.lastOrderTime ?? null));
-        return;
-      }
-      const prepMins = info.avgPrepTime || 30;
-      const pickupTime = new Date(Date.now() + prepMins * 60000)
-        .toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', timeZone: info.timezone || 'Europe/Vienna' });
-      const newSession = { ...session, pickupTime, prepMins, pendingDeleteIds: [] };
-      await proceedFromConfirmedBasket({ from, session: newSession, lang, businessId, basket });
+      await proceedCheckoutFromBasket({ from, session, lang, businessId, basket });
       return;
     }
 
@@ -466,7 +475,7 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
     }
   }
 
-  // Text: bot commands (view basket, undo) — before order-intent paths so "warenkorb" is not parsed as food
+  // Text: bot commands (view basket, undo, fertig/confirm) — before order-intent / search
   if (type === 'text' && text?.trim()) {
     const info = await getBusinessInfo(businessId);
     if (await tryBotCommandText({

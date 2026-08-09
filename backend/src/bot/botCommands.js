@@ -5,6 +5,8 @@ const { lookupLearnedCommand, rememberLearnedCommand, recordLearnedCommandHit } 
 const BOT_COMMAND = {
   VIEW_BASKET: 'view_basket',
   UNDO: 'undo',
+  /** Same as btn_confirm / btn_done — start checkout from browsing. */
+  CONFIRM_CHECKOUT: 'confirm_checkout',
 };
 
 const VIEW_BASKET_PHRASES = new Set([
@@ -32,6 +34,14 @@ const VIEW_BASKET_PREFIX_RE = /^(?:zeig(?:en|)\s+(?:mir\s+)?(?:den\s+)?|show\s+|
 const VIEW_BASKET_QUESTION_RE = /^(?:was|what)\s+(?:hab(?:e|)\s+ich|ist\s+(?:in\s+)?(?:meinem\s+)?(?:warenkorb|basket|cart|sepet)|did\s+i\s+order|s?\s+in\s+my\s+(?:basket|cart))\b/;
 const UNDO_PREFIX_RE = /^(?:mach(?:e|)\s+|bitte\s+)?(?:ruckgangig|rueckgaengig|rückgängig|undo)\b/;
 
+/** Whole-message checkout / done (matches doneBtn / confirmBtn locales + e2e fertig). */
+const CONFIRM_CHECKOUT_PHRASES = new Set([
+  'fertig', 'done', 'confirm',
+  'bestatigen', 'bestaetigen', 'bestätigen',
+  'onayla', 'onay',
+  'checkout', 'zur kasse', 'kasse',
+]);
+
 const ORDER_SIGNAL_RE = /(\d+\s*x\b|\bx\s*\d+|\d+\s+\w|\+\s*\w|,\s*\w|\bund\b|\band\b|\bve\b|\bmit\b|\bwith\b)/i;
 
 function normalizeCommandInput(text) {
@@ -54,6 +64,11 @@ function detectUndoRules(normalized, ctx = {}) {
   return false;
 }
 
+function detectConfirmCheckoutRules(normalized) {
+  if (!normalized) return false;
+  return CONFIRM_CHECKOUT_PHRASES.has(normalized);
+}
+
 /**
  * Fast rule-based command detection (sync).
  * @returns {{ command: string, source: 'rules' } | null}
@@ -67,6 +82,9 @@ function detectBotCommandRules(text, ctx = {}) {
   }
   if (detectUndoRules(normalized, ctx)) {
     return { command: BOT_COMMAND.UNDO, source: 'rules' };
+  }
+  if (detectConfirmCheckoutRules(normalized)) {
+    return { command: BOT_COMMAND.CONFIRM_CHECKOUT, source: 'rules' };
   }
   return null;
 }
@@ -87,6 +105,7 @@ function isBotCommandPhrase(text, normIn) {
   if (detectBotCommandRules(text, {})) return true;
   if (detectViewBasketRules(normalized)) return true;
   if (UNDO_PHRASES.has(normalized)) return true;
+  if (detectConfirmCheckoutRules(normalized)) return true;
   return false;
 }
 
