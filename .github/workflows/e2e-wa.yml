@@ -3,6 +3,10 @@
 #
 # Spec: whatorder-vault/.../feature-whatsapp-e2e-automation.md
 # Runner: self-hosted on Contabo, label e2e-wa-web
+#
+# Triggers:
+#   - After CI succeeds on push to `dev` (Test backend deployed) → Pack A smoke
+#   - Nightly + workflow_dispatch → Pack A + Pack B
 
 name: WhatsApp E2E (Contabo)
 
@@ -11,13 +15,27 @@ on:
     # 03:00 UTC nightly
     - cron: '0 3 * * *'
   workflow_dispatch:
+  # Post-deploy smoke: CI on `dev` includes Deploy Backend to Cloud Run.
+  # Fires only after that workflow completes (never on pull_request CI).
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [dev]
 
 jobs:
   e2e-wa:
-    name: Pack A + B (Test)
+    name: Contabo E2E (Test)
     runs-on: [self-hosted, e2e-wa-web]
     # Secrets come from Contabo backend/.env.local (linked below), not GitHub Environment.
     timeout-minutes: 45
+    if: >
+      github.event_name == 'schedule'
+      || github.event_name == 'workflow_dispatch'
+      || (
+        github.event_name == 'workflow_run'
+        && github.event.workflow_run.conclusion == 'success'
+        && github.event.workflow_run.event == 'push'
+      )
 
     defaults:
       run:
@@ -27,6 +45,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Match the commit that just deployed to Test (workflow_run) or this ref.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Link Contabo .env.local
         run: |
@@ -40,6 +61,28 @@ jobs:
 
       - name: Install backend deps
         run: npm ci
+
+      - name: Wait for Test backend SHA
+        if: github.event_name == 'workflow_run'
+        env:
+          EXPECT_SHA: ${{ github.event.workflow_run.head_sha }}
+          TEST_VERSION_URL: https://whatorder-backend-6ehqrvd7yq-ey.a.run.app/version
+        run: |
+          set -euo pipefail
+          short="$(printf '%s' "$EXPECT_SHA" | cut -c1-7)"
+          echo "Expecting Test /version gitSha prefix: $short"
+          deadline=$((SECONDS + 180))
+          while (( SECONDS < deadline )); do
+            body="$(curl -fsS "$TEST_VERSION_URL" || true)"
+            echo "version: $body"
+            if printf '%s' "$body" | grep -q "\"gitSha\":\"$short"; then
+              echo "Test backend matches $short"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Test backend did not reach gitSha=$short within 180s"
+          exit 1
 
       - name: Diagnose WA Web session
         id: diagnose
@@ -74,7 +117,9 @@ jobs:
         run: |
           xvfb-run -a npm run e2e:wa -- --target test --all-pack-a
 
+      # Pack B: nightly + manual only (post-deploy smoke stays Pack A to limit Meta traffic).
       - name: Pack B (negatives)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         env:
           E2E_WA_CUSTOMER_TRANSPORT: wa-web
           E2E_WA_WEB_USER_DATA_DIR: /var/lib/whatorder-e2e/wa-web-profile
