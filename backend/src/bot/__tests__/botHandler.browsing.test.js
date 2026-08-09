@@ -305,23 +305,6 @@ describe('Browsing state: button actions', () => {
     }));
   });
 
-  test('text "fertig" with items starts checkout like btn_confirm', async () => {
-    getSession.mockResolvedValue({
-      language: 'de', state: 'browsing', businessId: BIZ,
-      basket: [{ name: 'Ayran', qty: 2, price: 2.00 }],
-    });
-
-    await handleMessage(ROUTING, msg({ text: 'fertig' }));
-
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_name',
-    }));
-    expect(sendListMessage).not.toHaveBeenCalledWith(
-      FROM,
-      expect.objectContaining({ body: expect.stringMatching(/fertig|sonuç|kein Ergebnis|no results/i) }),
-    );
-  });
-
   test('btn_cancel_order in browsing (single) clears basket and shows catalog', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'browsing', businessId: BIZ,
@@ -332,6 +315,93 @@ describe('Browsing state: button actions', () => {
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
     expect(sendListMessage).toHaveBeenCalled();
+  });
+});
+
+// ─── Confirm-checkout text (fertig) — Contabo / WA Web e2e regression ─────────
+
+describe('Browsing state: confirm-checkout text commands', () => {
+  const basket = [
+    { name: 'Kebap Sandwich Huhn', qty: 1, price: 8.00 },
+    { name: 'Ayran', qty: 1, price: 2.00 },
+  ];
+
+  function outboundBodies() {
+    return [
+      ...sendText.mock.calls.map((c) => c[1]),
+      ...sendButtonMessage.mock.calls.map((c) => c[1]?.body),
+      ...sendListMessage.mock.calls.map((c) => c[1]?.body),
+    ].filter(Boolean);
+  }
+
+  function expectNoSearchMissFor(query) {
+    const bodies = outboundBodies().join('\n');
+    expect(bodies).not.toMatch(new RegExp(`"${query}" için sonuç yok`, 'i'));
+    expect(bodies).not.toMatch(new RegExp(`Keine Treffer für "${query}"`, 'i'));
+    expect(bodies).not.toMatch(new RegExp(`No matches for "${query}"`, 'i'));
+  }
+
+  test.each([
+    ['fertig'],
+    ['Fertig'],
+    ['done'],
+    ['confirm'],
+    ['bestätigen'],
+    ['onayla'],
+  ])('"%s" with non-empty basket starts checkout (same as btn_confirm)', async (phrase) => {
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'browsing', businessId: BIZ, basket,
+    });
+
+    await handleMessage(ROUTING, msg({ text: phrase }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+    expectNoSearchMissFor(phrase);
+  });
+
+  test('TR session + fertig after post-add CTAs does not menu-search (Contabo regression)', async () => {
+    // Screenshot: lang TR, Onayla/Daha Ekle/Sepeti Gör visible, customer typed fertig → "sonuç yok".
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'browsing', businessId: BIZ, basket,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'fertig' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+      basket,
+    }));
+    expectNoSearchMissFor('fertig');
+    expect(outboundBodies().join('\n')).not.toMatch(/Popüler|Tam menü|Ara/i);
+  });
+
+  test('unknown short token still menu-searches (search path not broken)', async () => {
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'browsing', businessId: BIZ, basket,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'xyzzyqq' }));
+
+    const bodies = outboundBodies().join('\n');
+    expect(bodies).toMatch(/"xyzzyqq" için sonuç yok/);
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+  });
+
+  test('fertig with empty basket does not search; shows empty-basket catalog', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ, basket: [],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'fertig' }));
+
+    expectNoSearchMissFor('fertig');
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
   });
 });
 

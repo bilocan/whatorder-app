@@ -60,13 +60,17 @@ describe('botCommands', () => {
       expect(detectBotCommandRules('döner')).toBeNull();
     });
 
-    test('confirm checkout keywords (fertig / done / onayla)', () => {
-      expect(detectBotCommandRules('fertig')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
-      expect(detectBotCommandRules('Fertig')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
-      expect(detectBotCommandRules('done')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
-      expect(detectBotCommandRules('confirm')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
-      expect(detectBotCommandRules('bestätigen')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
-      expect(detectBotCommandRules('onayla')?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
+    test.each([
+      'fertig', 'Fertig', 'done', 'confirm', 'bestätigen', 'bestatigen',
+      'onayla', 'onay', 'checkout', 'zur kasse', 'kasse',
+    ])('confirm checkout keyword: %s', (phrase) => {
+      expect(detectBotCommandRules(phrase)?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
+    });
+
+    test('food / longer phrases are not confirm checkout', () => {
+      expect(detectBotCommandRules('2x döner')).toBeNull();
+      expect(detectBotCommandRules('fertig bitte mit sauce')).toBeNull();
+      expect(detectBotCommandRules('ist meine bestellung fertig')).toBeNull();
     });
   });
 
