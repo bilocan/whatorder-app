@@ -4,10 +4,12 @@ const {
   E2E_DONER_GROUPS,
   completeCustomizing,
   addDonerAyranDelivery,
+  addDonerAyranDeliveryNoAddress,
   confirmOrder,
 } = require('../scenarios/helpers');
 
 const DELIVERY_PHRASE = '1 döner und 1 ayran zum Liefern, Hauptstraße 5';
+const DELIVERY_PHRASE_NO_ADDRESS = '1 döner und 1 ayran zum Liefern';
 
 function fakeDeliverySession(initial = {}) {
   let snap = {
@@ -285,6 +287,35 @@ test('addDonerAyranDelivery waits for the complete delivery postcondition', asyn
     }),
   );
   expect(session.waitForSession).toHaveBeenCalledTimes(2);
+});
+
+test('addDonerAyranDeliveryNoAddress sends the no-address phrase and requires an empty address', async () => {
+  const session = fakeDeliverySession({
+    basket: [{}, {}],
+    orderType: 'delivery',
+    deliveryAddress: '',
+  });
+
+  await expect(addDonerAyranDeliveryNoAddress(session, { log: () => {} })).resolves.toEqual(
+    expect.objectContaining({
+      orderType: 'delivery',
+      deliveryAddress: '',
+    }),
+  );
+  expect(session.sendText).toHaveBeenCalledWith(DELIVERY_PHRASE_NO_ADDRESS);
+});
+
+test('addDonerAyranDelivery rejects a saved address when absence is expected', async () => {
+  const session = fakeDeliverySession({
+    basket: [{}, {}],
+    orderType: 'delivery',
+    deliveryAddress: 'Hauptstraße 5',
+  });
+
+  await expect(addDonerAyranDelivery(session, {
+    expectAddress: 'absent',
+    log: () => {},
+  })).rejects.toThrow(/empty delivery address/i);
 });
 
 test.each([

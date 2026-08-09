@@ -1,6 +1,11 @@
 'use strict';
 
-const { ordersRef, sessionRef, businessRef } = require('../../src/lib/collections');
+const {
+  ordersRef,
+  sessionRef,
+  businessRef,
+  customersRef,
+} = require('../../src/lib/collections');
 const { customerPhoneVariants, normalizeCustomerPhone } = require('../../src/lib/phone');
 
 function sleep(ms) {
@@ -187,6 +192,40 @@ async function markOrderPaid(businessId, orderId, opts = {}) {
   return { id: after.id, ...after.data() };
 }
 
+/**
+ * Remove persisted delivery addresses for the E2E customer.
+ * @param {string} businessId
+ * @param {string} customerDisplay
+ */
+async function clearLastDeliveryAddress(businessId, customerDisplay) {
+  const customerId = normalizeCustomerPhone(customerDisplay);
+  const ref = customersRef(businessId).doc(customerId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new Error(`clearLastDeliveryAddress: customer not found ${customerId}`);
+  }
+
+  const data = snap.data();
+  const allowed = new Set(customerPhoneVariants(customerDisplay));
+  const phone = String(data.phone || snap.id || '').replace(/\D/g, '');
+  const ok = [...allowed].some((variant) => (
+    String(variant).replace(/\D/g, '') === phone
+  ));
+  if (!ok) {
+    throw new Error(
+      `clearLastDeliveryAddress: customer ${snap.id} phone=${data.phone} `
+      + `does not match e2e customer ${customerDisplay}`,
+    );
+  }
+
+  const { admin } = require('../../src/lib/firebase');
+  const deleteField = admin.firestore.FieldValue.delete();
+  await ref.update({
+    lastDeliveryAddress: deleteField,
+    savedAddresses: deleteField,
+  });
+}
+
 async function getSession(customerDisplay) {
   const digits = normalizeCustomerPhone(customerDisplay);
   const snap = await sessionRef(digits).get();
@@ -272,6 +311,7 @@ module.exports = {
   assertNoNewOrder,
   waitForOrderStatus,
   markOrderPaid,
+  clearLastDeliveryAddress,
   getSession,
   resetCustomerSession,
   waitForSession,

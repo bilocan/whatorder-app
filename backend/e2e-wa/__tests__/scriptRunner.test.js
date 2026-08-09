@@ -6,6 +6,8 @@ jest.mock('../scenarios/helpers', () => ({
   startCheckoutFromBasket: jest.fn(async () => {}),
   completeCustomizing: jest.fn(async () => {}),
   addDonerAyranDelivery: jest.fn(async () => {}),
+  addDonerAyranDeliveryNoAddress: jest.fn(async () => {}),
+  clearLastDeliveryAddress: jest.fn(async () => {}),
   confirmOrder: jest.fn(async () => {}),
   clickAny: jest.fn(async () => null),
 }));
@@ -23,6 +25,8 @@ const {
   startCheckoutFromBasket,
   completeCustomizing,
   addDonerAyranDelivery,
+  addDonerAyranDeliveryNoAddress,
+  clearLastDeliveryAddress,
   confirmOrder,
   clickAny,
 } = require('../scenarios/helpers');
@@ -108,7 +112,11 @@ test('validateScript exports and accepts the supported vocabulary', () => {
   ]));
   expect(KNOWN_MACROS).toContain('reset_session');
   expect(KNOWN_MACROS).toEqual(expect.arrayContaining([
-    'add_doner_ayran_delivery', 'complete_customizing', 'confirm_order',
+    'add_doner_ayran_delivery',
+    'add_doner_ayran_delivery_no_address',
+    'clear_last_delivery_address',
+    'complete_customizing',
+    'confirm_order',
   ]));
   expect(KNOWN_GATES).toContain('state');
   expect(KNOWN_GATES).toContain('order_stripe_delivery');
@@ -492,6 +500,8 @@ test('start_checkout macro delegates to helper', async () => {
 
 test.each([
   ['add_doner_ayran_delivery', addDonerAyranDelivery],
+  ['add_doner_ayran_delivery_no_address', addDonerAyranDeliveryNoAddress],
+  ['clear_last_delivery_address', clearLastDeliveryAddress],
   ['complete_customizing', completeCustomizing],
   ['confirm_order', confirmOrder],
 ])('%s macro delegates to its helper with a logger', async (macro, helper) => {

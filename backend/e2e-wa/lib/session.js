@@ -9,6 +9,7 @@ const {
   assertNoNewOrder,
   waitForOrderStatus,
   markOrderPaid,
+  clearLastDeliveryAddress,
   getSession,
   resetCustomerSession,
   waitForSession,
@@ -128,6 +129,10 @@ class WaE2eSession {
     return markOrderPaid(this.cfg.businessId, orderId, {
       customerDisplay: this.cfg.customerDisplay,
     });
+  }
+
+  async clearLastDeliveryAddress() {
+    return clearLastDeliveryAddress(this.cfg.businessId, this.cfg.customerDisplay);
   }
 
   async getSession() {

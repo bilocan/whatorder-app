@@ -1,6 +1,7 @@
 'use strict';
 
 const DELIVERY_PHRASE = '1 döner und 1 ayran zum Liefern, Hauptstraße 5';
+const DELIVERY_PHRASE_NO_ADDRESS = '1 döner und 1 ayran zum Liefern';
 
 /**
  * Discovery fallback for the Enes tenant. Firestore normally persists the
@@ -236,12 +237,19 @@ async function completeCustomizing(session, opts = {}) {
 /**
  * Add the locked Enes delivery basket and assert its delivery postconditions.
  * @param {import('../lib/session').WaE2eSession} session
- * @param {{ log?: (...a: any[]) => void }} [opts]
+ * @param {{ log?: (...a: any[]) => void, expectAddress?: 'absent'|'present', phrase?: string }} [opts]
  */
 async function addDonerAyranDelivery(session, opts = {}) {
   const log = opts.log || (() => {});
+  const expectAddress = opts.expectAddress || 'present';
+  if (!['absent', 'present'].includes(expectAddress)) {
+    throw new Error(`Unknown delivery address expectation: ${expectAddress}`);
+  }
+  const phrase = opts.phrase || (
+    expectAddress === 'absent' ? DELIVERY_PHRASE_NO_ADDRESS : DELIVERY_PHRASE
+  );
   log('place locked döner delivery phrase');
-  await session.sendText(DELIVERY_PHRASE);
+  await session.sendText(phrase);
 
   let sess = await session.waitForSession(
     (s) => (s?.pendingIntentItems?.length || 0) > 0
@@ -292,7 +300,11 @@ async function addDonerAyranDelivery(session, opts = {}) {
     sess = await session.waitForSession(
       (s) => (s?.basket?.length || 0) >= 2
         && s?.orderType === 'delivery'
-        && Boolean(String(s?.deliveryAddress || '').trim()),
+        && (
+          expectAddress === 'present'
+            ? Boolean(String(s?.deliveryAddress || '').trim())
+            : !String(s?.deliveryAddress || '').trim()
+        ),
       { timeoutMs: 45_000 },
     );
   } catch (_) {
@@ -306,10 +318,24 @@ async function addDonerAyranDelivery(session, opts = {}) {
   if (sess?.orderType !== 'delivery') {
     throw new Error(`Expected delivery order type, got ${sess?.orderType || 'unset'}`);
   }
-  if (!String(sess?.deliveryAddress || '').trim()) {
+  const hasAddress = Boolean(String(sess?.deliveryAddress || '').trim());
+  if (expectAddress === 'present' && !hasAddress) {
     throw new Error('Expected non-empty delivery address');
   }
+  if (expectAddress === 'absent' && hasAddress) {
+    throw new Error('Expected empty delivery address');
+  }
   return sess;
+}
+
+async function addDonerAyranDeliveryNoAddress(session, opts = {}) {
+  return addDonerAyranDelivery(session, { ...opts, expectAddress: 'absent' });
+}
+
+async function clearLastDeliveryAddress(session, opts = {}) {
+  const log = opts.log || (() => {});
+  log('clear saved delivery address for e2e customer');
+  return session.clearLastDeliveryAddress();
 }
 
 /**
@@ -346,6 +372,8 @@ module.exports = {
   startCheckoutFromBasket,
   completeCustomizing,
   addDonerAyranDelivery,
+  addDonerAyranDeliveryNoAddress,
+  clearLastDeliveryAddress,
   confirmOrder,
   sleep,
 };
