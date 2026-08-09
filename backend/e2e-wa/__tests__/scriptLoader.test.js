@@ -69,6 +69,32 @@ test('loadScriptFile validates happy_delivery_address_prompt Pack C script', () 
   });
 });
 
+test('loadScriptFile validates fertig_confirm_checkout Pack C scripts', () => {
+  const plain = loadScriptFile(path.join(__dirname, '../scripts/fertig_confirm_checkout.yml'));
+  expect(plain).toMatchObject({
+    id: 'fertig_confirm_checkout',
+    pack: 'c',
+    priority: 'p1',
+    timeout_ms: 60_000,
+  });
+  expect(plain.steps.some((s) => s.send?.text === 'fertig')).toBe(true);
+  expect(plain.steps).toEqual(expect.arrayContaining([
+    { gate: { name: 'state', eq: 'browsing' } },
+    {
+      gate: {
+        name: 'state',
+        in: ['awaiting_name', 'confirming', 'awaiting_order_type'],
+      },
+    },
+  ]));
+
+  const punct = loadScriptFile(path.join(__dirname, '../scripts/fertig_punct_confirm_checkout.yml'));
+  expect(punct.id).toBe('fertig_punct_confirm_checkout');
+  expect(punct.steps.some((s) => s.send?.text === 'Fertig!')).toBe(true);
+  validateScript(plain);
+  validateScript(punct);
+});
+
 test('loadScriptFile throws when id missing', () => {
   const fs = require('fs');
   const os = require('os');

@@ -1,0 +1,18 @@
+id: fertig_confirm_checkout
+pack: c
+priority: p1
+manual: "Contabo TR regression: typed fertig must checkout, never menu-search miss"
+timeout_ms: 60000
+steps:
+  - macro: open_restaurant
+  - macro: add_ayran_pickup
+  - gate: { name: basket_len, gte: 1 }
+  - gate: { name: state, eq: browsing }
+  # Explicit text — do not use start_checkout (that may tap Bestätigen/Fertig bubble first).
+  - send: { text: "fertig" }
+  # Search-miss bug left state=browsing + "sonuç yok" / "Keine Treffer". Leaving browsing is the hard gate.
+  - gate: { name: state, in: [awaiting_name, confirming, awaiting_order_type] }
+  - expect_reply:
+      includes: "Name|name|adınız|Fast fertig|Almost done|Bestellung|pickup|Abhol|Liefer|order type|Bestellart"
+      soft: true
+  - gate: { name: no_order }

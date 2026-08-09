@@ -38,14 +38,20 @@ const UNDO_PREFIX_RE = /^(?:mach(?:e|)\s+|bitte\s+)?(?:ruckgangig|rueckgaengig|r
 const CONFIRM_CHECKOUT_PHRASES = new Set([
   'fertig', 'done', 'confirm',
   'bestatigen', 'bestaetigen', 'bestätigen',
-  'onayla', 'onay',
+  'onayla', 'onay', 'tamam',
+  'bestellen',
   'checkout', 'zur kasse', 'kasse',
 ]);
 
 const ORDER_SIGNAL_RE = /(\d+\s*x\b|\bx\s*\d+|\d+\s+\w|\+\s*\w|,\s*\w|\bund\b|\band\b|\bve\b|\bmit\b|\bwith\b)/i;
 
+/** Lowercase + strip diacritics, then drop leading/trailing punctuation/emoji (Fertig!). */
 function normalizeCommandInput(text) {
-  return normText((text ?? '').trim());
+  return normText((text ?? '').trim())
+    .replace(/^[^\p{L}\p{N}]+/gu, '')
+    .replace(/[^\p{L}\p{N}]+$/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function detectViewBasketRules(normalized) {

@@ -1,0 +1,13 @@
+id: fertig_punct_confirm_checkout
+pack: c
+priority: p1
+manual: "Mobile keyboard punctuation: Fertig! must checkout like fertig"
+timeout_ms: 60000
+steps:
+  - macro: open_restaurant
+  - macro: add_ayran_pickup
+  - gate: { name: basket_len, gte: 1 }
+  - gate: { name: state, eq: browsing }
+  - send: { text: "Fertig!" }
+  - gate: { name: state, in: [awaiting_name, confirming, awaiting_order_type] }
+  - gate: { name: no_order }

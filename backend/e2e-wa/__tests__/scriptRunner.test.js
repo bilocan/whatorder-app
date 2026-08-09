@@ -407,6 +407,34 @@ test.each([
   expect(session.waitForSession).toHaveBeenCalled();
 });
 
+test('fertig_confirm_checkout yaml: send fertig then require leave browsing', async () => {
+  const path = require('path');
+  const { loadScriptFile } = require('../lib/scriptLoader');
+  const doc = loadScriptFile(path.join(__dirname, '../scripts/fertig_confirm_checkout.yml'));
+  const session = fakeSession({
+    state: 'browsing',
+    basket: [{ name: 'Ayran', qty: 1, price: 2 }],
+  });
+  session.waitForSession.mockImplementation(async (pred) => {
+    let snap = await session.getSession();
+    if (pred(snap)) return snap;
+    // After customer types fertig, checkout entry leaves browsing.
+    if (session.sends.includes('fertig')) {
+      session.setSnap({ state: 'awaiting_name' });
+      snap = await session.getSession();
+      if (pred(snap)) return snap;
+    }
+    throw new Error('waitForSession timed out');
+  });
+
+  await runScript(session, doc);
+
+  expect(session.sendText).toHaveBeenCalledWith('fertig');
+  expect(openRestaurant).toHaveBeenCalled();
+  expect(addAyranToBasket).toHaveBeenCalled();
+  expect(startCheckoutFromBasket).not.toHaveBeenCalled();
+});
+
 test('gate no_order delegates timeout to assertNoNewOrder', async () => {
   const session = fakeSession();
   await runScript(session, {

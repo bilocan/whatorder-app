@@ -344,10 +344,15 @@ describe('Browsing state: confirm-checkout text commands', () => {
   test.each([
     ['fertig'],
     ['Fertig'],
+    ['Fertig!'],
+    ['fertig.'],
     ['done'],
     ['confirm'],
     ['bestätigen'],
     ['onayla'],
+    ['tamam'],
+    ['Tamam'],
+    ['bestellen'],
   ])('"%s" with non-empty basket starts checkout (same as btn_confirm)', async (phrase) => {
     getSession.mockResolvedValue({
       language: 'tr', state: 'browsing', businessId: BIZ, basket,
@@ -358,6 +363,7 @@ describe('Browsing state: confirm-checkout text commands', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_name',
     }));
+    expectNoSearchMissFor(phrase.replace(/[^\p{L}\p{N}\s]/gu, '').trim());
     expectNoSearchMissFor(phrase);
   });
 
@@ -401,6 +407,78 @@ describe('Browsing state: confirm-checkout text commands', () => {
     expectNoSearchMissFor('fertig');
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_name',
+    }));
+  });
+
+  test('text fertig and btn_confirm both show closed when restaurant is closed', async () => {
+    // Non-empty schedule whose day keys never match Sun–Sat → always closed (no fake timers).
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      schedule: {
+        '99': {
+          openTime: '09:00', closeTime: '22:00', firstOrderTime: '09:00', lastOrderTime: '21:00',
+        },
+      },
+    });
+    const session = {
+      language: 'en', state: 'browsing', businessId: BIZ, basket,
+    };
+
+    getSession.mockResolvedValue(session);
+    await handleMessage(ROUTING, msg({ text: 'fertig' }));
+    const textBodies = outboundBodies().join('\n');
+    expect(textBodies).toMatch(/currently closed/i);
+    expectNoSearchMissFor('fertig');
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+
+    jest.clearAllMocks();
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      schedule: {
+        '99': {
+          openTime: '09:00', closeTime: '22:00', firstOrderTime: '09:00', lastOrderTime: '21:00',
+        },
+      },
+    });
+    getMenu.mockResolvedValue(MENU);
+    getSession.mockResolvedValue(session);
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm', title: 'Confirm' }));
+    expect(outboundBodies().join('\n')).toMatch(/currently closed/i);
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+  });
+
+  test('text fertig and btn_confirm both re-show delivery min gate when below minimum', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 50, conversationalBasket: false,
+    });
+    const session = {
+      language: 'en', state: 'browsing', businessId: BIZ, basket,
+      orderType: 'delivery',
+      // no deliveryAddress → gated
+    };
+
+    getSession.mockResolvedValue(session);
+    await handleMessage(ROUTING, msg({ text: 'fertig' }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.not.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+    }));
+    expectNoSearchMissFor('fertig');
+
+    jest.clearAllMocks();
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 50, conversationalBasket: false,
+    });
+    getMenu.mockResolvedValue(MENU);
+    getSession.mockResolvedValue(session);
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm', title: 'Confirm' }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.not.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
     }));
   });
 });
