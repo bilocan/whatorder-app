@@ -479,6 +479,59 @@ describe('Confirming state: ambiguous input', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
     expect(sendListMessage).toHaveBeenCalled();
   });
+
+  test('text "Löschen" cancels — does not become specialRequests note', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Mis Ayran 0.25L', qty: 1, price: 2.5 }],
+      customerName: 'E2E Testkunde',
+      pickupTime: '14:47',
+      orderType: 'pickup',
+      specialRequests: '',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Löschen' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: [],
+    }));
+    const noteWrite = setSession.mock.calls.find(([, data]) => data.specialRequests === 'Löschen');
+    expect(noteWrite).toBeUndefined();
+    // Single-restaurant cancel re-opens catalog with checkoutCancelled body (not a bare sendText).
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+
+  test('text "abbrechen" cancels on confirming', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.5 }],
+      customerName: 'Ali',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'abbrechen' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
+  });
+
+  test('btn_clear_basket on confirming cancels (stale browsing button)', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.5 }],
+      customerName: 'Ali',
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'button_reply',
+      id: 'btn_clear_basket',
+      title: 'Löschen',
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
+  });
 });
 
 describe('Known-name skip: awaiting_name bypassed for returning customers', () => {
