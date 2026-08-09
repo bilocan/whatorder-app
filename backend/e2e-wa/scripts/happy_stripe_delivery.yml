@@ -1,0 +1,14 @@
+id: happy_stripe_delivery
+pack: a
+priority: p0
+manual: "M2 rows 45–48, 65 (+ customize)"
+timeout_ms: 90000
+steps:
+  - macro: open_restaurant
+  - macro: add_doner_ayran_delivery
+  - gate: { name: basket_len, gte: 2 }
+  - gate: { name: state, in: [browsing] }
+  - macro: start_checkout
+  - macro: ensure_confirming
+  - macro: confirm_order
+  - gate: { name: order_stripe_delivery, address_includes: "Hauptstraße" }

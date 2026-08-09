@@ -344,6 +344,69 @@ class WaWebCustomer {
   }
 
   /**
+   * Open the newest inbound list message and select a row by title.
+   * List replies never fall back to typing the row title as text.
+   * @param {{ title: string|RegExp, openTitle?: string|RegExp }} opts
+   */
+  async sendListReply({
+    title,
+    openTitle = /Adresse wählen|Choose address|Adres seç|Wählen|Choose|Seç/i,
+  } = {}) {
+    const page = this._requirePage();
+    if (!this._chatOpen) await this.openBusinessChat();
+    if (!(title instanceof RegExp) && !String(title || '').trim()) {
+      throw new Error('sendListReply requires title');
+    }
+    if (!(openTitle instanceof RegExp) && !String(openTitle || '').trim()) {
+      throw new Error('sendListReply requires openTitle');
+    }
+
+    this._preSendIncoming = await this._incomingMessages();
+    const titlePattern = title instanceof RegExp
+      ? title
+      : new RegExp(escapeRegExp(String(title).trim()), 'i');
+    const openPattern = openTitle instanceof RegExp
+      ? openTitle
+      : new RegExp(escapeRegExp(String(openTitle).trim()), 'i');
+    const main = page.locator('#main');
+    const lastInbound = main.locator(
+      'div.message-in, div[data-testid="msg-container"]:not(.message-out)',
+    ).last();
+    const openCandidates = [
+      lastInbound.getByRole('button', { name: openPattern }).last(),
+      lastInbound.locator(SEL.buttonInMsg).filter({ hasText: openPattern }).last(),
+      main.getByRole('button', { name: openPattern }).last(),
+    ];
+
+    let opened = false;
+    for (const button of openCandidates) {
+      if (await button.isVisible().catch(() => false)) {
+        await button.click({ timeout: 5_000 });
+        opened = true;
+        break;
+      }
+    }
+    if (!opened) {
+      throw new Error(`No visible WA Web list opener matching ${String(openPattern)}`);
+    }
+
+    await sleep(250);
+    const rowCandidates = [
+      page.getByRole('button', { name: titlePattern }).last(),
+      page.getByRole('option', { name: titlePattern }).last(),
+      page.locator('div[role="button"], button').filter({ hasText: titlePattern }).last(),
+    ];
+    for (const row of rowCandidates) {
+      if (await row.isVisible().catch(() => false)) {
+        await row.click({ timeout: 5_000 });
+        return `wa-web-list-${Date.now()}`;
+      }
+    }
+
+    throw new Error(`No visible WA Web list row matching ${String(titlePattern)}`);
+  }
+
+  /**
    * Poll chat pane for a new incoming message matching includes.
    * @param {{ includes?: string|RegExp, timeoutMs?: number, afterTs?: number, pollMs?: number }} opts
    */

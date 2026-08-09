@@ -1,6 +1,11 @@
 'use strict';
 
-const { ordersRef, sessionRef, businessRef } = require('../../src/lib/collections');
+const {
+  ordersRef,
+  sessionRef,
+  businessRef,
+  customersRef,
+} = require('../../src/lib/collections');
 const { customerPhoneVariants, normalizeCustomerPhone } = require('../../src/lib/phone');
 
 function sleep(ms) {
@@ -19,7 +24,7 @@ function orderCreatedMs(order) {
 
 /**
  * Poll until a new order appears for the E2E customer phone.
- * @param {{ businessId: string, customerDisplay: string, afterMs?: number, status?: string|null, timeoutMs?: number, pollMs?: number }} opts
+ * @param {{ businessId: string, customerDisplay: string, afterMs?: number, status?: string|null, paymentMethod?: string|null, orderType?: string|null, timeoutMs?: number, pollMs?: number }} opts
  * @returns {Promise<{ id: string, [key: string]: any }>}
  */
 async function waitForOrder(opts) {
@@ -29,6 +34,7 @@ async function waitForOrder(opts) {
     afterMs = 0,
     status = 'pending',
     paymentMethod = null,
+    orderType = null,
     timeoutMs = 90_000,
     pollMs = 1500,
   } = opts;
@@ -37,7 +43,16 @@ async function waitForOrder(opts) {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const hit = await findLatestOrder(businessId, variants, { afterMs, status, paymentMethod });
+    const hit = await findLatestOrder(
+      businessId,
+      variants,
+      {
+        afterMs,
+        status,
+        paymentMethod,
+        orderType,
+      },
+    );
     if (hit) return hit;
     await sleep(pollMs);
   }
@@ -45,7 +60,8 @@ async function waitForOrder(opts) {
   throw new Error(
     `waitForOrder timed out after ${timeoutMs}ms `
     + `(businessId=${businessId}, customer=${normalizeCustomerPhone(customerDisplay)}, `
-    + `status=${status}${paymentMethod ? `, paymentMethod=${paymentMethod}` : ''})`,
+    + `status=${status}${paymentMethod ? `, paymentMethod=${paymentMethod}` : ''}`
+    + `${orderType ? `, orderType=${orderType}` : ''})`,
   );
 }
 
@@ -72,7 +88,16 @@ async function assertNoNewOrder(opts) {
   }
 }
 
-async function findLatestOrder(businessId, variants, { afterMs, status, paymentMethod = null }) {
+async function findLatestOrder(
+  businessId,
+  variants,
+  {
+    afterMs,
+    status,
+    paymentMethod = null,
+    orderType = null,
+  },
+) {
   if (!variants.length) return null;
 
   const phoneSlice = variants.slice(0, 10);
@@ -113,6 +138,7 @@ async function findLatestOrder(businessId, variants, { afterMs, status, paymentM
     .filter((o) => orderCreatedMs(o) > afterMs)
     .filter((o) => (status == null ? true : o.status === status))
     .filter((o) => (paymentMethod == null ? true : o.paymentMethod === paymentMethod))
+    .filter((o) => (orderType == null ? true : o.orderType === orderType))
     .sort((a, b) => orderCreatedMs(b) - orderCreatedMs(a));
 
   return filtered[0] || null;
@@ -164,6 +190,41 @@ async function markOrderPaid(businessId, orderId, opts = {}) {
   });
   const after = await ref.get();
   return { id: after.id, ...after.data() };
+}
+
+/**
+ * Remove persisted delivery addresses for the E2E customer.
+ * @param {string} businessId
+ * @param {string} customerDisplay
+ */
+async function clearLastDeliveryAddress(businessId, customerDisplay) {
+  const customerId = normalizeCustomerPhone(customerDisplay);
+  const ref = customersRef(businessId).doc(customerId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    console.log(`clearLastDeliveryAddress: customer not found ${customerId}; no-op`);
+    return;
+  }
+
+  const data = snap.data();
+  const allowed = new Set(customerPhoneVariants(customerDisplay));
+  const phone = String(data.phone || snap.id || '').replace(/\D/g, '');
+  const ok = [...allowed].some((variant) => (
+    String(variant).replace(/\D/g, '') === phone
+  ));
+  if (!ok) {
+    throw new Error(
+      `clearLastDeliveryAddress: customer ${snap.id} phone=${data.phone} `
+      + `does not match e2e customer ${customerDisplay}`,
+    );
+  }
+
+  const { admin } = require('../../src/lib/firebase');
+  const deleteField = admin.firestore.FieldValue.delete();
+  await ref.update({
+    lastDeliveryAddress: deleteField,
+    savedAddresses: deleteField,
+  });
 }
 
 async function getSession(customerDisplay) {
@@ -251,6 +312,7 @@ module.exports = {
   assertNoNewOrder,
   waitForOrderStatus,
   markOrderPaid,
+  clearLastDeliveryAddress,
   getSession,
   resetCustomerSession,
   waitForSession,

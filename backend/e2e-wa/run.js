@@ -35,10 +35,12 @@ ${Object.entries(TARGETS).map(([k, v]) => `  ${k.padEnd(12)} ${v.businessDisplay
 Options:
   --target <name>   test | test-benat | preprod | prod (prod needs E2E_WA_ALLOW_PROD=1)
   --scenario <id>   Run one scenario (repeatable)
-  --all-pack-a      happy_stripe_pickup + owner_status_path
+  --script <id>     Run one YAML script (repeatable)
+  --all-pack-a      happy_stripe_pickup + owner_status_path + happy_stripe_delivery
   --all-pack-b      neg_closed + neg_delivery_minimum + neg_cancel
-  --all             All scenarios
-  --list            List scenario ids
+  --all-pack-c      All YAML pack C scripts
+  --all             All JS scenarios (packs A + B only)
+  --list            List JS and YAML scenario ids
   --help
 
 Default: --target test, pack A (happy + owner).
