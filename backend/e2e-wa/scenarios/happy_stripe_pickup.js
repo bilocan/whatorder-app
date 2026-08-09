@@ -25,13 +25,16 @@ async function startCheckoutFromBrowsing(session, sess, log = () => {}) {
   try {
     return await session.waitForSession(
       (s) => s && s.state !== 'browsing',
+      { timeoutMs: 20_000 },
+    );
+  } catch (_) {
+    // WA Web often reports a click but the bubble never fires — use text.
+    log('still browsing after confirm click — sending fertig');
+    await session.sendText('fertig');
+    return session.waitForSession(
+      (s) => s && s.state !== 'browsing',
       { timeoutMs: 45_000 },
     );
-  } catch (err) {
-    if (session.waWeb?._dumpDebug) {
-      await session.waWeb._dumpDebug('checkout-stuck', {}).catch(() => {});
-    }
-    throw err;
   }
 }
 

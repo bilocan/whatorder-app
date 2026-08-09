@@ -173,6 +173,12 @@ async function runGate(session, body, timeoutMs) {
     if (order.orderType !== 'delivery') {
       throw new Error(`order_stripe_delivery expected delivery, got ${order.orderType || 'unset'}`);
     }
+    const wantPayment = body.paymentStatus || 'pending';
+    if (order.paymentStatus && order.paymentStatus !== wantPayment) {
+      throw new Error(
+        `order_stripe_delivery paymentStatus want=${wantPayment} got=${order.paymentStatus}`,
+      );
+    }
     const addr = String(order.deliveryAddress || '');
     if (!addr.trim()) throw new Error('order_stripe_delivery missing deliveryAddress');
     const needle = body.address_includes;

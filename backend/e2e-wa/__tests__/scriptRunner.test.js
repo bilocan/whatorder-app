@@ -302,6 +302,18 @@ test('order_stripe_delivery rejects a delivery address mismatch', async () => {
   })).rejects.toThrow(/address missing Hauptstraße.*Nebenstraße 9/i);
 });
 
+test('order_stripe_delivery rejects unexpected paymentStatus', async () => {
+  const session = fakeSession();
+  session.waitForOrder.mockResolvedValue({
+    orderType: 'delivery',
+    deliveryAddress: 'Hauptstraße 5',
+    paymentStatus: 'failed',
+  });
+  await expect(runScript(session, {
+    steps: [{ gate: { name: 'order_stripe_delivery' } }],
+  })).rejects.toThrow(/paymentStatus.*pending.*failed/);
+});
+
 test.each([
   ['business_bound', { name: 'business_bound' }],
   ['basket_empty', { name: 'basket_empty' }],
