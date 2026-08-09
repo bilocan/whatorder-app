@@ -194,6 +194,34 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     expect(page._dialog.isVisible).toHaveBeenCalled();
   });
 
+  test('sendText throws when modal stays open after Escape', async () => {
+    const page = mockPage({ dialogVisible: true });
+    page.keyboard.press = jest.fn().mockResolvedValue(undefined); // Escape does not clear
+    const customer = new WaWebCustomer(
+      { businessDisplay: '+4368120575797' },
+      { page },
+    );
+    customer._chatOpen = true;
+    await expect(customer.sendText('fertig')).rejects.toThrow(/modal dialog still open/i);
+    expect(page.keyboard.press).not.toHaveBeenCalledWith('Enter');
+  });
+
+  test('sendListReply dismisses stale modal before opening list', async () => {
+    const page = mockPage({
+      dialogVisible: true,
+      listOpenVisible: true,
+      listRowVisible: true,
+    });
+    const customer = new WaWebCustomer(
+      { businessDisplay: '+4368120575797' },
+      { page },
+    );
+    customer._chatOpen = true;
+    await customer.sendListReply({ title: /Adresse eingeben/i });
+    expect(page.keyboard.press).toHaveBeenCalledWith('Escape');
+    expect(page._listOpenBtn.click).toHaveBeenCalled();
+  });
+
   test('waitForReply uses pre-send message-id baseline from sendText', async () => {
     const page = mockPage({
       messages: [{ id: 'false_old', text: 'old inbound' }],

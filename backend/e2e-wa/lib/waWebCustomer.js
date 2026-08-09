@@ -289,18 +289,25 @@ class WaWebCustomer {
     throw new Error(`Could not open WA Web chat for ${display}`);
   }
 
+  async _isModalOverlayVisible() {
+    const page = this._requirePage();
+    const dialog = page.locator('[role="dialog"][aria-modal="true"]').first();
+    return dialog.isVisible().catch(() => false);
+  }
+
   /**
    * WA Web leaves modal sheets open after a stale list/button click; they intercept
-   * the composer. Escape until no aria-modal dialog is visible.
+   * the composer / list opener. Escape until clear; throw if still open.
    */
   async _dismissModalOverlays() {
     const page = this._requirePage();
     for (let i = 0; i < 4; i += 1) {
-      const dialog = page.locator('[role="dialog"][aria-modal="true"]').first();
-      const visible = await dialog.isVisible().catch(() => false);
-      if (!visible) return;
+      if (!(await this._isModalOverlayVisible())) return;
       await page.keyboard.press('Escape');
       await sleep(250);
+    }
+    if (await this._isModalOverlayVisible()) {
+      throw new Error('WA Web modal dialog still open after Escape; cannot interact with chat');
     }
   }
 
@@ -321,6 +328,10 @@ class WaWebCustomer {
     }
     await compose.fill('');
     await compose.type(String(body), { delay: 15 });
+    // Do not Enter into a reappeared sheet — that would look like a successful send.
+    if (await this._isModalOverlayVisible()) {
+      await this._dismissModalOverlays();
+    }
     await page.keyboard.press('Enter');
     return `wa-web-${Date.now()}`;
   }
@@ -383,6 +394,8 @@ class WaWebCustomer {
       throw new Error('sendListReply requires openTitle');
     }
 
+    // Clear stale sheets only — after we open the list, a dialog is expected.
+    await this._dismissModalOverlays();
     this._preSendIncoming = await this._incomingMessages();
     const titlePattern = title instanceof RegExp
       ? title
