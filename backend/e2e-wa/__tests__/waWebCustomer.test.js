@@ -50,7 +50,13 @@ describe('e2e-wa waWebCustomer helpers', () => {
 });
 
 describe('e2e-wa WaWebCustomer with mocked page', () => {
-  function mockPage({ texts = [], messages, composeVisible = true } = {}) {
+  function mockPage({
+    texts = [],
+    messages,
+    composeVisible = true,
+    listOpenVisible = false,
+    listRowVisible = false,
+  } = {}) {
     const compose = {
       waitFor: jest.fn().mockResolvedValue(undefined),
       click: jest.fn().mockResolvedValue(undefined),
@@ -67,7 +73,21 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
       isVisible: jest.fn().mockResolvedValue(false),
       click: jest.fn(),
     };
+    const listOpenBtn = {
+      isVisible: jest.fn().mockResolvedValue(listOpenVisible),
+      click: jest.fn().mockResolvedValue(undefined),
+    };
+    const listRowBtn = {
+      isVisible: jest.fn().mockResolvedValue(listRowVisible),
+      click: jest.fn().mockResolvedValue(undefined),
+    };
     let evaluateMessages = messages || texts.map((text, i) => ({ id: `false_${i}`, text }));
+
+    function roleTarget(name) {
+      if (name instanceof RegExp && name.test('Adresse wählen')) return listOpenBtn;
+      if (name instanceof RegExp && name.test('Adresse eingeben')) return listRowBtn;
+      return invisibleBtn;
+    }
 
     function pageLocator(sel) {
       if (sel === 'body') {
@@ -86,7 +106,7 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
       if (sel.includes('message-in') || sel.includes('msg-container')) {
         return {
           last: () => ({
-            getByRole: () => ({ last: () => invisibleBtn }),
+            getByRole: (_role, { name } = {}) => ({ last: () => roleTarget(name) }),
             locator: () => ({
               filter: () => ({ last: () => invisibleBtn }),
             }),
@@ -116,21 +136,23 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
       locator: (sel) => {
         if (sel === '#main') {
           return {
-            getByRole: () => ({ last: () => invisibleBtn }),
+            getByRole: (_role, { name } = {}) => ({ last: () => roleTarget(name) }),
             locator: (inner) => pageLocator(inner),
           };
         }
         return pageLocator(sel);
       },
-      getByRole: () => ({
-        first: () => invisibleBtn,
-        last: () => invisibleBtn,
+      getByRole: (_role, { name } = {}) => ({
+        first: () => roleTarget(name),
+        last: () => roleTarget(name),
       }),
       goto: jest.fn().mockResolvedValue(undefined),
       keyboard: { press: jest.fn().mockResolvedValue(undefined) },
       evaluate: jest.fn().mockImplementation(async () => evaluateMessages),
       _setMessages: (m) => { evaluateMessages = m; },
       _setTexts: (t) => { evaluateMessages = t.map((text, i) => ({ id: `false_${i}`, text })); },
+      _listOpenBtn: listOpenBtn,
+      _listRowBtn: listRowBtn,
     };
   }
 
@@ -238,5 +260,34 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     const id = await customer.sendButtonReply({ title: 'Bestätigen' });
     expect(id).toMatch(/^wa-web-/);
     expect(page.keyboard.press).toHaveBeenCalledWith('Enter');
+  });
+
+  test('sendListReply opens the latest list and clicks a row matching title', async () => {
+    const page = mockPage({ listOpenVisible: true, listRowVisible: true });
+    const customer = new WaWebCustomer(
+      { businessDisplay: '+4368120575797' },
+      { page },
+    );
+    customer._chatOpen = true;
+
+    const id = await customer.sendListReply({ title: /Adresse eingeben/i });
+
+    expect(page._listOpenBtn.click).toHaveBeenCalled();
+    expect(page._listRowBtn.click).toHaveBeenCalled();
+    expect(id).toMatch(/^wa-web-list-/);
+    expect(page.keyboard.press).not.toHaveBeenCalled();
+  });
+
+  test('sendListReply throws without sending text when no row matches', async () => {
+    const page = mockPage({ listOpenVisible: true });
+    const customer = new WaWebCustomer(
+      { businessDisplay: '+4368120575797' },
+      { page },
+    );
+    customer._chatOpen = true;
+
+    await expect(customer.sendListReply({ title: 'Adresse eingeben', fallback: true }))
+      .rejects.toThrow(/No visible WA Web list row/);
+    expect(page.keyboard.press).not.toHaveBeenCalled();
   });
 });
