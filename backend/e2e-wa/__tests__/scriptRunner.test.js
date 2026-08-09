@@ -155,6 +155,10 @@ test.each([
     /basket_qty.*unknown key.*item_include/i,
   ],
   [
+    { name: 'order_stripe', paymentStatu: 'pending' },
+    /order_stripe.*unknown key.*paymentStatu/i,
+  ],
+  [
     { name: 'order_stripe_delivery', address_include: 'Hauptstraße' },
     /order_stripe_delivery.*unknown key.*address_include/i,
   ],

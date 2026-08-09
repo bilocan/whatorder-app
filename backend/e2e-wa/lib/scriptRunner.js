@@ -46,7 +46,13 @@ const KNOWN_GATES = Object.freeze([
   'pending_intent',
 ]);
 const STRICT_GATE_KEYS = Object.freeze({
+  business_bound: new Set(['name']),
+  basket_empty: new Set(['name']),
+  basket_len: new Set(['name', 'eq', 'gte', 'lte']),
   basket_qty: new Set(['name', 'item_includes', 'eq', 'gte', 'lte']),
+  state: new Set(['name', 'eq', 'in']),
+  no_order: new Set(['name', 'timeout_ms', 'afterMs']),
+  order_stripe: new Set(['name', 'status', 'timeout_ms', 'afterMs', 'paymentStatus']),
   order_stripe_delivery: new Set([
     'name',
     'status',
@@ -55,6 +61,7 @@ const STRICT_GATE_KEYS = Object.freeze({
     'paymentStatus',
     'address_includes',
   ]),
+  pending_intent: new Set(['name', 'eq', 'gte']),
 });
 const SCRIPT_CLOCK_SKEW_BUFFER_MS = 5_000;
 
