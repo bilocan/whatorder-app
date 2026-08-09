@@ -1,10 +1,15 @@
 'use strict';
 
+const path = require('path');
+const { listScriptFiles } = require('../lib/scriptLoader');
+const { runScript } = require('../lib/scriptRunner');
 const happy_stripe_pickup = require('./happy_stripe_pickup');
 const owner_status_path = require('./owner_status_path');
 const neg_closed = require('./neg_closed');
 const neg_delivery_minimum = require('./neg_delivery_minimum');
 const neg_cancel = require('./neg_cancel');
+
+const SCRIPTS_DIR = path.join(__dirname, '../scripts');
 
 const ALL = [
   happy_stripe_pickup,
@@ -14,12 +19,63 @@ const ALL = [
   neg_cancel,
 ];
 
-const BY_ID = Object.fromEntries(ALL.map((s) => [s.id, s]));
+function listYamlScenarios() {
+  return listScriptFiles(SCRIPTS_DIR).map(({
+    id, pack, doc, error, path: scriptPath,
+  }) => ({
+    id,
+    pack,
+    format: 'yaml',
+    error,
+    run: async (session) => {
+      if (error) {
+        throw new Error(`Invalid YAML scenario ${id} (${scriptPath}): ${error.message}`);
+      }
+      return runScript(session, doc);
+    },
+    scriptPath,
+  }));
+}
+
+function buildScenarioIndex(scenarios) {
+  const index = Object.create(null);
+  for (const scenario of scenarios) {
+    if (index[scenario.id]) {
+      throw new Error(`Duplicate scenario id: ${scenario.id}`);
+    }
+    index[scenario.id] = scenario;
+  }
+  return index;
+}
+
+const YAML_SCENARIOS = listYamlScenarios();
+const BY_ID = buildScenarioIndex([...ALL, ...YAML_SCENARIOS]);
 // Alias for older CLI / docs
+if (BY_ID.happy_cash_pickup) {
+  throw new Error('Duplicate scenario id: happy_cash_pickup');
+}
 BY_ID.happy_cash_pickup = happy_stripe_pickup;
 
+function listPackAScenarios(jsA, yamlA) {
+  const byId = Object.fromEntries([...jsA, ...yamlA].map((s) => [s.id, s]));
+  const expected = ['happy_stripe_pickup', 'owner_status_path', 'happy_stripe_delivery'];
+  for (const id of expected) {
+    if (!byId[id]) throw new Error(`Pack A missing required scenario: ${id}`);
+  }
+  const ordered = expected.map((id) => byId[id]);
+  const rest = [...jsA, ...yamlA].filter((s) => !expected.includes(s.id));
+  return [...ordered, ...rest];
+}
+
 function listScenarios({ pack } = {}) {
-  if (!pack) return ALL;
+  if (!pack) return [...ALL, ...YAML_SCENARIOS];
+  if (pack === 'a') {
+    const jsA = ALL.filter((s) => s.pack === 'a');
+    const yamlA = YAML_SCENARIOS.filter((s) => s.pack === 'a');
+    return listPackAScenarios(jsA, yamlA);
+  }
+  if (pack === 'c') return YAML_SCENARIOS.filter((s) => s.pack === pack);
+  // pack b: JS only (YAML pack b ignored by design)
   return ALL.filter((s) => s.pack === pack);
 }
 
@@ -29,6 +85,9 @@ function resolveScenarioIds(argv) {
   }
   if (argv.includes('--all-pack-b') || argv.includes('--pack=b') || argv.includes('--pack-b')) {
     return listScenarios({ pack: 'b' }).map((s) => s.id);
+  }
+  if (argv.includes('--all-pack-c')) {
+    return listScenarios({ pack: 'c' }).map((s) => s.id);
   }
   if (argv.includes('--all')) {
     return ALL.map((s) => s.id);
@@ -41,6 +100,11 @@ function resolveScenarioIds(argv) {
       i += 1;
     } else if (argv[i].startsWith('--scenario=')) {
       ids.push(argv[i].slice('--scenario='.length));
+    } else if (argv[i] === '--script' && argv[i + 1]) {
+      ids.push(argv[i + 1]);
+      i += 1;
+    } else if (argv[i].startsWith('--script=')) {
+      ids.push(argv[i].slice('--script='.length));
     }
   }
 
@@ -54,6 +118,8 @@ function resolveScenarioIds(argv) {
 module.exports = {
   ALL,
   BY_ID,
+  buildScenarioIndex,
+  listPackAScenarios,
   listScenarios,
   resolveScenarioIds,
 };

@@ -1,16 +1,15 @@
 'use strict';
 
 const {
-  clickAny,
   openRestaurant,
   addAyranToBasket,
   startCheckoutFromBasket,
-  sleep,
 } = require('./helpers');
 
 /**
  * Start checkout then cancel / clear — no order placed.
- * Hard: assertNoNewOrder. Soft: cancel/clear WhatsApp copy.
+ * Hard: empty basket + browsing + assertNoNewOrder.
+ * Soft: cancel WhatsApp copy.
  * @param {import('../lib/session').WaE2eSession} session
  */
 async function run(session) {
@@ -30,31 +29,21 @@ async function run(session) {
     );
   }
 
-  log('abort checkout / clear basket');
-  // Prefer clear-basket button, then text cancel paths.
-  const cleared = await clickAny(session, ['Löschen', 'Clear', 'Temizle', 'Abbrechen', 'Cancel']);
-  if (cleared) {
-    log('clicked', cleared);
-  } else {
-    await session.sendText('abbrechen');
-  }
-  await sleep(2500);
+  log('abort checkout with clear synonym (not note)');
+  // Prefer text cancel so we do not click a stale browsing "Löschen" button in chat history.
+  // Product must treat "löschen" as cancel on confirming, not as specialRequests.
+  await session.sendText('löschen');
 
-  // If still holding a basket / mid-checkout, force clear with "alles" / nein.
-  sess = await session.getSession();
-  if ((sess?.basket?.length || 0) > 0 || ['confirming', 'awaiting_order_type', 'awaiting_confirmation'].includes(sess?.state)) {
-    log('still mid-flow — sending nein / alles');
-    await session.sendText('nein');
-    await sleep(2000);
-    sess = await session.getSession();
-    if ((sess?.basket?.length || 0) > 0) {
-      await session.sendText('alles löschen');
-      await sleep(2000);
-    }
-  }
+  log('assert basket cleared');
+  await session.waitForSession(
+    (s) => s
+      && s.state === 'browsing'
+      && (s.basket?.length || 0) === 0,
+    { timeoutMs: 45_000 },
+  );
 
   await session.waitForReply({
-    includes: /abbruch|cancel|abgebrochen|ok|menü|bestell|warenkorb|gelöscht|cleared|leer|empty/i,
+    includes: /abbruch|cancel|abgebrochen|gelöscht|cleared|leer|empty|menü|bestell|warenkorb|order cancelled/i,
     timeoutMs: 45_000,
   }).catch((err) => {
     console.warn('[neg_cancel] cancel-copy soft-fail:', err.message);

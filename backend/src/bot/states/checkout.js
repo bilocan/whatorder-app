@@ -39,7 +39,7 @@ const {
   buildCheckoutReviewData,
   buildConfirmFlowDraft,
 } = require('../checkoutConfirmFlow');
-const { isBasketUndoPhrase, detectBotCommandAsync, BOT_COMMAND } = require('../botCommands');
+const { isBasketUndoPhrase, detectBotCommandAsync, detectBotCommandRules, BOT_COMMAND } = require('../botCommands');
 const {
   parseOrderTypeKeyword,
   isBareCheckoutDigit,
@@ -62,7 +62,16 @@ const { recordParseFailure, resetParseFailures } = require('../postOrder');
 
 // M2: bare `1` no longer confirms — use list row btn_place_order only (digit disambiguation).
 const CONFIRM = new Set(['yes', 'evet', 'ja', 'oui', 'si', 'ok', 'tamam', 'confirm', 'onayla', 'bestätigen', 'bestatigen']);
-const CANCEL  = new Set(['no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal']);
+// Whole-message only (norm). Clear/abort synonyms must cancel, not become confirm notes (e.g. "Löschen").
+const CANCEL = new Set([
+  'no', 'hayır', 'hayir', 'nein', 'cancel', 'iptal',
+  'löschen', 'loschen', 'lösche', 'lösch',
+  'clear', 'clear basket', 'clear all', 'delete', 'delete all',
+  'abbrechen', 'abbruch',
+  'alles löschen', 'alles loschen',
+  'warenkorb leeren',
+  'temizle', 'sepeti temizle', 'tümünü sil', 'tumunu sil', 'hepsini sil',
+]);
 
 function logPaymentSkipped(businessId, info) {
   if (info.paymentEnabled !== true) {
@@ -1255,6 +1264,13 @@ async function handleAwaitingName({ from, session, lang, businessId, basket, typ
     return;
   }
 
+  // Checkout keywords (fertig / done / tamam) are not names — re-ask.
+  if (type === 'text' && detectBotCommandRules(text)?.command === BOT_COMMAND.CONFIRM_CHECKOUT) {
+    const askId = await sendText(from, t('askName', lang));
+    await setSession(from, { ...session, pendingDeleteIds: askId ? [askId] : [] });
+    return;
+  }
+
   if (type === 'text' && norm.length > 0) {
     const name = text.trim().slice(0, 60);
     const info = await getBusinessInfo(businessId);
@@ -1333,8 +1349,12 @@ async function handleConfirming({
   }
 
   const replyId = (type === 'list_reply' || type === 'button_reply') ? id : null;
-  const isConfirm = replyId === 'btn_place_order' || CONFIRM.has(norm);
-  const isCancel  = replyId === 'btn_cancel_order' || CANCEL.has(norm);
+  const isConfirm = replyId === 'btn_place_order'
+    || CONFIRM.has(norm)
+    || detectBotCommandRules(text)?.command === BOT_COMMAND.CONFIRM_CHECKOUT;
+  const isCancel = replyId === 'btn_cancel_order'
+    || replyId === 'btn_clear_basket'
+    || CANCEL.has(norm);
 
   if (replyId === 'confirm_edit_name') {
     const askId = await sendText(from, t('askNameEdit', lang, session.customerName || ''));

@@ -35,6 +35,7 @@ describe('e2e-wa WaE2eSession', () => {
     const waWeb = {
       sendText: jest.fn().mockResolvedValue('wa-web-1'),
       sendButtonReply: jest.fn().mockResolvedValue('wa-web-2'),
+      sendListReply: jest.fn().mockResolvedValue('wa-web-3'),
       waitForReply: jest.fn().mockResolvedValue({ text: 'Menü hier' }),
       close: jest.fn().mockResolvedValue(undefined),
     };
@@ -50,6 +51,22 @@ describe('e2e-wa WaE2eSession', () => {
 
     await session.sendText('hi');
     expect(waWeb.sendText).toHaveBeenCalledWith('hi');
+
+    await session.sendButtonReply({ id: 'button-1', title: 'Confirm', fallback: false });
+    expect(waWeb.sendButtonReply).toHaveBeenCalledWith({
+      id: 'button-1',
+      title: 'Confirm',
+      fallback: false,
+    });
+
+    await session.sendListReply({
+      title: /Adresse eingeben/i,
+      openTitle: /Adresse wählen/i,
+    });
+    expect(waWeb.sendListReply).toHaveBeenCalledWith({
+      title: /Adresse eingeben/i,
+      openTitle: /Adresse wählen/i,
+    });
 
     const reply = await session.waitForReply({ includes: /menü/i });
     expect(waWeb.waitForReply).toHaveBeenCalled();

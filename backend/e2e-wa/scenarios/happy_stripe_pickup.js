@@ -1,5 +1,43 @@
 'use strict';
 
+async function clickAny(session, titles) {
+  for (const title of titles) {
+    try {
+      await session.sendButtonReply({ title, fallback: false });
+      return title;
+    } catch (_) {
+      /* try next label */
+    }
+  }
+  return null;
+}
+
+async function startCheckoutFromBrowsing(session, sess, log = () => {}) {
+  if (sess?.state !== 'browsing') return sess;
+
+  const clickedDone = await clickAny(session, ['Confirm', 'Bestätigen', 'Done', 'Fertig']);
+  if (clickedDone) {
+    log('clicked', clickedDone);
+  } else {
+    log('no confirm bubble — sending fertig');
+    await session.sendText('fertig');
+  }
+  try {
+    return await session.waitForSession(
+      (s) => s && s.state !== 'browsing',
+      { timeoutMs: 20_000 },
+    );
+  } catch (_) {
+    // WA Web often reports a click but the bubble never fires — use text.
+    log('still browsing after confirm click — sending fertig');
+    await session.sendText('fertig');
+    return session.waitForSession(
+      (s) => s && s.state !== 'browsing',
+      { timeoutMs: 45_000 },
+    );
+  }
+}
+
 /**
  * Happy path: Stripe card pickup order via real WhatsApp + Firestore assert.
  * WhatOrder checkout with paymentEnabled uses Stripe only (no cash picker).
@@ -15,18 +53,6 @@
  */
 async function run(session) {
   const log = (...a) => console.log('[happy_stripe_pickup]', ...a);
-
-  async function clickAny(titles) {
-    for (const title of titles) {
-      try {
-        await session.sendButtonReply({ title, fallback: false });
-        return title;
-      } catch (_) {
-        /* try next label */
-      }
-    }
-    return null;
-  }
 
   log('reset customer session (avoid stuck awaiting_location)');
   await session.resetCustomerSession();
@@ -59,7 +85,7 @@ async function run(session) {
   log('confirm proposal if needed');
   let sess = await session.getSession();
   if ((sess?.pendingIntentItems?.length || 0) > 0) {
-    const clickedAdd = await clickAny(['Hinzufügen', 'Add to basket', 'Sepete ekle']);
+    const clickedAdd = await clickAny(session, ['Hinzufügen', 'Add to basket', 'Sepete ekle']);
     if (clickedAdd) log('clicked', clickedAdd);
     await new Promise((r) => setTimeout(r, 3000));
     sess = await session.getSession();
@@ -82,21 +108,7 @@ async function run(session) {
 
   log('checkout → Confirm (post-add uses btn_confirm)');
   sess = await session.getSession();
-  if (sess?.state === 'browsing') {
-    const clickedDone = await clickAny(['Confirm', 'Bestätigen', 'Done', 'Fertig']);
-    if (clickedDone) log('clicked', clickedDone);
-    try {
-      sess = await session.waitForSession(
-        (s) => s && s.state !== 'browsing',
-        { timeoutMs: 45_000 },
-      );
-    } catch (err) {
-      if (session.waWeb?._dumpDebug) {
-        await session.waWeb._dumpDebug('checkout-stuck', {}).catch(() => {});
-      }
-      throw err;
-    }
-  }
+  sess = await startCheckoutFromBrowsing(session, sess, log);
   log('state after checkout start:', sess.state);
 
   if (sess.state === 'awaiting_name') {
@@ -113,7 +125,10 @@ async function run(session) {
   // Bot state is `confirming` (not awaiting_confirmation / awaiting_payment).
   if (sess?.state === 'confirming') {
     log('final confirm → Stripe order + pay link');
-    const clickedConfirm = await clickAny(['Bestätigen', 'Confirm', 'Bestätigen ✅', 'Confirm ✅']);
+    const clickedConfirm = await clickAny(
+      session,
+      ['Bestätigen', 'Confirm', 'Bestätigen ✅', 'Confirm ✅'],
+    );
     if (!clickedConfirm) await session.sendText('ja');
   }
 
@@ -139,4 +154,9 @@ async function run(session) {
   return { order };
 }
 
-module.exports = { id: 'happy_stripe_pickup', pack: 'a', run };
+module.exports = {
+  id: 'happy_stripe_pickup',
+  pack: 'a',
+  run,
+  startCheckoutFromBrowsing,
+};

@@ -1,0 +1,12 @@
+id: basket_edit_mid_checkout
+pack: c
+priority: p1
+manual: "M1 rows 4–5 (browsing edit)"
+timeout_ms: 60000
+steps:
+  - macro: open_restaurant
+  - macro: add_ayran_pickup
+  - gate: { name: basket_len, eq: 1 }
+  - send: { text: "mach 2 ayran" }
+  - gate: { name: basket_qty, item_includes: "ayran", eq: 2 }
+  - gate: { name: no_order }

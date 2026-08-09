@@ -167,11 +167,14 @@ Return JSON only with fields: command, confidence.
 command must be one of:
 - view_basket: customer wants to see their cart (warenkorb, show basket, was hab ich, sepeti göster, zeig mal den warenkorb)
 - undo: revert the last cart change (rückgängig, undo, geri al, zurück ONLY when undo is available in context)
-- none: food orders, menu item names, greetings, search, checkout steps, or anything else
+- confirm_checkout: customer wants to finish ordering / proceed to checkout (fertig, done, confirm, bestätigen, onayla, tamam) — usually a short whole message, not a dish name
+- none: food orders, menu item names, greetings, search, or anything else
 
 Rules:
 - Single dish/drink names or order phrasing ("2 döner", "cola dazu") → none (handled by a separate order parser).
 - Use undo only when context says undo is available AND the message clearly means revert/undo, not "go back to menu".
+- Prefer confirm_checkout for alone fertig/done/confirm/tamam when basket has items; if basket is empty still allow confirm_checkout for those words.
+- Alone "bestellen" / "order" → none (order opener / food path), not confirm_checkout.
 - confidence: 0.0–1.0; use <0.85 when unsure.`;
 
 const OPENAI_COMMAND_SCHEMA = {
@@ -179,7 +182,7 @@ const OPENAI_COMMAND_SCHEMA = {
   properties: {
     command: {
       type: 'string',
-      enum: ['view_basket', 'undo', 'none'],
+      enum: ['view_basket', 'undo', 'confirm_checkout', 'none'],
     },
     confidence: { type: 'number' },
   },
@@ -191,7 +194,7 @@ const GEMINI_COMMAND_SCHEMA = {
   properties: {
     command: {
       type: 'string',
-      enum: ['view_basket', 'undo', 'none'],
+      enum: ['view_basket', 'undo', 'confirm_checkout', 'none'],
     },
     confidence: { type: 'number' },
   },
@@ -708,7 +711,7 @@ function validateCommandPayload(data) {
   const confidence = Number(data.confidence);
   if (!Number.isFinite(confidence)) return null;
   const command = String(data.command ?? '').toLowerCase();
-  const allowed = new Set(['view_basket', 'undo', 'none']);
+  const allowed = new Set(['view_basket', 'undo', 'confirm_checkout', 'none']);
   if (!allowed.has(command)) return null;
   return {
     command,

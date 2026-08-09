@@ -270,6 +270,26 @@ describe('awaiting_name: non-text input shows order summary', () => {
     expect(setSession).not.toHaveBeenCalled();
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringContaining('Döner'));
   });
+
+  test.each([['fertig'], ['Fertig!'], ['done'], ['tamam'], ['bestätigen']])(
+    'checkout keyword "%s" is not saved as customer name',
+    async (phrase) => {
+      getSession.mockResolvedValue({
+        language: 'de', state: 'awaiting_name', businessId: BIZ,
+        basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+        prepMins: 20,
+        pickupTime: '14:30',
+      });
+
+      await handleMessage(ROUTING, msg({ text: phrase }));
+
+      expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+        customerName: expect.stringMatching(/fertig|done|tamam|bestät/i),
+      }));
+      expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'confirming' }));
+      expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/Name/i));
+    },
+  );
 });
 
 describe('Confirm list: edit name and address before placing order', () => {
@@ -466,6 +486,29 @@ describe('Confirming state: ambiguous input', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
   });
 
+  test.each([
+    ['fertig'],
+    ['Fertig!'],
+    ['done'],
+    ['bestätigen'],
+    ['onayla'],
+    ['tamam'],
+  ])('text "%s" on confirming places order — not saved as note', async (phrase) => {
+    getBusinessInfo.mockResolvedValue(CARD_READY_BIZ);
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'Ali', pickupTime: '14:30', specialRequests: '',
+      orderType: 'pickup',
+    });
+
+    await handleMessage(ROUTING, msg({ text: phrase }));
+
+    expect(createOrder).toHaveBeenCalled();
+    const noteWrite = setSession.mock.calls.find(([, data]) => data.specialRequests === phrase);
+    expect(noteWrite).toBeUndefined();
+  });
+
   test('text "no" cancels order (text-path CANCEL keyword)', async () => {
     getSession.mockResolvedValue({
       language: 'en', state: 'confirming',
@@ -478,6 +521,59 @@ describe('Confirming state: ambiguous input', () => {
     expect(createOrder).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
     expect(sendListMessage).toHaveBeenCalled();
+  });
+
+  test('text "Löschen" cancels — does not become specialRequests note', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Mis Ayran 0.25L', qty: 1, price: 2.5 }],
+      customerName: 'E2E Testkunde',
+      pickupTime: '14:47',
+      orderType: 'pickup',
+      specialRequests: '',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Löschen' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: [],
+    }));
+    const noteWrite = setSession.mock.calls.find(([, data]) => data.specialRequests === 'Löschen');
+    expect(noteWrite).toBeUndefined();
+    // Single-restaurant cancel re-opens catalog with checkoutCancelled body (not a bare sendText).
+    expect(sendListMessage).toHaveBeenCalled();
+  });
+
+  test('text "abbrechen" cancels on confirming', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.5 }],
+      customerName: 'Ali',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'abbrechen' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
+  });
+
+  test('btn_clear_basket on confirming cancels (stale browsing button)', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 1, price: 8.5 }],
+      customerName: 'Ali',
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'button_reply',
+      id: 'btn_clear_basket',
+      title: 'Löschen',
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
   });
 });
 

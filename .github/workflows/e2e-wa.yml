@@ -56,18 +56,15 @@ jobs:
           set -e
           echo "diagnose_exit=$code" >> "$GITHUB_OUTPUT"
           if [ "$code" -eq 2 ]; then
-            echo "::warning::WA Web session dead (diagnose exit 2). Re-link via Contabo CRD, then re-run. Soft-skipping packs."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "::error::WA Web session dead (diagnose exit 2). Re-link via Contabo CRD, then re-run. Job fails (no soft-skip success)."
+            exit 1
           fi
           if [ "$code" -ne 0 ]; then
             echo "::error::WA Web diagnose failed unexpectedly (exit $code)"
             exit "$code"
           fi
-          echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Pack A (happy + owner)
-        if: steps.diagnose.outputs.skip != 'true'
         env:
           E2E_WA_CUSTOMER_TRANSPORT: wa-web
           E2E_WA_WEB_USER_DATA_DIR: /var/lib/whatorder-e2e/wa-web-profile
@@ -78,7 +75,6 @@ jobs:
           xvfb-run -a npm run e2e:wa -- --target test --all-pack-a
 
       - name: Pack B (negatives)
-        if: steps.diagnose.outputs.skip != 'true'
         env:
           E2E_WA_CUSTOMER_TRANSPORT: wa-web
           E2E_WA_WEB_USER_DATA_DIR: /var/lib/whatorder-e2e/wa-web-profile

@@ -18,6 +18,34 @@ cd backend
 npm test -- --testPathPatterns=e2e-wa
 ```
 
+## Data-driven scripts
+
+Scenarios in Pack A and Pack C may use YAML scripts in `e2e-wa/scripts/<id>.yml`; Pack B remains JS-only. Use the existing `macro`, `send`, `tap`, `expect_reply`, `gate`, and `sleep` steps; reply-copy checks may be soft, but every scenario must include a named hard gate. Add new reusable behavior to the interpreter as a macro or gate instead of embedding JavaScript in YAML.
+
+**Pack A example:** `scripts/happy_stripe_delivery.yml` (checkout → Stripe delivery order).
+
+**Pack C examples:**
+
+| Script | Manual ref | Hard gates |
+|--------|------------|------------|
+| `neg_confirm_digit.yml` | M2 rows 12, 37 | `no_order`, `state` confirming |
+| `basket_edit_mid_checkout.yml` | M1 rows 4–5 | `basket_len` eq 1, `basket_qty` ayran eq 2, `no_order` |
+| `happy_delivery_address_prompt.yml` | M2 row 50 | address `state`, `order_stripe_delivery` |
+| `fertig_confirm_checkout.yml` | Contabo TR: typed `fertig` ≠ menu search | leave `browsing` → name/confirm/order-type, `no_order` |
+| `fertig_punct_confirm_checkout.yml` | Mobile `Fertig!` | same state gate as above |
+
+```bash
+npm run e2e:wa -- --script neg_confirm_digit
+npm run e2e:wa -- --script basket_edit_mid_checkout
+npm run e2e:wa -- --script happy_delivery_address_prompt
+npm run e2e:wa -- --script fertig_confirm_checkout
+npm run e2e:wa -- --script fertig_punct_confirm_checkout
+npm run e2e:wa -- --all-pack-c
+npm run e2e:wa -- --list
+```
+
+The default nightly run remains Pack A+B, including YAML scenarios registered in Pack A. Pack C is not nightly by default; verify new Pack C scripts on Contabo before promoting them.
+
 ## Contabo live run (wa-web)
 
 **Important:** Chrome `headless=true` often never shows a logged-in WhatsApp Web UI. On Contabo use **headed Chromium under Xvfb**. Default browser channel is system **Google Chrome** (`E2E_WA_WEB_CHANNEL=chrome`) because WA Web rejects old Playwright-bundled Chromium.
@@ -120,7 +148,7 @@ Workflow: `.github/workflows/e2e-wa.yml` — `schedule` (03:00 UTC) + `workflow_
 gh workflow run e2e-wa.yml --ref feature/whatsapp-e2e-automation
 ```
 
-Diagnose exit codes: `0` ok, `2` session dead (workflow soft-skips packs), `1` unexpected error. Secrets: Contabo `backend/.env.local` (symlinked into the job workspace).
+Diagnose exit codes: `0` ok, `2` session dead (workflow **fails** the job; re-link via Contabo CRD), `1` unexpected error. Secrets: Contabo `backend/.env.local` (symlinked into the job workspace).
 
 **Safety:** `loadConfig` requires `FIREBASE_PROJECT_ID=whatorder-fire` for `target=test` (refuses `whatorder-fire-prod` unless preprod/prod + allow). Reply-server binds `127.0.0.1` by default (`E2E_WA_REPLY_HOST` to override).
 

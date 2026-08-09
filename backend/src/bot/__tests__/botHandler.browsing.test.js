@@ -318,6 +318,207 @@ describe('Browsing state: button actions', () => {
   });
 });
 
+// ─── Confirm-checkout text (fertig) — Contabo / WA Web e2e regression ─────────
+
+describe('Browsing state: confirm-checkout text commands', () => {
+  const basket = [
+    { name: 'Kebap Sandwich Huhn', qty: 1, price: 8.00 },
+    { name: 'Ayran', qty: 1, price: 2.00 },
+  ];
+
+  function outboundBodies() {
+    return [
+      ...sendText.mock.calls.map((c) => c[1]),
+      ...sendButtonMessage.mock.calls.map((c) => c[1]?.body),
+      ...sendListMessage.mock.calls.map((c) => c[1]?.body),
+    ].filter(Boolean);
+  }
+
+  function expectNoSearchMissFor(query) {
+    const bodies = outboundBodies().join('\n');
+    expect(bodies).not.toMatch(new RegExp(`"${query}" için sonuç yok`, 'i'));
+    expect(bodies).not.toMatch(new RegExp(`Keine Treffer für "${query}"`, 'i'));
+    expect(bodies).not.toMatch(new RegExp(`No matches for "${query}"`, 'i'));
+  }
+
+  test.each([
+    ['fertig'],
+    ['Fertig'],
+    ['Fertig!'],
+    ['fertig.'],
+    ['done'],
+    ['confirm'],
+    ['bestätigen'],
+    ['onayla'],
+    ['tamam'],
+    ['Tamam'],
+  ])('"%s" with non-empty basket starts checkout (same as btn_confirm)', async (phrase) => {
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'browsing', businessId: BIZ, basket,
+    });
+
+    await handleMessage(ROUTING, msg({ text: phrase }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+    expectNoSearchMissFor(phrase.replace(/[^\p{L}\p{N}\s]/gu, '').trim());
+    expectNoSearchMissFor(phrase);
+  });
+
+  test('"bestellen" with empty basket does not force empty-basket checkout catalog', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ, basket: [],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'bestellen' }));
+
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+    // Must not take the fertig empty-basket path (catalog with basketEmpty alone as checkout).
+    expect(outboundBodies().join('\n')).not.toMatch(/Warenkorb ist leer|basket is empty|sepetiniz boş/i);
+  });
+
+  test.each([['onayla'], ['confirm'], ['fertig']])(
+    'pending proposal + "%s" confirms intent (not empty-basket checkout)',
+    async (phrase) => {
+      getSession.mockResolvedValue({
+        language: 'tr', state: 'browsing', businessId: BIZ, basket: [],
+        pendingIntentItems: [
+          { name: 'Ayran', qty: 1, price: 2.00, menuItemId: 'item_2', optionGroups: [] },
+        ],
+      });
+
+      await handleMessage(ROUTING, msg({ text: phrase }));
+
+      expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+        state: 'browsing',
+        basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+      }));
+      expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+        state: 'awaiting_name',
+      }));
+      expectNoSearchMissFor(phrase);
+    },
+  );
+
+  test('TR session + fertig after post-add CTAs does not menu-search (Contabo regression)', async () => {
+    // Screenshot: lang TR, Onayla/Daha Ekle/Sepeti Gör visible, customer typed fertig → "sonuç yok".
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'browsing', businessId: BIZ, basket,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'fertig' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+      basket,
+    }));
+    expectNoSearchMissFor('fertig');
+    expect(outboundBodies().join('\n')).not.toMatch(/Popüler|Tam menü|Ara/i);
+  });
+
+  test('unknown short token still menu-searches (search path not broken)', async () => {
+    getSession.mockResolvedValue({
+      language: 'tr', state: 'browsing', businessId: BIZ, basket,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'xyzzyqq' }));
+
+    const bodies = outboundBodies().join('\n');
+    expect(bodies).toMatch(/"xyzzyqq" için sonuç yok/);
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+  });
+
+  test('fertig with empty basket does not search; shows empty-basket catalog', async () => {
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ, basket: [],
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'fertig' }));
+
+    expectNoSearchMissFor('fertig');
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+  });
+
+  test('text fertig and btn_confirm both show closed when restaurant is closed', async () => {
+    // Non-empty schedule whose day keys never match Sun–Sat → always closed (no fake timers).
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      schedule: {
+        '99': {
+          openTime: '09:00', closeTime: '22:00', firstOrderTime: '09:00', lastOrderTime: '21:00',
+        },
+      },
+    });
+    const session = {
+      language: 'en', state: 'browsing', businessId: BIZ, basket,
+    };
+
+    getSession.mockResolvedValue(session);
+    await handleMessage(ROUTING, msg({ text: 'fertig' }));
+    const textBodies = outboundBodies().join('\n');
+    expect(textBodies).toMatch(/currently closed/i);
+    expectNoSearchMissFor('fertig');
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+
+    jest.clearAllMocks();
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      schedule: {
+        '99': {
+          openTime: '09:00', closeTime: '22:00', firstOrderTime: '09:00', lastOrderTime: '21:00',
+        },
+      },
+    });
+    getMenu.mockResolvedValue(MENU);
+    getSession.mockResolvedValue(session);
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm', title: 'Confirm' }));
+    expect(outboundBodies().join('\n')).toMatch(/currently closed/i);
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
+    }));
+  });
+
+  test('text fertig and btn_confirm both re-show delivery min gate when below minimum', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 50, conversationalBasket: false,
+    });
+    const session = {
+      language: 'en', state: 'browsing', businessId: BIZ, basket,
+      orderType: 'delivery',
+      // no deliveryAddress → gated
+    };
+
+    getSession.mockResolvedValue(session);
+    await handleMessage(ROUTING, msg({ text: 'fertig' }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.not.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+    }));
+    expectNoSearchMissFor('fertig');
+
+    jest.clearAllMocks();
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO, deliveryEnabled: true, minimumOrderValue: 50, conversationalBasket: false,
+    });
+    getMenu.mockResolvedValue(MENU);
+    getSession.mockResolvedValue(session);
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm', title: 'Confirm' }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.not.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+    }));
+  });
+});
+
 // ─── Browsing state: basket keyword ──────────────────────────────────────────
 
 describe('Browsing state: basket keyword', () => {

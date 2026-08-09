@@ -289,16 +289,49 @@ class WaWebCustomer {
     throw new Error(`Could not open WA Web chat for ${display}`);
   }
 
+  async _isModalOverlayVisible() {
+    const page = this._requirePage();
+    const dialog = page.locator('[role="dialog"][aria-modal="true"]').first();
+    return dialog.isVisible().catch(() => false);
+  }
+
+  /**
+   * WA Web leaves modal sheets open after a stale list/button click; they intercept
+   * the composer / list opener. Escape until clear; throw if still open.
+   */
+  async _dismissModalOverlays() {
+    const page = this._requirePage();
+    for (let i = 0; i < 4; i += 1) {
+      if (!(await this._isModalOverlayVisible())) return;
+      await page.keyboard.press('Escape');
+      await sleep(250);
+    }
+    if (await this._isModalOverlayVisible()) {
+      throw new Error('WA Web modal dialog still open after Escape; cannot interact with chat');
+    }
+  }
+
   async sendText(body) {
     const page = this._requirePage();
     if (!this._chatOpen) await this.openBusinessChat();
+    await this._dismissModalOverlays();
     const compose = page.locator(SEL.composeBox).first();
     await compose.waitFor({ state: 'visible', timeout: 30_000 });
     // Snapshot message ids BEFORE Enter (text alone is unstable across identical bot replies).
     this._preSendIncoming = await this._incomingMessages();
-    await compose.click();
+    try {
+      await compose.click({ timeout: 5_000 });
+    } catch (_) {
+      // Overlay still intercepting after Escape — force past pointer blockers.
+      await this._dismissModalOverlays();
+      await compose.click({ timeout: 10_000, force: true });
+    }
     await compose.fill('');
     await compose.type(String(body), { delay: 15 });
+    // Do not Enter into a reappeared sheet — that would look like a successful send.
+    if (await this._isModalOverlayVisible()) {
+      await this._dismissModalOverlays();
+    }
     await page.keyboard.press('Enter');
     return `wa-web-${Date.now()}`;
   }
@@ -341,6 +374,71 @@ class WaWebCustomer {
       throw new Error(`No visible WA Web button matching ${JSON.stringify(label)}`);
     }
     return this.sendText(label);
+  }
+
+  /**
+   * Open the newest inbound list message and select a row by title.
+   * List replies never fall back to typing the row title as text.
+   * @param {{ title: string|RegExp, openTitle?: string|RegExp }} opts
+   */
+  async sendListReply({
+    title,
+    openTitle = /Adresse wählen|Choose address|Adres seç|Wählen|Choose|Seç/i,
+  } = {}) {
+    const page = this._requirePage();
+    if (!this._chatOpen) await this.openBusinessChat();
+    if (!(title instanceof RegExp) && !String(title || '').trim()) {
+      throw new Error('sendListReply requires title');
+    }
+    if (!(openTitle instanceof RegExp) && !String(openTitle || '').trim()) {
+      throw new Error('sendListReply requires openTitle');
+    }
+
+    // Clear stale sheets only — after we open the list, a dialog is expected.
+    await this._dismissModalOverlays();
+    this._preSendIncoming = await this._incomingMessages();
+    const titlePattern = title instanceof RegExp
+      ? title
+      : new RegExp(escapeRegExp(String(title).trim()), 'i');
+    const openPattern = openTitle instanceof RegExp
+      ? openTitle
+      : new RegExp(escapeRegExp(String(openTitle).trim()), 'i');
+    const main = page.locator('#main');
+    const lastInbound = main.locator(
+      'div.message-in, div[data-testid="msg-container"]:not(.message-out)',
+    ).last();
+    const openCandidates = [
+      lastInbound.getByRole('button', { name: openPattern }).last(),
+      lastInbound.locator(SEL.buttonInMsg).filter({ hasText: openPattern }).last(),
+      main.getByRole('button', { name: openPattern }).last(),
+    ];
+
+    let opened = false;
+    for (const button of openCandidates) {
+      if (await button.isVisible().catch(() => false)) {
+        await button.click({ timeout: 5_000 });
+        opened = true;
+        break;
+      }
+    }
+    if (!opened) {
+      throw new Error(`No visible WA Web list opener matching ${String(openPattern)}`);
+    }
+
+    await sleep(250);
+    const rowCandidates = [
+      page.getByRole('button', { name: titlePattern }).last(),
+      page.getByRole('option', { name: titlePattern }).last(),
+      page.locator('div[role="button"], button').filter({ hasText: titlePattern }).last(),
+    ];
+    for (const row of rowCandidates) {
+      if (await row.isVisible().catch(() => false)) {
+        await row.click({ timeout: 5_000 });
+        return `wa-web-list-${Date.now()}`;
+      }
+    }
+
+    throw new Error(`No visible WA Web list row matching ${String(titlePattern)}`);
   }
 
   /**

@@ -9,6 +9,7 @@ const {
   assertNoNewOrder,
   waitForOrderStatus,
   markOrderPaid,
+  clearLastDeliveryAddress,
   getSession,
   resetCustomerSession,
   waitForSession,
@@ -62,12 +63,20 @@ class WaE2eSession {
     return this.graph.sendText(this.cfg.businessDisplay, body);
   }
 
-  async sendButtonReply({ id, title }) {
+  async sendButtonReply({ id, title, fallback }) {
     this._lastSendAt = Date.now();
     if (this.waWeb) {
-      return this.waWeb.sendButtonReply({ id, title });
+      return this.waWeb.sendButtonReply({ id, title, fallback });
     }
     return this.graph.sendInteractiveButtonReply(this.cfg.businessDisplay, { id, title });
+  }
+
+  async sendListReply({ title, openTitle }) {
+    this._lastSendAt = Date.now();
+    if (!this.waWeb) {
+      throw new Error('sendListReply requires wa-web customer transport');
+    }
+    return this.waWeb.sendListReply({ title, openTitle });
   }
 
   /**
@@ -94,6 +103,7 @@ class WaE2eSession {
       afterMs: opts.afterMs ?? this.startedAtMs,
       status: opts.status !== undefined ? opts.status : 'pending',
       paymentMethod: opts.paymentMethod !== undefined ? opts.paymentMethod : null,
+      orderType: opts.orderType !== undefined ? opts.orderType : null,
       timeoutMs: opts.timeoutMs,
       pollMs: opts.pollMs,
     });
@@ -119,6 +129,10 @@ class WaE2eSession {
     return markOrderPaid(this.cfg.businessId, orderId, {
       customerDisplay: this.cfg.customerDisplay,
     });
+  }
+
+  async clearLastDeliveryAddress() {
+    return clearLastDeliveryAddress(this.cfg.businessId, this.cfg.customerDisplay);
   }
 
   async getSession() {
