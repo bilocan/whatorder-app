@@ -115,8 +115,9 @@ function toRegExp(includes) {
   return new RegExp(String(includes), 'i');
 }
 
-async function runGate(session, body, timeoutMs) {
+async function runGate(session, body, timeoutMs, scriptStartedAtMs) {
   const name = body.name;
+  const orderAfterMs = body.afterMs ?? scriptStartedAtMs;
   if (name === 'business_bound') {
     await session.waitForSession(
       (s) => s?.businessId === session.cfg.businessId,
@@ -147,7 +148,10 @@ async function runGate(session, body, timeoutMs) {
     return;
   }
   if (name === 'no_order') {
-    await session.assertNoNewOrder({ timeoutMs: body.timeout_ms || timeoutMs });
+    await session.assertNoNewOrder({
+      timeoutMs: body.timeout_ms || timeoutMs,
+      afterMs: orderAfterMs,
+    });
     return;
   }
   if (name === 'order_stripe') {
@@ -155,6 +159,7 @@ async function runGate(session, body, timeoutMs) {
       paymentMethod: 'stripe',
       status: body.status || 'pending',
       timeoutMs: body.timeout_ms || timeoutMs,
+      afterMs: orderAfterMs,
     });
     if (body.paymentStatus != null && order.paymentStatus !== body.paymentStatus) {
       throw new Error(
@@ -169,6 +174,7 @@ async function runGate(session, body, timeoutMs) {
       status: body.status || 'pending',
       orderType: 'delivery',
       timeoutMs: body.timeout_ms || timeoutMs,
+      afterMs: orderAfterMs,
     });
     if (order.orderType !== 'delivery') {
       throw new Error(`order_stripe_delivery expected delivery, got ${order.orderType || 'unset'}`);
@@ -268,6 +274,7 @@ async function runScript(session, doc) {
   validateScript({ ...doc, id: doc?.id || 'script' });
   const id = doc.id || 'script';
   const timeoutMs = doc.timeout_ms || 45_000;
+  const scriptStartedAtMs = Date.now();
   const steps = doc.steps || [];
   for (let i = 0; i < steps.length; i += 1) {
     const step = steps[i];
@@ -290,7 +297,7 @@ async function runScript(session, doc) {
     } else if (kind === 'sleep') {
       await new Promise((r) => setTimeout(r, body.ms));
     } else if (kind === 'gate') {
-      await runGate(session, body, timeoutMs);
+      await runGate(session, body, timeoutMs, scriptStartedAtMs);
     } else if (kind === 'macro') {
       await runMacro(session, body, { id, timeoutMs });
     } else if (kind === 'tap') {

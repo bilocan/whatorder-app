@@ -267,6 +267,7 @@ test('order_stripe_delivery requires a Stripe delivery order with matching addre
     status: 'pending',
     orderType: 'delivery',
     timeoutMs: 1234,
+    afterMs: expect.any(Number),
   });
 });
 
@@ -329,7 +330,71 @@ test('gate no_order delegates timeout to assertNoNewOrder', async () => {
   await runScript(session, {
     steps: [{ gate: { name: 'no_order', timeout_ms: 1234 } }],
   });
-  expect(session.assertNoNewOrder).toHaveBeenCalledWith({ timeoutMs: 1234 });
+  expect(session.assertNoNewOrder).toHaveBeenCalledWith({
+    timeoutMs: 1234,
+    afterMs: expect.any(Number),
+  });
+});
+
+test('sequential runScript calls isolate no_order via per-script afterMs', async () => {
+  const session = fakeSession();
+  session.startedAtMs = Date.now() - 60_000;
+
+  let script1AfterMs;
+  session.waitForOrder.mockImplementation(async (opts) => {
+    script1AfterMs = opts.afterMs;
+    return {
+      id: 'ord1',
+      paymentMethod: 'stripe',
+      paymentStatus: 'pending',
+      status: 'pending',
+    };
+  });
+
+  session.assertNoNewOrder.mockImplementation(async (opts) => {
+    if (opts.afterMs <= script1AfterMs) {
+      throw new Error('Unexpected order found (session-level afterMs would false-fail)');
+    }
+  });
+
+  await runScript(session, {
+    id: 'script1',
+    steps: [{ gate: { name: 'order_stripe' } }],
+  });
+
+  await new Promise((r) => setTimeout(r, 5));
+
+  await expect(runScript(session, {
+    id: 'script2',
+    steps: [{ gate: { name: 'no_order' } }],
+  })).resolves.toEqual({ ok: true });
+
+  expect(session.assertNoNewOrder).toHaveBeenCalledWith({
+    timeoutMs: expect.any(Number),
+    afterMs: expect.any(Number),
+  });
+  const noOrderAfterMs = session.assertNoNewOrder.mock.calls.at(-1)[0].afterMs;
+  expect(noOrderAfterMs).toBeGreaterThan(script1AfterMs);
+});
+
+test('order gates pass per-script afterMs unless YAML sets afterMs explicitly', async () => {
+  const session = fakeSession();
+  const explicitAfterMs = 9_999_999;
+
+  await runScript(session, {
+    id: 'explicit-after',
+    steps: [
+      { gate: { name: 'order_stripe', afterMs: explicitAfterMs } },
+      { gate: { name: 'order_stripe_delivery', afterMs: explicitAfterMs } },
+    ],
+  });
+
+  expect(session.waitForOrder).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    afterMs: explicitAfterMs,
+  }));
+  expect(session.waitForOrder).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    afterMs: explicitAfterMs,
+  }));
 });
 
 test('order_stripe validates optional paymentStatus', async () => {
