@@ -32,6 +32,8 @@ const { rememberLearnedCommand, _resetCommandCache } = require('../commandLearni
 describe('botCommands', () => {
   beforeEach(() => {
     _resetCommandCache();
+    canCallLlm.mockReset();
+    parseBotCommandWithLlm.mockReset();
     canCallLlm.mockReturnValue(false);
     parseBotCommandWithLlm.mockResolvedValue(null);
   });
@@ -59,12 +61,50 @@ describe('botCommands', () => {
       expect(detectBotCommandRules('2x döner')).toBeNull();
       expect(detectBotCommandRules('döner')).toBeNull();
     });
+
+    test.each([
+      'fertig', 'Fertig', 'done', 'confirm', 'bestätigen', 'bestatigen',
+      'onayla', 'onay', 'checkout', 'zur kasse', 'kasse',
+      // Locale doneBtn / confirmBtn labels (TR doneBtn is Tamam, not fertig)
+      'tamam', 'Tamam',
+    ])('confirm checkout keyword: %s', (phrase) => {
+      expect(detectBotCommandRules(phrase)?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
+    });
+
+    test('"bestellen" alone is not confirm checkout (order opener)', () => {
+      expect(detectBotCommandRules('bestellen')).toBeNull();
+    });
+
+    test.each([
+      'fertig!',
+      'fertig.',
+      'fertig?',
+      'Fertig!',
+      'done!',
+      '"fertig"',
+      "'fertig'",
+      'fertig…',
+      'fertig👍',
+    ])('confirm checkout ignores trailing punctuation/emoji: %s', (phrase) => {
+      expect(detectBotCommandRules(phrase)?.command).toBe(BOT_COMMAND.CONFIRM_CHECKOUT);
+    });
+
+    test('food / longer phrases are not confirm checkout', () => {
+      expect(detectBotCommandRules('2x döner')).toBeNull();
+      expect(detectBotCommandRules('fertig bitte mit sauce')).toBeNull();
+      expect(detectBotCommandRules('ist meine bestellung fertig')).toBeNull();
+      expect(detectBotCommandRules('almost done')).toBeNull();
+      expect(detectBotCommandRules('ok')).toBeNull();
+      expect(detectBotCommandRules('ja')).toBeNull();
+      expect(detectBotCommandRules('bestellen')).toBeNull();
+    });
   });
 
   describe('isBotCommandPhrase', () => {
     test('excludes basket commands from order-like guard', () => {
       expect(isBotCommandPhrase('warenkorb', 'warenkorb')).toBe(true);
       expect(isBotCommandPhrase('rückgängig', 'ruckgangig')).toBe(true);
+      expect(isBotCommandPhrase('fertig', 'fertig')).toBe(true);
       expect(isBotCommandPhrase('döner', 'doner')).toBe(false);
     });
   });
@@ -107,6 +147,33 @@ describe('botCommands', () => {
 
       const hit = await detectBotCommandAsync('zurück', { phone: '+431', hasUndoSnapshot: false });
       expect(hit).toBeNull();
+    });
+
+    test('LLM confirm_checkout is accepted and learned', async () => {
+      canCallLlm.mockReturnValue(true);
+      parseBotCommandWithLlm.mockResolvedValue({ command: 'confirm_checkout', confidence: 0.92 });
+
+      const hit = await detectBotCommandAsync('bitirdim', { phone: '+431', hasBasket: true });
+      expect(hit).toEqual({ command: BOT_COMMAND.CONFIRM_CHECKOUT, source: 'llm' });
+
+      canCallLlm.mockReturnValue(false);
+      const cached = await detectBotCommandAsync('bitirdim', { phone: '+431', hasBasket: false });
+      expect(cached).toEqual({ command: BOT_COMMAND.CONFIRM_CHECKOUT, source: 'learned' });
+    });
+
+    test('LLM confirm_checkout below confidence is ignored', async () => {
+      canCallLlm.mockReturnValue(true);
+      parseBotCommandWithLlm.mockResolvedValue({ command: 'confirm_checkout', confidence: 0.5 });
+
+      const hit = await detectBotCommandAsync('abschicken', { phone: '+431', hasBasket: true });
+      expect(hit).toBeNull();
+    });
+
+    test('learned confirm_checkout is used without LLM', async () => {
+      await rememberLearnedCommand('abschicken bitte', BOT_COMMAND.CONFIRM_CHECKOUT);
+      const hit = await detectBotCommandAsync('abschicken bitte', { phone: '+431', hasBasket: true });
+      expect(hit).toEqual({ command: BOT_COMMAND.CONFIRM_CHECKOUT, source: 'learned' });
+      expect(parseBotCommandWithLlm).not.toHaveBeenCalled();
     });
   });
 });

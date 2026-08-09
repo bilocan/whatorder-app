@@ -3,10 +3,10 @@ const { admin } = require('../lib/firebase');
 const { commandLearningRef } = require('../lib/collections');
 const { intentLearnKey } = require('./intentNormalize');
 
-/** In-process L1: normalized text key → command id (view_basket | undo). */
+/** In-process L1: normalized text key → command id (view_basket | undo | confirm_checkout). */
 const memoryCache = new Map();
 
-const ALLOWED_COMMANDS = new Set(['view_basket', 'undo']);
+const ALLOWED_COMMANDS = new Set(['view_basket', 'undo', 'confirm_checkout']);
 
 function docIdForKey(textKey) {
   return crypto.createHash('sha256').update(textKey).digest('hex').slice(0, 40);

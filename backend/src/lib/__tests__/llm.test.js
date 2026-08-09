@@ -495,7 +495,7 @@ describe('parseOrderIntentWithLlm', () => {
 });
 
 describe('validateCommandPayload', () => {
-  test('accepts view_basket and undo', () => {
+  test('accepts view_basket, undo, and confirm_checkout', () => {
     expect(validateCommandPayload({ command: 'view_basket', confidence: 0.95 })).toEqual({
       command: 'view_basket',
       confidence: 0.95,
@@ -503,6 +503,10 @@ describe('validateCommandPayload', () => {
     expect(validateCommandPayload({ command: 'undo', confidence: 0.9 })).toEqual({
       command: 'undo',
       confidence: 0.9,
+    });
+    expect(validateCommandPayload({ command: 'confirm_checkout', confidence: 0.92 })).toEqual({
+      command: 'confirm_checkout',
+      confidence: 0.92,
     });
   });
 
@@ -546,7 +550,7 @@ describe('parseBotCommandWithLlm', () => {
     expect(userText).toContain('Undo available: no');
     expect(userText).not.toContain('id=');
     expect(body.generationConfig.responseSchema.properties.command.enum).toEqual(
-      ['view_basket', 'undo', 'none'],
+      ['view_basket', 'undo', 'confirm_checkout', 'none'],
     );
   });
 
