@@ -4,6 +4,9 @@ jest.mock('../scenarios/helpers', () => ({
   openRestaurant: jest.fn(async () => {}),
   addAyranToBasket: jest.fn(async () => {}),
   startCheckoutFromBasket: jest.fn(async () => {}),
+  completeCustomizing: jest.fn(async () => {}),
+  addDonerAyranDelivery: jest.fn(async () => {}),
+  confirmOrder: jest.fn(async () => {}),
   clickAny: jest.fn(async () => null),
 }));
 
@@ -18,6 +21,9 @@ const {
   openRestaurant,
   addAyranToBasket,
   startCheckoutFromBasket,
+  completeCustomizing,
+  addDonerAyranDelivery,
+  confirmOrder,
   clickAny,
 } = require('../scenarios/helpers');
 
@@ -48,7 +54,12 @@ function fakeSession(initial = {}) {
     }),
     assertNoNewOrder: jest.fn(async () => {}),
     waitForOrder: jest.fn(async () => ({
-      id: 'ord1', paymentMethod: 'stripe', paymentStatus: 'pending', status: 'pending',
+      id: 'ord1',
+      paymentMethod: 'stripe',
+      paymentStatus: 'pending',
+      status: 'pending',
+      orderType: 'delivery',
+      deliveryAddress: 'Hauptstraße 5',
     })),
     sendButtonReply: jest.fn(async ({ title, fallback }) => {
       if (fallback === false) throw new Error(`No visible WA Web button matching ${title}`);
@@ -96,7 +107,11 @@ test('validateScript exports and accepts the supported vocabulary', () => {
     'send', 'expect_reply', 'sleep', 'gate', 'macro', 'tap',
   ]));
   expect(KNOWN_MACROS).toContain('reset_session');
+  expect(KNOWN_MACROS).toEqual(expect.arrayContaining([
+    'add_doner_ayran_delivery', 'complete_customizing', 'confirm_order',
+  ]));
   expect(KNOWN_GATES).toContain('state');
+  expect(KNOWN_GATES).toContain('order_stripe_delivery');
   expect(validateScript({
     id: 'valid',
     steps: [
@@ -188,12 +203,31 @@ test('ensure_confirming sends name when awaiting_name', async () => {
   expect(session.sendText).toHaveBeenCalledWith('E2E Testkunde');
 });
 
-test('ensure_confirming throws on delivery address state', async () => {
-  const session = fakeSession({ state: 'awaiting_delivery_address' });
+test('ensure_confirming hard-fails on any delivery address state', async () => {
+  const session = fakeSession({ state: 'awaiting_delivery_address_choice' });
   await expect(runScript(session, {
     id: 'm3',
     steps: [{ macro: 'ensure_confirming' }],
-  })).rejects.toThrow(/confirming/i);
+  })).rejects.toThrow(/front-load|delivery address/i);
+  expect(session.waitForSession).not.toHaveBeenCalled();
+});
+
+test('ensure_confirming waits until the session reaches confirming', async () => {
+  const session = fakeSession({ state: 'checkout_processing' });
+  session.waitForSession.mockImplementation(async (pred) => {
+    session.setSnap({ state: 'confirming' });
+    const snap = await session.getSession();
+    if (pred(snap)) return snap;
+    throw new Error('waitForSession timed out');
+  });
+  await runScript(session, {
+    id: 'm4',
+    steps: [{ macro: 'ensure_confirming' }],
+  });
+  expect(session.waitForSession).toHaveBeenCalledWith(
+    expect.any(Function),
+    expect.objectContaining({ timeoutMs: expect.any(Number) }),
+  );
 });
 
 test('tap throws when no button matches', async () => {
@@ -214,6 +248,58 @@ test('order_stripe calls waitForOrder with paymentMethod stripe', async () => {
   expect(session.waitForOrder).toHaveBeenCalledWith(expect.objectContaining({
     paymentMethod: 'stripe',
   }));
+});
+
+test('order_stripe_delivery requires a Stripe delivery order with matching address', async () => {
+  const session = fakeSession();
+  await runScript(session, {
+    id: 'delivery-order',
+    steps: [{
+      gate: {
+        name: 'order_stripe_delivery',
+        address_includes: 'Hauptstraße',
+        timeout_ms: 1234,
+      },
+    }],
+  });
+  expect(session.waitForOrder).toHaveBeenCalledWith({
+    paymentMethod: 'stripe',
+    status: 'pending',
+    orderType: 'delivery',
+    timeoutMs: 1234,
+  });
+});
+
+test('order_stripe_delivery rejects a pickup order', async () => {
+  const session = fakeSession();
+  session.waitForOrder.mockResolvedValue({
+    orderType: 'pickup',
+    deliveryAddress: 'Hauptstraße 5',
+  });
+  await expect(runScript(session, {
+    steps: [{ gate: { name: 'order_stripe_delivery' } }],
+  })).rejects.toThrow(/delivery.*pickup/i);
+});
+
+test('order_stripe_delivery rejects an empty delivery address', async () => {
+  const session = fakeSession();
+  session.waitForOrder.mockResolvedValue({ orderType: 'delivery', deliveryAddress: ' ' });
+  await expect(runScript(session, {
+    steps: [{ gate: { name: 'order_stripe_delivery' } }],
+  })).rejects.toThrow(/missing deliveryAddress/i);
+});
+
+test('order_stripe_delivery rejects a delivery address mismatch', async () => {
+  const session = fakeSession();
+  session.waitForOrder.mockResolvedValue({
+    orderType: 'delivery',
+    deliveryAddress: 'Nebenstraße 9',
+  });
+  await expect(runScript(session, {
+    steps: [{
+      gate: { name: 'order_stripe_delivery', address_includes: 'Hauptstraße' },
+    }],
+  })).rejects.toThrow(/address missing Hauptstraße.*Nebenstraße 9/i);
 });
 
 test.each([
@@ -274,6 +360,21 @@ test('start_checkout macro delegates to helper', async () => {
   expect(startCheckoutFromBasket).toHaveBeenCalledWith(session, expect.objectContaining({
     log: expect.any(Function),
   }));
+});
+
+test.each([
+  ['add_doner_ayran_delivery', addDonerAyranDelivery],
+  ['complete_customizing', completeCustomizing],
+  ['confirm_order', confirmOrder],
+])('%s macro delegates to its helper with a logger', async (macro, helper) => {
+  const session = fakeSession();
+  await runScript(session, {
+    id: `macro-${macro}`,
+    steps: [{ macro }],
+  });
+  expect(helper).toHaveBeenCalledWith(session, {
+    log: expect.any(Function),
+  });
 });
 
 test('unknown macro throws', async () => {

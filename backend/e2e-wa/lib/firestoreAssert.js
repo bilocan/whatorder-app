@@ -19,7 +19,7 @@ function orderCreatedMs(order) {
 
 /**
  * Poll until a new order appears for the E2E customer phone.
- * @param {{ businessId: string, customerDisplay: string, afterMs?: number, status?: string|null, timeoutMs?: number, pollMs?: number }} opts
+ * @param {{ businessId: string, customerDisplay: string, afterMs?: number, status?: string|null, paymentMethod?: string|null, orderType?: string|null, timeoutMs?: number, pollMs?: number }} opts
  * @returns {Promise<{ id: string, [key: string]: any }>}
  */
 async function waitForOrder(opts) {
@@ -29,6 +29,7 @@ async function waitForOrder(opts) {
     afterMs = 0,
     status = 'pending',
     paymentMethod = null,
+    orderType = null,
     timeoutMs = 90_000,
     pollMs = 1500,
   } = opts;
@@ -37,7 +38,16 @@ async function waitForOrder(opts) {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const hit = await findLatestOrder(businessId, variants, { afterMs, status, paymentMethod });
+    const hit = await findLatestOrder(
+      businessId,
+      variants,
+      {
+        afterMs,
+        status,
+        paymentMethod,
+        orderType,
+      },
+    );
     if (hit) return hit;
     await sleep(pollMs);
   }
@@ -45,7 +55,8 @@ async function waitForOrder(opts) {
   throw new Error(
     `waitForOrder timed out after ${timeoutMs}ms `
     + `(businessId=${businessId}, customer=${normalizeCustomerPhone(customerDisplay)}, `
-    + `status=${status}${paymentMethod ? `, paymentMethod=${paymentMethod}` : ''})`,
+    + `status=${status}${paymentMethod ? `, paymentMethod=${paymentMethod}` : ''}`
+    + `${orderType ? `, orderType=${orderType}` : ''})`,
   );
 }
 
@@ -72,7 +83,16 @@ async function assertNoNewOrder(opts) {
   }
 }
 
-async function findLatestOrder(businessId, variants, { afterMs, status, paymentMethod = null }) {
+async function findLatestOrder(
+  businessId,
+  variants,
+  {
+    afterMs,
+    status,
+    paymentMethod = null,
+    orderType = null,
+  },
+) {
   if (!variants.length) return null;
 
   const phoneSlice = variants.slice(0, 10);
@@ -113,6 +133,7 @@ async function findLatestOrder(businessId, variants, { afterMs, status, paymentM
     .filter((o) => orderCreatedMs(o) > afterMs)
     .filter((o) => (status == null ? true : o.status === status))
     .filter((o) => (paymentMethod == null ? true : o.paymentMethod === paymentMethod))
+    .filter((o) => (orderType == null ? true : o.orderType === orderType))
     .sort((a, b) => orderCreatedMs(b) - orderCreatedMs(a));
 
   return filtered[0] || null;

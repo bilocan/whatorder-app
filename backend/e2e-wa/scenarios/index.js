@@ -56,9 +56,26 @@ if (BY_ID.happy_cash_pickup) {
 }
 BY_ID.happy_cash_pickup = happy_stripe_pickup;
 
+function listPackAScenarios(jsA, yamlA) {
+  const byId = Object.fromEntries([...jsA, ...yamlA].map((s) => [s.id, s]));
+  const expected = ['happy_stripe_pickup', 'owner_status_path', 'happy_stripe_delivery'];
+  for (const id of expected) {
+    if (!byId[id]) throw new Error(`Pack A missing required scenario: ${id}`);
+  }
+  const ordered = expected.map((id) => byId[id]);
+  const rest = [...jsA, ...yamlA].filter((s) => !expected.includes(s.id));
+  return [...ordered, ...rest];
+}
+
 function listScenarios({ pack } = {}) {
   if (!pack) return [...ALL, ...YAML_SCENARIOS];
+  if (pack === 'a') {
+    const jsA = ALL.filter((s) => s.pack === 'a');
+    const yamlA = YAML_SCENARIOS.filter((s) => s.pack === 'a');
+    return listPackAScenarios(jsA, yamlA);
+  }
   if (pack === 'c') return YAML_SCENARIOS.filter((s) => s.pack === pack);
+  // pack b: JS only (YAML pack b ignored by design)
   return ALL.filter((s) => s.pack === pack);
 }
 
@@ -86,6 +103,8 @@ function resolveScenarioIds(argv) {
     } else if (argv[i] === '--script' && argv[i + 1]) {
       ids.push(argv[i + 1]);
       i += 1;
+    } else if (argv[i].startsWith('--script=')) {
+      ids.push(argv[i].slice('--script='.length));
     }
   }
 
@@ -100,6 +119,7 @@ module.exports = {
   ALL,
   BY_ID,
   buildScenarioIndex,
+  listPackAScenarios,
   listScenarios,
   resolveScenarioIds,
 };

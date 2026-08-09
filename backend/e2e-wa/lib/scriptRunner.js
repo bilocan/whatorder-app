@@ -4,6 +4,9 @@ const {
   openRestaurant,
   addAyranToBasket,
   startCheckoutFromBasket,
+  completeCustomizing,
+  addDonerAyranDelivery,
+  confirmOrder,
   clickAny,
 } = require('../scenarios/helpers');
 
@@ -19,8 +22,11 @@ const KNOWN_MACROS = Object.freeze([
   'reset_session',
   'open_restaurant',
   'add_ayran_pickup',
+  'add_doner_ayran_delivery',
+  'complete_customizing',
   'start_checkout',
   'ensure_confirming',
+  'confirm_order',
 ]);
 const KNOWN_GATES = Object.freeze([
   'business_bound',
@@ -29,6 +35,7 @@ const KNOWN_GATES = Object.freeze([
   'state',
   'no_order',
   'order_stripe',
+  'order_stripe_delivery',
   'pending_intent',
 ]);
 
@@ -156,6 +163,24 @@ async function runGate(session, body, timeoutMs) {
     }
     return;
   }
+  if (name === 'order_stripe_delivery') {
+    const order = await session.waitForOrder({
+      paymentMethod: 'stripe',
+      status: body.status || 'pending',
+      orderType: 'delivery',
+      timeoutMs: body.timeout_ms || timeoutMs,
+    });
+    if (order.orderType !== 'delivery') {
+      throw new Error(`order_stripe_delivery expected delivery, got ${order.orderType || 'unset'}`);
+    }
+    const addr = String(order.deliveryAddress || '');
+    if (!addr.trim()) throw new Error('order_stripe_delivery missing deliveryAddress');
+    const needle = body.address_includes;
+    if (needle && !new RegExp(String(needle), 'i').test(addr)) {
+      throw new Error(`order_stripe_delivery address missing ${needle}: ${addr}`);
+    }
+    return;
+  }
   if (name === 'pending_intent') {
     await session.waitForSession((s) => {
       const n = s?.pendingIntentItems?.length || 0;
@@ -183,22 +208,51 @@ async function runMacro(session, body, { id, timeoutMs }) {
     await addAyranToBasket(session, { log, phrase: '1 ayran zum Abholen' });
     return;
   }
+  if (name === 'add_doner_ayran_delivery') {
+    await addDonerAyranDelivery(session, { log });
+    return;
+  }
+  if (name === 'complete_customizing') {
+    await completeCustomizing(session, { log });
+    return;
+  }
   if (name === 'start_checkout') {
     await startCheckoutFromBasket(session, { log });
     return;
   }
   if (name === 'ensure_confirming') {
+    const failIfAddressMissing = (snap) => {
+      if (/^awaiting_delivery_address/.test(snap?.state || '')) {
+        throw new Error(
+          `ensure_confirming delivery address was not front-loaded (state=${snap.state})`,
+        );
+      }
+    };
     let snap = await session.getSession();
+    failIfAddressMissing(snap);
     if (snap?.state === 'awaiting_name') {
       await session.sendText('E2E Testkunde');
       snap = await session.waitForSession(
-        (s) => s?.state !== 'awaiting_name',
+        (s) => {
+          failIfAddressMissing(s);
+          return s?.state !== 'awaiting_name';
+        },
         { timeoutMs },
       );
     }
     if (snap?.state !== 'confirming') {
-      throw new Error(`ensure_confirming expected confirming, got ${snap?.state}`);
+      snap = await session.waitForSession(
+        (s) => {
+          failIfAddressMissing(s);
+          return s?.state === 'confirming';
+        },
+        { timeoutMs },
+      );
     }
+    return;
+  }
+  if (name === 'confirm_order') {
+    await confirmOrder(session, { log });
     return;
   }
   throw new Error(`Unknown macro: ${name}`);

@@ -16,6 +16,17 @@ test('loadScriptFile defaults pack and timeout_ms', () => {
   expect(doc.timeout_ms).toBe(45_000);
 });
 
+test('loadScriptFile validates the Pack A delivery script', () => {
+  const doc = loadScriptFile(path.join(__dirname, '../scripts/happy_stripe_delivery.yml'));
+  expect(doc).toMatchObject({
+    id: 'happy_stripe_delivery',
+    pack: 'a',
+    priority: 'p0',
+    timeout_ms: 90_000,
+  });
+  expect(doc.steps).toHaveLength(8);
+});
+
 test('loadScriptFile throws when id missing', () => {
   const fs = require('fs');
   const os = require('os');

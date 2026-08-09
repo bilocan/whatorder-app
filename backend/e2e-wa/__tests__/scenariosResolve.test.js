@@ -1,18 +1,27 @@
 'use strict';
 
 jest.mock('../lib/scriptLoader', () => ({
-  listScriptFiles: jest.fn(() => [{
-    id: 'stub_pack_c',
-    pack: 'c',
-    path: '/tmp/stub.yml',
-    doc: { id: 'stub_pack_c', pack: 'c', steps: [] },
-  }]),
+  listScriptFiles: jest.fn(() => [
+    {
+      id: 'happy_stripe_delivery',
+      pack: 'a',
+      path: '/tmp/happy_stripe_delivery.yml',
+      doc: { id: 'happy_stripe_delivery', pack: 'a', steps: [] },
+    },
+    {
+      id: 'stub_pack_c',
+      pack: 'c',
+      path: '/tmp/stub.yml',
+      doc: { id: 'stub_pack_c', pack: 'c', steps: [] },
+    },
+  ]),
 }));
 
 const { orderCreatedMs, findLatestOrder } = require('../lib/firestoreAssert');
 const {
   BY_ID,
   buildScenarioIndex,
+  listPackAScenarios,
   listScenarios,
   resolveScenarioIds,
 } = require('../scenarios');
@@ -65,12 +74,24 @@ describe('e2e-wa resolveScenarioIds', () => {
     ]);
   });
 
+  test('--all-pack-a orders the three required scenarios first', () => {
+    expect(resolveScenarioIds(['--all-pack-a'])).toEqual([
+      'happy_stripe_pickup',
+      'owner_status_path',
+      'happy_stripe_delivery',
+    ]);
+  });
+
   test('--all-pack-c resolves yaml script ids', () => {
     expect(resolveScenarioIds(['--all-pack-c'])).toEqual(['stub_pack_c']);
   });
 
   test('--script stub_pack_c', () => {
     expect(resolveScenarioIds(['--script', 'stub_pack_c'])).toEqual(['stub_pack_c']);
+  });
+
+  test('--script=stub_pack_c equals form', () => {
+    expect(resolveScenarioIds(['--script=stub_pack_c'])).toEqual(['stub_pack_c']);
   });
 
   test('--scenario resolves a yaml script registered in BY_ID', () => {
@@ -91,6 +112,16 @@ describe('e2e-wa resolveScenarioIds', () => {
       { id: 'duplicate', format: 'js' },
       { id: 'duplicate', format: 'yaml' },
     ])).toThrow(/duplicate scenario id.*duplicate/i);
+  });
+
+  test('pack A listing throws when a required scenario is missing', () => {
+    expect(() => listPackAScenarios(
+      [
+        { id: 'happy_stripe_pickup', pack: 'a' },
+        { id: 'owner_status_path', pack: 'a' },
+      ],
+      [],
+    )).toThrow('Pack A missing required scenario: happy_stripe_delivery');
   });
 
   test('a broken YAML scenario fails only when it runs', async () => {

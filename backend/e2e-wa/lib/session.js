@@ -94,6 +94,7 @@ class WaE2eSession {
       afterMs: opts.afterMs ?? this.startedAtMs,
       status: opts.status !== undefined ? opts.status : 'pending',
       paymentMethod: opts.paymentMethod !== undefined ? opts.paymentMethod : null,
+      orderType: opts.orderType !== undefined ? opts.orderType : null,
       timeoutMs: opts.timeoutMs,
       pollMs: opts.pollMs,
     });

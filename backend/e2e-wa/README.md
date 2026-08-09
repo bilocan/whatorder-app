@@ -20,7 +20,7 @@ npm test -- --testPathPatterns=e2e-wa
 
 ## Data-driven scripts
 
-Pack C+ scenarios should prefer YAML scripts in `e2e-wa/scripts/<id>.yml`. Use the existing `macro`, `send`, `tap`, `expect_reply`, `gate`, and `sleep` steps; reply-copy checks may be soft, but every scenario must include a named hard gate. Add new reusable behavior to the interpreter as a macro or gate instead of embedding JavaScript in YAML. See `scripts/neg_confirm_digit.yml` for the first production example.
+Scenarios in Pack A and Pack C may use YAML scripts in `e2e-wa/scripts/<id>.yml`; Pack B remains JS-only. Use the existing `macro`, `send`, `tap`, `expect_reply`, `gate`, and `sleep` steps; reply-copy checks may be soft, but every scenario must include a named hard gate. Add new reusable behavior to the interpreter as a macro or gate instead of embedding JavaScript in YAML. See `scripts/happy_stripe_delivery.yml` and `scripts/neg_confirm_digit.yml` for production examples.
 
 ```bash
 npm run e2e:wa -- --script neg_confirm_digit
@@ -28,7 +28,7 @@ npm run e2e:wa -- --all-pack-c
 npm run e2e:wa -- --list
 ```
 
-The default nightly run remains Pack A+B. Verify new Pack C scripts on Contabo before promoting them to nightly.
+The default nightly run remains Pack A+B, including YAML scenarios registered in Pack A. Pack C is not nightly by default; verify new Pack C scripts on Contabo before promoting them.
 
 ## Contabo live run (wa-web)
 
