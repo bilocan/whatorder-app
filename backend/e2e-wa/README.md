@@ -30,10 +30,12 @@ Scenarios in Pack A and Pack C may use YAML scripts in `e2e-wa/scripts/<id>.yml`
 |--------|------------|------------|
 | `neg_confirm_digit.yml` | M2 rows 12, 37 | `no_order`, `state` confirming |
 | `basket_edit_mid_checkout.yml` | M1 rows 4–5 | `basket_qty` ayran eq 2, `no_order` |
+| `happy_delivery_address_prompt.yml` | M2 row 50 | address `state`, `order_stripe_delivery` |
 
 ```bash
 npm run e2e:wa -- --script neg_confirm_digit
 npm run e2e:wa -- --script basket_edit_mid_checkout
+npm run e2e:wa -- --script happy_delivery_address_prompt
 npm run e2e:wa -- --all-pack-c
 npm run e2e:wa -- --list
 ```

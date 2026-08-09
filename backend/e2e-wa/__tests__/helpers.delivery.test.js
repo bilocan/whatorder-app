@@ -1,8 +1,10 @@
 'use strict';
 
 const {
+  ADDRESS_SHORTCIRCUIT,
   E2E_DONER_GROUPS,
   completeCustomizing,
+  completeDeliveryAddressAsk,
   addDonerAyranDelivery,
   addDonerAyranDeliveryNoAddress,
   confirmOrder,
@@ -316,6 +318,73 @@ test('addDonerAyranDelivery rejects a saved address when absence is expected', a
     expectAddress: 'absent',
     log: () => {},
   })).rejects.toThrow(/empty delivery address/i);
+});
+
+test('completeDeliveryAddressAsk steps choice through text and confirmation', async () => {
+  const session = fakeDeliverySession({ state: 'awaiting_delivery_address_choice' });
+  session.sendListReply.mockImplementation(async ({ title }) => {
+    expect(title).toEqual(/Adresse eingeben/i);
+    session.setSnap({ state: 'awaiting_delivery_address' });
+    return 'list';
+  });
+  session.sendText.mockImplementation(async (text) => {
+    if (text === ADDRESS_SHORTCIRCUIT) {
+      session.setSnap({ state: 'awaiting_delivery_address_confirm' });
+    }
+    return 'text';
+  });
+  session.sendButtonReply.mockImplementation(async ({ title }) => {
+    if (title === 'Ja') {
+      session.setSnap({ state: 'confirming', deliveryAddress: ADDRESS_SHORTCIRCUIT });
+      return 'button';
+    }
+    throw new Error(`No button ${title}`);
+  });
+
+  await expect(completeDeliveryAddressAsk(session, { log: () => {} })).resolves.toEqual(
+    expect.objectContaining({
+      state: 'confirming',
+      deliveryAddress: ADDRESS_SHORTCIRCUIT,
+    }),
+  );
+  expect(session.sendListReply).toHaveBeenCalledWith({
+    title: /Adresse eingeben/i,
+    fallback: false,
+  });
+  expect(session.sendText).toHaveBeenCalledWith(ADDRESS_SHORTCIRCUIT);
+  expect(session.sendButtonReply).toHaveBeenCalledWith({ title: 'Ja', fallback: false });
+});
+
+test('completeDeliveryAddressAsk handles unit and repeated choice address states', async () => {
+  const session = fakeDeliverySession({ state: 'awaiting_delivery_address_unit' });
+  let listSelections = 0;
+  session.sendButtonReply.mockImplementation(async ({ title }) => {
+    if (title === 'Haus') {
+      session.setSnap({ state: 'awaiting_delivery_address_choice' });
+      return 'unit';
+    }
+    if (title === 'Ja') {
+      session.setSnap({ state: 'confirming' });
+      return 'confirm';
+    }
+    throw new Error(`No button ${title}`);
+  });
+  session.sendListReply.mockImplementation(async () => {
+    listSelections += 1;
+    session.setSnap({ state: 'awaiting_delivery_address' });
+    return 'list';
+  });
+  session.sendText.mockImplementation(async () => {
+    session.setSnap({ state: 'awaiting_delivery_address_confirm' });
+    return 'text';
+  });
+
+  await expect(completeDeliveryAddressAsk(session, { log: () => {} })).resolves.toEqual(
+    expect.objectContaining({ state: 'confirming' }),
+  );
+  expect(session.sendButtonReply.mock.calls.map(([arg]) => arg.title)).toEqual(['Haus', 'Ja']);
+  expect(listSelections).toBe(1);
+  expect(session.sendText).toHaveBeenCalledWith(ADDRESS_SHORTCIRCUIT);
 });
 
 test.each([

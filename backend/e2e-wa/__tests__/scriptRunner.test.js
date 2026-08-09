@@ -8,6 +8,7 @@ jest.mock('../scenarios/helpers', () => ({
   addDonerAyranDelivery: jest.fn(async () => {}),
   addDonerAyranDeliveryNoAddress: jest.fn(async () => {}),
   clearLastDeliveryAddress: jest.fn(async () => {}),
+  completeDeliveryAddressAsk: jest.fn(async () => {}),
   confirmOrder: jest.fn(async () => {}),
   clickAny: jest.fn(async () => null),
 }));
@@ -27,6 +28,7 @@ const {
   addDonerAyranDelivery,
   addDonerAyranDeliveryNoAddress,
   clearLastDeliveryAddress,
+  completeDeliveryAddressAsk,
   confirmOrder,
   clickAny,
 } = require('../scenarios/helpers');
@@ -115,6 +117,7 @@ test('validateScript exports and accepts the supported vocabulary', () => {
     'add_doner_ayran_delivery',
     'add_doner_ayran_delivery_no_address',
     'clear_last_delivery_address',
+    'complete_delivery_address_ask',
     'complete_customizing',
     'confirm_order',
   ]));
@@ -502,6 +505,7 @@ test.each([
   ['add_doner_ayran_delivery', addDonerAyranDelivery],
   ['add_doner_ayran_delivery_no_address', addDonerAyranDeliveryNoAddress],
   ['clear_last_delivery_address', clearLastDeliveryAddress],
+  ['complete_delivery_address_ask', completeDeliveryAddressAsk],
   ['complete_customizing', completeCustomizing],
   ['confirm_order', confirmOrder],
 ])('%s macro delegates to its helper with a logger', async (macro, helper) => {
@@ -512,6 +516,7 @@ test.each([
   });
   expect(helper).toHaveBeenCalledWith(session, {
     log: expect.any(Function),
+    ...(macro === 'complete_delivery_address_ask' ? { timeoutMs: expect.any(Number) } : {}),
   });
 });
 

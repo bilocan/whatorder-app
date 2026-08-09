@@ -2,6 +2,7 @@
 
 const DELIVERY_PHRASE = '1 döner und 1 ayran zum Liefern, Hauptstraße 5';
 const DELIVERY_PHRASE_NO_ADDRESS = '1 döner und 1 ayran zum Liefern';
+const ADDRESS_SHORTCIRCUIT = 'Hauptstraße 5, 1030 Wien, Top 1';
 
 /**
  * Discovery fallback for the Enes tenant. Firestore normally persists the
@@ -339,6 +340,50 @@ async function clearLastDeliveryAddress(session, opts = {}) {
 }
 
 /**
+ * Complete the delivery-address picker, text, confirmation, and unit loop.
+ * @param {import('../lib/session').WaE2eSession} session
+ * @param {{ log?: (...a: any[]) => void, timeoutMs?: number }} [opts]
+ */
+async function completeDeliveryAddressAsk(session, opts = {}) {
+  const log = opts.log || (() => {});
+  const timeoutMs = opts.timeoutMs ?? 60_000;
+  const deadline = Date.now() + timeoutMs;
+  let sess = await session.getSession();
+
+  while (/^awaiting_delivery_address/.test(sess?.state || '')) {
+    const beforeState = sess.state;
+    if (beforeState === 'awaiting_delivery_address_choice') {
+      log('select manual delivery address entry');
+      await session.sendListReply({ title: /Adresse eingeben/i, fallback: false });
+    } else if (beforeState === 'awaiting_delivery_address') {
+      log('send delivery address');
+      await session.sendText(ADDRESS_SHORTCIRCUIT);
+    } else if (beforeState === 'awaiting_delivery_address_confirm') {
+      log('confirm delivery address');
+      await session.sendButtonReply({ title: 'Ja', fallback: false });
+    } else if (beforeState === 'awaiting_delivery_address_unit') {
+      log('select house delivery unit');
+      await session.sendButtonReply({ title: 'Haus', fallback: false });
+    }
+
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      throw new Error(`Timed out completing delivery address (state=${beforeState})`);
+    }
+    sess = await session.waitForSession(
+      (next) => next?.state !== beforeState,
+      { timeoutMs: remainingMs },
+    ).catch((err) => {
+      throw new Error(
+        `Timed out completing delivery address (state=${beforeState}): ${err.message}`,
+      );
+    });
+  }
+
+  return sess;
+}
+
+/**
  * Confirm an order using a visible localized button, with text fallback.
  * @param {import('../lib/session').WaE2eSession} session
  * @param {{ log?: (...a: any[]) => void }} [opts]
@@ -365,6 +410,7 @@ function sleep(ms) {
 }
 
 module.exports = {
+  ADDRESS_SHORTCIRCUIT,
   E2E_DONER_GROUPS,
   clickAny,
   openRestaurant,
@@ -374,6 +420,7 @@ module.exports = {
   addDonerAyranDelivery,
   addDonerAyranDeliveryNoAddress,
   clearLastDeliveryAddress,
+  completeDeliveryAddressAsk,
   confirmOrder,
   sleep,
 };

@@ -8,6 +8,7 @@ const {
   addDonerAyranDelivery,
   addDonerAyranDeliveryNoAddress,
   clearLastDeliveryAddress,
+  completeDeliveryAddressAsk,
   confirmOrder,
   clickAny,
 } = require('../scenarios/helpers');
@@ -27,6 +28,7 @@ const KNOWN_MACROS = Object.freeze([
   'add_doner_ayran_delivery',
   'add_doner_ayran_delivery_no_address',
   'clear_last_delivery_address',
+  'complete_delivery_address_ask',
   'complete_customizing',
   'start_checkout',
   'ensure_confirming',
@@ -262,6 +264,10 @@ async function runMacro(session, body, { id, timeoutMs }) {
   }
   if (name === 'clear_last_delivery_address') {
     await clearLastDeliveryAddress(session, { log });
+    return;
+  }
+  if (name === 'complete_delivery_address_ask') {
+    await completeDeliveryAddressAsk(session, { log, timeoutMs });
     return;
   }
   if (name === 'complete_customizing') {
