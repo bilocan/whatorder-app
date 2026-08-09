@@ -48,6 +48,16 @@ The default nightly run remains Pack A+B, including YAML scenarios registered in
 
 ## Contabo live run (wa-web)
 
+**Triggers (`.github/workflows/e2e-wa.yml`):**
+
+| Trigger | Packs | Notes |
+|---------|-------|--------|
+| After **CI** succeeds on push to `dev` | Pack A | Post-Test-deploy smoke; waits for `/version` gitSha |
+| Nightly `0 3 * * *` UTC | Pack A + B | Full regression |
+| `workflow_dispatch` | Pack A + B | Manual |
+
+Never on `pull_request` (Meta traffic + logged-in browser).
+
 **Important:** Chrome `headless=true` often never shows a logged-in WhatsApp Web UI. On Contabo use **headed Chromium under Xvfb**. Default browser channel is system **Google Chrome** (`E2E_WA_WEB_CHANNEL=chrome`) because WA Web rejects old Playwright-bundled Chromium.
 
 ```bash

@@ -413,8 +413,16 @@ test.each([
 test('confirmOrder clicks a localized confirm button', async () => {
   const session = fakeDeliverySession({ state: 'confirming' });
   session.sendButtonReply.mockImplementation(async ({ title }) => {
-    if (title === 'Bestätigen ✅') return 'btn';
+    if (title === 'Bestätigen ✅') {
+      session.setSnap({ state: 'browsing', basket: [] });
+      return 'btn';
+    }
     throw new Error(`No button ${title}`);
+  });
+  session.waitForSession.mockImplementation(async (predicate) => {
+    const snap = await session.getSession();
+    if (predicate(snap)) return snap;
+    throw new Error('waitForSession timed out');
   });
 
   await confirmOrder(session, { log: () => {} });
@@ -428,8 +436,36 @@ test('confirmOrder clicks a localized confirm button', async () => {
 
 test('confirmOrder falls back to ja when no confirm button is visible', async () => {
   const session = fakeDeliverySession({ state: 'confirming' });
+  session.waitForSession.mockImplementation(async (predicate) => {
+    session.setSnap({ state: 'browsing', basket: [] });
+    const snap = await session.getSession();
+    if (predicate(snap)) return snap;
+    throw new Error('waitForSession timed out');
+  });
 
   await confirmOrder(session, { log: () => {} });
 
   expect(session.sendText).toHaveBeenCalledWith('ja');
+});
+
+// Contabo run 31338803785: DOM click on unloadable/stale Bestätigen left session
+// in confirming; pickup never sent ja → waitForOrder 90s timeout.
+test('confirmOrder retries ja when a stale confirm click leaves confirming', async () => {
+  const session = fakeDeliverySession({ state: 'confirming', basket: [{ name: 'Ayran' }] });
+  session.sendButtonReply.mockResolvedValue('btn');
+  let waits = 0;
+  session.waitForSession.mockImplementation(async (predicate) => {
+    waits += 1;
+    if (waits === 1) throw new Error('still confirming');
+    session.setSnap({ state: 'browsing', basket: [] });
+    const snap = await session.getSession();
+    if (predicate(snap)) return snap;
+    throw new Error('waitForSession timed out');
+  });
+
+  await confirmOrder(session, { log: () => {}, leaveConfirmingTimeoutMs: 50 });
+
+  expect(session.sendButtonReply).toHaveBeenCalled();
+  expect(session.sendText).toHaveBeenCalledWith('ja');
+  expect(waits).toBe(2);
 });
