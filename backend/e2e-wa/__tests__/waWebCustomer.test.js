@@ -57,7 +57,12 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     listOpenVisible = false,
     listRowVisible = false,
     listOpenLabel = 'Adresse wählen',
+    dialogVisible = false,
   } = {}) {
+    let modalOpen = dialogVisible;
+    const dialog = {
+      isVisible: jest.fn().mockImplementation(async () => modalOpen),
+    };
     const compose = {
       waitFor: jest.fn().mockResolvedValue(undefined),
       click: jest.fn().mockResolvedValue(undefined),
@@ -93,6 +98,9 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     function pageLocator(sel) {
       if (sel === 'body') {
         return { innerText: jest.fn().mockResolvedValue('Chats') };
+      }
+      if (sel.includes('[role="dialog"]') || sel.includes('aria-modal')) {
+        return { first: () => dialog };
       }
       if (sel.includes('pane-side') || sel.includes('chat-list')) return chatList;
       if (sel === 'canvas') return qr;
@@ -148,12 +156,17 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
         last: () => roleTarget(name),
       }),
       goto: jest.fn().mockResolvedValue(undefined),
-      keyboard: { press: jest.fn().mockResolvedValue(undefined) },
+      keyboard: {
+        press: jest.fn().mockImplementation(async (key) => {
+          if (key === 'Escape') modalOpen = false;
+        }),
+      },
       evaluate: jest.fn().mockImplementation(async () => evaluateMessages),
       _setMessages: (m) => { evaluateMessages = m; },
       _setTexts: (t) => { evaluateMessages = t.map((text, i) => ({ id: `false_${i}`, text })); },
       _listOpenBtn: listOpenBtn,
       _listRowBtn: listRowBtn,
+      _dialog: dialog,
     };
   }
 
@@ -166,6 +179,47 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     customer._chatOpen = true;
     await customer.sendText('Merhaba');
     expect(page.keyboard.press).toHaveBeenCalledWith('Enter');
+  });
+
+  test('sendText dismisses aria-modal dialog before compose click', async () => {
+    const page = mockPage({ dialogVisible: true });
+    const customer = new WaWebCustomer(
+      { businessDisplay: '+4368120575797' },
+      { page },
+    );
+    customer._chatOpen = true;
+    await customer.sendText('fertig');
+    expect(page.keyboard.press).toHaveBeenCalledWith('Escape');
+    expect(page.keyboard.press).toHaveBeenCalledWith('Enter');
+    expect(page._dialog.isVisible).toHaveBeenCalled();
+  });
+
+  test('sendText throws when modal stays open after Escape', async () => {
+    const page = mockPage({ dialogVisible: true });
+    page.keyboard.press = jest.fn().mockResolvedValue(undefined); // Escape does not clear
+    const customer = new WaWebCustomer(
+      { businessDisplay: '+4368120575797' },
+      { page },
+    );
+    customer._chatOpen = true;
+    await expect(customer.sendText('fertig')).rejects.toThrow(/modal dialog still open/i);
+    expect(page.keyboard.press).not.toHaveBeenCalledWith('Enter');
+  });
+
+  test('sendListReply dismisses stale modal before opening list', async () => {
+    const page = mockPage({
+      dialogVisible: true,
+      listOpenVisible: true,
+      listRowVisible: true,
+    });
+    const customer = new WaWebCustomer(
+      { businessDisplay: '+4368120575797' },
+      { page },
+    );
+    customer._chatOpen = true;
+    await customer.sendListReply({ title: /Adresse eingeben/i });
+    expect(page.keyboard.press).toHaveBeenCalledWith('Escape');
+    expect(page._listOpenBtn.click).toHaveBeenCalled();
   });
 
   test('waitForReply uses pre-send message-id baseline from sendText', async () => {
