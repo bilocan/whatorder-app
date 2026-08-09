@@ -27,6 +27,21 @@ test('loadScriptFile validates the Pack A delivery script', () => {
   expect(doc.steps).toHaveLength(8);
 });
 
+test('loadScriptFile validates basket_edit_mid_checkout Pack C script', () => {
+  const doc = loadScriptFile(path.join(__dirname, '../scripts/basket_edit_mid_checkout.yml'));
+  expect(doc).toMatchObject({
+    id: 'basket_edit_mid_checkout',
+    pack: 'c',
+    priority: 'p1',
+    timeout_ms: 60_000,
+  });
+  expect(doc.steps).toHaveLength(6);
+  expect(doc.steps[3]).toEqual({ send: { text: 'mach 2 ayran' } });
+  expect(doc.steps[4]).toEqual({
+    gate: { name: 'basket_qty', item_includes: 'ayran', eq: 2 },
+  });
+});
+
 test('loadScriptFile throws when id missing', () => {
   const fs = require('fs');
   const os = require('os');
