@@ -343,12 +343,16 @@ async function promptOptionGroup(from, lang, ic) {
 }
 
 async function persistCustomize(from, session, lang, businessId, intentCustomize, msgId) {
+  // Pending proposal is consumed when customization starts — clear so later
+  // fertig/confirm_checkout cannot re-confirm and re-enter customizing_intent.
   await setSession(from, buildSessionWrite(session, {
     state: 'customizing_intent',
     language: lang,
     businessId,
     basket: intentCustomize.readyBasket,
     intentCustomize,
+    pendingIntentItems: undefined,
+    unmatchedIntentItems: undefined,
     pendingDeleteIds: msgId ? [msgId] : [],
   }));
 }
@@ -365,6 +369,8 @@ async function finishCustomization({ from, session, lang, businessId, readyBaske
     businessId,
     basket: readyBasket,
     intentCustomize: undefined,
+    pendingIntentItems: undefined,
+    unmatchedIntentItems: undefined,
     pendingIntentNote: undefined,
     pendingIntentRawText: undefined,
     pendingDeleteIds: [],
