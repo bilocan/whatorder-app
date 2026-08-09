@@ -1,7 +1,21 @@
 'use strict';
 
+jest.mock('../lib/scriptLoader', () => ({
+  listScriptFiles: jest.fn(() => [{
+    id: 'stub_pack_c',
+    pack: 'c',
+    path: '/tmp/stub.yml',
+    doc: { id: 'stub_pack_c', pack: 'c', steps: [] },
+  }]),
+}));
+
 const { orderCreatedMs, findLatestOrder } = require('../lib/firestoreAssert');
-const { resolveScenarioIds } = require('../scenarios');
+const {
+  BY_ID,
+  buildScenarioIndex,
+  listScenarios,
+  resolveScenarioIds,
+} = require('../scenarios');
 
 describe('e2e-wa firestoreAssert helpers', () => {
   test('orderCreatedMs from seconds', () => {
@@ -49,5 +63,45 @@ describe('e2e-wa resolveScenarioIds', () => {
       'neg_delivery_minimum',
       'neg_cancel',
     ]);
+  });
+
+  test('--all-pack-c resolves yaml script ids', () => {
+    expect(resolveScenarioIds(['--all-pack-c'])).toEqual(['stub_pack_c']);
+  });
+
+  test('--script stub_pack_c', () => {
+    expect(resolveScenarioIds(['--script', 'stub_pack_c'])).toEqual(['stub_pack_c']);
+  });
+
+  test('--scenario resolves a yaml script registered in BY_ID', () => {
+    expect(resolveScenarioIds(['--scenario', 'stub_pack_c'])).toEqual(['stub_pack_c']);
+    expect(BY_ID.stub_pack_c.format).toBe('yaml');
+  });
+
+  test('--all does not include yaml pack c', () => {
+    expect(resolveScenarioIds(['--all'])).not.toContain('stub_pack_c');
+  });
+
+  test('scenario listing includes yaml ids', () => {
+    expect(listScenarios().map((scenario) => scenario.id)).toContain('stub_pack_c');
+  });
+
+  test('duplicate scenario ids throw while building the index', () => {
+    expect(() => buildScenarioIndex([
+      { id: 'duplicate', format: 'js' },
+      { id: 'duplicate', format: 'yaml' },
+    ])).toThrow(/duplicate scenario id.*duplicate/i);
+  });
+
+  test('a broken YAML scenario fails only when it runs', async () => {
+    const loadError = new Error('invalid script');
+    const index = buildScenarioIndex([{
+      id: 'broken',
+      format: 'yaml',
+      error: loadError,
+      run: async () => { throw loadError; },
+    }]);
+    expect(index.broken).toBeDefined();
+    await expect(index.broken.run()).rejects.toThrow('invalid script');
   });
 });

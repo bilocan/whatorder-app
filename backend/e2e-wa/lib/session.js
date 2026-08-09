@@ -62,10 +62,10 @@ class WaE2eSession {
     return this.graph.sendText(this.cfg.businessDisplay, body);
   }
 
-  async sendButtonReply({ id, title }) {
+  async sendButtonReply({ id, title, fallback }) {
     this._lastSendAt = Date.now();
     if (this.waWeb) {
-      return this.waWeb.sendButtonReply({ id, title });
+      return this.waWeb.sendButtonReply({ id, title, fallback });
     }
     return this.graph.sendInteractiveButtonReply(this.cfg.businessDisplay, { id, title });
   }

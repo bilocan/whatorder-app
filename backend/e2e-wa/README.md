@@ -18,6 +18,18 @@ cd backend
 npm test -- --testPathPatterns=e2e-wa
 ```
 
+## Data-driven scripts
+
+Pack C+ scenarios should prefer YAML scripts in `e2e-wa/scripts/<id>.yml`. Use the existing `macro`, `send`, `tap`, `expect_reply`, `gate`, and `sleep` steps; reply-copy checks may be soft, but every scenario must include a named hard gate. Add new reusable behavior to the interpreter as a macro or gate instead of embedding JavaScript in YAML. See `scripts/neg_confirm_digit.yml` for the first production example.
+
+```bash
+npm run e2e:wa -- --script neg_confirm_digit
+npm run e2e:wa -- --all-pack-c
+npm run e2e:wa -- --list
+```
+
+The default nightly run remains Pack A+B. Verify new Pack C scripts on Contabo before promoting them to nightly.
+
 ## Contabo live run (wa-web)
 
 **Important:** Chrome `headless=true` often never shows a logged-in WhatsApp Web UI. On Contabo use **headed Chromium under Xvfb**. Default browser channel is system **Google Chrome** (`E2E_WA_WEB_CHANNEL=chrome`) because WA Web rejects old Playwright-bundled Chromium.

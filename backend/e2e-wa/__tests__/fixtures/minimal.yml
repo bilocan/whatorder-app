@@ -1,0 +1,4 @@
+id: minimal
+pack: c
+steps:
+  - send: { text: "hi" }

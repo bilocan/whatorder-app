@@ -1,0 +1,14 @@
+id: neg_confirm_digit
+pack: c
+priority: p1
+manual: "M2 rows 12, 37"
+timeout_ms: 45000
+steps:
+  - macro: open_restaurant
+  - macro: add_ayran_pickup
+  - macro: start_checkout
+  - macro: ensure_confirming
+  - send: { text: "1" }
+  - expect_reply: { includes: "clarify|digit|Zahl|welche", soft: true }
+  - gate: { name: no_order }
+  - gate: { name: state, in: [confirming] }

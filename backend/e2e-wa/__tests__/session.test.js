@@ -51,6 +51,13 @@ describe('e2e-wa WaE2eSession', () => {
     await session.sendText('hi');
     expect(waWeb.sendText).toHaveBeenCalledWith('hi');
 
+    await session.sendButtonReply({ id: 'button-1', title: 'Confirm', fallback: false });
+    expect(waWeb.sendButtonReply).toHaveBeenCalledWith({
+      id: 'button-1',
+      title: 'Confirm',
+      fallback: false,
+    });
+
     const reply = await session.waitForReply({ includes: /menü/i });
     expect(waWeb.waitForReply).toHaveBeenCalled();
     expect(reply.text).toMatch(/menü/i);
