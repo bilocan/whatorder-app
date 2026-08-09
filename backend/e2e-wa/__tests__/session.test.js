@@ -59,10 +59,13 @@ describe('e2e-wa WaE2eSession', () => {
       fallback: false,
     });
 
-    await session.sendListReply({ title: /Adresse eingeben/i, fallback: false });
+    await session.sendListReply({
+      title: /Adresse eingeben/i,
+      openTitle: /Adresse wählen/i,
+    });
     expect(waWeb.sendListReply).toHaveBeenCalledWith({
       title: /Adresse eingeben/i,
-      fallback: false,
+      openTitle: /Adresse wählen/i,
     });
 
     const reply = await session.waitForReply({ includes: /menü/i });

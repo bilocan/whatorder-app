@@ -202,7 +202,8 @@ async function clearLastDeliveryAddress(businessId, customerDisplay) {
   const ref = customersRef(businessId).doc(customerId);
   const snap = await ref.get();
   if (!snap.exists) {
-    throw new Error(`clearLastDeliveryAddress: customer not found ${customerId}`);
+    console.log(`clearLastDeliveryAddress: customer not found ${customerId}; no-op`);
+    return;
   }
 
   const data = snap.data();

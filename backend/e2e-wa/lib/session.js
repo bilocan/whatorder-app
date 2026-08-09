@@ -71,12 +71,12 @@ class WaE2eSession {
     return this.graph.sendInteractiveButtonReply(this.cfg.businessDisplay, { id, title });
   }
 
-  async sendListReply({ title, fallback = false }) {
+  async sendListReply({ title, openTitle }) {
     this._lastSendAt = Date.now();
     if (!this.waWeb) {
       throw new Error('sendListReply requires wa-web customer transport');
     }
-    return this.waWeb.sendListReply({ title, fallback });
+    return this.waWeb.sendListReply({ title, openTitle });
   }
 
   /**

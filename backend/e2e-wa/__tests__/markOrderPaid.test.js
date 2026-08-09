@@ -83,6 +83,29 @@ describe('e2e-wa markOrderPaid', () => {
 });
 
 describe('e2e-wa clearLastDeliveryAddress', () => {
+  test('is a logged no-op when the customer document does not exist', async () => {
+    const mockUpdate = jest.fn();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    customersRef.mockReturnValue({
+      doc: jest.fn().mockReturnValue({
+        get: jest.fn().mockResolvedValue({
+          exists: false,
+          id: '436602585284',
+        }),
+        update: mockUpdate,
+      }),
+    });
+
+    await expect(clearLastDeliveryAddress('biz_test', '+436602585284'))
+      .resolves.toBeUndefined();
+
+    expect(logSpy).toHaveBeenCalledWith(expect.stringMatching(
+      /clearLastDeliveryAddress.*customer not found.*no-op/i,
+    ));
+    expect(mockUpdate).not.toHaveBeenCalled();
+    logSpy.mockRestore();
+  });
+
   test('deletes saved delivery address fields for the guarded e2e customer', async () => {
     const mockUpdate = jest.fn().mockResolvedValue(undefined);
     customersRef.mockReturnValue({

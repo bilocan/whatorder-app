@@ -56,6 +56,7 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     composeVisible = true,
     listOpenVisible = false,
     listRowVisible = false,
+    listOpenLabel = 'Adresse wählen',
   } = {}) {
     const compose = {
       waitFor: jest.fn().mockResolvedValue(undefined),
@@ -84,7 +85,7 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     let evaluateMessages = messages || texts.map((text, i) => ({ id: `false_${i}`, text }));
 
     function roleTarget(name) {
-      if (name instanceof RegExp && name.test('Adresse wählen')) return listOpenBtn;
+      if (name instanceof RegExp && name.test(listOpenLabel)) return listOpenBtn;
       if (name instanceof RegExp && name.test('Adresse eingeben')) return listRowBtn;
       return invisibleBtn;
     }
@@ -278,6 +279,56 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     expect(page.keyboard.press).not.toHaveBeenCalled();
   });
 
+  test('sendListReply accepts a caller-supplied list opener', async () => {
+    const page = mockPage({
+      listOpenVisible: true,
+      listRowVisible: true,
+      listOpenLabel: 'Wählen',
+    });
+    const customer = new WaWebCustomer(
+      { businessDisplay: '+4368120575797' },
+      { page },
+    );
+    customer._chatOpen = true;
+
+    await customer.sendListReply({
+      title: /Adresse eingeben/i,
+      openTitle: /Wählen/i,
+    });
+
+    expect(page._listOpenBtn.click).toHaveBeenCalled();
+  });
+
+  test('sendListReply default opener covers customization lists', async () => {
+    const page = mockPage({
+      listOpenVisible: true,
+      listRowVisible: true,
+      listOpenLabel: 'Wählen',
+    });
+    const customer = new WaWebCustomer(
+      { businessDisplay: '+4368120575797' },
+      { page },
+    );
+    customer._chatOpen = true;
+
+    await customer.sendListReply({ title: /Adresse eingeben/i });
+
+    expect(page._listOpenBtn.click).toHaveBeenCalled();
+  });
+
+  test('sendListReply throws when no matching list opener is visible', async () => {
+    const page = mockPage({ listRowVisible: true });
+    const customer = new WaWebCustomer(
+      { businessDisplay: '+4368120575797' },
+      { page },
+    );
+    customer._chatOpen = true;
+
+    await expect(customer.sendListReply({ title: /Adresse eingeben/i }))
+      .rejects.toThrow(/No visible WA Web list opener/);
+    expect(page._listRowBtn.click).not.toHaveBeenCalled();
+  });
+
   test('sendListReply throws without sending text when no row matches', async () => {
     const page = mockPage({ listOpenVisible: true });
     const customer = new WaWebCustomer(
@@ -286,7 +337,7 @@ describe('e2e-wa WaWebCustomer with mocked page', () => {
     );
     customer._chatOpen = true;
 
-    await expect(customer.sendListReply({ title: 'Adresse eingeben', fallback: true }))
+    await expect(customer.sendListReply({ title: 'Adresse eingeben' }))
       .rejects.toThrow(/No visible WA Web list row/);
     expect(page.keyboard.press).not.toHaveBeenCalled();
   });

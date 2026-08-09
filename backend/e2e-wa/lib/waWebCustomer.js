@@ -346,20 +346,28 @@ class WaWebCustomer {
   /**
    * Open the newest inbound list message and select a row by title.
    * List replies never fall back to typing the row title as text.
-   * @param {{ title: string|RegExp, fallback?: boolean }} opts
+   * @param {{ title: string|RegExp, openTitle?: string|RegExp }} opts
    */
-  async sendListReply({ title } = {}) {
+  async sendListReply({
+    title,
+    openTitle = /Adresse wählen|Choose address|Adres seç|Wählen|Choose|Seç/i,
+  } = {}) {
     const page = this._requirePage();
     if (!this._chatOpen) await this.openBusinessChat();
     if (!(title instanceof RegExp) && !String(title || '').trim()) {
       throw new Error('sendListReply requires title');
+    }
+    if (!(openTitle instanceof RegExp) && !String(openTitle || '').trim()) {
+      throw new Error('sendListReply requires openTitle');
     }
 
     this._preSendIncoming = await this._incomingMessages();
     const titlePattern = title instanceof RegExp
       ? title
       : new RegExp(escapeRegExp(String(title).trim()), 'i');
-    const openPattern = /Adresse wählen/i;
+    const openPattern = openTitle instanceof RegExp
+      ? openTitle
+      : new RegExp(escapeRegExp(String(openTitle).trim()), 'i');
     const main = page.locator('#main');
     const lastInbound = main.locator(
       'div.message-in, div[data-testid="msg-container"]:not(.message-out)',
@@ -379,7 +387,7 @@ class WaWebCustomer {
       }
     }
     if (!opened) {
-      throw new Error('No visible WA Web list opener matching "Adresse wählen"');
+      throw new Error(`No visible WA Web list opener matching ${String(openPattern)}`);
     }
 
     await sleep(250);

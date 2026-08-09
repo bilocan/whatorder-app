@@ -149,6 +149,22 @@ test.each([
   expect(() => validateScript({ id: 'invalid', steps: [step] })).toThrow(message);
 });
 
+test.each([
+  [
+    { name: 'basket_qty', item_include: 'ayran', eq: 2 },
+    /basket_qty.*unknown key.*item_include/i,
+  ],
+  [
+    { name: 'order_stripe_delivery', address_include: 'Hauptstraße' },
+    /order_stripe_delivery.*unknown key.*address_include/i,
+  ],
+])('validateScript rejects unknown keys for strict gate %p', (gate, message) => {
+  expect(() => validateScript({
+    id: 'invalid-gate-key',
+    steps: [{ gate }],
+  })).toThrow(message);
+});
+
 test('soft expect_reply does not throw when waitForReply fails', async () => {
   const session = fakeSession();
   session.waitForReply.mockRejectedValue(new Error('timeout'));
@@ -457,6 +473,21 @@ test('order gates pass per-script afterMs unless YAML sets afterMs explicitly', 
   expect(session.waitForOrder).toHaveBeenNthCalledWith(2, expect.objectContaining({
     afterMs: explicitAfterMs,
   }));
+});
+
+test('order gates buffer the per-script afterMs against clock skew', async () => {
+  const session = fakeSession();
+  const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(50_000);
+
+  await runScript(session, {
+    id: 'clock-skew-buffer',
+    steps: [{ gate: { name: 'order_stripe' } }],
+  });
+
+  expect(session.waitForOrder).toHaveBeenCalledWith(expect.objectContaining({
+    afterMs: 45_000,
+  }));
+  nowSpy.mockRestore();
 });
 
 test('order_stripe validates optional paymentStatus', async () => {

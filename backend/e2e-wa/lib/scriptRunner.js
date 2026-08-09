@@ -45,6 +45,18 @@ const KNOWN_GATES = Object.freeze([
   'order_stripe_delivery',
   'pending_intent',
 ]);
+const STRICT_GATE_KEYS = Object.freeze({
+  basket_qty: new Set(['name', 'item_includes', 'eq', 'gte', 'lte']),
+  order_stripe_delivery: new Set([
+    'name',
+    'status',
+    'timeout_ms',
+    'afterMs',
+    'paymentStatus',
+    'address_includes',
+  ]),
+});
+const SCRIPT_CLOCK_SKEW_BUFFER_MS = 5_000;
 
 function stepKind(step) {
   const keys = Object.keys(step || {});
@@ -55,6 +67,15 @@ function stepKind(step) {
 function requireObject(body, label) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     throw new Error(`${label} body must be an object`);
+  }
+}
+
+function rejectUnknownGateKeys(body) {
+  const allowed = STRICT_GATE_KEYS[body.name];
+  if (!allowed) return;
+  const unknown = Object.keys(body).find((key) => !allowed.has(key));
+  if (unknown) {
+    throw new Error(`Gate ${body.name} has unknown key: ${unknown}`);
   }
 }
 
@@ -95,6 +116,7 @@ function validateScript(doc) {
     } else if (kind === 'gate') {
       requireObject(body, label);
       if (!KNOWN_GATES.includes(body.name)) throw new Error(`Unknown gate: ${body.name}`);
+      rejectUnknownGateKeys(body);
       if (body.name === 'basket_len' && body.eq == null && body.gte == null && body.lte == null) {
         throw new Error('Gate basket_len requires a comparator: eq, gte, or lte');
       }
@@ -320,7 +342,7 @@ async function runScript(session, doc) {
   validateScript({ ...doc, id: doc?.id || 'script' });
   const id = doc.id || 'script';
   const timeoutMs = doc.timeout_ms || 45_000;
-  const scriptStartedAtMs = Date.now();
+  const scriptStartedAtMs = Date.now() - SCRIPT_CLOCK_SKEW_BUFFER_MS;
   const steps = doc.steps || [];
   for (let i = 0; i < steps.length; i += 1) {
     const step = steps[i];

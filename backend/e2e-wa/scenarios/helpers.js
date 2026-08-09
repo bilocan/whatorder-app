@@ -210,7 +210,7 @@ async function completeCustomizing(session, opts = {}) {
           throw new Error(`Single option group ${group.id || group.label} requires WA Web list support`);
         }
         const title = (options[0]?.label || 'Überspringen').slice(0, 24);
-        await session.sendListReply({ title, fallback: false });
+        await session.sendListReply({ title });
         log('selected single customization list row', title);
       } else {
         const title = (options[0]?.label || 'Überspringen').slice(0, 20);
@@ -354,7 +354,10 @@ async function completeDeliveryAddressAsk(session, opts = {}) {
     const beforeState = sess.state;
     if (beforeState === 'awaiting_delivery_address_choice') {
       log('select manual delivery address entry');
-      await session.sendListReply({ title: /Adresse eingeben/i, fallback: false });
+      await session.sendListReply({
+        title: /Adresse eingeben/i,
+        openTitle: /Adresse wählen/i,
+      });
     } else if (beforeState === 'awaiting_delivery_address') {
       log('send delivery address');
       await session.sendText(ADDRESS_SHORTCIRCUIT);
@@ -363,7 +366,7 @@ async function completeDeliveryAddressAsk(session, opts = {}) {
       await session.sendButtonReply({ title: 'Ja', fallback: false });
     } else if (beforeState === 'awaiting_delivery_address_unit') {
       log('select house delivery unit');
-      await session.sendButtonReply({ title: 'Haus', fallback: false });
+      await session.sendText('Haus');
     }
 
     const remainingMs = deadline - Date.now();

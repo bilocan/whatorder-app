@@ -111,7 +111,7 @@ test('completeCustomizing uses a list when an optional single group has four cho
 
   await completeCustomizing(session, { log: () => {} });
 
-  expect(session.sendListReply).toHaveBeenCalledWith({ title: 'Knoblauch', fallback: false });
+  expect(session.sendListReply).toHaveBeenCalledWith({ title: 'Knoblauch' });
   expect(session.sendButtonReply).not.toHaveBeenCalled();
 });
 
@@ -349,7 +349,7 @@ test('completeDeliveryAddressAsk steps choice through text and confirmation', as
   );
   expect(session.sendListReply).toHaveBeenCalledWith({
     title: /Adresse eingeben/i,
-    fallback: false,
+    openTitle: /Adresse wählen/i,
   });
   expect(session.sendText).toHaveBeenCalledWith(ADDRESS_SHORTCIRCUIT);
   expect(session.sendButtonReply).toHaveBeenCalledWith({ title: 'Ja', fallback: false });
@@ -359,10 +359,6 @@ test('completeDeliveryAddressAsk handles unit and repeated choice address states
   const session = fakeDeliverySession({ state: 'awaiting_delivery_address_unit' });
   let listSelections = 0;
   session.sendButtonReply.mockImplementation(async ({ title }) => {
-    if (title === 'Haus') {
-      session.setSnap({ state: 'awaiting_delivery_address_choice' });
-      return 'unit';
-    }
     if (title === 'Ja') {
       session.setSnap({ state: 'confirming' });
       return 'confirm';
@@ -374,16 +370,21 @@ test('completeDeliveryAddressAsk handles unit and repeated choice address states
     session.setSnap({ state: 'awaiting_delivery_address' });
     return 'list';
   });
-  session.sendText.mockImplementation(async () => {
-    session.setSnap({ state: 'awaiting_delivery_address_confirm' });
+  session.sendText.mockImplementation(async (text) => {
+    if (text === 'Haus') {
+      session.setSnap({ state: 'awaiting_delivery_address_choice' });
+    } else {
+      session.setSnap({ state: 'awaiting_delivery_address_confirm' });
+    }
     return 'text';
   });
 
   await expect(completeDeliveryAddressAsk(session, { log: () => {} })).resolves.toEqual(
     expect.objectContaining({ state: 'confirming' }),
   );
-  expect(session.sendButtonReply.mock.calls.map(([arg]) => arg.title)).toEqual(['Haus', 'Ja']);
+  expect(session.sendButtonReply.mock.calls.map(([arg]) => arg.title)).toEqual(['Ja']);
   expect(listSelections).toBe(1);
+  expect(session.sendText).toHaveBeenCalledWith('Haus');
   expect(session.sendText).toHaveBeenCalledWith(ADDRESS_SHORTCIRCUIT);
 });
 
