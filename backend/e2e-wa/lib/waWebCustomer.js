@@ -289,14 +289,36 @@ class WaWebCustomer {
     throw new Error(`Could not open WA Web chat for ${display}`);
   }
 
+  /**
+   * WA Web leaves modal sheets open after a stale list/button click; they intercept
+   * the composer. Escape until no aria-modal dialog is visible.
+   */
+  async _dismissModalOverlays() {
+    const page = this._requirePage();
+    for (let i = 0; i < 4; i += 1) {
+      const dialog = page.locator('[role="dialog"][aria-modal="true"]').first();
+      const visible = await dialog.isVisible().catch(() => false);
+      if (!visible) return;
+      await page.keyboard.press('Escape');
+      await sleep(250);
+    }
+  }
+
   async sendText(body) {
     const page = this._requirePage();
     if (!this._chatOpen) await this.openBusinessChat();
+    await this._dismissModalOverlays();
     const compose = page.locator(SEL.composeBox).first();
     await compose.waitFor({ state: 'visible', timeout: 30_000 });
     // Snapshot message ids BEFORE Enter (text alone is unstable across identical bot replies).
     this._preSendIncoming = await this._incomingMessages();
-    await compose.click();
+    try {
+      await compose.click({ timeout: 5_000 });
+    } catch (_) {
+      // Overlay still intercepting after Escape — force past pointer blockers.
+      await this._dismissModalOverlays();
+      await compose.click({ timeout: 10_000, force: true });
+    }
     await compose.fill('');
     await compose.type(String(body), { delay: 15 });
     await page.keyboard.press('Enter');
