@@ -300,6 +300,8 @@ async function addDonerAyranDelivery(session, opts = {}) {
   try {
     sess = await session.waitForSession(
       (s) => (s?.basket?.length || 0) >= 2
+        && !(s?.pendingIntentItems?.length > 0)
+        && s?.state !== 'customizing_intent'
         && s?.orderType === 'delivery'
         && (
           expectAddress === 'present'
@@ -315,6 +317,14 @@ async function addDonerAyranDelivery(session, opts = {}) {
   const basketLength = sess?.basket?.length || 0;
   if (basketLength < 2) {
     throw new Error(`Expected delivery basket length >= 2, got ${basketLength}`);
+  }
+  if (sess?.pendingIntentItems?.length > 0) {
+    throw new Error(
+      `Expected pendingIntentItems cleared after delivery add, got ${sess.pendingIntentItems.length}`,
+    );
+  }
+  if (sess?.state === 'customizing_intent') {
+    throw new Error('Stuck in customizing_intent after delivery add');
   }
   if (sess?.orderType !== 'delivery') {
     throw new Error(`Expected delivery order type, got ${sess?.orderType || 'unset'}`);

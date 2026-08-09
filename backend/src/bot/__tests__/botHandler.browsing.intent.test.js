@@ -418,6 +418,11 @@ describe('Intent ordering (Tier A)', () => {
         unitMode: null,
       }),
     }));
+    // Proposal is consumed on customize start — must not linger for fertig deferral.
+    expect(setSession).toHaveBeenCalledWith(
+      FROM,
+      expect.not.objectContaining({ pendingIntentItems: expect.anything() }),
+    );
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: expect.arrayContaining([
         expect.objectContaining({ id: 'btn_intent_same_opts' }),
@@ -527,6 +532,61 @@ describe('Intent ordering (Tier A)', () => {
       { name: 'Döner — Chicken', qty: 1, price: 8.50 },
       { name: 'Döner — Lamb', qty: 1, price: 8.50 },
     ]);
+  });
+
+  // Contabo Pack A happy_stripe_delivery (run 31338061337): after Sepete ekle →
+  // customize → browsing, stale pendingIntentItems remained. fertig then deferred to
+  // btn_intent_confirm and re-entered customizing_intent (basket=2, pending=2).
+  test('finish customization clears pending so fertig checkouts (Contabo delivery regression)', async () => {
+    const multiGroup = {
+      id: 'kebap_beilagen',
+      label: 'Kebap Beilagen',
+      type: 'multi',
+      required: false,
+      options: [
+        { id: 'tomaten', label: 'Tomaten' },
+        { id: 'salad', label: 'Salad' },
+      ],
+    };
+    const pending = [
+      {
+        name: 'Döner', qty: 1, price: 8.50, menuItemId: 'item_1',
+        optionGroups: [multiGroup],
+      },
+      { name: 'Ayran', qty: 1, price: 2.00, menuItemId: 'item_2', optionGroups: [] },
+    ];
+    let stored = {
+      language: 'tr',
+      state: 'customizing_intent',
+      businessId: BIZ,
+      basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+      pendingIntentItems: pending,
+      intentCustomize: {
+        queue: [{
+          name: 'Döner', qty: 1, price: 8.50, menuItemId: 'item_1',
+          optionGroups: [multiGroup],
+        }],
+        groupIdx: 0,
+        selections: {},
+        readyBasket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+        unitMode: 'same',
+        unitIndex: 1,
+        unitTotal: 1,
+      },
+    };
+    getSession.mockImplementation(async () => ({ ...stored }));
+    setSession.mockImplementation(async (_phone, data) => { stored = { ...data }; });
+
+    await handleMessage(ROUTING, msg({ text: 'skip' }));
+
+    expect(stored.state).toBe('browsing');
+    expect(stored.pendingIntentItems).toBeUndefined();
+    expect(stored.basket.length).toBeGreaterThanOrEqual(2);
+
+    await handleMessage(ROUTING, msg({ text: 'fertig' }));
+
+    expect(stored.state).toBe('awaiting_name');
+    expect(stored.state).not.toBe('customizing_intent');
   });
 
   test('btn_view_basket after btn_intent_confirm reads persisted basket', async () => {
