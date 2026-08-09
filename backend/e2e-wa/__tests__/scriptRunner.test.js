@@ -129,6 +129,9 @@ test.each([
   [{ expect_reply: {} }, /expect_reply.*includes/i],
   [{ gate: 'state' }, /gate.*object/i],
   [{ gate: { name: 'basket_len' } }, /basket_len.*comparator/i],
+  [{ gate: { name: 'basket_qty' } }, /basket_qty.*item_includes|basket_qty.*comparator/i],
+  [{ gate: { name: 'basket_qty', eq: 2 } }, /basket_qty.*item_includes/i],
+  [{ gate: { name: 'basket_qty', item_includes: 'ayran' } }, /basket_qty.*comparator/i],
   [{ gate: { name: 'state' } }, /state.*comparator/i],
   [{ macro: 'teleport' }, /unknown macro/i],
 ])('validateScript rejects invalid step %p', (step, message) => {
@@ -168,6 +171,54 @@ test('gate basket_len eq', async () => {
     id: 'g2',
     steps: [{ gate: { name: 'basket_len', eq: 1 } }],
   });
+});
+
+test('gate basket_qty eq sums qty on one matching line', async () => {
+  const session = fakeSession({
+    basket: [{ name: 'Ayran 0.25l', qty: 2 }],
+  });
+  await runScript(session, {
+    id: 'g-basket-qty-1',
+    steps: [{ gate: { name: 'basket_qty', item_includes: 'ayran', eq: 2 } }],
+  });
+  expect(session.waitForSession).toHaveBeenCalled();
+});
+
+test('gate basket_qty eq sums qty across multiple matching lines', async () => {
+  const session = fakeSession({
+    basket: [
+      { name: 'Ayran 0.25l', qty: 1 },
+      { name: 'Extra Ayran', qty: 1 },
+      { name: 'Döner', qty: 3 },
+    ],
+  });
+  await runScript(session, {
+    id: 'g-basket-qty-2',
+    steps: [{ gate: { name: 'basket_qty', item_includes: 'ayran', eq: 2 } }],
+  });
+});
+
+test('gate basket_qty matches item names case-insensitively', async () => {
+  const session = fakeSession({
+    basket: [{ name: 'AYRAN', qty: 2 }],
+  });
+  await runScript(session, {
+    id: 'g-basket-qty-ci',
+    steps: [{ gate: { name: 'basket_qty', item_includes: 'ayran', eq: 2 } }],
+  });
+});
+
+test('gate basket_qty times out when no matching line reaches qty', async () => {
+  const session = fakeSession({
+    basket: [{ name: 'Döner', qty: 1 }],
+  });
+  session.waitForSession.mockImplementation(async (_pred, opts = {}) => {
+    throw new Error('waitForSession timed out');
+  });
+  await expect(runScript(session, {
+    id: 'g-basket-qty-miss',
+    steps: [{ gate: { name: 'basket_qty', item_includes: 'ayran', eq: 2 } }],
+  })).rejects.toThrow(/timed out/i);
 });
 
 test('unknown gate throws', async () => {

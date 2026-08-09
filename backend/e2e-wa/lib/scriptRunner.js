@@ -32,6 +32,7 @@ const KNOWN_GATES = Object.freeze([
   'business_bound',
   'basket_empty',
   'basket_len',
+  'basket_qty',
   'state',
   'no_order',
   'order_stripe',
@@ -91,6 +92,14 @@ function validateScript(doc) {
       if (body.name === 'basket_len' && body.eq == null && body.gte == null && body.lte == null) {
         throw new Error('Gate basket_len requires a comparator: eq, gte, or lte');
       }
+      if (body.name === 'basket_qty') {
+        if (body.item_includes == null || body.item_includes === '') {
+          throw new Error('Gate basket_qty requires item_includes');
+        }
+        if (body.eq == null && body.gte == null && body.lte == null) {
+          throw new Error('Gate basket_qty requires a comparator: eq, gte, or lte');
+        }
+      }
       if (body.name === 'state' && body.eq == null && !Array.isArray(body.in)) {
         throw new Error('Gate state requires a comparator: eq or in');
       }
@@ -115,6 +124,14 @@ function toRegExp(includes) {
   return new RegExp(String(includes), 'i');
 }
 
+function basketQtyMatching(basket, needle) {
+  const re = new RegExp(String(needle), 'i');
+  return (basket || []).reduce((sum, line) => {
+    if (re.test(String(line?.name || ''))) return sum + (Number(line?.qty) || 0);
+    return sum;
+  }, 0);
+}
+
 async function runGate(session, body, timeoutMs, scriptStartedAtMs) {
   const name = body.name;
   const orderAfterMs = body.afterMs ?? scriptStartedAtMs;
@@ -132,6 +149,17 @@ async function runGate(session, body, timeoutMs, scriptStartedAtMs) {
   if (name === 'basket_len') {
     await session.waitForSession((s) => {
       const n = s?.basket?.length || 0;
+      if (body.eq != null) return n === body.eq;
+      if (body.gte != null) return n >= body.gte;
+      if (body.lte != null) return n <= body.lte;
+      return false;
+    }, { timeoutMs });
+    return;
+  }
+  if (name === 'basket_qty') {
+    const needle = body.item_includes;
+    await session.waitForSession((s) => {
+      const n = basketQtyMatching(s?.basket, needle);
       if (body.eq != null) return n === body.eq;
       if (body.gte != null) return n >= body.gte;
       if (body.lte != null) return n <= body.lte;
