@@ -24,7 +24,12 @@ test('loadScriptFile validates the Pack A delivery script', () => {
     priority: 'p0',
     timeout_ms: 90_000,
   });
-  expect(doc.steps).toHaveLength(8);
+  expect(doc.steps).toHaveLength(10);
+  expect(doc.steps.slice(-3)).toEqual([
+    { gate: { name: 'order_stripe_delivery', address_includes: 'Hauptstraße' } },
+    { macro: 'mark_last_order_paid' },
+    { macro: 'cancel_last_order' },
+  ]);
 });
 
 test('loadScriptFile validates basket_edit_mid_checkout Pack C script', () => {

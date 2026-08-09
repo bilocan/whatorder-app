@@ -120,6 +120,8 @@ test('validateScript exports and accepts the supported vocabulary', () => {
     'complete_delivery_address_ask',
     'complete_customizing',
     'confirm_order',
+    'mark_last_order_paid',
+    'cancel_last_order',
   ]));
   expect(KNOWN_GATES).toContain('state');
   expect(KNOWN_GATES).toContain('order_stripe_delivery');
@@ -528,6 +530,32 @@ test('order_stripe validates optional paymentStatus', async () => {
   await expect(runScript(session, {
     steps: [{ gate: { name: 'order_stripe', paymentStatus: 'pending' } }],
   })).rejects.toThrow(/paymentStatus.*pending.*failed/);
+});
+
+test('mark_last_order_paid and cancel_last_order tear down session.lastOrder', async () => {
+  const session = fakeSession();
+  session.lastOrder = { id: 'ord_delivery_1' };
+  session.markOrderPaid = jest.fn(async () => ({ id: 'ord_delivery_1', paymentStatus: 'paid' }));
+  session.ownerCancel = jest.fn(async () => ({ id: 'ord_delivery_1', status: 'cancelled' }));
+  session.waitForOrderStatus = jest.fn(async () => ({ id: 'ord_delivery_1', status: 'cancelled' }));
+
+  await runScript(session, {
+    id: 'teardown',
+    steps: [
+      { macro: 'mark_last_order_paid' },
+      { macro: 'cancel_last_order' },
+    ],
+  });
+
+  expect(session.markOrderPaid).toHaveBeenCalledWith('ord_delivery_1');
+  expect(session.ownerCancel).toHaveBeenCalledWith('ord_delivery_1');
+  expect(session.waitForOrderStatus).toHaveBeenCalledWith('ord_delivery_1', 'cancelled');
+});
+
+test('mark_last_order_paid requires session.lastOrder', async () => {
+  await expect(runScript(fakeSession(), {
+    steps: [{ macro: 'mark_last_order_paid' }],
+  })).rejects.toThrow(/lastOrder/);
 });
 
 test('macro object form opens restaurant', async () => {

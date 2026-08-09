@@ -11,4 +11,8 @@ steps:
   - macro: start_checkout
   - macro: ensure_confirming
   - macro: confirm_order
+  # Assert Stripe delivery order exists unpaid (pay-link path), then tear down so
+  # Küchenbrett is not left with an Ausstehend E2E card.
   - gate: { name: order_stripe_delivery, address_includes: "Hauptstraße" }
+  - macro: mark_last_order_paid
+  - macro: cancel_last_order

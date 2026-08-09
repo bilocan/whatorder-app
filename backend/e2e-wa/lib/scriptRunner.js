@@ -33,6 +33,8 @@ const KNOWN_MACROS = Object.freeze([
   'start_checkout',
   'ensure_confirming',
   'confirm_order',
+  'mark_last_order_paid',
+  'cancel_last_order',
 ]);
 const KNOWN_GATES = Object.freeze([
   'business_bound',
@@ -340,6 +342,25 @@ async function runMacro(session, body, { id, timeoutMs }) {
   }
   if (name === 'confirm_order') {
     await confirmOrder(session, { log });
+    return;
+  }
+  if (name === 'mark_last_order_paid') {
+    const orderId = session.lastOrder?.id;
+    if (!orderId) {
+      throw new Error('mark_last_order_paid requires session.lastOrder from a prior order gate');
+    }
+    log('mark last order paid (Admin SDK)', orderId);
+    await session.markOrderPaid(orderId);
+    return;
+  }
+  if (name === 'cancel_last_order') {
+    const orderId = session.lastOrder?.id;
+    if (!orderId) {
+      throw new Error('cancel_last_order requires session.lastOrder from a prior order gate');
+    }
+    log('cancel last order (teardown)', orderId);
+    await session.ownerCancel(orderId);
+    await session.waitForOrderStatus(orderId, 'cancelled');
     return;
   }
   throw new Error(`Unknown macro: ${name}`);
