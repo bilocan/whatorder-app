@@ -5,7 +5,7 @@
  *
  * Exit codes (Phase 8 nightly contract):
  *   0 — hasChatList, usable
- *   2 — session dead (QR / no chat list / login failure) → workflow soft-skip
+ *   2 — session dead (QR / no chat list / login failure) → workflow fails the job
  *   1 — unexpected error
  *
  *   xvfb-run -a node e2e-wa/scripts/wa-web-diagnose.js
