@@ -1,16 +1,6 @@
 'use strict';
 
-async function clickAny(session, titles) {
-  for (const title of titles) {
-    try {
-      await session.sendButtonReply({ title, fallback: false });
-      return title;
-    } catch (_) {
-      /* try next label */
-    }
-  }
-  return null;
-}
+const { clickAny, confirmOrder } = require('./helpers');
 
 async function startCheckoutFromBrowsing(session, sess, log = () => {}) {
   if (sess?.state !== 'browsing') return sess;
@@ -123,13 +113,10 @@ async function run(session) {
 
   // With paymentEnabled + Stripe, final confirm places the order and sends the pay link.
   // Bot state is `confirming` (not awaiting_confirmation / awaiting_payment).
+  // confirmOrder retries `ja` when a stale/unloadable Bestätigen click is a no-op.
   if (sess?.state === 'confirming') {
     log('final confirm → Stripe order + pay link');
-    const clickedConfirm = await clickAny(
-      session,
-      ['Bestätigen', 'Confirm', 'Bestätigen ✅', 'Confirm ✅'],
-    );
-    if (!clickedConfirm) await session.sendText('ja');
+    await confirmOrder(session, { log });
   }
 
   log('wait for Stripe order in Firestore');

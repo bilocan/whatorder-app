@@ -300,6 +300,8 @@ async function addDonerAyranDelivery(session, opts = {}) {
   try {
     sess = await session.waitForSession(
       (s) => (s?.basket?.length || 0) >= 2
+        && !(s?.pendingIntentItems?.length > 0)
+        && s?.state !== 'customizing_intent'
         && s?.orderType === 'delivery'
         && (
           expectAddress === 'present'
@@ -315,6 +317,14 @@ async function addDonerAyranDelivery(session, opts = {}) {
   const basketLength = sess?.basket?.length || 0;
   if (basketLength < 2) {
     throw new Error(`Expected delivery basket length >= 2, got ${basketLength}`);
+  }
+  if (sess?.pendingIntentItems?.length > 0) {
+    throw new Error(
+      `Expected pendingIntentItems cleared after delivery add, got ${sess.pendingIntentItems.length}`,
+    );
+  }
+  if (sess?.state === 'customizing_intent') {
+    throw new Error('Stuck in customizing_intent after delivery add');
   }
   if (sess?.orderType !== 'delivery') {
     throw new Error(`Expected delivery order type, got ${sess?.orderType || 'unset'}`);
@@ -388,11 +398,15 @@ async function completeDeliveryAddressAsk(session, opts = {}) {
 
 /**
  * Confirm an order using a visible localized button, with text fallback.
+ * WA Web often reports a successful DOM click on a stale/unloadable Bestätigen
+ * bubble while the session stays in `confirming` and no order is created —
+ * same pattern as startCheckoutFromBasket's fertig retry.
  * @param {import('../lib/session').WaE2eSession} session
- * @param {{ log?: (...a: any[]) => void }} [opts]
+ * @param {{ log?: (...a: any[]) => void, leaveConfirmingTimeoutMs?: number }} [opts]
  */
 async function confirmOrder(session, opts = {}) {
   const log = opts.log || (() => {});
+  const leaveConfirmingTimeoutMs = opts.leaveConfirmingTimeoutMs ?? 20_000;
   const clicked = await clickAny(session, [
     'Bestätigen ✅',
     'Confirm ✅',
@@ -401,11 +415,26 @@ async function confirmOrder(session, opts = {}) {
   ]);
   if (clicked) {
     log('clicked', clicked);
-    return clicked;
+    try {
+      await session.waitForSession(
+        (s) => s && s.state !== 'confirming',
+        { timeoutMs: leaveConfirmingTimeoutMs },
+      );
+      return clicked;
+    } catch (_) {
+      // Contabo: unloadable interactive bubble — click is a no-op; place via text.
+      log('still confirming after confirm click — sending ja');
+      await session.sendText('ja');
+    }
+  } else {
+    log('no confirm bubble, sending ja');
+    await session.sendText('ja');
   }
-  log('no confirm bubble, sending ja');
-  await session.sendText('ja');
-  return 'ja';
+  await session.waitForSession(
+    (s) => s && s.state !== 'confirming',
+    { timeoutMs: 45_000 },
+  );
+  return clicked || 'ja';
 }
 
 function sleep(ms) {

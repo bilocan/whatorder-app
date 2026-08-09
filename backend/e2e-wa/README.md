@@ -22,7 +22,7 @@ npm test -- --testPathPatterns=e2e-wa
 
 Scenarios in Pack A and Pack C may use YAML scripts in `e2e-wa/scripts/<id>.yml`; Pack B remains JS-only. Use the existing `macro`, `send`, `tap`, `expect_reply`, `gate`, and `sleep` steps; reply-copy checks may be soft, but every scenario must include a named hard gate. Add new reusable behavior to the interpreter as a macro or gate instead of embedding JavaScript in YAML.
 
-**Pack A example:** `scripts/happy_stripe_delivery.yml` (checkout → Stripe delivery order).
+**Pack A example:** `scripts/happy_stripe_delivery.yml` (checkout → Stripe delivery order → Admin mark paid + cancel teardown so Küchenbrett is not left Ausstehend).
 
 **Pack C examples:**
 
@@ -47,6 +47,16 @@ npm run e2e:wa -- --list
 The default nightly run remains Pack A+B, including YAML scenarios registered in Pack A. Pack C is not nightly by default; verify new Pack C scripts on Contabo before promoting them.
 
 ## Contabo live run (wa-web)
+
+**Triggers (`.github/workflows/e2e-wa.yml`):**
+
+| Trigger | Packs | Notes |
+|---------|-------|--------|
+| After **CI** succeeds on push to `dev` | Pack A | Post-Test-deploy smoke; waits for `/version` gitSha |
+| Nightly `0 3 * * *` UTC | Pack A + B | Full regression |
+| `workflow_dispatch` | Pack A + B | Manual |
+
+Never on `pull_request` (Meta traffic + logged-in browser).
 
 **Important:** Chrome `headless=true` often never shows a logged-in WhatsApp Web UI. On Contabo use **headed Chromium under Xvfb**. Default browser channel is system **Google Chrome** (`E2E_WA_WEB_CHANNEL=chrome`) because WA Web rejects old Playwright-bundled Chromium.
 
