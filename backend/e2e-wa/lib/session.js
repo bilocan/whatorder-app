@@ -19,6 +19,7 @@ const {
   ownerApprove,
   ownerStartPreparation,
   ownerMarkReady,
+  ownerCancel,
 } = require('./ownerActions');
 
 /**
@@ -157,6 +158,10 @@ class WaE2eSession {
 
   async ownerMarkReady(orderId) {
     return ownerMarkReady(this.cfg.businessId, orderId);
+  }
+
+  async ownerCancel(orderId, opts = {}) {
+    return ownerCancel(this.cfg.businessId, orderId, opts);
   }
 
   async withBusinessPatch(patch, fn) {

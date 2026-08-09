@@ -4,6 +4,7 @@ const {
   approveOrder,
   startPreparation,
   markReady,
+  cancelOrder,
   getOrder,
 } = require('../../src/bot/orderService');
 
@@ -22,8 +23,15 @@ async function ownerMarkReady(businessId, orderId) {
   return getOrder(businessId, orderId);
 }
 
+/** Cancel kitchen order; skipReentry avoids extra WA reorder CTAs during e2e teardown. */
+async function ownerCancel(businessId, orderId, { skipReentry = true } = {}) {
+  await cancelOrder(businessId, orderId, { skipReentry });
+  return getOrder(businessId, orderId);
+}
+
 module.exports = {
   ownerApprove,
   ownerStartPreparation,
   ownerMarkReady,
+  ownerCancel,
 };

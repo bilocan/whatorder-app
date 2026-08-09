@@ -22,7 +22,7 @@ npm test -- --testPathPatterns=e2e-wa
 
 Scenarios in Pack A and Pack C may use YAML scripts in `e2e-wa/scripts/<id>.yml`; Pack B remains JS-only. Use the existing `macro`, `send`, `tap`, `expect_reply`, `gate`, and `sleep` steps; reply-copy checks may be soft, but every scenario must include a named hard gate. Add new reusable behavior to the interpreter as a macro or gate instead of embedding JavaScript in YAML.
 
-**Pack A example:** `scripts/happy_stripe_delivery.yml` (checkout → Stripe delivery order).
+**Pack A example:** `scripts/happy_stripe_delivery.yml` (checkout → Stripe delivery order → Admin mark paid + cancel teardown so Küchenbrett is not left Ausstehend).
 
 **Pack C examples:**
 
