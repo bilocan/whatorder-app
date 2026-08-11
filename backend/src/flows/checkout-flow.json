@@ -7,9 +7,37 @@
   "screens": [
     {
       "id": "CHECKOUT_REVIEW",
-      "title": "Review order",
+      "title": "${data.ui_screen_title}",
       "terminal": true,
       "data": {
+        "ui_screen_title": {
+          "type": "string",
+          "__example__": "Review order"
+        },
+        "ui_name_label": {
+          "type": "string",
+          "__example__": "Name"
+        },
+        "ui_type_label": {
+          "type": "string",
+          "__example__": "Type"
+        },
+        "ui_address_label": {
+          "type": "string",
+          "__example__": "Address"
+        },
+        "ui_note_label": {
+          "type": "string",
+          "__example__": "Note"
+        },
+        "ui_back_to_cart": {
+          "type": "string",
+          "__example__": "Back to cart"
+        },
+        "ui_place_order": {
+          "type": "string",
+          "__example__": "Place order"
+        },
         "receipt_text": {
           "type": "string",
           "__example__": "1x Chicken Dürüm  €8.50\n1x Falafel Box  €6.90\n\nTotal: €15.40"
@@ -74,32 +102,32 @@
               },
               {
                 "type": "TextInput",
-                "label": "Name",
+                "label": "${data.ui_name_label}",
                 "name": "customer_name",
                 "required": true
               },
               {
                 "type": "RadioButtonsGroup",
-                "label": "Order type",
+                "label": "${data.ui_type_label}",
                 "name": "order_type",
                 "required": true,
                 "data-source": "${data.order_type_options}"
               },
               {
                 "type": "TextInput",
-                "label": "Delivery address",
+                "label": "${data.ui_address_label}",
                 "name": "delivery_address",
                 "required": false
               },
               {
                 "type": "TextArea",
-                "label": "Note",
+                "label": "${data.ui_note_label}",
                 "name": "note",
                 "required": false
               },
               {
                 "type": "EmbeddedLink",
-                "text": "Back to cart",
+                "text": "${data.ui_back_to_cart}",
                 "on-click-action": {
                   "name": "data_exchange",
                   "payload": {
@@ -109,7 +137,7 @@
               },
               {
                 "type": "Footer",
-                "label": "Place order",
+                "label": "${data.ui_place_order}",
                 "on-click-action": {
                   "name": "complete",
                   "payload": {

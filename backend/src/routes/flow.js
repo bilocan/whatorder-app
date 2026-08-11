@@ -15,6 +15,16 @@ const {
   buildCheckoutInitResponse,
   buildCheckoutDataExchangeResponse,
 } = require('./flowCheckout');
+const { t, tCategory } = require('../bot/templates');
+const {
+  resolveFlowLang,
+  categorySelectCopy,
+  menuBrowseCopy,
+  orderItemCopy,
+  cartEditCopy,
+  cartDoneCopy,
+  clearCartTitle,
+} = require('../bot/menuFlowCopy');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -28,19 +38,24 @@ function flowTitle(text) {
   return s.length > 30 ? s.slice(0, 28) + '…' : s;
 }
 
-// Derive unique ordered category list from menu items (text only).
-function getCategories(menu) {
+async function loadFlowLang(phone) {
+  const snap = await sessionRef(phone).get();
+  return resolveFlowLang(snap.exists ? snap.data() : {});
+}
+
+// Derive unique ordered category list from menu items.
+function getCategories(menu, lang) {
   const seen = new Set();
   const cats = [];
   for (const item of menu) {
     const cat = item.category || 'other';
     if (!seen.has(cat)) { seen.add(cat); cats.push(cat); }
   }
-  return cats.map(id => ({ id, title: flowTitle(id.charAt(0).toUpperCase() + id.slice(1)) }));
+  return cats.map(id => ({ id, title: flowTitle(tCategory(id, lang)) }));
 }
 
-async function categoriesWithImages(menu) {
-  return attachCategoryImages(getCategories(menu), menu);
+async function categoriesWithImages(menu, lang) {
+  return attachCategoryImages(getCategories(menu, lang), menu);
 }
 
 function mapMenuBrowseItems(items) {
@@ -51,11 +66,12 @@ function mapMenuBrowseItems(items) {
   }));
 }
 
-async function menuBrowseData(menu, categoryId) {
+async function menuBrowseData(menu, categoryId, lang) {
   const items = menu.filter(i => (i.category || 'other') === categoryId);
   const mapped = mapMenuBrowseItems(items);
   return {
-    [F.CATEGORY_TITLE]: flowTitle(categoryId.charAt(0).toUpperCase() + categoryId.slice(1)),
+    ...menuBrowseCopy(lang),
+    [F.CATEGORY_TITLE]: flowTitle(tCategory(categoryId, lang)),
     [F.MENU_ITEMS]: await attachMenuItemImages(mapped, items),
   };
 }
@@ -91,16 +107,17 @@ function mapOptionSlots(optionGroups = []) {
 }
 
 // Build cart display data. cartReviewData includes basket_items (for CART_REVIEW's remove UI).
-function basketSummary(basket) {
+function basketSummary(basket, lang) {
   const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
   return {
     [F.BASKET_TEXT]: basket.map(i => `${i.qty}x ${i.name}  €${(i.price * i.qty).toFixed(2)}`).join('\n'),
-    [F.TOTAL_LABEL]: `Total: €${total.toFixed(2)}`,
+    [F.TOTAL_LABEL]: t('orderTotal', lang, total.toFixed(2)),
   };
 }
-function buildCartData(basket) {
+function buildCartData(basket, lang) {
   return {
-    ...basketSummary(basket),
+    ...cartEditCopy(lang),
+    ...basketSummary(basket, lang),
     [F.BASKET_ITEMS]: [
       ...basket.map((i, idx) => {
         const full = `${i.qty}x ${i.name}`;
@@ -108,7 +125,7 @@ function buildCartData(basket) {
         const title = full.length > 30 ? full.slice(0, 28) + '…' : full;
         return { id: String(idx), title };
       }),
-      { id: 'clear', title: 'Clear entire cart' },
+      { id: 'clear', title: clearCartTitle(lang) },
     ],
   };
 }
@@ -173,13 +190,15 @@ router.post('/flow/exchange', async (req, res) => {
     // Never open on CART_REVIEW: Meta rejects entry screens that already have
     // incoming routing edges (invalid-screen-transition).
     if (action === 'INIT') {
+      const lang = await loadFlowLang(phone);
       const tMenu = Date.now();
       const menu = await getMenu(businessId);
       const menuMs = Date.now() - tMenu;
       const tImg = Date.now();
-      const categories = await categoriesWithImages(menu);
+      const categories = await categoriesWithImages(menu, lang);
       console.log(
-        '[flow/exchange] INIT CATEGORY_SELECT menu=%dms images=%dms cats=%d',
+        '[flow/exchange] INIT CATEGORY_SELECT lang=%s menu=%dms images=%dms cats=%d',
+        lang,
         menuMs,
         Date.now() - tImg,
         categories.length,
@@ -187,16 +206,20 @@ router.post('/flow/exchange', async (req, res) => {
       return reply({
         version,
         screen: S.CATEGORY_SELECT,
-        data: { [F.CATEGORIES]: categories },
+        data: {
+          ...categorySelectCopy(lang),
+          [F.CATEGORIES]: categories,
+        },
       });
     }
 
     // ── CATEGORY_SELECT → MENU_BROWSE ───────────────────────────────────────
     if (action === 'data_exchange' && screen === S.CATEGORY_SELECT) {
+      const lang = await loadFlowLang(phone);
       const t0 = Date.now();
       const categoryId = payload[F.CATEGORY_ID];
       const menu = await getMenu(businessId);
-      const data = await menuBrowseData(menu, categoryId);
+      const data = await menuBrowseData(menu, categoryId, lang);
       const n = (data[F.MENU_ITEMS] || []).length;
       console.log('[flow/exchange] CATEGORY_SELECT→MENU_BROWSE ms=%d items=%d cat=%s', Date.now() - t0, n, categoryId);
       return reply({
@@ -208,6 +231,7 @@ router.post('/flow/exchange', async (req, res) => {
 
     // ── MENU_BROWSE → ORDER_ITEM ─────────────────────────────────────────────
     if (action === 'data_exchange' && screen === S.MENU_BROWSE) {
+      const lang = await loadFlowLang(phone);
       const itemId = payload[F.ITEM_ID];
       const menu = await getMenu(businessId);
       const item = menu.find(m => m.id === itemId);
@@ -218,6 +242,7 @@ router.post('/flow/exchange', async (req, res) => {
         version,
         screen: S.ORDER_ITEM,
         data: {
+          ...orderItemCopy(lang),
           [F.ITEM_ID]:          item.id,
           [F.ITEM_NAME]:        item.name,
           [F.ITEM_DESCRIPTION]: item.description || '',
@@ -230,6 +255,7 @@ router.post('/flow/exchange', async (req, res) => {
 
     // ── ORDER_ITEM → append to basket → CART_REVIEW ──────────────────────────
     if (action === 'data_exchange' && screen === S.ORDER_ITEM) {
+      const lang = await loadFlowLang(phone);
       const itemId  = payload[F.ITEM_ID];
       const qtyId   = payload[F.QTY] ?? '1';
       const notes   = payload[F.NOTES] ?? '';
@@ -258,13 +284,14 @@ router.post('/flow/exchange', async (req, res) => {
         : [...existing, basketItem];
       await ref.set({ basket: newBasket, updatedAt: new Date() }, { merge: true });
 
-      return reply({ version, screen: S.CART_REVIEW, data: buildCartData(newBasket) });
+      return reply({ version, screen: S.CART_REVIEW, data: buildCartData(newBasket, lang) });
     }
 
     // ── CART_REVIEW + CART_UPDATED: editable cart chain ─────────────────────
     // Forward-only DAG: CART_REVIEW → CART_UPDATED → CART_DONE
     const NEXT_CART = { [S.CART_REVIEW]: S.CART_UPDATED, [S.CART_UPDATED]: S.CART_DONE };
     if (action === 'data_exchange' && NEXT_CART[screen]) {
+      const lang = await loadFlowLang(phone);
       const nextScreen = NEXT_CART[screen];
       const cartAction = payload.cart_action;
 
@@ -273,7 +300,10 @@ router.post('/flow/exchange', async (req, res) => {
         return reply({
           version,
           screen: S.CATEGORY_SELECT_RETURN,
-          data: { [F.CATEGORIES]: await categoriesWithImages(menu) },
+          data: {
+            ...categorySelectCopy(lang),
+            [F.CATEGORIES]: await categoriesWithImages(menu, lang),
+          },
         });
       }
 
@@ -290,7 +320,10 @@ router.post('/flow/exchange', async (req, res) => {
           return reply({
             version,
             screen: S.CATEGORY_SELECT_RETURN,
-            data: { [F.CATEGORIES]: await categoriesWithImages(menu) },
+            data: {
+              ...categorySelectCopy(lang),
+              [F.CATEGORIES]: await categoriesWithImages(menu, lang),
+            },
           });
         }
 
@@ -303,10 +336,15 @@ router.post('/flow/exchange', async (req, res) => {
           return reply({
             version,
             screen: S.CATEGORY_SELECT_RETURN,
-            data: { [F.CATEGORIES]: await categoriesWithImages(menu) },
+            data: {
+              ...categorySelectCopy(lang),
+              [F.CATEGORIES]: await categoriesWithImages(menu, lang),
+            },
           });
         }
-        const data = nextScreen === S.CART_DONE ? basketSummary(newBasket) : buildCartData(newBasket);
+        const data = nextScreen === S.CART_DONE
+          ? { ...cartDoneCopy(lang), ...basketSummary(newBasket, lang) }
+          : buildCartData(newBasket, lang);
         return reply({ version, screen: nextScreen, data });
       }
 
@@ -314,28 +352,35 @@ router.post('/flow/exchange', async (req, res) => {
       const ref = sessionRef(phone);
       const snap = await ref.get();
       const existing = snap.exists ? (snap.data().basket ?? []) : [];
-      const data = nextScreen === S.CART_DONE ? basketSummary(existing) : buildCartData(existing);
+      const data = nextScreen === S.CART_DONE
+        ? { ...cartDoneCopy(lang), ...basketSummary(existing, lang) }
+        : buildCartData(existing, lang);
       return reply({ version, screen: nextScreen, data });
     }
 
     // ── CART_DONE: add_more only ─────────────────────────────────────────────
     if (action === 'data_exchange' && screen === S.CART_DONE) {
+      const lang = await loadFlowLang(phone);
       const menu = await getMenu(businessId);
       return reply({
         version,
         screen: S.CATEGORY_SELECT_RETURN,
-        data: { [F.CATEGORIES]: await categoriesWithImages(menu) },
+        data: {
+          ...categorySelectCopy(lang),
+          [F.CATEGORIES]: await categoriesWithImages(menu, lang),
+        },
       });
     }
 
     // ── CATEGORY_SELECT_RETURN → MENU_BROWSE (same as CATEGORY_SELECT) ─────
     if (action === 'data_exchange' && screen === S.CATEGORY_SELECT_RETURN) {
+      const lang = await loadFlowLang(phone);
       const categoryId = payload[F.CATEGORY_ID];
       const menu = await getMenu(businessId);
       return reply({
         version,
         screen: S.MENU_BROWSE,
-        data: await menuBrowseData(menu, categoryId),
+        data: await menuBrowseData(menu, categoryId, lang),
       });
     }
 

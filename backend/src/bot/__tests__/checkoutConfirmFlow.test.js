@@ -99,6 +99,10 @@ describe('checkoutConfirmFlow', () => {
         { id: 'pickup', title: 'confirmFlowTypePickup:en:' },
         { id: 'delivery', title: 'confirmFlowTypeDelivery:en:' },
       ],
+      [F.UI_SCREEN_TITLE]: 'confirmListHeader:en:',
+      [F.UI_NAME_LABEL]: 'confirmFlowNameLabel:en:',
+      [F.UI_PLACE_ORDER]: 'confirmFlowFooter:en:',
+      [F.UI_BACK_TO_CART]: 'confirmFlowBackToCart:en:',
     });
     expect(data[F.RECEIPT_TEXT]).toContain('finalConfirmBody:en:Alex|21.00|19:30');
   });
