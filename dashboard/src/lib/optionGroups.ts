@@ -310,7 +310,20 @@ type MenuCoreFields = {
   available: boolean;
   vatRate: VatRate;
   optionGroupIds: string[];
+  /**
+   * Full-size photo URL.
+   * - string: set field
+   * - null on update: deleteField (explicit remove-photo) and clear flowListImage
+   * - undefined: omit (keep existing — admin metadata edits must not wipe photos)
+   */
   photoUrl?: string | null;
+  /**
+   * Flow list thumb (raw Base64).
+   * - string: set field (with photoUrl)
+   * - cleared only when photoUrl is explicitly null on update
+   * - undefined: omit (keep existing on update)
+   */
+  flowListImage?: string | null;
 };
 
 export function buildMenuPayload(values: MenuCoreFields, forUpdate = false) {
@@ -322,9 +335,24 @@ export function buildMenuPayload(values: MenuCoreFields, forUpdate = false) {
     available: values.available,
     vatRate: values.vatRate,
   };
-  const withPhoto = values.photoUrl
-    ? { ...base, photoUrl: values.photoUrl }
-    : (forUpdate ? { ...base, photoUrl: deleteField() } : base);
+
+  let withPhoto: Record<string, unknown>;
+  if (values.photoUrl) {
+    withPhoto = { ...base, photoUrl: values.photoUrl };
+  } else if (forUpdate && values.photoUrl === null) {
+    // Explicit clear (MenuPage remove-photo). Do not treat undefined as clear —
+    // admin RestaurantDetailPage omits photoUrl and must keep existing thumbs.
+    withPhoto = { ...base, photoUrl: deleteField(), flowListImage: deleteField() };
+  } else {
+    // undefined photoUrl: omit photo fields (keep existing on update / no photo on create)
+    withPhoto = { ...base };
+  }
+
+  // New/replaced photo thumb: only when explicitly provided (not when clearing — handled above).
+  if (values.photoUrl && values.flowListImage) {
+    withPhoto = { ...withPhoto, flowListImage: values.flowListImage };
+  }
+  // Keep-photo edits: flowListImage undefined → omit (do not wipe).
 
   const ids = values.optionGroupIds.filter(Boolean);
   if (ids.length) {

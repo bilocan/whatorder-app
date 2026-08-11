@@ -97,13 +97,13 @@ test('INIT empty basket → CATEGORY_SELECT with unique categories', async () =>
   expect(body.data[F.CATEGORIES][0]['alt-text']).toBeTruthy();
 });
 
-test('INIT non-empty basket → CART_REVIEW', async () => {
+test('INIT with basket still opens CATEGORY_SELECT (CART_REVIEW is not a valid entry screen)', async () => {
   mockSession([{ name: 'Burger', qty: 1, price: 10 }]);
   const res = await post({ action: 'INIT', version: V, flow_token: TOKEN });
   const body = parsed(res);
-  expect(body.screen).toBe(S.CART_REVIEW);
-  expect(body.data[F.BASKET_ITEMS]).toBeDefined();
-  expect(body.data[F.TOTAL_LABEL]).toContain('10.00');
+  expect(body.screen).toBe(S.CATEGORY_SELECT);
+  expect(body.data[F.CATEGORIES]).toHaveLength(2);
+  expect(attachCategoryImages).toHaveBeenCalled();
 });
 
 test('checkout INIT → CHECKOUT_REVIEW with session prefill', async () => {
@@ -342,8 +342,12 @@ test('ORDER_ITEM clamps qty to 1 when invalid', async () => {
 test('CART_REVIEW basket item title truncated at 30 chars', async () => {
   // "1x " (3) + 35 "A"s = 38 chars > 30 → truncated to slice(0,28) + "…" = 29 chars
   const longName = 'A'.repeat(35);
-  mockSession([{ name: longName, qty: 1, price: 5 }]);
-  const res = await post({ action: 'INIT', version: V, flow_token: TOKEN });
+  getMenu.mockResolvedValue([{ id: 'long1', name: longName, price: 5, category: 'mains', available: true }]);
+  mockSession([]);
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'long1', [F.QTY]: '1' },
+  });
   const body = parsed(res);
   expect(body.screen).toBe(S.CART_REVIEW);
   const displayTitle = body.data[F.BASKET_ITEMS][0].title;

@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import OptionGroupAssigner from '../components/OptionGroupAssigner';
 import { customizationSummary, buildMenuPayload, defaultVatRateForCategory, resolveMenuItemOptionGroups } from '../lib/optionGroups';
 import { useOptionGroupLibrary } from '../hooks/useOptionGroupLibrary';
-import { uploadMenuPhoto, deleteMenuPhotoBestEffort, MenuPhotoError } from '../lib/menuPhoto';
+import { uploadMenuPhoto, deleteMenuPhotoBestEffort, flowListImageFromFile, MenuPhotoError } from '../lib/menuPhoto';
 import { useConfirm } from '../components/ConfirmDialog';
 import type { DashboardT } from '../i18n';
 import type { MenuItem, VatRate } from '../types';
@@ -309,12 +309,23 @@ export default function MenuPage() {
   const grouped = groupMenuItems(items);
 
   function photoErrorMessage(err: MenuPhotoError): string {
-    return t(err.code === 'too-large' ? 'menu.form.photoTooLarge' : 'menu.form.photoInvalidType');
+    if (err.code === 'too-large') return t('menu.form.photoTooLarge');
+    if (err.code === 'thumb-failed') return t('menu.form.photoInvalidType');
+    return t('menu.form.photoInvalidType');
   }
 
-  async function resolvePhotoForSave(bizId: string, values: FormValues): Promise<string | null> {
-    if (values.photoFile) return uploadMenuPhoto(bizId, values.photoFile);
-    return values.photoUrl;
+  async function resolvePhotoForSave(bizId: string, values: FormValues): Promise<{
+    photoUrl: string | null;
+    flowListImage?: string;
+  }> {
+    if (values.photoFile) {
+      const [photoUrl, flowListImage] = await Promise.all([
+        uploadMenuPhoto(bizId, values.photoFile),
+        flowListImageFromFile(values.photoFile),
+      ]);
+      return { photoUrl, flowListImage };
+    }
+    return { photoUrl: values.photoUrl };
   }
 
   async function handleAdd(e: React.FormEvent) {
@@ -323,9 +334,12 @@ export default function MenuPage() {
     setPhotoError(null);
     setSaving(true);
     try {
-      const photoUrl = await resolvePhotoForSave(businessId, newItem);
+      const { photoUrl, flowListImage } = await resolvePhotoForSave(businessId, newItem);
       const targetCat = newItem.category || 'other';
-      await addDoc(collection(db, 'businesses', businessId, 'menu'), buildMenuPayload({ ...newItem, photoUrl }));
+      await addDoc(
+        collection(db, 'businesses', businessId, 'menu'),
+        buildMenuPayload({ ...newItem, photoUrl, flowListImage }),
+      );
       expandCategory(targetCat);
       setNewItem(EMPTY);
       setShowAddForm(false);
@@ -353,9 +367,12 @@ export default function MenuPage() {
     setSaving(true);
     try {
       const original = items.find((i) => i.id === editingId);
-      const photoUrl = await resolvePhotoForSave(businessId, editItem);
+      const { photoUrl, flowListImage } = await resolvePhotoForSave(businessId, editItem);
       const targetCat = editItem.category || 'other';
-      await updateDoc(doc(db, 'businesses', businessId, 'menu', editingId), buildMenuPayload({ ...editItem, photoUrl }, true));
+      await updateDoc(
+        doc(db, 'businesses', businessId, 'menu', editingId),
+        buildMenuPayload({ ...editItem, photoUrl, flowListImage }, true),
+      );
       if (original?.photoUrl && original.photoUrl !== photoUrl) {
         await deleteMenuPhotoBestEffort(original.photoUrl);
       }

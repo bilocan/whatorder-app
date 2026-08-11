@@ -15,7 +15,7 @@ vi.mock('firebase/storage', () => ({
   deleteObject: mockDeleteObject,
 }))
 
-const { uploadMenuPhoto, deleteMenuPhotoBestEffort, MenuPhotoError } = await import('../lib/menuPhoto')
+const { uploadMenuPhoto, deleteMenuPhotoBestEffort, normalizeFlowListImageBase64, MenuPhotoError, FLOW_LIST_IMAGE_MAX_BYTES } = await import('../lib/menuPhoto')
 
 function makeFile(name: string, type: string, sizeBytes: number): File {
   const blob = new Blob([new Uint8Array(sizeBytes)], { type })
@@ -54,5 +54,17 @@ describe('deleteMenuPhotoBestEffort', () => {
   it('swallows errors instead of throwing', async () => {
     mockDeleteObject.mockRejectedValue(new Error('not found'))
     await expect(deleteMenuPhotoBestEffort('https://cdn.example.com/photo.jpg')).resolves.toBeUndefined()
+  })
+})
+
+describe('normalizeFlowListImageBase64', () => {
+  it('strips data URL prefix', () => {
+    expect(normalizeFlowListImageBase64('data:image/jpeg;base64,abc123')).toBe('abc123')
+  })
+
+  it('rejects empty and oversized', () => {
+    expect(normalizeFlowListImageBase64('')).toBeNull()
+    expect(normalizeFlowListImageBase64('data:image/jpeg;base64,')).toBeNull()
+    expect(normalizeFlowListImageBase64('x'.repeat(FLOW_LIST_IMAGE_MAX_BYTES + 1))).toBeNull()
   })
 })
