@@ -142,6 +142,9 @@ jobs:
           region: europe-west3
           image: europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }}
           flags: --min-instances=0 --allow-unauthenticated --service-account=87472938058-compute@developer.gserviceaccount.com
+          # Plain Flow id: WHATSAPP_MENU_FLOW_ID (renamed from WHATSAPP_FLOW_ID).
+          # After first deploy, remove stale WHATSAPP_FLOW_ID on the Cloud Run service.
+          # WHATSAPP_CHECKOUT_FLOW_ID: add here when a checkout Flow is published on this WABA.
           env_vars: |
             DEPLOY_ENV=preproduction
             GIT_SHA=${{ github.sha }}
