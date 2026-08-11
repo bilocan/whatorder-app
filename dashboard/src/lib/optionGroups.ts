@@ -311,6 +311,13 @@ type MenuCoreFields = {
   vatRate: VatRate;
   optionGroupIds: string[];
   photoUrl?: string | null;
+  /**
+   * Flow list thumb (raw Base64).
+   * - string: set field
+   * - null on update: deleteField (cleared with photo)
+   * - undefined: omit (keep existing on update)
+   */
+  flowListImage?: string | null;
 };
 
 export function buildMenuPayload(values: MenuCoreFields, forUpdate = false) {
@@ -322,9 +329,21 @@ export function buildMenuPayload(values: MenuCoreFields, forUpdate = false) {
     available: values.available,
     vatRate: values.vatRate,
   };
-  const withPhoto = values.photoUrl
-    ? { ...base, photoUrl: values.photoUrl }
-    : (forUpdate ? { ...base, photoUrl: deleteField() } : base);
+
+  let withPhoto: Record<string, unknown>;
+  if (values.photoUrl) {
+    withPhoto = { ...base, photoUrl: values.photoUrl };
+  } else if (forUpdate) {
+    withPhoto = { ...base, photoUrl: deleteField(), flowListImage: deleteField() };
+  } else {
+    withPhoto = { ...base };
+  }
+
+  // New/replaced photo thumb: only when explicitly provided (not when clearing — handled above).
+  if (values.photoUrl && values.flowListImage) {
+    withPhoto = { ...withPhoto, flowListImage: values.flowListImage };
+  }
+  // Keep-photo edits: flowListImage undefined → omit (do not wipe).
 
   const ids = values.optionGroupIds.filter(Boolean);
   if (ids.length) {

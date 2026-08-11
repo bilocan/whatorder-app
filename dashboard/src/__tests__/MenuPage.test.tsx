@@ -33,6 +33,13 @@ vi.mock('firebase/storage', () => ({
   getDownloadURL: mockGetDownloadURL,
   deleteObject: vi.fn(),
 }))
+vi.mock('../lib/menuPhoto', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../lib/menuPhoto')>()
+  return {
+    ...mod,
+    flowListImageFromFile: vi.fn(async () => 'flowThumbRaw'),
+  }
+})
 
 const ITEMS = [
   { id: 'm1', name: 'Döner', description: 'Classic', price: 8.5, category: 'mains', available: true },
@@ -247,7 +254,10 @@ describe('MenuPage', () => {
 
     await waitFor(() => expect(mockAddDoc).toHaveBeenCalledTimes(1))
     expect(mockUploadBytes).toHaveBeenCalledTimes(1)
-    expect(mockAddDoc.mock.calls[0][1]).toMatchObject({ photoUrl: 'https://cdn.example.com/doner.jpg' })
+    expect(mockAddDoc.mock.calls[0][1]).toMatchObject({
+      photoUrl: 'https://cdn.example.com/doner.jpg',
+      flowListImage: 'flowThumbRaw',
+    })
   })
 
   describe('VAT rate', () => {

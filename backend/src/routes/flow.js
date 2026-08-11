@@ -169,30 +169,40 @@ router.post('/flow/exchange', async (req, res) => {
       return reply(buildCheckoutDataExchangeResponse({ payload, flow_token, version }));
     }
 
-    // ── INIT → CART_REVIEW (if basket non-empty) or CATEGORY_SELECT ─────────
+    // ── INIT → CATEGORY_SELECT ─────────────────────────────────────────────
+    // Never open on CART_REVIEW: Meta rejects entry screens that already have
+    // incoming routing edges (invalid-screen-transition).
     if (action === 'INIT') {
-      const ref = sessionRef(phone);
-      const snap = await ref.get();
-      const basket = snap.exists ? (snap.data().basket ?? []) : [];
-      if (basket.length) {
-        return reply({ version, screen: S.CART_REVIEW, data: buildCartData(basket) });
-      }
+      const tMenu = Date.now();
       const menu = await getMenu(businessId);
+      const menuMs = Date.now() - tMenu;
+      const tImg = Date.now();
+      const categories = await categoriesWithImages(menu);
+      console.log(
+        '[flow/exchange] INIT CATEGORY_SELECT menu=%dms images=%dms cats=%d',
+        menuMs,
+        Date.now() - tImg,
+        categories.length,
+      );
       return reply({
         version,
         screen: S.CATEGORY_SELECT,
-        data: { [F.CATEGORIES]: await categoriesWithImages(menu) },
+        data: { [F.CATEGORIES]: categories },
       });
     }
 
     // ── CATEGORY_SELECT → MENU_BROWSE ───────────────────────────────────────
     if (action === 'data_exchange' && screen === S.CATEGORY_SELECT) {
+      const t0 = Date.now();
       const categoryId = payload[F.CATEGORY_ID];
       const menu = await getMenu(businessId);
+      const data = await menuBrowseData(menu, categoryId);
+      const n = (data[F.MENU_ITEMS] || []).length;
+      console.log('[flow/exchange] CATEGORY_SELECT→MENU_BROWSE ms=%d items=%d cat=%s', Date.now() - t0, n, categoryId);
       return reply({
         version,
         screen: S.MENU_BROWSE,
-        data: await menuBrowseData(menu, categoryId),
+        data,
       });
     }
 

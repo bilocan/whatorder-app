@@ -246,4 +246,30 @@ describe('buildMenuPayload', () => {
     const payload = buildMenuPayload({ ...base, vatRate: 20, optionGroupIds: [] });
     expect(payload).toMatchObject({ vatRate: 20 });
   });
+
+  it('sets flowListImage when photoUrl and thumb are provided', () => {
+    const payload = buildMenuPayload({
+      ...base,
+      optionGroupIds: [],
+      photoUrl: 'https://cdn.example/x.jpg',
+      flowListImage: 'abcThumb',
+    });
+    expect(payload).toMatchObject({ photoUrl: 'https://cdn.example/x.jpg', flowListImage: 'abcThumb' });
+  });
+
+  it('omits flowListImage on keep-photo update', () => {
+    const payload = buildMenuPayload({
+      ...base,
+      optionGroupIds: [],
+      photoUrl: 'https://cdn.example/x.jpg',
+    }, true);
+    expect(payload.photoUrl).toBe('https://cdn.example/x.jpg');
+    expect(payload).not.toHaveProperty('flowListImage');
+  });
+
+  it('clears photoUrl and flowListImage when photo removed on update', () => {
+    const payload = buildMenuPayload({ ...base, optionGroupIds: [], photoUrl: null }, true);
+    expect(payload.photoUrl).toBeDefined();
+    expect(payload.flowListImage).toBeDefined();
+  });
 });

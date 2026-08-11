@@ -1,5 +1,8 @@
 // WhatsApp Flows list images (RadioButtonsGroup / CheckboxGroup / Dropdown).
 // Meta requires raw Base64 (not HTTPS URLs), max 100KB per list image.
+//
+// Hot path (/flow/exchange): use durable `flowListImage` on menu docs only.
+// Live Storage fetch+sharp is for backfill scripts — never on INIT/browse.
 
 const sharp = require('sharp');
 const { resolvePhotoUrl } = require('../bot/menuService');
@@ -11,9 +14,11 @@ const FETCH_TIMEOUT_MS = 5000;
 const MAX_REDIRECTS = 3;
 const THUMB_SIZE = 96;
 const THUMB_JPEG_QUALITY = 70;
-const DEFAULT_CONCURRENCY = 6;
+const DEFAULT_CONCURRENCY = 12;
+const CACHE_TTL_MS = 60 * 60 * 1000;
+const CACHE_MAX_ENTRIES = 500;
 
-/** Hosts we will fetch for Flow thumbs (SSRF guard). */
+/** Hosts we will fetch for Flow thumbs (SSRF guard). Backfill only. */
 const ALLOWED_PHOTO_HOSTS = new Set([
   'firebasestorage.googleapis.com',
   'storage.googleapis.com',
@@ -26,6 +31,34 @@ const PALETTE = [
   '7B2CBF', '9D4EDD', 'C77DFF', 'E0AAFF',
   'FAA307', 'FFBA08', '6C757D', '343A40',
 ];
+
+/** @type {Map<string, { value: string, expiresAt: number }>} */
+const imageCache = new Map();
+
+function clearFlowImageCache() {
+  imageCache.clear();
+}
+
+function cacheGet(key) {
+  const hit = imageCache.get(key);
+  if (!hit) return null;
+  if (hit.expiresAt <= Date.now()) {
+    imageCache.delete(key);
+    return null;
+  }
+  imageCache.delete(key);
+  imageCache.set(key, hit);
+  return hit.value;
+}
+
+function cacheSet(key, value) {
+  if (imageCache.has(key)) imageCache.delete(key);
+  imageCache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+  while (imageCache.size > CACHE_MAX_ENTRIES) {
+    const oldest = imageCache.keys().next().value;
+    imageCache.delete(oldest);
+  }
+}
 
 function hashSeed(seed) {
   const s = String(seed ?? '');
@@ -53,13 +86,36 @@ function isAllowedPhotoFetchUrl(urlString) {
   if (u.username || u.password) return false;
   const host = u.hostname.toLowerCase();
   if (ALLOWED_PHOTO_HOSTS.has(host)) return true;
-  // Firebase JS SDK download URLs (e.g. whatorder-fire.firebasestorage.app)
   if (host.endsWith('.firebasestorage.app')) return true;
   return false;
 }
 
+/**
+ * Normalize stored/canvas Base64 for Meta Flow list images.
+ * Returns null if missing, data:-prefixed garbage left after strip fails size, or over 100KB.
+ */
+function normalizeStoredFlowListImage(raw) {
+  if (raw == null) return null;
+  let s = String(raw).trim();
+  if (!s) return null;
+  const dataIdx = s.indexOf('base64,');
+  if (s.startsWith('data:') && dataIdx !== -1) {
+    s = s.slice(dataIdx + 'base64,'.length);
+  }
+  if (!s || s.startsWith('data:')) return null;
+  if (s.length > MAX_LIST_IMAGE_BYTES) return null;
+  // Rough byte-size check: Base64 expands ~4/3; Meta limit is on decoded image bytes,
+  // but we also reject huge strings early (decoded ≈ length * 3/4).
+  const approxBytes = Math.floor((s.length * 3) / 4);
+  if (approxBytes > MAX_LIST_IMAGE_BYTES) return null;
+  return s;
+}
+
 /** Tiny solid-color PNG as raw Base64 (no data: prefix). */
 async function colorTileBase64(seed) {
+  const key = `color:${seed}`;
+  const cached = cacheGet(key);
+  if (cached) return cached;
   const hex = colorForSeed(seed);
   const buf = await sharp({
     create: {
@@ -71,7 +127,9 @@ async function colorTileBase64(seed) {
   })
     .png({ compressionLevel: 9 })
     .toBuffer();
-  return buf.toString('base64');
+  const b64 = buf.toString('base64');
+  cacheSet(key, b64);
+  return b64;
 }
 
 async function readBodyLimited(res, maxBytes) {
@@ -125,10 +183,13 @@ async function fetchAllowlisted(urlString) {
 
 /**
  * Fetch a photo URL, resize to a Flow-safe JPEG thumb, return raw Base64.
- * Returns null on failure, disallowed host, timeout, oversize, or if still over Meta's 100KB list-image limit.
+ * For backfill scripts only — not used on /flow/exchange hot path.
  */
 async function flowListImageFromUrl(url) {
   if (!url || !isAllowedPhotoFetchUrl(url)) return null;
+  const cacheKey = `url:${url}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
   try {
     const res = await fetchAllowlisted(url);
     if (!res || !res.ok) return null;
@@ -140,7 +201,9 @@ async function flowListImageFromUrl(url) {
       .jpeg({ quality: THUMB_JPEG_QUALITY, mozjpeg: true })
       .toBuffer();
     if (out.length > MAX_LIST_IMAGE_BYTES) return null;
-    return out.toString('base64');
+    const b64 = out.toString('base64');
+    cacheSet(cacheKey, b64);
+    return b64;
   } catch {
     return null;
   }
@@ -161,50 +224,50 @@ async function mapPool(items, concurrency, mapper) {
 }
 
 /**
- * Attach `image` + `alt-text` to list options (Meta forbids image + color together).
- * No-photo fallback is a solid color PNG tile as `image`, not a `color` field.
+ * Attach `image` + `alt-text` from durable stored Base64 (or color tile).
+ * Never fetches Storage on the hot path.
  * @param {Array<{id:string,title:string}>} options
- * @param {{ photoUrlById?: Record<string,string|null|undefined>, concurrency?: number }} [opts]
+ * @param {{ flowListImageById?: Record<string,string|null|undefined>, concurrency?: number }} [opts]
  */
 async function attachListImages(options, opts = {}) {
-  const photoUrlById = opts.photoUrlById || {};
+  const flowListImageById = opts.flowListImageById || {};
   const concurrency = opts.concurrency ?? DEFAULT_CONCURRENCY;
 
   return mapPool(options, concurrency, async (opt) => {
     const alt = opt.title || opt.id || '';
-    const resolved = resolvePhotoUrl(photoUrlById[opt.id]);
-    let image = resolved ? await flowListImageFromUrl(resolved) : null;
+    let image = normalizeStoredFlowListImage(flowListImageById[opt.id]);
     if (!image) image = await colorTileBase64(opt.id);
     return { ...opt, image, 'alt-text': alt };
   });
 }
 
 /**
- * Category options: use first item photo in that category when available.
+ * Category options: first item in category with a valid stored flowListImage.
  * @param {Array<{id:string,title:string}>} categories
- * @param {Array<{id:string,category?:string,photoUrl?:string}>} menu
+ * @param {Array<{id:string,category?:string,flowListImage?:string}>} menu
+ * @param {{ concurrency?: number }} [opts]
  */
-async function attachCategoryImages(categories, menu) {
-  const photoUrlById = {};
+async function attachCategoryImages(categories, menu, opts = {}) {
+  const flowListImageById = {};
   for (const cat of categories) {
-    const withPhoto = menu.find((i) => {
+    const withThumb = menu.find((i) => {
       if ((i.category || 'other') !== cat.id) return false;
-      const resolved = resolvePhotoUrl(i.photoUrl);
-      return resolved && isAllowedPhotoFetchUrl(resolved);
+      return !!normalizeStoredFlowListImage(i.flowListImage);
     });
-    if (withPhoto) photoUrlById[cat.id] = withPhoto.photoUrl;
+    if (withThumb) flowListImageById[cat.id] = withThumb.flowListImage;
   }
-  return attachListImages(categories, { photoUrlById });
+  return attachListImages(categories, { flowListImageById, ...opts });
 }
 
 /**
  * Menu item options for MENU_BROWSE.
  * @param {Array<{id:string,title:string,description?:string}>} items
- * @param {Array<{id:string,photoUrl?:string}>} menuSlice
+ * @param {Array<{id:string,flowListImage?:string}>} menuSlice
+ * @param {{ concurrency?: number }} [opts]
  */
-async function attachMenuItemImages(items, menuSlice) {
-  const photoUrlById = Object.fromEntries(menuSlice.map((i) => [i.id, i.photoUrl]));
-  return attachListImages(items, { photoUrlById });
+async function attachMenuItemImages(items, menuSlice, opts = {}) {
+  const flowListImageById = Object.fromEntries(menuSlice.map((i) => [i.id, i.flowListImage]));
+  return attachListImages(items, { flowListImageById, ...opts });
 }
 
 module.exports = {
@@ -212,12 +275,15 @@ module.exports = {
   colorForSeed,
   isAllowedPhotoFetchUrl,
   flowListImageFromUrl,
+  normalizeStoredFlowListImage,
   attachListImages,
   attachCategoryImages,
   attachMenuItemImages,
+  clearFlowImageCache,
   MAX_LIST_IMAGE_BYTES,
   MAX_DOWNLOAD_BYTES,
   FETCH_TIMEOUT_MS,
   THUMB_SIZE,
+  THUMB_JPEG_QUALITY,
   ALLOWED_PHOTO_HOSTS,
 };
