@@ -274,8 +274,15 @@ describe('buildMenuPayload', () => {
   });
 
   it('omits photo fields when photoUrl is undefined on update (admin metadata edit)', () => {
-    const { photoUrl: _drop, ...withoutPhoto } = base;
-    const payload = buildMenuPayload({ ...withoutPhoto, optionGroupIds: [] }, true);
+    const payload = buildMenuPayload({
+      name: base.name,
+      price: base.price,
+      category: base.category,
+      description: base.description,
+      available: base.available,
+      vatRate: base.vatRate,
+      optionGroupIds: [],
+    }, true);
     expect(payload).not.toHaveProperty('photoUrl');
     expect(payload).not.toHaveProperty('flowListImage');
   });
