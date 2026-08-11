@@ -3,6 +3,7 @@ const { formatBasketItemsText } = require('./botHelpers');
 const { basketSubtotal, orderTotals } = require('./orderTotals');
 const { isDeliveryOffered } = require('./checkoutSlots');
 const { isPaymentEnabled } = require('./paymentGate');
+const { checkoutReviewCopy } = require('./menuFlowCopy');
 
 const CHECKOUT_TOKEN_MARKER = 'checkout';
 const ORDER_TYPES = new Set(['delivery', 'pickup']);
@@ -113,6 +114,7 @@ function buildCheckoutReviewData({
     [F.ORDER_TYPE_OPTIONS]: options,
     [F.DELIVERY_ADDRESS]: deliveryAddress,
     [F.CHECKOUT_NOTE]: specialRequests,
+    ...checkoutReviewCopy(lang, t),
   };
 }
 

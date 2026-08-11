@@ -42,8 +42,8 @@ const MENU = [
   },
 ];
 
-function mockSession(basket = []) {
-  const snap = { exists: basket.length > 0, data: () => ({ basket }) };
+function mockSession(basket = [], extras = {}) {
+  const snap = { exists: basket.length > 0 || Object.keys(extras).length > 0, data: () => ({ basket, ...extras }) };
   const ref  = { get: jest.fn().mockResolvedValue(snap), set: jest.fn().mockResolvedValue(undefined) };
   sessionRef.mockReturnValue(ref);
   return ref;
@@ -95,6 +95,52 @@ test('INIT empty basket → CATEGORY_SELECT with unique categories', async () =>
   expect(attachCategoryImages).toHaveBeenCalled();
   expect(body.data[F.CATEGORIES][0].image).toBeTruthy();
   expect(body.data[F.CATEGORIES][0]['alt-text']).toBeTruthy();
+});
+
+test('INIT uses session language for Flow UI chrome (de/en/tr)', async () => {
+  mockSession([], { language: 'de' });
+  const de = parsed(await post({ action: 'INIT', version: V, flow_token: TOKEN }));
+  expect(de.data[F.UI_SCREEN_TITLE]).toBe('Speisekarte');
+  expect(de.data[F.UI_CATEGORY_PROMPT]).toBe('Was möchten Sie?');
+  expect(de.data[F.UI_NEXT]).toBe('Weiter');
+  expect(de.data[F.CATEGORIES].map(c => c.title)).toEqual(
+    expect.arrayContaining(['Hauptgerichte', 'Beilagen']),
+  );
+
+  mockSession([], { language: 'en' });
+  const en = parsed(await post({ action: 'INIT', version: V, flow_token: TOKEN }));
+  expect(en.data[F.UI_SCREEN_TITLE]).toBe('Menu');
+  expect(en.data[F.UI_CATEGORY_PROMPT]).toBe('What would you like?');
+  expect(en.data[F.CATEGORIES].map(c => c.title)).toEqual(
+    expect.arrayContaining(['Mains', 'Sides']),
+  );
+
+  mockSession([], { language: 'tr' });
+  const tr = parsed(await post({ action: 'INIT', version: V, flow_token: TOKEN }));
+  expect(tr.data[F.UI_SCREEN_TITLE]).toBe('Menü');
+  expect(tr.data[F.UI_NEXT]).toBe('İleri');
+  expect(tr.data[F.CATEGORIES].map(c => c.title)).toEqual(
+    expect.arrayContaining(['Ana Yemekler', 'Garnitürler']),
+  );
+});
+
+test('ORDER_ITEM → CART_REVIEW localizes total and clear-cart row', async () => {
+  mockSession([], { language: 'de' });
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.ORDER_ITEM,
+    version: V,
+    flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'b1', [F.QTY]: '1' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CART_REVIEW);
+  expect(body.data[F.UI_SCREEN_TITLE]).toBe('Warenkorb');
+  expect(body.data[F.TOTAL_LABEL]).toBe('Gesamt: €10.00');
+  expect(body.data[F.UI_PLACE_ORDER]).toBe('Bestellung aufgeben');
+  expect(body.data[F.BASKET_ITEMS].find(i => i.id === 'clear').title).toBe(
+    'Gesamten Warenkorb leeren',
+  );
 });
 
 test('INIT with basket still opens CATEGORY_SELECT (CART_REVIEW is not a valid entry screen)', async () => {

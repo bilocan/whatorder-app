@@ -2,12 +2,16 @@
 // Generates backend/src/flows/checkout-flow.json from JS.
 // Run: npm run generate:checkout-flow
 // After running, upload the JSON to Meta (Flow Builder or uploadFlow.js).
+//
+// UI chrome is localized via ${data.ui_*} filled by /flow/exchange from session.language.
 
 const fs = require('fs');
 const path = require('path');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
+const { checkoutReviewCopy } = require('../bot/menuFlowCopy');
 
 const OUT = path.join(__dirname, '../flows/checkout-flow.json');
+const EXAMPLE_LANG = 'en';
 
 const ORDER_TYPE_OPTIONS_SCHEMA = {
   type: 'array',
@@ -20,12 +24,24 @@ const ORDER_TYPE_OPTIONS_SCHEMA = {
   },
 };
 
+function strField(example) {
+  return { type: 'string', '__example__': example };
+}
+
+function uiSchema(copy) {
+  return Object.fromEntries(
+    Object.entries(copy).map(([key, value]) => [key, strField(value)]),
+  );
+}
+
 function checkoutReviewScreen() {
+  const copy = checkoutReviewCopy(EXAMPLE_LANG);
   return {
     id: S.CHECKOUT_REVIEW,
-    title: 'Review order',
+    title: `\${data.${F.UI_SCREEN_TITLE}}`,
     terminal: true,
     data: {
+      ...uiSchema(copy),
       [F.RECEIPT_TEXT]: {
         type: 'string',
         '__example__': '1x Chicken Dürüm  €8.50\n1x Falafel Box  €6.90\n\nTotal: €15.40',
@@ -61,26 +77,26 @@ function checkoutReviewScreen() {
           },
           {
             type: 'TextInput',
-            label: 'Name',
+            label: `\${data.${F.UI_NAME_LABEL}}`,
             name: F.CUSTOMER_NAME,
             required: true,
           },
           {
             type: 'RadioButtonsGroup',
-            label: 'Order type',
+            label: `\${data.${F.UI_TYPE_LABEL}}`,
             name: F.ORDER_TYPE,
             required: true,
             'data-source': `\${data.${F.ORDER_TYPE_OPTIONS}}`,
           },
           {
             type: 'TextInput',
-            label: 'Delivery address',
+            label: `\${data.${F.UI_ADDRESS_LABEL}}`,
             name: F.DELIVERY_ADDRESS,
             required: false,
           },
           {
             type: 'TextArea',
-            label: 'Note',
+            label: `\${data.${F.UI_NOTE_LABEL}}`,
             name: F.CHECKOUT_NOTE,
             required: false,
           },
@@ -88,7 +104,7 @@ function checkoutReviewScreen() {
             // EmbeddedLink cannot use `complete` — only data_exchange / navigate / open_url.
             // Endpoint closes the Flow with SUCCESS + checkout_action for nfm_reply.
             type: 'EmbeddedLink',
-            text: 'Back to cart',
+            text: `\${data.${F.UI_BACK_TO_CART}}`,
             'on-click-action': {
               name: 'data_exchange',
               payload: { checkout_action: 'back_to_cart' },
@@ -96,7 +112,7 @@ function checkoutReviewScreen() {
           },
           {
             type: 'Footer',
-            label: 'Place order',
+            label: `\${data.${F.UI_PLACE_ORDER}}`,
             'on-click-action': {
               name: 'complete',
               payload: {

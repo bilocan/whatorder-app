@@ -56,6 +56,21 @@ const FIELDS = {
   BASKET_ITEMS: 'basket_items',
   REMOVE_ITEMS: 'remove_items', // CheckboxGroup — multi-select removal
 
+  // Menu Flow UI copy (filled from session.language on every exchange)
+  UI_SCREEN_TITLE:     'ui_screen_title',
+  UI_CATEGORY_PROMPT:  'ui_category_prompt',
+  UI_NEXT:             'ui_next',
+  UI_CUSTOMISE:        'ui_customise',
+  UI_QTY_LABEL:        'ui_qty_label',
+  UI_NOTES_LABEL:      'ui_notes_label',
+  UI_NOTES_HELPER:     'ui_notes_helper',
+  UI_ADD_TO_CART:      'ui_add_to_cart',
+  UI_CART_HINT:        'ui_cart_hint',
+  UI_REMOVE_LABEL:     'ui_remove_label',
+  UI_REMOVE_SELECTED:  'ui_remove_selected',
+  UI_ADD_MORE:         'ui_add_more',
+  UI_PLACE_ORDER:      'ui_place_order',
+
   // CHECKOUT_REVIEW
   RECEIPT_TEXT:       'receipt_text',
   CUSTOMER_NAME:      'customer_name',
@@ -63,6 +78,11 @@ const FIELDS = {
   ORDER_TYPE_OPTIONS: 'order_type_options',
   DELIVERY_ADDRESS:   'delivery_address',
   CHECKOUT_NOTE:      'note',
+  UI_NAME_LABEL:      'ui_name_label',
+  UI_TYPE_LABEL:      'ui_type_label',
+  UI_ADDRESS_LABEL:   'ui_address_label',
+  UI_NOTE_LABEL:      'ui_note_label',
+  UI_BACK_TO_CART:    'ui_back_to_cart',
 };
 
 module.exports = { SCREENS, FIELDS };
