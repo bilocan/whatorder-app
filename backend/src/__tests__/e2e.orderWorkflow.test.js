@@ -155,7 +155,7 @@ function inMsg(overrides = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  process.env.WHATSAPP_FLOW_ID = 'flow_test_id';
+  process.env.WHATSAPP_MENU_FLOW_ID = 'flow_test_id';
 
   // WhatsApp stubs
   sendText.mockResolvedValue('wamid_stub');
@@ -188,6 +188,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete process.env.WHATSAPP_MENU_FLOW_ID;
   delete process.env.WHATSAPP_FLOW_ID;
 });
 

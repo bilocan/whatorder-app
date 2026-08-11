@@ -566,7 +566,9 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendLocationRequest).not.toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('2h idle + empty basket → does NOT show picker (within 8h TTL)', async () => {

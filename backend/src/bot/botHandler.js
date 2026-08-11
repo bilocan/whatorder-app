@@ -138,12 +138,11 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
       ? session.businessId
       : (routing.defaultBusinessId || routing.businessIds[0]);
     await sendFlowMessage(from, {
-      flowId: process.env.WHATSAPP_FLOW_ID || '1465498598663384',
+      flowId: process.env.WHATSAPP_MENU_FLOW_ID || process.env.WHATSAPP_FLOW_ID || '1465498598663384',
       flowToken: `${from}|${bid}`,
       flowCta: 'Open Menu',
-      screen: 'CATEGORY_SELECT',
       body: 'Tap to browse the menu',
-      data: {},
+      flowAction: 'data_exchange',
     });
     return;
   }
