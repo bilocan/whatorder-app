@@ -333,7 +333,11 @@ describe('Layer 0: reorder-first for returning customers', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_reorder_browse' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowAction: 'data_exchange',
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -419,7 +423,11 @@ describe('Layer 1: disambiguation for ambiguous item names', () => {
 
     await handleMessage(ROUTING, msg({ text: 'menü' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowAction: 'data_exchange',
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('typed cola pick during disambiguation completes intent proposal', async () => {

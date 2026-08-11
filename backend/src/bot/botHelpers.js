@@ -1,6 +1,6 @@
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('./menuService');
 const { sortByDistance, filterWithinDistanceKm, getMaxRestaurantDistanceKm } = require('../lib/distance');
-const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage } = require('../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendFlowMessage } = require('../lib/whatsapp');
 const { buildOpenMapCtaUrl } = require('../lib/mapsUrl');
 const { isOpenNow } = require('../lib/schedule');
 const { t, tCategory } = require('./templates');
@@ -398,23 +398,35 @@ async function sendMenu(to, lang, businessId, bodyOverride) {
   return { menuId, textMenuIndex, textMenuCategory: null };
 }
 
-// TODO: re-enable Flow once rate-limit issues on real numbers are resolved.
-// const { sendFlowMessage } = require('../lib/whatsapp');
-// async function sendCatalog(to, lang, businessId, bodyOverride) {
-//   const flowId = process.env.WHATSAPP_FLOW_ID;
-//   if (flowId) {
-//     const [info, menu] = await Promise.all([getBusinessInfo(businessId), getMenu(businessId)]);
-//     if (!menu.length) { await sendText(to, t('menuEmpty', lang)); return null; }
-//     try {
-//       await sendFlowMessage(to, { flowId, flowToken: `${to}|${businessId}`, flowCta: t('viewMenuBtn', lang), screen: 'CATEGORY_SELECT', body: bodyOverride ?? t('catalogBody', lang, info.name), data: {} });
-//       return null;
-//     } catch (err) {
-//       if (err.response?.data?.error?.code === 131056) throw err;
-//     }
-//   }
-//   return sendMenu(to, lang, businessId, bodyOverride);
-// }
+const EMPTY_CATALOG_SESSION = { menuId: null, textMenuIndex: null, textMenuCategory: null };
+
+// Primary menu delivery: WhatsApp Flow when WHATSAPP_MENU_FLOW_ID is set.
+// Pair rate-limit (#131056) must not fall through to sendMenu (that double-hits the same pair).
 async function sendCatalog(to, lang, businessId, bodyOverride) {
+  // WHATSAPP_FLOW_ID kept as legacy alias until Cloud Run envs are fully migrated.
+  const flowId = process.env.WHATSAPP_MENU_FLOW_ID || process.env.WHATSAPP_FLOW_ID;
+  if (flowId) {
+    const [info, menu] = await Promise.all([getBusinessInfo(businessId), getMenu(businessId)]);
+    if (!menu.length) {
+      await sendText(to, t('menuEmpty', lang));
+      return { ...EMPTY_CATALOG_SESSION };
+    }
+    try {
+      // data_exchange → Meta calls /flow/exchange INIT (navigate + empty data leaves CATEGORY_SELECT blank)
+      await sendFlowMessage(to, {
+        flowId,
+        flowToken: `${to}|${businessId}`,
+        flowCta: t('viewMenuBtn', lang),
+        body: bodyOverride ?? t('catalogBody', lang, info.name),
+        flowAction: 'data_exchange',
+      });
+      return { ...EMPTY_CATALOG_SESSION };
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      if (code === 131056) throw err;
+      console.error('[sendCatalog] Flow failed, falling back to list menu:', err.response?.data ?? err.message);
+    }
+  }
   return sendMenu(to, lang, businessId, bodyOverride);
 }
 

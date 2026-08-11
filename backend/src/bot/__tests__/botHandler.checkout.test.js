@@ -181,7 +181,8 @@ describe('Cancel flow', () => {
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -220,7 +221,8 @@ describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_cancel_order', title: 'Cancel ❌' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 });
@@ -520,7 +522,8 @@ describe('Confirming state: ambiguous input', () => {
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('text "Löschen" cancels — does not become specialRequests note', async () => {
@@ -543,7 +546,8 @@ describe('Confirming state: ambiguous input', () => {
     const noteWrite = setSession.mock.calls.find(([, data]) => data.specialRequests === 'Löschen');
     expect(noteWrite).toBeUndefined();
     // Single-restaurant cancel re-opens catalog with checkoutCancelled body (not a bare sendText).
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('text "abbrechen" cancels on confirming', async () => {
