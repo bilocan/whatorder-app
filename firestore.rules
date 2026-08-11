@@ -48,9 +48,18 @@ service cloud.firestore {
       }
 
       // Menu is managed by the restaurant owner and admins.
+      // flowListImage: raw Base64 Flow thumb; cap ~140k chars (~100KB decoded).
       match /menu/{itemId} {
         allow read: if isOwnerOf(businessId) || isAdmin();
-        allow write: if isOwnerOf(businessId) || isAdmin();
+        allow write: if (isOwnerOf(businessId) || isAdmin())
+          && (
+            request.method == 'delete'
+            || !('flowListImage' in request.resource.data)
+            || (
+              request.resource.data.flowListImage is string
+              && request.resource.data.flowListImage.size() <= 140000
+            )
+          );
       }
 
       // Reusable WhatsApp customization groups (inserts, protein, sauces, etc.).

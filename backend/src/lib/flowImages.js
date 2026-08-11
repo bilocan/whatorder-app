@@ -5,7 +5,6 @@
 // Live Storage fetch+sharp is for backfill scripts — never on INIT/browse.
 
 const sharp = require('sharp');
-const { resolvePhotoUrl } = require('../bot/menuService');
 
 const MAX_LIST_IMAGE_BYTES = 100 * 1024;
 /** Align with dashboard menu photo upload limit (`menuPhoto.ts`). */

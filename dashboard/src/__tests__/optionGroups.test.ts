@@ -272,4 +272,11 @@ describe('buildMenuPayload', () => {
     expect(payload.photoUrl).toBeDefined();
     expect(payload.flowListImage).toBeDefined();
   });
+
+  it('omits photo fields when photoUrl is undefined on update (admin metadata edit)', () => {
+    const { photoUrl: _drop, ...withoutPhoto } = base;
+    const payload = buildMenuPayload({ ...withoutPhoto, optionGroupIds: [] }, true);
+    expect(payload).not.toHaveProperty('photoUrl');
+    expect(payload).not.toHaveProperty('flowListImage');
+  });
 });
