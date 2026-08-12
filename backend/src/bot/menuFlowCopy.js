@@ -64,6 +64,8 @@ function checkoutReviewCopy(lang, t = defaultT) {
     [F.UI_NAME_LABEL]: t('confirmFlowNameLabel', lang),
     [F.UI_TYPE_LABEL]: t('confirmFlowTypeLabel', lang),
     [F.UI_ADDRESS_LABEL]: t('confirmFlowAddressLabel', lang),
+    [F.UI_APARTMENT_LABEL]: t('confirmFlowApartmentLabel', lang),
+    [F.UI_APARTMENT_HELPER]: t('confirmFlowApartmentHelper', lang),
     [F.UI_NOTE_LABEL]: t('confirmFlowNoteLabel', lang),
     [F.UI_BACK_TO_CART]: t('confirmFlowBackToCart', lang),
     [F.UI_PLACE_ORDER]: t('confirmFlowFooter', lang),

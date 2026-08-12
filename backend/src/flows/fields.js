@@ -77,10 +77,13 @@ const FIELDS = {
   ORDER_TYPE:         'order_type',
   ORDER_TYPE_OPTIONS: 'order_type_options',
   DELIVERY_ADDRESS:   'delivery_address',
+  DELIVERY_APARTMENT: 'delivery_apartment',
   CHECKOUT_NOTE:      'note',
   UI_NAME_LABEL:      'ui_name_label',
   UI_TYPE_LABEL:      'ui_type_label',
   UI_ADDRESS_LABEL:   'ui_address_label',
+  UI_APARTMENT_LABEL: 'ui_apartment_label',
+  UI_APARTMENT_HELPER: 'ui_apartment_helper',
   UI_NOTE_LABEL:      'ui_note_label',
   UI_BACK_TO_CART:    'ui_back_to_cart',
 };

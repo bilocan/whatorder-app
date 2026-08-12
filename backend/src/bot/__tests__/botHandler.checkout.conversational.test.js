@@ -565,6 +565,42 @@ describe('Checkout state: M3 slot-filling checkout', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringMatching(/Name/i));
   });
 
+  test('Flow flag off keeps address picker when order type was unset despite saved address', async () => {
+    mockCustomerProfile({ name: 'Hamza', lastDeliveryAddress: 'Hauptstraße 5, Top 2' });
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      conversationalBasket: true,
+      checkoutConfirmFlow: false,
+      deliveryEnabled: true,
+      deliveryFee: 2.5,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      pickupTime: '14:30',
+      prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address_choice',
+      orderType: 'delivery',
+    }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      deliveryAddress: 'Hauptstraße 5, Top 2',
+    }));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: [expect.objectContaining({
+        rows: expect.arrayContaining([
+          expect.objectContaining({ id: 'delivery_addr_saved' }),
+          expect.objectContaining({ id: 'delivery_addr_new' }),
+        ]),
+      })],
+    }));
+  });
+
   test('btn_place_order in confirming has no payment method step; blocks when card gate fails', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,

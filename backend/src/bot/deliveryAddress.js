@@ -181,6 +181,33 @@ function splitStreetAndUnitHint(address) {
   };
 }
 
+function splitDeliveryAddressFields(address) {
+  const raw = String(address || '').trim();
+  if (!raw) return { street: '', apartment: '' };
+
+  const slash = splitStreetAndUnitHint(raw);
+  if (slash.unitHint) {
+    return { street: slash.query, apartment: slash.unitHint };
+  }
+
+  // ", Stiege N, Top M" before locality
+  let m = raw.match(/^(.*?),\s*(Stiege\s+\d+,\s*Top\s+\d+)(,\s*\d{4}\s+.+)?$/i);
+  if (m) {
+    const street = [m[1].trim(), m[3] ? m[3].replace(/^,\s*/, '') : null].filter(Boolean).join(', ');
+    return { street, apartment: m[2].replace(/\s+/g, ' ').trim() };
+  }
+
+  // ", Top N" or ", Tür N"
+  m = raw.match(/^(.*?),\s*((?:Top|Tür|Tur)\s+\d+)(,\s*\d{4}\s+.+)?$/i);
+  if (m) {
+    const unit = m[2].replace(/^Tur\b/i, 'Tür');
+    const street = [m[1].trim(), m[3] ? m[3].replace(/^,\s*/, '') : null].filter(Boolean).join(', ');
+    return { street, apartment: unit.replace(/\s+/g, ' ').trim() };
+  }
+
+  return { street: raw, apartment: '' };
+}
+
 module.exports = {
   hasUnitPattern,
   isHausSkip,
@@ -189,6 +216,7 @@ module.exports = {
   composeDeliveryLabel,
   parseDeliveryUnit,
   splitStreetAndUnitHint,
+  splitDeliveryAddressFields,
   isNearlySameAddress,
   addressKey,
   UNIT_PATTERN,

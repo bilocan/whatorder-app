@@ -56,6 +56,7 @@ function checkoutReviewScreen() {
         ],
       },
       [F.DELIVERY_ADDRESS]: { type: 'string', '__example__': 'Main Street 12, 1010 Vienna' },
+      [F.DELIVERY_APARTMENT]: { type: 'string', '__example__': 'Top 14' },
       [F.CHECKOUT_NOTE]: { type: 'string', '__example__': 'Please ring the bell.' },
     },
     layout: {
@@ -68,6 +69,7 @@ function checkoutReviewScreen() {
           [F.CUSTOMER_NAME]: `\${data.${F.CUSTOMER_NAME}}`,
           [F.ORDER_TYPE]: `\${data.${F.ORDER_TYPE}}`,
           [F.DELIVERY_ADDRESS]: `\${data.${F.DELIVERY_ADDRESS}}`,
+          [F.DELIVERY_APARTMENT]: `\${data.${F.DELIVERY_APARTMENT}}`,
           [F.CHECKOUT_NOTE]: `\${data.${F.CHECKOUT_NOTE}}`,
         },
         children: [
@@ -92,7 +94,14 @@ function checkoutReviewScreen() {
             type: 'TextInput',
             label: `\${data.${F.UI_ADDRESS_LABEL}}`,
             name: F.DELIVERY_ADDRESS,
-            required: false,
+            required: true,
+          },
+          {
+            type: 'TextInput',
+            label: `\${data.${F.UI_APARTMENT_LABEL}}`,
+            name: F.DELIVERY_APARTMENT,
+            required: true,
+            'helper-text': `\${data.${F.UI_APARTMENT_HELPER}}`,
           },
           {
             type: 'TextArea',
@@ -120,6 +129,7 @@ function checkoutReviewScreen() {
                 [F.CUSTOMER_NAME]: `\${form.${F.CUSTOMER_NAME}}`,
                 [F.ORDER_TYPE]: `\${form.${F.ORDER_TYPE}}`,
                 [F.DELIVERY_ADDRESS]: `\${form.${F.DELIVERY_ADDRESS}}`,
+                [F.DELIVERY_APARTMENT]: `\${form.${F.DELIVERY_APARTMENT}}`,
                 [F.CHECKOUT_NOTE]: `\${form.${F.CHECKOUT_NOTE}}`,
               },
             },
