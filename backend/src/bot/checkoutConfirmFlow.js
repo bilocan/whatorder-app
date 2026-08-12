@@ -4,6 +4,13 @@ const { basketSubtotal, orderTotals } = require('./orderTotals');
 const { isDeliveryOffered } = require('./checkoutSlots');
 const { isPaymentEnabled } = require('./paymentGate');
 const { checkoutReviewCopy } = require('./menuFlowCopy');
+const {
+  splitDeliveryAddressFields,
+  parseDeliveryUnit,
+  composeDeliveryLabel,
+  hasUnitPattern,
+  normalizeBuildingLabel,
+} = require('./deliveryAddress');
 
 const CHECKOUT_TOKEN_MARKER = 'checkout';
 const ORDER_TYPES = new Set(['delivery', 'pickup']);
@@ -63,7 +70,14 @@ function buildConfirmFlowDraft(payload = {}) {
   if (F.ORDER_TYPE in payload && ORDER_TYPES.has(payload[F.ORDER_TYPE])) {
     draft.orderType = payload[F.ORDER_TYPE];
   }
-  if (F.DELIVERY_ADDRESS in payload) draft.deliveryAddress = trimmed(payload[F.DELIVERY_ADDRESS]);
+  if (F.DELIVERY_ADDRESS in payload) {
+    draft.deliveryAddress = trimmed(payload[F.DELIVERY_ADDRESS]);
+    draft.deliveryApartment = F.DELIVERY_APARTMENT in payload
+      ? trimmed(payload[F.DELIVERY_APARTMENT])
+      : '';
+  } else if (F.DELIVERY_APARTMENT in payload) {
+    draft.deliveryApartment = trimmed(payload[F.DELIVERY_APARTMENT]);
+  }
   if (F.CHECKOUT_NOTE in payload) draft.specialRequests = trimmed(payload[F.CHECKOUT_NOTE]);
   return Object.keys(draft).length ? draft : null;
 }
@@ -85,11 +99,24 @@ function buildCheckoutReviewData({
   const orderType = (requestedType === 'delivery' && !deliverySelectable) ? 'pickup' : requestedType;
 
   const customerName = draft.customerName ?? trimmed(session.customerName);
-  const deliveryAddress = draft.deliveryAddress ?? trimmed(session.deliveryAddress);
+  const sessionFull = trimmed(session.deliveryAddress);
+  const sessionFields = splitDeliveryAddressFields(sessionFull);
+  // Keep the full courier label in the street field so older published Flows (no Wohnung
+  // input) still submit a string with unit pattern. Wohnung field gets the extracted unit
+  // when present for editing on republished Flows.
+  const deliveryAddress = Object.prototype.hasOwnProperty.call(draft, 'deliveryAddress')
+    ? draft.deliveryAddress
+    : (sessionFull || sessionFields.street);
+  const deliveryApartment = Object.prototype.hasOwnProperty.call(draft, 'deliveryApartment')
+    ? draft.deliveryApartment
+    : (Object.prototype.hasOwnProperty.call(draft, 'deliveryAddress') ? '' : sessionFields.apartment);
+  const reviewDeliveryAddress = Object.prototype.hasOwnProperty.call(draft, 'deliveryAddress')
+    ? draft.deliveryAddress
+    : sessionFull;
   const specialRequests = draft.specialRequests ?? trimmed(session.specialRequests);
 
   const reviewSession = {
-    ...session, orderType, customerName, deliveryAddress, specialRequests,
+    ...session, orderType, customerName, deliveryAddress: reviewDeliveryAddress, specialRequests,
   };
   const { total } = orderTotals(basket, reviewSession, info);
   const options = [
@@ -113,6 +140,7 @@ function buildCheckoutReviewData({
     [F.ORDER_TYPE]: orderType,
     [F.ORDER_TYPE_OPTIONS]: options,
     [F.DELIVERY_ADDRESS]: deliveryAddress,
+    [F.DELIVERY_APARTMENT]: deliveryApartment,
     [F.CHECKOUT_NOTE]: specialRequests,
     ...checkoutReviewCopy(lang, t),
   };
@@ -133,9 +161,25 @@ function validateCheckoutSubmit(payload = {}) {
     return { ok: false, errorKey: 'confirmFlowErrorAddress' };
   }
 
-  const deliveryAddress = trimmed(payload[F.DELIVERY_ADDRESS]);
-  if (orderType === 'delivery' && !deliveryAddress) {
-    return { ok: false, errorKey: 'confirmFlowErrorAddress' };
+  let deliveryAddress = null;
+  if (orderType === 'delivery') {
+    const street = trimmed(payload[F.DELIVERY_ADDRESS]);
+    const apartment = trimmed(payload[F.DELIVERY_APARTMENT]);
+    if (!street) return { ok: false, errorKey: 'confirmFlowErrorAddress' };
+
+    deliveryAddress = street;
+    if (apartment) {
+      const parsed = parseDeliveryUnit(apartment);
+      if (!parsed.ok) return { ok: false, errorKey: 'confirmFlowErrorApartment' };
+      // Street may still hold the full label (5/14); compose onto the building part only.
+      const building = splitDeliveryAddressFields(street).street || street;
+      deliveryAddress = composeDeliveryLabel(building, parsed.label);
+    } else {
+      if (!hasUnitPattern(street)) {
+        return { ok: false, errorKey: 'confirmFlowErrorApartment' };
+      }
+      deliveryAddress = normalizeBuildingLabel(street);
+    }
   }
 
   return {
@@ -143,7 +187,7 @@ function validateCheckoutSubmit(payload = {}) {
     values: {
       customerName,
       orderType,
-      deliveryAddress: orderType === 'delivery' ? deliveryAddress : null,
+      deliveryAddress,
       specialRequests: trimmed(payload[F.CHECKOUT_NOTE]),
     },
   };
@@ -159,6 +203,45 @@ function applyCheckoutSubmitToSession(session, values) {
     // A valid submit supersedes whatever a previous failed submit left behind.
     confirmFlowDraft: null,
   };
+}
+
+/**
+ * Build a Flow-shaped submit payload from session (+ optional confirmFlowDraft) so typed
+ * confirm / list place use the same validateCheckoutSubmit rules as flow_completion.
+ */
+function buildCheckoutSubmitPayloadFromSession(session = {}) {
+  const draft = session.confirmFlowDraft ?? {};
+  const orderType = ORDER_TYPES.has(draft.orderType)
+    ? draft.orderType
+    : (ORDER_TYPES.has(session.orderType) ? session.orderType : '');
+  const customerName = Object.prototype.hasOwnProperty.call(draft, 'customerName')
+    ? draft.customerName
+    : trimmed(session.customerName);
+  const specialRequests = Object.prototype.hasOwnProperty.call(draft, 'specialRequests')
+    ? draft.specialRequests
+    : trimmed(session.specialRequests);
+
+  const payload = {
+    [F.CUSTOMER_NAME]: customerName,
+    [F.ORDER_TYPE]: orderType,
+    [F.CHECKOUT_NOTE]: specialRequests,
+  };
+
+  if (orderType === 'delivery') {
+    const sessionFull = trimmed(session.deliveryAddress);
+    if (Object.prototype.hasOwnProperty.call(draft, 'deliveryAddress')) {
+      payload[F.DELIVERY_ADDRESS] = draft.deliveryAddress;
+      payload[F.DELIVERY_APARTMENT] = Object.prototype.hasOwnProperty.call(draft, 'deliveryApartment')
+        ? draft.deliveryApartment
+        : '';
+    } else {
+      const fields = splitDeliveryAddressFields(sessionFull);
+      payload[F.DELIVERY_ADDRESS] = sessionFull || fields.street;
+      payload[F.DELIVERY_APARTMENT] = fields.apartment;
+    }
+  }
+
+  return payload;
 }
 
 function parseCheckoutFlowToken(flowToken) {
@@ -185,6 +268,7 @@ module.exports = {
   buildReceiptText,
   buildCheckoutReviewData,
   buildConfirmFlowDraft,
+  buildCheckoutSubmitPayloadFromSession,
   isDeliverySelectableInReview,
   validateCheckoutSubmit,
   applyCheckoutSubmitToSession,

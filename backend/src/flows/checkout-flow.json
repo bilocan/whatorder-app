@@ -26,6 +26,14 @@
           "type": "string",
           "__example__": "Address"
         },
+        "ui_apartment_label": {
+          "type": "string",
+          "__example__": "Apartment"
+        },
+        "ui_apartment_helper": {
+          "type": "string",
+          "__example__": "Stiege / Tür / Top, or Haus if none"
+        },
         "ui_note_label": {
           "type": "string",
           "__example__": "Note"
@@ -78,6 +86,10 @@
           "type": "string",
           "__example__": "Main Street 12, 1010 Vienna"
         },
+        "delivery_apartment": {
+          "type": "string",
+          "__example__": "Top 14"
+        },
         "note": {
           "type": "string",
           "__example__": "Please ring the bell."
@@ -93,6 +105,7 @@
               "customer_name": "${data.customer_name}",
               "order_type": "${data.order_type}",
               "delivery_address": "${data.delivery_address}",
+              "delivery_apartment": "${data.delivery_apartment}",
               "note": "${data.note}"
             },
             "children": [
@@ -117,7 +130,14 @@
                 "type": "TextInput",
                 "label": "${data.ui_address_label}",
                 "name": "delivery_address",
-                "required": false
+                "required": true
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_apartment_label}",
+                "name": "delivery_apartment",
+                "required": true,
+                "helper-text": "${data.ui_apartment_helper}"
               },
               {
                 "type": "TextArea",
@@ -145,6 +165,7 @@
                     "customer_name": "${form.customer_name}",
                     "order_type": "${form.order_type}",
                     "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}",
                     "note": "${form.note}"
                   }
                 }

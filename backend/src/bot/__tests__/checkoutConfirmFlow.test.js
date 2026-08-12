@@ -3,6 +3,7 @@ const {
   buildReceiptText,
   buildCheckoutReviewData,
   buildConfirmFlowDraft,
+  buildCheckoutSubmitPayloadFromSession,
   validateCheckoutSubmit,
   applyCheckoutSubmitToSession,
   parseCheckoutFlowToken,
@@ -181,6 +182,7 @@ describe('checkoutConfirmFlow', () => {
           customerName: 'Ahmet Yilmaz',
           orderType: 'delivery',
           deliveryAddress: 'Naschmarkt 5',
+          deliveryApartment: 'Top 7',
           specialRequests: 'Ring twice',
         },
       },
@@ -194,9 +196,38 @@ describe('checkoutConfirmFlow', () => {
       [F.CUSTOMER_NAME]: 'Ahmet Yilmaz',
       [F.ORDER_TYPE]: 'delivery',
       [F.DELIVERY_ADDRESS]: 'Naschmarkt 5',
+      [F.DELIVERY_APARTMENT]: 'Top 7',
       [F.CHECKOUT_NOTE]: 'Ring twice',
     });
     expect(data[F.RECEIPT_TEXT]).toContain('finalConfirmBody:en:Ahmet Yilmaz|21.00');
+  });
+
+  test('street-only draft clears stale apartment from the session', () => {
+    const draft = buildConfirmFlowDraft({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      delivery_address: 'New Street 7, 1070 Wien',
+    });
+    const data = buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Old Street 1, Top 14, 1010 Wien',
+        confirmFlowDraft: draft,
+      },
+      basket,
+      info: { name: 'Demo Kitchen', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(draft).toMatchObject({
+      deliveryAddress: 'New Street 7, 1070 Wien',
+      deliveryApartment: '',
+    });
+    expect(data[F.DELIVERY_ADDRESS]).toBe('New Street 7, 1070 Wien');
+    expect(data[F.DELIVERY_APARTMENT]).toBe('');
   });
 
   test('collects a partial draft from a rejected payload', () => {
@@ -205,10 +236,24 @@ describe('checkoutConfirmFlow', () => {
       customer_name: ' A ',
       order_type: 'delivery',
       delivery_address: '  ',
+      delivery_apartment: ' Top 14 ',
     })).toEqual({
       customerName: 'A',
       orderType: 'delivery',
       deliveryAddress: '',
+      deliveryApartment: 'Top 14',
+    });
+    expect(buildConfirmFlowDraft({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: '',
+    })).toEqual({
+      customerName: 'Alex',
+      orderType: 'delivery',
+      deliveryAddress: 'Hippgasse 11, 1160 Wien',
+      deliveryApartment: '',
     });
     expect(buildConfirmFlowDraft({ checkout_action: 'back_to_cart' })).toBeNull();
   });
@@ -219,6 +264,7 @@ describe('checkoutConfirmFlow', () => {
       customer_name: '  Alex  ',
       order_type: 'delivery',
       delivery_address: '  Main Street 12  ',
+      delivery_apartment: 'Haus',
       note: '  Ring twice  ',
     })).toEqual({
       ok: true,
@@ -229,6 +275,148 @@ describe('checkoutConfirmFlow', () => {
         specialRequests: 'Ring twice',
       },
     });
+  });
+
+  test('rejects delivery without apartment when street has no unit', () => {
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: '',
+    })).toEqual({ ok: false, errorKey: 'confirmFlowErrorApartment' });
+  });
+
+  test('accepts Haus apartment and keeps building-only address', () => {
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: 'Haus',
+    })).toEqual({
+      ok: true,
+      values: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Hippgasse 11, 1160 Wien',
+        specialRequests: '',
+      },
+    });
+  });
+
+  test('composes Top apartment into deliveryAddress', () => {
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: 'Top 14',
+    }).values.deliveryAddress).toBe('Hippgasse 11, Top 14, 1160 Wien');
+  });
+
+  test('composes apartment onto building when street still holds slash unit', () => {
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      delivery_address: 'Herbststraße 5/14, 1160 Wien',
+      delivery_apartment: 'Top 14',
+    }).values.deliveryAddress).toBe('Herbststraße 5, Top 14, 1160 Wien');
+  });
+
+  test('accepts slash unit in street when apartment field omitted (old Flow)', () => {
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      delivery_address: 'Herbststraße 5/14, 1160 Wien',
+    }).ok).toBe(true);
+  });
+
+  test('waives apartment when street already has unit pattern', () => {
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      delivery_address: 'Hippgasse 11, Top 14, 1160 Wien, Austria',
+      delivery_apartment: '',
+    })).toEqual({
+      ok: true,
+      values: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Hippgasse 11, Top 14, 1160 Wien',
+        specialRequests: '',
+      },
+    });
+  });
+
+  test('rejects absurd unit 9888', () => {
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: '9888',
+    })).toEqual({ ok: false, errorKey: 'confirmFlowErrorApartment' });
+  });
+
+  test('prefills full address in street and extracted unit in apartment', () => {
+    const data = buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Hippgasse 11, Top 14, 1160 Wien',
+        specialRequests: '',
+      },
+      basket,
+      info: { name: 'Enes', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+    });
+    // Full label stays in street so Flows without a Wohnung field still validate via unit pattern.
+    expect(data[F.DELIVERY_ADDRESS]).toBe('Hippgasse 11, Top 14, 1160 Wien');
+    expect(data[F.DELIVERY_APARTMENT]).toBe('Top 14');
+  });
+
+  test('prefills slash unit address fully in street and Top in apartment', () => {
+    const data = buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Herbststraße 5/14, 1160 Wien',
+        specialRequests: '',
+      },
+      basket,
+      info: { name: 'Enes', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+    });
+    expect(data[F.DELIVERY_ADDRESS]).toBe('Herbststraße 5/14, 1160 Wien');
+    expect(data[F.DELIVERY_APARTMENT]).toBe('Top 14');
+  });
+
+  test('keeps draft street verbatim when it embeds Top and apartment is separate', () => {
+    const data = buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Hippgasse 11, Top 14, 1160 Wien',
+        confirmFlowDraft: {
+          customerName: 'Alex',
+          orderType: 'delivery',
+          deliveryAddress: 'Hippgasse 11, Top 14, 1160 Wien',
+          deliveryApartment: '9888',
+        },
+      },
+      basket,
+      info: { name: 'Enes', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+    });
+    expect(data[F.DELIVERY_ADDRESS]).toBe('Hippgasse 11, Top 14, 1160 Wien');
+    expect(data[F.DELIVERY_APARTMENT]).toBe('9888');
   });
 
   test('rejects a short customer name with the name error key', () => {
@@ -302,6 +490,44 @@ describe('checkoutConfirmFlow', () => {
       confirmFlowDraft: null,
     });
     expect(next).not.toBe(session);
+  });
+
+  test('buildCheckoutSubmitPayloadFromSession merges draft over stale session address', () => {
+    const payload = buildCheckoutSubmitPayloadFromSession({
+      customerName: 'Alex',
+      orderType: 'delivery',
+      deliveryAddress: 'Old Street 1, Top 1, 1040 Wien',
+      specialRequests: 'extra sauce',
+      confirmFlowDraft: {
+        deliveryAddress: 'Naschmarkt 9, 1040 Wien',
+        deliveryApartment: 'Top 4',
+        specialRequests: 'no onion',
+      },
+    });
+    expect(payload).toEqual({
+      [F.CUSTOMER_NAME]: 'Alex',
+      [F.ORDER_TYPE]: 'delivery',
+      [F.DELIVERY_ADDRESS]: 'Naschmarkt 9, 1040 Wien',
+      [F.DELIVERY_APARTMENT]: 'Top 4',
+      [F.CHECKOUT_NOTE]: 'no onion',
+    });
+    expect(validateCheckoutSubmit(payload)).toEqual({
+      ok: true,
+      values: expect.objectContaining({
+        deliveryAddress: 'Naschmarkt 9, Top 4, 1040 Wien',
+      }),
+    });
+  });
+
+  test('buildCheckoutSubmitPayloadFromSession keeps unit-in-street when no draft', () => {
+    const payload = buildCheckoutSubmitPayloadFromSession({
+      customerName: 'Alex',
+      orderType: 'delivery',
+      deliveryAddress: 'Naschmarkt 5, Top 2, 1040 Wien',
+    });
+    expect(payload[F.DELIVERY_ADDRESS]).toBe('Naschmarkt 5, Top 2, 1040 Wien');
+    expect(payload[F.DELIVERY_APARTMENT]).toBe('Top 2');
+    expect(validateCheckoutSubmit(payload).ok).toBe(true);
   });
 
   test('builds and parses checkout tokens', () => {

@@ -3,6 +3,7 @@ const {
   isHausSkip,
   normalizeBuildingLabel,
   composeDeliveryLabel,
+  splitDeliveryAddressFields,
 } = require('../deliveryAddress');
 
 describe('deliveryAddress helpers', () => {
@@ -89,5 +90,46 @@ describe('deliveryAddress helpers', () => {
       'lavaterstrasse 3/3/15 1220',
       'Lavaterstraße 3, Stiege 3, Top 15, 1220 Wien',
     )).toBe(true);
+  });
+});
+
+describe('splitDeliveryAddressFields', () => {
+  test('splits slash unit via existing hint path', () => {
+    expect(splitDeliveryAddressFields('Lavaterstraße 3/3/15, 1220 Wien')).toEqual({
+      street: 'Lavaterstraße 3, 1220 Wien',
+      apartment: 'Stiege 3, Top 15',
+    });
+  });
+
+  test('splits composeDeliveryLabel Top form', () => {
+    const composed = composeDeliveryLabel('Hippgasse 11, 1160 Wien', 'Top 14');
+    expect(splitDeliveryAddressFields(composed)).toEqual({
+      street: 'Hippgasse 11, 1160 Wien',
+      apartment: 'Top 14',
+    });
+  });
+
+  test('splits Stiege + Top composed form', () => {
+    const composed = composeDeliveryLabel('Lavaterstraße 3, 1220 Wien', 'Stiege 3, Top 15');
+    expect(splitDeliveryAddressFields(composed)).toEqual({
+      street: 'Lavaterstraße 3, 1220 Wien',
+      apartment: 'Stiege 3, Top 15',
+    });
+  });
+
+  test('splits bare Stiege N composed form', () => {
+    const composed = composeDeliveryLabel('Hippgasse 11, 1160 Wien', 'Stiege 2');
+    expect(composed).toBe('Hippgasse 11, Stiege 2, 1160 Wien');
+    expect(splitDeliveryAddressFields(composed)).toEqual({
+      street: 'Hippgasse 11, 1160 Wien',
+      apartment: 'Stiege 2',
+    });
+  });
+
+  test('returns full string street when no unit', () => {
+    expect(splitDeliveryAddressFields('Naschmarkt 5, 1040 Wien')).toEqual({
+      street: 'Naschmarkt 5, 1040 Wien',
+      apartment: '',
+    });
   });
 });
