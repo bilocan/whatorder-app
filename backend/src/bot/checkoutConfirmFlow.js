@@ -4,6 +4,7 @@ const { basketSubtotal, orderTotals } = require('./orderTotals');
 const { isDeliveryOffered } = require('./checkoutSlots');
 const { isPaymentEnabled } = require('./paymentGate');
 const { checkoutReviewCopy } = require('./menuFlowCopy');
+const { checkoutDealLines } = require('./checkoutDeal');
 const {
   splitDeliveryAddressFields,
   parseDeliveryUnit,
@@ -27,6 +28,8 @@ function buildReceiptText({
   lang,
   t,
   paymentEnabled = false,
+  deal = null,
+  totals = null,
 }) {
   const name = trimmed(session.customerName);
   const address = session.orderType === 'pickup'
@@ -34,6 +37,11 @@ function buildReceiptText({
     : (trimmed(session.deliveryAddress) || null);
   const notes = trimmed(session.specialRequests) || null;
   const formattedTotal = Number(total || 0).toFixed(2);
+  const discountLine = checkoutDealLines(t, lang, {
+    ...(totals || {}),
+    deal: deal || totals?.deal || null,
+    discount: totals?.discount ?? deal?.discount ?? 0,
+  });
   const summary = t(
     'finalConfirmBody',
     lang,
@@ -43,6 +51,7 @@ function buildReceiptText({
     address,
     notes,
     paymentEnabled ? 'stripe' : null,
+    discountLine,
   );
   const items = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });
 
@@ -324,6 +333,7 @@ function buildCheckoutReviewData({
   lang,
   t,
   savedAddresses = [],
+  deal = null,
 }) {
   const draft = session.confirmFlowDraft ?? {};
   const deliverySelectable = isDeliverySelectableInReview(info, basket);
@@ -354,7 +364,7 @@ function buildCheckoutReviewData({
   const reviewSession = {
     ...session, orderType, customerName, deliveryAddress: reviewDeliveryAddress, specialRequests,
   };
-  const { total } = orderTotals(basket, reviewSession, info);
+  const totals = orderTotals(basket, reviewSession, info, deal || null);
   const options = [
     { id: 'pickup', title: t('confirmFlowTypePickup', lang) },
   ];
@@ -375,10 +385,12 @@ function buildCheckoutReviewData({
       session: reviewSession,
       basket,
       businessName: info.name,
-      total,
+      total: totals.total,
       lang,
       t,
       paymentEnabled: isPaymentEnabled(info),
+      deal,
+      totals,
     }),
     [F.CUSTOMER_NAME]: customerName,
     [F.ORDER_TYPE]: orderType,
@@ -399,6 +411,7 @@ function buildReviewDataFromProfile({
   lang,
   t,
   profile = {},
+  deal = null,
 }) {
   const savedAddresses = Array.isArray(profile.savedAddresses)
     ? profile.savedAddresses
@@ -432,6 +445,7 @@ function buildReviewDataFromProfile({
     lang,
     t,
     savedAddresses,
+    deal,
   });
 }
 

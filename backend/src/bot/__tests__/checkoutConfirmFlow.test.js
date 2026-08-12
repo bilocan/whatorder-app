@@ -124,6 +124,28 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.RECEIPT_TEXT]).toContain('finalConfirmBody:en:Alex|21.00|19:30');
   });
 
+  test('includes the resolved deal label and reduced total in checkout review', () => {
+    const data = buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'pickup',
+        pickupTime: '19:30',
+      },
+      basket,
+      info: { name: 'Demo Kitchen' },
+      deal: {
+        label: '10% Willkommen',
+        discount: 2,
+        kind: 'first_order',
+      },
+      lang: 'de',
+      t: translate,
+    });
+
+    expect(data[F.RECEIPT_TEXT]).toMatch(/10% Willkommen/);
+    expect(data[F.RECEIPT_TEXT]).toContain('finalConfirmBody:de:Alex|17.00|19:30');
+  });
+
   test('includes multiple saved addresses and Neue Adresse in address options', () => {
     const data = buildCheckoutReviewData({
       session: {

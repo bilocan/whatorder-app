@@ -57,14 +57,16 @@ module.exports = {
   confirmBtn: () => 'Onayla',
 
   orderTotal: (total) => `Toplam: €${total}`,
+  checkoutDiscount: (label, amount) => `🏷️ ${label}: −€${amount}`,
+  checkoutDeliveryFee: (amount) => `🚚 Teslimat ücreti: €${amount}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Tahmini hazırlık: ~${prepMins} dk (saat ${pickupTime} civarı)\n\nAdınızı yazar mısınız?`,
-  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod) => {
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod, discountLine) => {
     const detail = deliveryAddress
       ? `🚚 Teslimat adresi: ${deliveryAddress}`
       : `⏱️ Hazır saat: ~${pickupTime}`;
     const notesLine = notes ? `\n📝 Not: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Ödeme: Kart' : '';
-    return `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nOnaylamak veya düzenlemek için aşağıya dokunun.`;
+    return `✅ Neredeyse bitti!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nOnaylamak veya düzenlemek için aşağıya dokunun.`;
   },
   confirmListHeader: () => 'Siparişi kontrol et',
   confirmListBtn: () => 'Onayla / düzenle',
@@ -128,11 +130,11 @@ module.exports = {
   confirmPrompt: () => 'Onaylamak için YES, iptal için NO yazın.',
   yesNoOnly: () => 'Lütfen YES veya NO yazın.',
   orderConfirmed: (shortId) => `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\nHazır olduğunda size bildireceğiz. Teşekkürler! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address) => {
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Teslimat: ${deliveryAddress}` : `Hazır: ${pickupTime}`;
-    return `✅ Sipariş #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}\n${detail}\n\nTeşekkürler, ${customerName}! 🙏`;
+    return `✅ Sipariş #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\n${discountLine ? `${discountLine}\n` : ''}Toplam: €${total}\n${detail}\n\nTeşekkürler, ${customerName}! 🙏`;
   },
   checkoutCancelled: () => 'Sipariş iptal edildi.',
   cancelOrderBtn: () => 'İptal',
@@ -141,11 +143,11 @@ module.exports = {
   checkoutBasketUpdated: (basketText) => `✅ Sepet güncellendi.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'Bu bir sipariş gibi görünüyor. Lütfen teslimat adresinizi girin veya önce sepete ürün ekleyin.',
   payNowBtn: () => 'Ödeme yap 💳',
-  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress) => {
+  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Teslimat: ${deliveryAddress}` : null;
-    return `Sipariş #${shortId} alındı.\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}${detail ? `\n${detail}` : ''}\n\nÖdemek için aşağıdaki düğmeye dokunun.`;
+    return `Sipariş #${shortId} alındı.\n\n${restaurantBlock}\n\n${itemLines}\n\n${discountLine ? `${discountLine}\n` : ''}Toplam: €${total}${detail ? `\n${detail}` : ''}\n\nÖdemek için aşağıdaki düğmeye dokunun.`;
   },
   paymentLinkFailed: (shortId) => `Sipariş #${shortId} oluşturuldu ancak ödeme bağlantısı başarısız oldu. Lütfen restoranla iletişime geçin.`,
   paymentLegalIncomplete: () => 'Bu restoranda kartla ödeme henüz aktif değil, siparişiniz oluşturulmadı. Lütfen doğrudan restoranla iletişime geçin.',

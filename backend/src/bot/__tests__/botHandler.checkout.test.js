@@ -43,12 +43,15 @@ jest.mock('../../lib/paymentService', () => ({
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
   menuRef: jest.fn(),
-  ordersRef: jest.fn(() => ({
-    doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
-    limit: jest.fn(() => ({
-      get: jest.fn().mockResolvedValue({ docs: [] }),
-    })),
-  })),
+  ordersRef: jest.fn(() => {
+    const query = {
+      doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
+      get: jest.fn().mockResolvedValue({ empty: true, docs: [] }),
+    };
+    query.where = jest.fn(() => query);
+    query.limit = jest.fn(() => query);
+    return query;
+  }),
 }));
 
 const {
@@ -92,11 +95,27 @@ const {
   resetBotHandlerMocks,
   clearBotHandlerEnv,
 } = require('./helpers/botHandlerTestFixtures');
-const { menuRef } = require('../../lib/collections');
+const { menuRef, ordersRef } = require('../../lib/collections');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
+
+function mockCompletedOrderLookup(completed) {
+  ordersRef.mockImplementation(() => {
+    const query = {
+      doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
+      get: jest.fn().mockResolvedValue({
+        empty: !completed,
+        docs: completed ? [{}] : [],
+      }),
+    };
+    query.where = jest.fn(() => query);
+    query.limit = jest.fn(() => query);
+    return query;
+  });
+}
 
 beforeEach(() => {
   resetBotHandlerMocks();
+  mockCompletedOrderLookup(false);
   useMenuWithVat(menuRef);
   createCheckoutSessionForOrder.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/cs_1', sessionId: 'cs_1' });
 });
@@ -225,6 +244,132 @@ describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
     expect(sendFlowMessage).toHaveBeenCalled();
     expect(sendListMessage).not.toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('Place-order promotional deals', () => {
+  const liveWindow = {
+    dealId: 'deal-window',
+    kind: 'window',
+    discountType: 'percent',
+    discountValue: 10,
+    label: '10% Willkommen',
+    active: true,
+    startsAt: new Date('2020-01-01T00:00:00.000Z'),
+    endsAt: new Date('2099-01-01T00:00:00.000Z'),
+  };
+
+  function placeSession(overrides = {}) {
+    getSession.mockResolvedValue({
+      language: 'en',
+      state: 'confirming',
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      customerName: 'John',
+      pickupTime: '14:30',
+      specialRequests: '',
+      businessId: BIZ,
+      orderType: 'delivery',
+      deliveryAddress: 'Main Street 12, Haus',
+      ...overrides,
+    });
+  }
+
+  test('live window reduces order snapshot and Stripe total while preserving delivery fee', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ,
+      deliveryEnabled: true,
+      deliveryFee: 2,
+      deals: { window: liveWindow },
+    });
+    placeSession();
+
+    await handleMessage(ROUTING, msg({
+      type: 'button_reply',
+      id: 'btn_place_order',
+      title: 'Confirm ✅',
+    }));
+
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({
+      total: 15.3,
+      deliveryFee: 2,
+      discountSnapshot: expect.objectContaining({
+        discount: 1.7,
+        discountKind: 'window',
+        discountLabel: '10% Willkommen',
+      }),
+    }));
+    expect(createCheckoutSessionForOrder).toHaveBeenCalledWith(
+      BIZ,
+      'order_abc123',
+      expect.objectContaining({ totalEuros: 17.3 }),
+    );
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(
+      FROM,
+      expect.objectContaining({ body: expect.stringContaining('10% Willkommen') }),
+      'test_phone_id',
+    );
+  });
+
+  test('expired window places the full-price order without discount metadata', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ,
+      deals: {
+        window: {
+          ...liveWindow,
+          endsAt: new Date('2020-02-01T00:00:00.000Z'),
+        },
+      },
+    });
+    placeSession({ orderType: 'pickup', deliveryAddress: null });
+
+    await handleMessage(ROUTING, msg({
+      type: 'button_reply',
+      id: 'btn_place_order',
+      title: 'Confirm ✅',
+    }));
+
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({
+      total: 17,
+      discountSnapshot: { discount: 0 },
+    }));
+    expect(createCheckoutSessionForOrder).toHaveBeenCalledWith(
+      BIZ,
+      'order_abc123',
+      expect.objectContaining({ totalEuros: 17 }),
+    );
+  });
+
+  test('completed first order burns that slot and falls back to the live window', async () => {
+    mockCompletedOrderLookup(true);
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ,
+      deals: {
+        firstOrder: {
+          dealId: 'deal-first',
+          kind: 'first_order',
+          discountType: 'percent',
+          discountValue: 20,
+          label: '20% Erste Bestellung',
+          active: true,
+        },
+        window: liveWindow,
+      },
+    });
+    placeSession({ orderType: 'pickup', deliveryAddress: null });
+
+    await handleMessage(ROUTING, msg({
+      type: 'button_reply',
+      id: 'btn_place_order',
+      title: 'Confirm ✅',
+    }));
+
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({
+      total: 15.3,
+      discountSnapshot: expect.objectContaining({
+        discountKind: 'window',
+        discountDealId: 'deal-window',
+      }),
+    }));
   });
 });
 
@@ -722,6 +867,45 @@ describe('Checkout confirm Flow', () => {
     expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
       pendingDeleteIds: ['confirm_flow_msg_id'],
+    }));
+  });
+
+  test('Continue resolves a live deal into the Flow receipt and confirm body', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      checkoutConfirmFlow: true,
+      deals: {
+        window: {
+          dealId: 'deal-window',
+          kind: 'window',
+          discountType: 'percent',
+          discountValue: 10,
+          label: '10% Willkommen',
+          active: true,
+          startsAt: new Date('2020-01-01T00:00:00.000Z'),
+          endsAt: new Date('2099-01-01T00:00:00.000Z'),
+        },
+      },
+    });
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      orderType: 'pickup',
+      customerName: 'Ahmet',
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'button_reply',
+      id: 'btn_confirm_continue',
+      title: 'Continue',
+    }));
+
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('10% Willkommen'),
+      data: expect.objectContaining({
+        receipt_text: expect.stringMatching(/10% Willkommen[\s\S]*15\.30|15\.30[\s\S]*10% Willkommen/),
+      }),
     }));
   });
 

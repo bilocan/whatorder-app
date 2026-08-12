@@ -57,14 +57,16 @@ module.exports = {
   confirmBtn: () => 'Confirm',
 
   orderTotal: (total) => `Total: €${total}`,
+  checkoutDiscount: (label, amount) => `🏷️ ${label}: −€${amount}`,
+  checkoutDeliveryFee: (amount) => `🚚 Delivery fee: €${amount}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Ready in ~${prepMins} min (around ${pickupTime})\n\nWhat's your name for the order?`,
-  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod) => {
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod, discountLine) => {
     const detail = deliveryAddress
       ? `🚚 Delivery to: ${deliveryAddress}`
       : `⏱️ Ready around ${pickupTime}`;
     const notesLine = notes ? `\n📝 Note: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Payment: Card' : '';
-    return `✅ Almost done!\n\n👤 ${name}\n💶 Total: €${total}\n${detail}${paymentLine}${notesLine}\n\nTap below to confirm or edit.`;
+    return `✅ Almost done!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Total: €${total}\n${detail}${paymentLine}${notesLine}\n\nTap below to confirm or edit.`;
   },
   confirmListHeader: () => 'Review order',
   confirmListBtn: () => 'Confirm or edit',
@@ -128,11 +130,11 @@ module.exports = {
   confirmPrompt: () => 'Type YES to confirm, NO to cancel.',
   yesNoOnly: () => 'Please type YES or NO.',
   orderConfirmed: (shortId) => `✅ Order received! Order #${shortId}\n\nWe'll notify you when it's ready. Thank you! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address) => {
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Delivery to: ${deliveryAddress}` : `Ready by: ${pickupTime}`;
-    return `✅ Order #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nTotal: €${total}\n${detail}\n\nThanks, ${customerName}! 🙏`;
+    return `✅ Order #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\n${discountLine ? `${discountLine}\n` : ''}Total: €${total}\n${detail}\n\nThanks, ${customerName}! 🙏`;
   },
   checkoutCancelled: () => 'Order cancelled.',
   cancelOrderBtn: () => 'Cancel',
@@ -141,11 +143,11 @@ module.exports = {
   checkoutBasketUpdated: (basketText) => `✅ Basket updated.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'That sounds like an order. Please enter your delivery address, or add items via the basket first.',
   payNowBtn: () => 'Pay now 💳',
-  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress) => {
+  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Delivery to: ${deliveryAddress}` : null;
-    return `Order #${shortId} placed.\n\n${restaurantBlock}\n\n${itemLines}\n\nTotal: €${total}${detail ? `\n${detail}` : ''}\n\nTap the button below to pay securely.`;
+    return `Order #${shortId} placed.\n\n${restaurantBlock}\n\n${itemLines}\n\n${discountLine ? `${discountLine}\n` : ''}Total: €${total}${detail ? `\n${detail}` : ''}\n\nTap the button below to pay securely.`;
   },
   paymentLinkFailed: (shortId) => `Order #${shortId} was created but the payment link failed. Please contact the restaurant or try again.`,
   paymentLegalIncomplete: () => 'Card payment is not activated for this restaurant yet, so your order was not placed. Please contact the restaurant to order directly.',

@@ -2,9 +2,17 @@ jest.mock('../../lib/firebase', () => ({ db: {}, admin: {} }));
 jest.mock('../../lib/collections');
 jest.mock('../../bot/menuService');
 jest.mock('../../bot/customerAddresses');
+jest.mock('../../bot/checkoutDeal', () => {
+  const actual = jest.requireActual('../../bot/checkoutDeal');
+  return {
+    ...actual,
+    loadCheckoutTotals: jest.fn(actual.loadCheckoutTotals),
+  };
+});
 
 const { sessionRef, customersRef } = require('../../lib/collections');
 const { getBusinessInfo } = require('../../bot/menuService');
+const { loadCheckoutTotals } = require('../../bot/checkoutDeal');
 const {
   loadCustomerAddresses,
   saveCustomerAddress,
@@ -94,6 +102,39 @@ test('INIT fails closed when session businessId is missing', async () => {
   expect(response.data[F.CUSTOMER_NAME]).toBe('');
   expect(response.data[F.ADDRESS_OPTIONS].map((o) => o.id)).toEqual(['addr_new']);
   expect(response.data.receipt_text).not.toContain('Burger');
+});
+
+test('INIT resolves checkout totals with the token phone and renders a live deal', async () => {
+  getBusinessInfo.mockResolvedValue({
+    name: 'Demo Kitchen',
+    deliveryEnabled: false,
+    deals: {
+      window: {
+        dealId: 'deal-window',
+        kind: 'window',
+        discountType: 'percent',
+        discountValue: 10,
+        label: '10% Willkommen',
+        active: true,
+        startsAt: new Date('2020-01-01T00:00:00.000Z'),
+        endsAt: new Date('2099-01-01T00:00:00.000Z'),
+      },
+    },
+  });
+  mockSession({ orderType: 'pickup', confirmFlowDraft: null });
+
+  const response = await buildCheckoutInitResponse({
+    phone: PHONE,
+    businessId: BUSINESS_ID,
+    version: VERSION,
+  });
+
+  expect(loadCheckoutTotals).toHaveBeenCalledWith(expect.objectContaining({
+    businessId: BUSINESS_ID,
+    customerPhone: PHONE,
+  }));
+  expect(response.data[F.RECEIPT_TEXT]).toContain('10% Willkommen');
+  expect(response.data[F.RECEIPT_TEXT]).toContain('€9.00');
 });
 
 test('manage_addresses opens the manage screen with current profile options', async () => {

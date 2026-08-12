@@ -73,6 +73,29 @@ function snapshotLine(line, strict) {
   };
 }
 
+function allocateDiscountCents(discountCents, itemGrossCents) {
+  const allocated = { 0: 0, 10: 0, 20: 0 };
+  const B = [0, 10, 20].reduce((s, r) => s + (itemGrossCents[r] || 0), 0);
+  if (B <= 0 || discountCents <= 0) return allocated;
+  const capped = Math.min(discountCents, B);
+  const rows = [0, 10, 20]
+    .filter((rate) => (itemGrossCents[rate] || 0) > 0)
+    .map((rate) => {
+      const exact = (capped * itemGrossCents[rate]) / B;
+      const floor = Math.floor(exact);
+      return { rate, floor, remainder: exact - floor };
+    });
+  let leftover = capped - rows.reduce((s, row) => s + row.floor, 0);
+  rows.sort((a, b) => b.remainder - a.remainder || b.rate - a.rate);
+  for (const row of rows) allocated[row.rate] = row.floor;
+  for (const row of rows) {
+    if (leftover <= 0) break;
+    allocated[row.rate] += 1;
+    leftover -= 1;
+  }
+  return allocated;
+}
+
 function buildOrderTaxSnapshot(basketLines, options = {}) {
   if (!Array.isArray(basketLines)) {
     throw new TypeError('basketLines must be an array');
@@ -82,6 +105,7 @@ function buildOrderTaxSnapshot(basketLines, options = {}) {
     strict = false,
     deliveryFeeGross,
     deliveryFeeVatRate = DEFAULT_DELIVERY_FEE_VAT_RATE,
+    discountGross,
   } = options;
   const sourceLines = [...basketLines];
   if (deliveryFeeGross != null && Number(deliveryFeeGross) !== 0) {
@@ -97,26 +121,43 @@ function buildOrderTaxSnapshot(basketLines, options = {}) {
     });
   }
 
-  const totalCentsByVat = new Map();
-  const items = sourceLines.map(line => {
-    const item = snapshotLine(line, strict);
-    const totals = totalCentsByVat.get(item.vatRate) ?? {
-      netCents: 0,
-      vatCents: 0,
-      grossCents: 0,
-    };
-    totals.netCents += item._cents.netCents;
-    totals.vatCents += item._cents.vatCents;
-    totals.grossCents += item._cents.grossCents;
-    totalCentsByVat.set(item.vatRate, totals);
-
+  const snapshotItems = sourceLines.map(line => snapshotLine(line, strict));
+  const items = snapshotItems.map(item => {
     const { _cents, ...publicItem } = item;
     return publicItem;
   });
 
+  const itemGrossCents = { 0: 0, 10: 0, 20: 0 };
+  const feeGrossCents = { 0: 0, 10: 0, 20: 0 };
+  for (const item of snapshotItems) {
+    const grossByKind = item.kind === FEE_LINE_KIND ? feeGrossCents : itemGrossCents;
+    grossByKind[item.vatRate] += item._cents.grossCents;
+  }
+
+  const itemGrossTotal = ALLOWED_VAT_RATES.reduce(
+    (sum, rate) => sum + itemGrossCents[rate],
+    0,
+  );
+  const discountCents = Math.min(
+    eurosToCents(discountGross || 0, 'discountGross'),
+    itemGrossTotal,
+  );
+  const allocated = allocateDiscountCents(discountCents, itemGrossCents);
+
   const totalsByVat = {};
   let totalGrossCents = 0;
-  for (const [vatRate, totals] of totalCentsByVat) {
+  for (const vatRate of ALLOWED_VAT_RATES) {
+    const itemPost = itemGrossCents[vatRate] - allocated[vatRate];
+    const feeGross = feeGrossCents[vatRate];
+    if (itemPost === 0 && feeGross === 0) continue;
+
+    const itemSplit = itemPost > 0 ? splitGrossCents(itemPost, vatRate) : null;
+    const feeSplit = feeGross > 0 ? splitGrossCents(feeGross, vatRate) : null;
+    const totals = {
+      netCents: (itemSplit?.netCents || 0) + (feeSplit?.netCents || 0),
+      vatCents: (itemSplit?.vatCents || 0) + (feeSplit?.vatCents || 0),
+      grossCents: (itemSplit?.grossCents || 0) + (feeSplit?.grossCents || 0),
+    };
     totalsByVat[String(vatRate)] = {
       net: totals.netCents / 100,
       vat: totals.vatCents / 100,
@@ -140,4 +181,5 @@ module.exports = {
   defaultVatRateForCategory,
   splitGrossCents,
   buildOrderTaxSnapshot,
+  eurosToCents,
 };

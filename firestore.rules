@@ -83,6 +83,12 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Deal history — written by backend (Phase 3 API). Owners may list/read.
+      match /deals/{dealId} {
+        allow read: if isOwnerOf(businessId) || isAdmin();
+        allow write: if false;
+      }
+
       // Beleg / settlement counters — backend only.
       match /counters/{counterId} {
         allow read, write: if false;

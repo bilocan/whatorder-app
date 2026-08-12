@@ -15,6 +15,12 @@ const optionGroupsRef = (businessId) =>
 const ordersRef = (businessId) =>
   businessRef(businessId).collection('orders');
 
+const dealsRef = (businessId) =>
+  businessRef(businessId).collection('deals');
+
+const dealRef = (businessId, dealId) =>
+  dealsRef(businessId).doc(dealId);
+
 // businesses/{businessId}/receipts/{receiptId} — immutable customer Beleg metadata + GCS path
 const receiptsRef = (businessId) =>
   businessRef(businessId).collection('receipts');
@@ -89,7 +95,7 @@ const commandLearningRef = (keyHash) =>
 
 module.exports = {
   businessesCollectionRef,
-  businessRef, menuRef, optionGroupsRef, ordersRef, customersRef,
+  businessRef, menuRef, optionGroupsRef, ordersRef, dealsRef, dealRef, customersRef,
   receiptsRef, receiptRef, receiptCounterRef,
   phoneRoutingRef, phoneRoutingByBusinessQuery,
   ownerRef, adminRef,
