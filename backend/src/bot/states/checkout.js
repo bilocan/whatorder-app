@@ -39,6 +39,7 @@ const {
   buildCheckoutReviewData,
   buildConfirmFlowDraft,
   buildCheckoutSubmitPayloadFromSession,
+  labelsByAddressChoice,
 } = require('../checkoutConfirmFlow');
 const { isBasketUndoPhrase, detectBotCommandAsync, detectBotCommandRules, BOT_COMMAND } = require('../botCommands');
 const {
@@ -263,6 +264,7 @@ async function getCustomerProfile(phone, businessId) {
     return {
       name: data.name ?? null,
       lastDeliveryAddress: data.lastDeliveryAddress ?? null,
+      savedAddresses: Array.isArray(data.savedAddresses) ? data.savedAddresses : [],
     };
   } catch {
     return null;
@@ -793,13 +795,25 @@ async function sendConfirmFlowGate(from, session, lang, basket, name, info) {
 // the prefill ships inside flow_action_payload.data (see sendFlowMessage).
 async function sendCheckoutConfirmFlow(from, session, lang, businessId, basket, name, info) {
   const reviewSession = { ...session, customerName: name || session.customerName };
+  const profile = await getCustomerProfile(from, businessId);
+  const savedAddresses = [
+    ...(profile?.savedAddresses || []),
+    profile?.lastDeliveryAddress,
+  ].filter(Boolean);
   return sendFlowMessage(from, {
     flowId: process.env.WHATSAPP_CHECKOUT_FLOW_ID,
     flowToken: checkoutFlowToken(from, businessId),
     flowCta: t('confirmFlowCta', lang),
     screen: 'CHECKOUT_REVIEW',
     body: buildFinalConfirmBody(session, lang, basket, name, info),
-    data: buildCheckoutReviewData({ session: reviewSession, basket, info, lang, t }),
+    data: buildCheckoutReviewData({
+      session: reviewSession,
+      basket,
+      info,
+      lang,
+      t,
+      savedAddresses,
+    }),
   });
 }
 
@@ -1462,14 +1476,21 @@ async function handleConfirming({
     }
 
     const hasCheckoutFields = [
-      F.CUSTOMER_NAME, F.ORDER_TYPE, F.DELIVERY_ADDRESS, F.DELIVERY_APARTMENT, F.CHECKOUT_NOTE,
+      F.CUSTOMER_NAME, F.ORDER_TYPE, F.ADDRESS_CHOICE, F.DELIVERY_ADDRESS, F.DELIVERY_APARTMENT, F.CHECKOUT_NOTE,
     ].some(field => Object.prototype.hasOwnProperty.call(payload, field));
     if (payload.checkout_action !== 'place_order' && !hasCheckoutFields) {
       await reofferConfirming(from, session, lang, businessId, basket);
       return;
     }
 
-    const validation = validateCheckoutSubmit(payload);
+    const profile = await getCustomerProfile(from, businessId);
+    const addressLabels = labelsByAddressChoice(
+      profile?.savedAddresses || [],
+      session.deliveryAddress || profile?.lastDeliveryAddress || '',
+      lang,
+      t,
+    );
+    const validation = validateCheckoutSubmit(payload, { addressLabels });
     if (!validation.ok) {
       await sendText(from, t(validation.errorKey, lang));
       await reofferConfirming(

@@ -8,6 +8,13 @@ const {
   applyCheckoutSubmitToSession,
   parseCheckoutFlowToken,
   checkoutFlowToken,
+  formatAddressOptionParts,
+  nextScreenAfterManageWrite,
+  manageScreenForReview,
+  returnReviewScreenForManage,
+  labelsByAddressChoice,
+  buildReviewDataFromProfile,
+  composeDeliveryAddressFromFields,
 } = require('../checkoutConfirmFlow');
 
 const translate = (key, lang, ...args) => `${key}:${lang}:${args.join('|')}`;
@@ -100,12 +107,211 @@ describe('checkoutConfirmFlow', () => {
         { id: 'pickup', title: 'confirmFlowTypePickup:en:' },
         { id: 'delivery', title: 'confirmFlowTypeDelivery:en:' },
       ],
+      [F.ADDRESS_CHOICE]: 'addr_0',
+      [F.ADDRESS_OPTIONS]: [
+        { id: 'addr_0', title: 'Main Street 12' },
+        {
+          id: 'addr_new',
+          title: 'confirmFlowAddressNew:en:',
+          description: 'confirmFlowAddressNewDesc:en:',
+        },
+      ],
       [F.UI_SCREEN_TITLE]: 'confirmListHeader:en:',
       [F.UI_NAME_LABEL]: 'confirmFlowNameLabel:en:',
       [F.UI_PLACE_ORDER]: 'confirmFlowFooter:en:',
       [F.UI_BACK_TO_CART]: 'confirmFlowBackToCart:en:',
     });
     expect(data[F.RECEIPT_TEXT]).toContain('finalConfirmBody:en:Alex|21.00|19:30');
+  });
+
+  test('includes multiple saved addresses and Neue Adresse in address options', () => {
+    const data = buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Hippgasse 11, Top 14, 1160 Wien',
+      },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryFee: 0 },
+      lang: 'en',
+      t: translate,
+      savedAddresses: [
+        'Naschmarkt 5, 1040 Wien',
+        'Hippgasse 11, Top 14, 1160 Wien',
+      ],
+    });
+
+    expect(data[F.ADDRESS_CHOICE]).toBe('addr_0');
+    expect(data[F.ADDRESS_OPTIONS]).toEqual([
+      {
+        id: 'addr_0',
+        title: 'Hippgasse 11',
+        description: 'Top 14, 1160 Wien',
+        metadata: '1160',
+      },
+      {
+        id: 'addr_1',
+        title: 'Naschmarkt 5',
+        description: '1040 Wien',
+        metadata: '1040',
+      },
+      {
+        id: 'addr_new',
+        title: 'confirmFlowAddressNew:en:',
+        description: 'confirmFlowAddressNewDesc:en:',
+      },
+    ]);
+  });
+
+  test('maps manage and review screens through the forward-only topology', () => {
+    expect(nextScreenAfterManageWrite('ADDRESS_MANAGE')).toBe('ADDRESS_MANAGE_UPDATED');
+    expect(nextScreenAfterManageWrite('ADDRESS_MANAGE_UPDATED')).toBe('CHECKOUT_REVIEW_RETURN');
+    expect(nextScreenAfterManageWrite('ADDRESS_MANAGE_AGAIN')).toBe('CHECKOUT_REVIEW_DONE');
+    expect(manageScreenForReview('CHECKOUT_REVIEW')).toBe('ADDRESS_MANAGE');
+    expect(manageScreenForReview('CHECKOUT_REVIEW_RETURN')).toBe('ADDRESS_MANAGE_AGAIN');
+    expect(returnReviewScreenForManage('ADDRESS_MANAGE')).toBe('CHECKOUT_REVIEW_RETURN');
+    expect(returnReviewScreenForManage('ADDRESS_MANAGE_UPDATED')).toBe('CHECKOUT_REVIEW_RETURN');
+    expect(returnReviewScreenForManage('ADDRESS_MANAGE_AGAIN')).toBe('CHECKOUT_REVIEW_DONE');
+  });
+
+  test('returns null for screens outside the manage topology', () => {
+    expect(nextScreenAfterManageWrite('CHECKOUT_REVIEW')).toBeNull();
+    expect(manageScreenForReview('CHECKOUT_REVIEW_DONE')).toBeNull();
+    expect(returnReviewScreenForManage('CHECKOUT_REVIEW')).toBeNull();
+  });
+
+  test('maps address choices to the exact labels used by radio options', () => {
+    expect(labelsByAddressChoice(
+      [' Naschmarkt 5, 1040 Wien ', 'Hippgasse 11, Top 14, 1160 Wien'],
+      'Hippgasse 11, Top 14, 1160 Wien',
+      'en',
+      translate,
+    )).toEqual({
+      addr_0: 'Hippgasse 11, Top 14, 1160 Wien',
+      addr_1: 'Naschmarkt 5, 1040 Wien',
+    });
+  });
+
+  test('rebuilds review from profile default and clears stale draft address fields', () => {
+    const session = {
+      customerName: 'Alex',
+      orderType: 'delivery',
+      deliveryAddress: 'Deleted Street 1, Top 2, 1010 Wien',
+      specialRequests: 'Ring twice',
+      confirmFlowDraft: {
+        customerName: 'Alexander',
+        orderType: 'delivery',
+        addressChoice: 'addr_4',
+        deliveryAddress: 'Deleted Street 1, 1010 Wien',
+        deliveryApartment: 'Top 2',
+        specialRequests: 'Leave downstairs',
+      },
+    };
+
+    const data = buildReviewDataFromProfile({
+      session,
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+      profile: {
+        savedAddresses: [
+          'First Street 1, Top 1, 1010 Wien',
+          'Default Street 9, Top 4, 1090 Wien',
+        ],
+        lastDeliveryAddress: 'Default Street 9, Top 4, 1090 Wien',
+      },
+    });
+
+    expect(data).toMatchObject({
+      [F.CUSTOMER_NAME]: 'Alexander',
+      [F.ADDRESS_CHOICE]: 'addr_0',
+      [F.DELIVERY_ADDRESS]: 'Default Street 9, Top 4, 1090 Wien',
+      [F.DELIVERY_APARTMENT]: 'Top 4',
+      [F.CHECKOUT_NOTE]: 'Leave downstairs',
+    });
+    expect(data[F.ADDRESS_OPTIONS][0]).toMatchObject({
+      id: 'addr_0',
+      title: 'Default Street 9',
+    });
+    expect(session.deliveryAddress).toBe('Deleted Street 1, Top 2, 1010 Wien');
+    expect(session.confirmFlowDraft.deliveryAddress).toBe('Deleted Street 1, 1010 Wien');
+  });
+
+  test('falls back to first saved profile address, then to a blank new address', () => {
+    const base = {
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Deleted Street 1, Top 2, 1010 Wien',
+      },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+    };
+
+    const first = buildReviewDataFromProfile({
+      ...base,
+      profile: {
+        savedAddresses: ['First Street 1, Top 3, 1010 Wien'],
+        lastDeliveryAddress: 'Deleted Street 1, Top 2, 1010 Wien',
+      },
+    });
+    expect(first[F.DELIVERY_ADDRESS]).toBe('First Street 1, Top 3, 1010 Wien');
+    expect(first[F.ADDRESS_CHOICE]).toBe('addr_0');
+
+    const empty = buildReviewDataFromProfile({
+      ...base,
+      profile: { savedAddresses: [], lastDeliveryAddress: null },
+    });
+    expect(empty[F.DELIVERY_ADDRESS]).toBe('');
+    expect(empty[F.DELIVERY_APARTMENT]).toBe('');
+    expect(empty[F.ADDRESS_CHOICE]).toBe('addr_new');
+  });
+
+  test('composes manage delivery fields with checkout validation rules', () => {
+    expect(composeDeliveryAddressFromFields(
+      'Hippgasse 11, 1160 Wien',
+      'Top 14',
+    )).toEqual({
+      ok: true,
+      deliveryAddress: 'Hippgasse 11, Top 14, 1160 Wien',
+    });
+    expect(composeDeliveryAddressFromFields(
+      'Hippgasse 11, 1160 Wien',
+      '',
+    )).toEqual({ ok: false, errorKey: 'confirmFlowErrorApartment' });
+    expect(composeDeliveryAddressFromFields('', 'Top 14'))
+      .toEqual({ ok: false, errorKey: 'confirmFlowErrorAddress' });
+  });
+
+  test('formatAddressOptionParts avoids bare house-number titles', () => {
+    expect(formatAddressOptionParts('12, Ottakringer Straße, 1160 Wien')).toEqual({
+      title: 'Ottakringer Straße 12',
+      description: '1160 Wien',
+      metadata: '1160',
+    });
+    expect(formatAddressOptionParts('41, Thaliastraße, 1160 Wien, Austria')).toEqual({
+      title: 'Thaliastraße 41',
+      description: '1160 Wien',
+      metadata: '1160',
+    });
+    expect(formatAddressOptionParts('41, Huttengasse, Katastralgemeinde Ottakring, Ottakring')).toEqual({
+      title: 'Huttengasse 41',
+      description: 'Ottakring',
+      metadata: '',
+    });
+    expect(formatAddressOptionParts('Lavaterstrasse 3, Stiege 3, Top 10, 1220 Wien')).toEqual({
+      title: 'Lavaterstrasse 3',
+      description: 'Stiege 3, Top 10, 1220 Wien',
+      metadata: '1220',
+    });
+    expect(formatAddressOptionParts('Hippgasse 11, Top 14, 1160 Wien')).toEqual({
+      title: 'Hippgasse 11',
+      description: 'Top 14, 1160 Wien',
+      metadata: '1160',
+    });
   });
 
   test('defaults review to pickup and does not offer unavailable delivery', () => {
@@ -302,6 +508,64 @@ describe('checkoutConfirmFlow', () => {
         deliveryAddress: 'Hippgasse 11, 1160 Wien',
         specialRequests: '',
       },
+    });
+  });
+
+  test('place-order uses address_choice when TextInputs still show another saved row', () => {
+    const labels = {
+      addr_0: 'Hippgasse 11, Top 14, 1160 Wien',
+      addr_1: 'Naschmarkt 5, Top 2, 1040 Wien',
+    };
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      address_choice: 'addr_1',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: 'Top 14',
+    }, { addressLabels: labels })).toEqual({
+      ok: true,
+      values: expect.objectContaining({
+        deliveryAddress: 'Naschmarkt 5, Top 2, 1040 Wien',
+      }),
+    });
+  });
+
+  test('place-order keeps explicit edits when address_choice is selected', () => {
+    const labels = {
+      addr_0: 'Hippgasse 11, Top 14, 1160 Wien',
+    };
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      address_choice: 'addr_0',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: 'Top 99',
+    }, { addressLabels: labels })).toEqual({
+      ok: true,
+      values: expect.objectContaining({
+        deliveryAddress: 'Hippgasse 11, Top 99, 1160 Wien',
+      }),
+    });
+  });
+
+  test('place-order uses exact saved label when fields match the selected row', () => {
+    const labels = {
+      addr_0: 'Hippgasse 11, Top 14, 1160 Wien',
+    };
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      address_choice: 'addr_0',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: 'Top 14',
+    }, { addressLabels: labels })).toEqual({
+      ok: true,
+      values: expect.objectContaining({
+        deliveryAddress: 'Hippgasse 11, Top 14, 1160 Wien',
+      }),
     });
   });
 

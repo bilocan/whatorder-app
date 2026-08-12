@@ -1,4 +1,4 @@
-const { FIELDS: F } = require('../flows/fields');
+const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 const { formatBasketItemsText } = require('./botHelpers');
 const { basketSubtotal, orderTotals } = require('./orderTotals');
 const { isDeliveryOffered } = require('./checkoutSlots');
@@ -63,6 +63,240 @@ function isDeliverySelectableInReview(info = {}, basket = []) {
   return true;
 }
 
+const ADDRESS_CHOICE_NEW = 'addr_new';
+const MAX_SAVED_ADDRESS_OPTIONS = 5;
+const FLOW_OPTION_TITLE_MAX = 30;
+const FLOW_OPTION_DESC_MAX = 72;
+
+const NEXT_SCREEN_AFTER_MANAGE_WRITE = {
+  [S.ADDRESS_MANAGE]: S.ADDRESS_MANAGE_UPDATED,
+  [S.ADDRESS_MANAGE_UPDATED]: S.CHECKOUT_REVIEW_RETURN,
+  [S.ADDRESS_MANAGE_AGAIN]: S.CHECKOUT_REVIEW_DONE,
+};
+
+const MANAGE_SCREEN_FOR_REVIEW = {
+  [S.CHECKOUT_REVIEW]: S.ADDRESS_MANAGE,
+  [S.CHECKOUT_REVIEW_RETURN]: S.ADDRESS_MANAGE_AGAIN,
+};
+
+const RETURN_REVIEW_SCREEN_FOR_MANAGE = {
+  [S.ADDRESS_MANAGE]: S.CHECKOUT_REVIEW_RETURN,
+  [S.ADDRESS_MANAGE_UPDATED]: S.CHECKOUT_REVIEW_RETURN,
+  [S.ADDRESS_MANAGE_AGAIN]: S.CHECKOUT_REVIEW_DONE,
+};
+
+function nextScreenAfterManageWrite(currentScreen) {
+  return NEXT_SCREEN_AFTER_MANAGE_WRITE[currentScreen] ?? null;
+}
+
+function manageScreenForReview(reviewScreen) {
+  return MANAGE_SCREEN_FOR_REVIEW[reviewScreen] ?? null;
+}
+
+function returnReviewScreenForManage(manageScreen) {
+  return RETURN_REVIEW_SCREEN_FOR_MANAGE[manageScreen] ?? null;
+}
+
+function clipFlowOption(text, max) {
+  const raw = trimmed(text);
+  if (!raw) return '';
+  if (raw.length <= max) return raw;
+  return `${raw.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+/** Too weak alone for a Meta radio title (e.g. house number "12" before street). */
+function isWeakAddressTitleSegment(segment) {
+  const s = trimmed(segment);
+  if (!s) return true;
+  if (s.length <= 3) return true;
+  // Digits / house-number only ("12", "12a", "12/3")
+  if (/^\d+[a-zA-Z]?(\/\d+[a-zA-Z]?)?$/i.test(s)) return true;
+  // Unit-only fragments that sometimes appear first in messy saved labels
+  if (/^(Top|Tür|Tur|Stiege)\s*\d+$/i.test(s)) return true;
+  return false;
+}
+
+/** Drop Nominatim / Kataster noise that makes radio descriptions look like raw geocode dumps. */
+function stripGeocodeNoise(text) {
+  return trimmed(text)
+    .replace(/\bKatastralgemeinde\b[^,]*/gi, '')
+    .replace(/\bAustria\b/gi, '')
+    .replace(/,\s*,+/g, ',')
+    .replace(/^,\s*|,\s*$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function plzMetadata(text) {
+  const match = String(text || '').match(/\b(\d{4})\b/);
+  return match ? match[1] : '';
+}
+
+/**
+ * Short radio title + description for Meta Flow option limits (title ≤30, desc ≤300, metadata ≤20).
+ * Prefer Austrian "Streetname Number" titles — never "41, Huttengasse".
+ */
+function formatAddressOptionParts(address) {
+  const full = trimmed(address);
+  if (!full) return { title: '', description: '', metadata: '' };
+
+  const { street, apartment } = splitDeliveryAddressFields(full);
+  const streetParts = trimmed(street).split(',').map((p) => p.trim()).filter(Boolean);
+  const metadata = plzMetadata(full);
+
+  // Prefer building line without unit: "Hippgasse 11" + desc "Top 14, 1160 Wien"
+  if (streetParts.length >= 1 && !isWeakAddressTitleSegment(streetParts[0])) {
+    const locality = stripGeocodeNoise(streetParts.slice(1).join(', '));
+    const descBits = stripGeocodeNoise([apartment, locality].filter(Boolean).join(', '));
+    return {
+      title: clipFlowOption(streetParts[0], FLOW_OPTION_TITLE_MAX),
+      description: clipFlowOption(
+        descBits || stripGeocodeNoise(full.slice(streetParts[0].length).replace(/^,\s*/, '')),
+        FLOW_OPTION_DESC_MAX,
+      ),
+      metadata,
+    };
+  }
+
+  const parts = full.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) {
+    return { title: clipFlowOption(full, FLOW_OPTION_TITLE_MAX), description: '', metadata };
+  }
+
+  // Number-first labels ("41, Huttengasse, …") → title "Huttengasse 41"
+  if (
+    isWeakAddressTitleSegment(parts[0])
+    && parts.length >= 2
+    && /[A-Za-zÄÖÜäöüß]/.test(parts[1])
+    && !/^\d{4}\b/.test(parts[1])
+  ) {
+    const title = `${parts[1]} ${parts[0]}`.replace(/\s+/g, ' ').trim();
+    const description = stripGeocodeNoise(
+      [apartment, ...parts.slice(2)].filter(Boolean).join(', '),
+    );
+    return {
+      title: clipFlowOption(title, FLOW_OPTION_TITLE_MAX),
+      description: clipFlowOption(description, FLOW_OPTION_DESC_MAX),
+      metadata,
+    };
+  }
+
+  // Fallback: keep pulling weak leading segments until title has a street-like bit
+  let titleEnd = 0;
+  if (isWeakAddressTitleSegment(parts[0]) && parts.length >= 2) {
+    titleEnd = 1;
+    while (
+      titleEnd + 1 < parts.length
+      && isWeakAddressTitleSegment(parts.slice(0, titleEnd + 1).join(', '))
+      && !/^\d{4}\b/.test(parts[titleEnd + 1])
+    ) {
+      titleEnd += 1;
+    }
+  }
+
+  const title = parts.slice(0, titleEnd + 1).join(', ');
+  const description = stripGeocodeNoise(parts.slice(titleEnd + 1).join(', '));
+  return {
+    title: clipFlowOption(title || full, FLOW_OPTION_TITLE_MAX),
+    description: clipFlowOption(description, FLOW_OPTION_DESC_MAX),
+    metadata,
+  };
+}
+
+/**
+ * Build address radio rows from profile history + current session label.
+ * Always ends with Neue Adresse. Caps at MAX_SAVED_ADDRESS_OPTIONS saved rows.
+ */
+function buildAddressChoiceState({
+  savedAddresses = [],
+  currentAddress = '',
+  draftChoice = '',
+  lang,
+  t,
+} = {}) {
+  const seen = new Set();
+  const ordered = [];
+  const pushUnique = (addr) => {
+    const label = trimmed(addr);
+    if (!label) return;
+    const key = label.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    ordered.push(label);
+  };
+
+  pushUnique(currentAddress);
+  for (const addr of Array.isArray(savedAddresses) ? savedAddresses : []) {
+    pushUnique(addr);
+  }
+
+  const saved = ordered.slice(0, MAX_SAVED_ADDRESS_OPTIONS);
+  const options = saved.map((label, index) => {
+    const parts = formatAddressOptionParts(label);
+    return {
+      id: `addr_${index}`,
+      title: parts.title || `addr_${index}`,
+      description: parts.description,
+      metadata: parts.metadata,
+      _label: label,
+    };
+  });
+  options.push({
+    id: ADDRESS_CHOICE_NEW,
+    title: clipFlowOption(t('confirmFlowAddressNew', lang), FLOW_OPTION_TITLE_MAX),
+    description: clipFlowOption(t('confirmFlowAddressNewDesc', lang), FLOW_OPTION_DESC_MAX),
+  });
+
+  const current = trimmed(currentAddress);
+  let addressChoice = ADDRESS_CHOICE_NEW;
+  const preferred = trimmed(draftChoice);
+  if (preferred && options.some((o) => o.id === preferred)) {
+    addressChoice = preferred;
+  } else if (current) {
+    const match = options.find((o) => o._label && o._label.toLowerCase() === current.toLowerCase());
+    if (match) addressChoice = match.id;
+  }
+
+  return {
+    addressChoice,
+    addressOptions: options.map(({ id, title, description, metadata }) => {
+      const row = { id, title };
+      if (description) row.description = description;
+      if (metadata) row.metadata = metadata;
+      return row;
+    }),
+    labelsByChoice: Object.fromEntries(
+      options.filter((option) => option._label).map((option) => [option.id, option._label]),
+    ),
+  };
+}
+
+/**
+ * Street + apartment TextInput values for a radio choice.
+ * Saved rows use the full courier label in street (same as review INIT); Neue Adresse clears both.
+ */
+function fieldsForAddressChoice(choice, labelsByChoice = {}) {
+  if (!choice || choice === ADDRESS_CHOICE_NEW) {
+    return { street: '', apartment: '' };
+  }
+  const label = trimmed(labelsByChoice[choice] || '');
+  if (!label) return { street: '', apartment: '' };
+  const fields = splitDeliveryAddressFields(label);
+  return {
+    street: label,
+    apartment: fields.apartment,
+  };
+}
+
+function labelsByAddressChoice(savedAddresses, currentAddress, lang, t) {
+  return buildAddressChoiceState({
+    savedAddresses,
+    currentAddress,
+    lang,
+    t,
+  }).labelsByChoice;
+}
+
 /** Partial values kept across a failed submit so the reopened Flow does not lose typed edits. */
 function buildConfirmFlowDraft(payload = {}) {
   const draft = {};
@@ -70,6 +304,7 @@ function buildConfirmFlowDraft(payload = {}) {
   if (F.ORDER_TYPE in payload && ORDER_TYPES.has(payload[F.ORDER_TYPE])) {
     draft.orderType = payload[F.ORDER_TYPE];
   }
+  if (F.ADDRESS_CHOICE in payload) draft.addressChoice = trimmed(payload[F.ADDRESS_CHOICE]);
   if (F.DELIVERY_ADDRESS in payload) {
     draft.deliveryAddress = trimmed(payload[F.DELIVERY_ADDRESS]);
     draft.deliveryApartment = F.DELIVERY_APARTMENT in payload
@@ -88,6 +323,7 @@ function buildCheckoutReviewData({
   info = {},
   lang,
   t,
+  savedAddresses = [],
 }) {
   const draft = session.confirmFlowDraft ?? {};
   const deliverySelectable = isDeliverySelectableInReview(info, basket);
@@ -126,6 +362,14 @@ function buildCheckoutReviewData({
     options.push({ id: 'delivery', title: t('confirmFlowTypeDelivery', lang) });
   }
 
+  const addressState = buildAddressChoiceState({
+    savedAddresses,
+    currentAddress: reviewDeliveryAddress || sessionFull,
+    draftChoice: draft.addressChoice,
+    lang,
+    t,
+  });
+
   return {
     [F.RECEIPT_TEXT]: buildReceiptText({
       session: reviewSession,
@@ -139,6 +383,8 @@ function buildCheckoutReviewData({
     [F.CUSTOMER_NAME]: customerName,
     [F.ORDER_TYPE]: orderType,
     [F.ORDER_TYPE_OPTIONS]: options,
+    [F.ADDRESS_CHOICE]: addressState.addressChoice,
+    [F.ADDRESS_OPTIONS]: addressState.addressOptions,
     [F.DELIVERY_ADDRESS]: deliveryAddress,
     [F.DELIVERY_APARTMENT]: deliveryApartment,
     [F.CHECKOUT_NOTE]: specialRequests,
@@ -146,7 +392,119 @@ function buildCheckoutReviewData({
   };
 }
 
-function validateCheckoutSubmit(payload = {}) {
+function buildReviewDataFromProfile({
+  session = {},
+  basket = [],
+  info = {},
+  lang,
+  t,
+  profile = {},
+}) {
+  const savedAddresses = Array.isArray(profile.savedAddresses)
+    ? profile.savedAddresses
+    : [];
+  const normalizedSaved = savedAddresses.map(trimmed).filter(Boolean);
+  const preferredDefault = trimmed(profile.lastDeliveryAddress);
+  const defaultMatch = normalizedSaved.find(
+    (address) => address.toLowerCase() === preferredDefault.toLowerCase(),
+  );
+  const preferredAddress = defaultMatch || normalizedSaved[0] || '';
+
+  const draft = session.confirmFlowDraft && typeof session.confirmFlowDraft === 'object'
+    ? { ...session.confirmFlowDraft }
+    : null;
+  if (draft) {
+    delete draft.addressChoice;
+    delete draft.deliveryAddress;
+    delete draft.deliveryApartment;
+  }
+
+  const reviewSession = {
+    ...session,
+    deliveryAddress: preferredAddress,
+    confirmFlowDraft: draft && Object.keys(draft).length ? draft : null,
+  };
+
+  return buildCheckoutReviewData({
+    session: reviewSession,
+    basket,
+    info,
+    lang,
+    t,
+    savedAddresses,
+  });
+}
+
+function composeDeliveryAddressFromFields(streetValue, apartmentValue) {
+  const street = trimmed(streetValue);
+  const apartment = trimmed(apartmentValue);
+  if (!street) return { ok: false, errorKey: 'confirmFlowErrorAddress' };
+
+  if (apartment) {
+    const parsed = parseDeliveryUnit(apartment);
+    if (!parsed.ok) return { ok: false, errorKey: 'confirmFlowErrorApartment' };
+    const building = splitDeliveryAddressFields(street).street || street;
+    return {
+      ok: true,
+      deliveryAddress: composeDeliveryLabel(building, parsed.label),
+    };
+  }
+
+  if (!hasUnitPattern(street)) {
+    return { ok: false, errorKey: 'confirmFlowErrorApartment' };
+  }
+  return {
+    ok: true,
+    deliveryAddress: normalizeBuildingLabel(street),
+  };
+}
+
+/**
+ * Resolve delivery label for place-order when the address radio and TextInputs can diverge
+ * (no on-select refill). Radio wins when fields are empty, match the selected row, or still
+ * show another saved row (stale after a radio change). Explicit edits of the selected row win.
+ *
+ * @param {object} payload
+ * @param {Record<string, string>} [addressLabels] id → exact stored label
+ */
+function resolveDeliveryAddressForSubmit(payload = {}, addressLabels = {}) {
+  const choice = trimmed(payload[F.ADDRESS_CHOICE]);
+  const selectedExact = (choice && choice !== ADDRESS_CHOICE_NEW)
+    ? trimmed(addressLabels[choice] || '')
+    : '';
+  const composed = composeDeliveryAddressFromFields(
+    payload[F.DELIVERY_ADDRESS],
+    payload[F.DELIVERY_APARTMENT],
+  );
+
+  if (selectedExact) {
+    if (!composed.ok) {
+      // Empty / invalid fields after picking a saved row → trust the radio.
+      if (!trimmed(payload[F.DELIVERY_ADDRESS])) {
+        return { ok: true, deliveryAddress: selectedExact };
+      }
+      return composed;
+    }
+    const composedNorm = composed.deliveryAddress.toLowerCase();
+    const selectedNorm = selectedExact.toLowerCase();
+    if (composedNorm === selectedNorm) {
+      return { ok: true, deliveryAddress: selectedExact };
+    }
+    const matchesOtherSaved = Object.entries(addressLabels).some(([id, label]) => (
+      id !== choice
+      && trimmed(label)
+      && trimmed(label).toLowerCase() === composedNorm
+    ));
+    if (matchesOtherSaved) {
+      return { ok: true, deliveryAddress: selectedExact };
+    }
+    return composed;
+  }
+
+  return composed;
+}
+
+function validateCheckoutSubmit(payload = {}, { addressLabels = {} } = {}) {
   if (payload.checkout_action === 'back_to_cart') {
     return { ok: true, values: null };
   }
@@ -163,23 +521,9 @@ function validateCheckoutSubmit(payload = {}) {
 
   let deliveryAddress = null;
   if (orderType === 'delivery') {
-    const street = trimmed(payload[F.DELIVERY_ADDRESS]);
-    const apartment = trimmed(payload[F.DELIVERY_APARTMENT]);
-    if (!street) return { ok: false, errorKey: 'confirmFlowErrorAddress' };
-
-    deliveryAddress = street;
-    if (apartment) {
-      const parsed = parseDeliveryUnit(apartment);
-      if (!parsed.ok) return { ok: false, errorKey: 'confirmFlowErrorApartment' };
-      // Street may still hold the full label (5/14); compose onto the building part only.
-      const building = splitDeliveryAddressFields(street).street || street;
-      deliveryAddress = composeDeliveryLabel(building, parsed.label);
-    } else {
-      if (!hasUnitPattern(street)) {
-        return { ok: false, errorKey: 'confirmFlowErrorApartment' };
-      }
-      deliveryAddress = normalizeBuildingLabel(street);
-    }
+    const resolved = resolveDeliveryAddressForSubmit(payload, addressLabels);
+    if (!resolved.ok) return resolved;
+    deliveryAddress = resolved.deliveryAddress;
   }
 
   return {
@@ -265,13 +609,23 @@ function checkoutFlowToken(phone, businessId) {
 }
 
 module.exports = {
+  ADDRESS_CHOICE_NEW,
+  formatAddressOptionParts,
+  fieldsForAddressChoice,
   buildReceiptText,
   buildCheckoutReviewData,
+  buildReviewDataFromProfile,
+  buildAddressChoiceState,
+  labelsByAddressChoice,
   buildConfirmFlowDraft,
   buildCheckoutSubmitPayloadFromSession,
   isDeliverySelectableInReview,
+  composeDeliveryAddressFromFields,
   validateCheckoutSubmit,
   applyCheckoutSubmitToSession,
+  nextScreenAfterManageWrite,
+  manageScreenForReview,
+  returnReviewScreenForManage,
   parseCheckoutFlowToken,
   checkoutFlowToken,
 };
