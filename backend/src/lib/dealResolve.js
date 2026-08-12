@@ -50,6 +50,19 @@ function isLiveSlot(slot, expectedKind, nowMs, { requireWindowDates }) {
   return inRange(slot, nowMs);
 }
 
+function marketingDealLabel(business, now = new Date()) {
+  const slots = business?.deals;
+  if (!slots) return null;
+  const nowMs = toMillis(now) ?? Date.now();
+  if (isLiveSlot(slots.firstOrder, 'first_order', nowMs, { requireWindowDates: false })) {
+    return slots.firstOrder.label || defaultDealLabel(slots.firstOrder);
+  }
+  if (isLiveSlot(slots.window, 'window', nowMs, { requireWindowDates: true })) {
+    return slots.window.label || defaultDealLabel(slots.window);
+  }
+  return null;
+}
+
 function computeDiscountCents(slot, subtotalCents) {
   if (subtotalCents <= 0) return 0;
   if (slot.discountType === 'percent') {
@@ -111,4 +124,4 @@ async function resolveDeal({ businessId, business, customerId, subtotal, now = n
   return null;
 }
 
-module.exports = { resolveDeal, defaultDealLabel, toMillis };
+module.exports = { resolveDeal, defaultDealLabel, toMillis, marketingDealLabel };

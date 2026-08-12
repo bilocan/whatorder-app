@@ -58,6 +58,7 @@ module.exports = {
 
   orderTotal: (total) => `Toplam: €${total}`,
   checkoutDiscount: (label, amount) => `🏷️ ${label}: −€${amount}`,
+  dealMarketingLine: (label) => `🏷️ ${label}`,
   checkoutDeliveryFee: (amount) => `🚚 Teslimat ücreti: €${amount}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Tahmini hazırlık: ~${prepMins} dk (saat ${pickupTime} civarı)\n\nAdınızı yazar mısınız?`,
   finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod, discountLine) => {

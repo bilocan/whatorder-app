@@ -3,7 +3,7 @@ jest.mock('../collections', () => ({
 }));
 
 const { ordersRef } = require('../collections');
-const { resolveDeal, defaultDealLabel, toMillis } = require('../dealResolve');
+const { resolveDeal, defaultDealLabel, toMillis, marketingDealLabel } = require('../dealResolve');
 
 const NOW = new Date('2026-08-12T12:00:00.000Z');
 const FO = {
@@ -34,6 +34,41 @@ function mockBurn(empty) {
   ordersRef.mockReturnValue(chain);
   return chain;
 }
+
+describe('marketingDealLabel', () => {
+  test('returns null when deals map is missing', () => {
+    expect(marketingDealLabel({}, NOW)).toBeNull();
+    expect(ordersRef).not.toHaveBeenCalled();
+  });
+
+  test('prefers live first-order label even if a window is also live', () => {
+    expect(marketingDealLabel({ deals: { firstOrder: FO, window: WIN } }, NOW)).toBe('10% Willkommen');
+    expect(ordersRef).not.toHaveBeenCalled();
+  });
+
+  test('does not query orders (returning diner still sees FO badge)', () => {
+    marketingDealLabel({ deals: { firstOrder: FO } }, NOW);
+    expect(ordersRef).not.toHaveBeenCalled();
+  });
+
+  test('falls back to window when first-order is paused', () => {
+    expect(marketingDealLabel({
+      deals: { firstOrder: { ...FO, active: false }, window: WIN },
+    }, NOW)).toBe('€2 Lunch');
+  });
+
+  test('returns null when window is out of range', () => {
+    expect(marketingDealLabel({
+      deals: { window: { ...WIN, endsAt: new Date('2026-08-01T00:00:00.000Z') } },
+    }, NOW)).toBeNull();
+  });
+
+  test('uses defaultDealLabel when stored label is empty', () => {
+    expect(marketingDealLabel({
+      deals: { firstOrder: { ...FO, label: '' } },
+    }, NOW)).toBe('10% Rabatt');
+  });
+});
 
 describe('resolveDeal', () => {
   test('returns null when deals map is missing', async () => {
