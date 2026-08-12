@@ -117,6 +117,15 @@ describe('splitDeliveryAddressFields', () => {
     });
   });
 
+  test('splits bare Stiege N composed form', () => {
+    const composed = composeDeliveryLabel('Hippgasse 11, 1160 Wien', 'Stiege 2');
+    expect(composed).toBe('Hippgasse 11, Stiege 2, 1160 Wien');
+    expect(splitDeliveryAddressFields(composed)).toEqual({
+      street: 'Hippgasse 11, 1160 Wien',
+      apartment: 'Stiege 2',
+    });
+  });
+
   test('returns full string street when no unit', () => {
     expect(splitDeliveryAddressFields('Naschmarkt 5, 1040 Wien')).toEqual({
       street: 'Naschmarkt 5, 1040 Wien',

@@ -3,6 +3,7 @@ const {
   buildReceiptText,
   buildCheckoutReviewData,
   buildConfirmFlowDraft,
+  buildCheckoutSubmitPayloadFromSession,
   validateCheckoutSubmit,
   applyCheckoutSubmitToSession,
   parseCheckoutFlowToken,
@@ -489,6 +490,44 @@ describe('checkoutConfirmFlow', () => {
       confirmFlowDraft: null,
     });
     expect(next).not.toBe(session);
+  });
+
+  test('buildCheckoutSubmitPayloadFromSession merges draft over stale session address', () => {
+    const payload = buildCheckoutSubmitPayloadFromSession({
+      customerName: 'Alex',
+      orderType: 'delivery',
+      deliveryAddress: 'Old Street 1, Top 1, 1040 Wien',
+      specialRequests: 'extra sauce',
+      confirmFlowDraft: {
+        deliveryAddress: 'Naschmarkt 9, 1040 Wien',
+        deliveryApartment: 'Top 4',
+        specialRequests: 'no onion',
+      },
+    });
+    expect(payload).toEqual({
+      [F.CUSTOMER_NAME]: 'Alex',
+      [F.ORDER_TYPE]: 'delivery',
+      [F.DELIVERY_ADDRESS]: 'Naschmarkt 9, 1040 Wien',
+      [F.DELIVERY_APARTMENT]: 'Top 4',
+      [F.CHECKOUT_NOTE]: 'no onion',
+    });
+    expect(validateCheckoutSubmit(payload)).toEqual({
+      ok: true,
+      values: expect.objectContaining({
+        deliveryAddress: 'Naschmarkt 9, Top 4, 1040 Wien',
+      }),
+    });
+  });
+
+  test('buildCheckoutSubmitPayloadFromSession keeps unit-in-street when no draft', () => {
+    const payload = buildCheckoutSubmitPayloadFromSession({
+      customerName: 'Alex',
+      orderType: 'delivery',
+      deliveryAddress: 'Naschmarkt 5, Top 2, 1040 Wien',
+    });
+    expect(payload[F.DELIVERY_ADDRESS]).toBe('Naschmarkt 5, Top 2, 1040 Wien');
+    expect(payload[F.DELIVERY_APARTMENT]).toBe('Top 2');
+    expect(validateCheckoutSubmit(payload).ok).toBe(true);
   });
 
   test('builds and parses checkout tokens', () => {

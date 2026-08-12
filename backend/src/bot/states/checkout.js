@@ -38,6 +38,7 @@ const {
   applyCheckoutSubmitToSession,
   buildCheckoutReviewData,
   buildConfirmFlowDraft,
+  buildCheckoutSubmitPayloadFromSession,
 } = require('../checkoutConfirmFlow');
 const { isBasketUndoPhrase, detectBotCommandAsync, detectBotCommandRules, BOT_COMMAND } = require('../botCommands');
 const {
@@ -1587,16 +1588,34 @@ async function handleConfirming({
   if (isConfirm) {
     const info = await getBusinessInfo(businessId);
     if (shouldSkipChatCheckoutSlots(info)) {
-      const errorKey = !isFilledName(session.customerName)
-        ? 'confirmFlowErrorName'
-        : (session.orderType === 'delivery' && !String(session.deliveryAddress || '').trim()
-          ? 'confirmFlowErrorAddress'
-          : null);
-      if (errorKey) {
-        await sendText(from, t(errorKey, lang));
+      const payload = buildCheckoutSubmitPayloadFromSession(session);
+      const validation = validateCheckoutSubmit(payload);
+      if (!validation.ok) {
+        await sendText(from, t(validation.errorKey, lang));
         await reofferConfirming(from, session, lang, businessId, basket);
         return;
       }
+      if (!Array.isArray(basket) || basket.length === 0) {
+        const nextSession = { ...session, state: 'browsing', basket: [] };
+        await sendOrderEntryPrompt({
+          from,
+          session: nextSession,
+          lang,
+          businessId,
+          bodyOverride: t('basketEmpty', lang),
+        });
+        await setSession(from, { ...nextSession, pendingDeleteIds: [] });
+        return;
+      }
+      const submittedSession = applyCheckoutSubmitToSession(session, validation.values);
+      if (submittedSession.orderType === 'delivery'
+        && await gateDeliverySubmit({ from, session: submittedSession, lang, basket, info })) {
+        return;
+      }
+      await placeConfirmedOrder({
+        from, session: submittedSession, lang, businessId, basket, isMulti, contactName, info,
+      });
+      return;
     }
     await placeConfirmedOrder({ from, session, lang, businessId, basket, isMulti, contactName, info });
     return;

@@ -205,6 +205,45 @@ function applyCheckoutSubmitToSession(session, values) {
   };
 }
 
+/**
+ * Build a Flow-shaped submit payload from session (+ optional confirmFlowDraft) so typed
+ * confirm / list place use the same validateCheckoutSubmit rules as flow_completion.
+ */
+function buildCheckoutSubmitPayloadFromSession(session = {}) {
+  const draft = session.confirmFlowDraft ?? {};
+  const orderType = ORDER_TYPES.has(draft.orderType)
+    ? draft.orderType
+    : (ORDER_TYPES.has(session.orderType) ? session.orderType : '');
+  const customerName = Object.prototype.hasOwnProperty.call(draft, 'customerName')
+    ? draft.customerName
+    : trimmed(session.customerName);
+  const specialRequests = Object.prototype.hasOwnProperty.call(draft, 'specialRequests')
+    ? draft.specialRequests
+    : trimmed(session.specialRequests);
+
+  const payload = {
+    [F.CUSTOMER_NAME]: customerName,
+    [F.ORDER_TYPE]: orderType,
+    [F.CHECKOUT_NOTE]: specialRequests,
+  };
+
+  if (orderType === 'delivery') {
+    const sessionFull = trimmed(session.deliveryAddress);
+    if (Object.prototype.hasOwnProperty.call(draft, 'deliveryAddress')) {
+      payload[F.DELIVERY_ADDRESS] = draft.deliveryAddress;
+      payload[F.DELIVERY_APARTMENT] = Object.prototype.hasOwnProperty.call(draft, 'deliveryApartment')
+        ? draft.deliveryApartment
+        : '';
+    } else {
+      const fields = splitDeliveryAddressFields(sessionFull);
+      payload[F.DELIVERY_ADDRESS] = sessionFull || fields.street;
+      payload[F.DELIVERY_APARTMENT] = fields.apartment;
+    }
+  }
+
+  return payload;
+}
+
 function parseCheckoutFlowToken(flowToken) {
   if (typeof flowToken !== 'string') return null;
   const parts = flowToken.split('|');
@@ -229,6 +268,7 @@ module.exports = {
   buildReceiptText,
   buildCheckoutReviewData,
   buildConfirmFlowDraft,
+  buildCheckoutSubmitPayloadFromSession,
   isDeliverySelectableInReview,
   validateCheckoutSubmit,
   applyCheckoutSubmitToSession,

@@ -824,6 +824,58 @@ describe('Checkout confirm Flow', () => {
     }));
   });
 
+  test('typed confirm with street-only delivery re-offers Flow (apartment required)', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ,
+      checkoutConfirmFlow: true,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+    });
+    sendFlowMessage.mockResolvedValue('retry_flow_msg_id');
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      businessId: BIZ,
+      customerName: 'Ahmet',
+      orderType: 'delivery',
+      deliveryAddress: 'Naschmarkt 5, 1040 Wien',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'ok' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, 'Please enter apartment (or Haus).');
+    expect(sendFlowMessage).toHaveBeenCalled();
+  });
+
+  test('typed confirm applies confirmFlowDraft address and places', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ,
+      checkoutConfirmFlow: true,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+    });
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      businessId: BIZ,
+      customerName: 'Ahmet',
+      orderType: 'delivery',
+      deliveryAddress: 'Old Street 1, Top 1, 1040 Wien',
+      confirmFlowDraft: {
+        deliveryAddress: 'Naschmarkt 9, 1040 Wien',
+        deliveryApartment: 'Top 4',
+      },
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'ok' }));
+
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({
+      deliveryAddress: 'Naschmarkt 9, Top 4, 1040 Wien',
+      customerName: 'Ahmet',
+    }));
+  });
+
   test('flag off sends the confirm list and does not send a Flow', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: false });
 

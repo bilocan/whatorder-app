@@ -197,6 +197,13 @@ function splitDeliveryAddressFields(address) {
     return { street, apartment: m[2].replace(/\s+/g, ' ').trim() };
   }
 
+  // ", Stiege N" before locality (composeDeliveryLabel bare Stiege)
+  m = raw.match(/^(.*?),\s*(Stiege\s+\d+)(,\s*\d{4}\s+.+)?$/i);
+  if (m) {
+    const street = [m[1].trim(), m[3] ? m[3].replace(/^,\s*/, '') : null].filter(Boolean).join(', ');
+    return { street, apartment: m[2].replace(/\s+/g, ' ').trim() };
+  }
+
   // ", Top N" or ", Tür N"
   m = raw.match(/^(.*?),\s*((?:Top|Tür|Tur)\s+\d+)(,\s*\d{4}\s+.+)?$/i);
   if (m) {
