@@ -39,6 +39,7 @@ const {
   buildCheckoutReviewData,
   buildConfirmFlowDraft,
   buildCheckoutSubmitPayloadFromSession,
+  labelsByAddressChoice,
 } = require('../checkoutConfirmFlow');
 const { isBasketUndoPhrase, detectBotCommandAsync, detectBotCommandRules, BOT_COMMAND } = require('../botCommands');
 const {
@@ -1482,7 +1483,14 @@ async function handleConfirming({
       return;
     }
 
-    const validation = validateCheckoutSubmit(payload);
+    const profile = await getCustomerProfile(from, businessId);
+    const addressLabels = labelsByAddressChoice(
+      profile?.savedAddresses || [],
+      session.deliveryAddress || profile?.lastDeliveryAddress || '',
+      lang,
+      t,
+    );
+    const validation = validateCheckoutSubmit(payload, { addressLabels });
     if (!validation.ok) {
       await sendText(from, t(validation.errorKey, lang));
       await reofferConfirming(

@@ -165,6 +165,7 @@ test('INIT with basket still opens CATEGORY_SELECT (CART_REVIEW is not a valid e
 
 test('checkout INIT → CHECKOUT_REVIEW with session prefill', async () => {
   const session = {
+    businessId: 'biz1',
     language: 'en',
     basket: [{ name: 'Burger', qty: 1, price: 10 }],
     customerName: 'Alex',
@@ -286,7 +287,7 @@ test('checkout data_exchange routes review return screens to address management'
   });
 
   expect(res.status).toBe(200);
-  expect(parsed(res).screen).toBe(S.ADDRESS_MANAGE_2);
+  expect(parsed(res).screen).toBe(S.ADDRESS_MANAGE_AGAIN);
 });
 
 test('checkout data_exchange on a non-checkout screen bypasses checkout routing', async () => {

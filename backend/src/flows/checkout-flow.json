@@ -13,12 +13,12 @@
       "CHECKOUT_REVIEW_RETURN"
     ],
     "CHECKOUT_REVIEW_RETURN": [
-      "ADDRESS_MANAGE_2"
+      "ADDRESS_MANAGE_AGAIN"
     ],
-    "ADDRESS_MANAGE_2": [
-      "CHECKOUT_REVIEW_RETURN_2"
+    "ADDRESS_MANAGE_AGAIN": [
+      "CHECKOUT_REVIEW_DONE"
     ],
-    "CHECKOUT_REVIEW_RETURN_2": []
+    "CHECKOUT_REVIEW_DONE": []
   },
   "screens": [
     {
@@ -95,6 +95,9 @@
               },
               "description": {
                 "type": "string"
+              },
+              "metadata": {
+                "type": "string"
               }
             }
           },
@@ -125,6 +128,9 @@
                 "type": "string"
               },
               "description": {
+                "type": "string"
+              },
+              "metadata": {
                 "type": "string"
               }
             }
@@ -197,7 +203,19 @@
                 "label": "${data.ui_address_choice_label}",
                 "name": "address_choice",
                 "required": true,
-                "data-source": "${data.address_options}"
+                "data-source": "${data.address_options}",
+                "on-select-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "select_address",
+                    "customer_name": "${form.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${form.address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "note": "${form.note}"
+                  }
+                }
               },
               {
                 "type": "TextInput",
@@ -224,7 +242,13 @@
                 "on-click-action": {
                   "name": "data_exchange",
                   "payload": {
-                    "checkout_action": "manage_addresses"
+                    "checkout_action": "manage_addresses",
+                    "customer_name": "${form.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${form.address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "note": "${form.note}"
                   }
                 }
               },
@@ -348,6 +372,9 @@
               },
               "description": {
                 "type": "string"
+              },
+              "metadata": {
+                "type": "string"
               }
             }
           },
@@ -395,7 +422,8 @@
             "init-values": {
               "manage_address_choice": "${data.manage_address_choice}",
               "delivery_address": "${data.delivery_address}",
-              "delivery_apartment": "${data.delivery_apartment}"
+              "delivery_apartment": "${data.delivery_apartment}",
+              "manage_set_as_default": false
             },
             "children": [
               {
@@ -412,7 +440,15 @@
                 "label": "${data.ui_address_choice_label}",
                 "name": "manage_address_choice",
                 "required": true,
-                "data-source": "${data.manage_address_options}"
+                "data-source": "${data.manage_address_options}",
+                "on-select-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "select_address",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
+                  }
+                }
               },
               {
                 "type": "TextInput",
@@ -428,17 +464,10 @@
                 "helper-text": "${data.ui_apartment_helper}"
               },
               {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_manage_set_default}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_set_default",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
-                  }
-                }
+                "type": "OptIn",
+                "label": "${data.ui_manage_set_default}",
+                "name": "manage_set_as_default",
+                "required": false
               },
               {
                 "type": "EmbeddedLink",
@@ -449,7 +478,8 @@
                     "checkout_action": "manage_delete",
                     "manage_address_choice": "${form.manage_address_choice}",
                     "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
                   }
                 }
               },
@@ -462,7 +492,8 @@
                     "checkout_action": "manage_back",
                     "manage_address_choice": "${form.manage_address_choice}",
                     "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
                   }
                 }
               },
@@ -475,7 +506,8 @@
                     "checkout_action": "manage_save",
                     "manage_address_choice": "${form.manage_address_choice}",
                     "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
                   }
                 }
               }
@@ -573,6 +605,9 @@
               },
               "description": {
                 "type": "string"
+              },
+              "metadata": {
+                "type": "string"
               }
             }
           },
@@ -620,7 +655,8 @@
             "init-values": {
               "manage_address_choice": "${data.manage_address_choice}",
               "delivery_address": "${data.delivery_address}",
-              "delivery_apartment": "${data.delivery_apartment}"
+              "delivery_apartment": "${data.delivery_apartment}",
+              "manage_set_as_default": false
             },
             "children": [
               {
@@ -637,7 +673,15 @@
                 "label": "${data.ui_address_choice_label}",
                 "name": "manage_address_choice",
                 "required": true,
-                "data-source": "${data.manage_address_options}"
+                "data-source": "${data.manage_address_options}",
+                "on-select-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "select_address",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
+                  }
+                }
               },
               {
                 "type": "TextInput",
@@ -653,17 +697,10 @@
                 "helper-text": "${data.ui_apartment_helper}"
               },
               {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_manage_set_default}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_set_default",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
-                  }
-                }
+                "type": "OptIn",
+                "label": "${data.ui_manage_set_default}",
+                "name": "manage_set_as_default",
+                "required": false
               },
               {
                 "type": "EmbeddedLink",
@@ -674,7 +711,8 @@
                     "checkout_action": "manage_delete",
                     "manage_address_choice": "${form.manage_address_choice}",
                     "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
                   }
                 }
               },
@@ -687,7 +725,8 @@
                     "checkout_action": "manage_back",
                     "manage_address_choice": "${form.manage_address_choice}",
                     "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
                   }
                 }
               },
@@ -700,7 +739,8 @@
                     "checkout_action": "manage_save",
                     "manage_address_choice": "${form.manage_address_choice}",
                     "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
                   }
                 }
               }
@@ -783,6 +823,9 @@
               },
               "description": {
                 "type": "string"
+              },
+              "metadata": {
+                "type": "string"
               }
             }
           },
@@ -813,6 +856,9 @@
                 "type": "string"
               },
               "description": {
+                "type": "string"
+              },
+              "metadata": {
                 "type": "string"
               }
             }
@@ -885,7 +931,19 @@
                 "label": "${data.ui_address_choice_label}",
                 "name": "address_choice",
                 "required": true,
-                "data-source": "${data.address_options}"
+                "data-source": "${data.address_options}",
+                "on-select-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "select_address",
+                    "customer_name": "${form.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${form.address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "note": "${form.note}"
+                  }
+                }
               },
               {
                 "type": "TextInput",
@@ -912,7 +970,13 @@
                 "on-click-action": {
                   "name": "data_exchange",
                   "payload": {
-                    "checkout_action": "manage_addresses"
+                    "checkout_action": "manage_addresses",
+                    "customer_name": "${form.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${form.address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "note": "${form.note}"
                   }
                 }
               },
@@ -948,7 +1012,7 @@
       }
     },
     {
-      "id": "ADDRESS_MANAGE_2",
+      "id": "ADDRESS_MANAGE_AGAIN",
       "title": "${data.ui_manage_screen_title}",
       "data": {
         "ui_screen_title": {
@@ -1036,6 +1100,9 @@
               },
               "description": {
                 "type": "string"
+              },
+              "metadata": {
+                "type": "string"
               }
             }
           },
@@ -1083,7 +1150,8 @@
             "init-values": {
               "manage_address_choice": "${data.manage_address_choice}",
               "delivery_address": "${data.delivery_address}",
-              "delivery_apartment": "${data.delivery_apartment}"
+              "delivery_apartment": "${data.delivery_apartment}",
+              "manage_set_as_default": false
             },
             "children": [
               {
@@ -1100,7 +1168,15 @@
                 "label": "${data.ui_address_choice_label}",
                 "name": "manage_address_choice",
                 "required": true,
-                "data-source": "${data.manage_address_options}"
+                "data-source": "${data.manage_address_options}",
+                "on-select-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "select_address",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
+                  }
+                }
               },
               {
                 "type": "TextInput",
@@ -1116,17 +1192,10 @@
                 "helper-text": "${data.ui_apartment_helper}"
               },
               {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_manage_set_default}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_set_default",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
-                  }
-                }
+                "type": "OptIn",
+                "label": "${data.ui_manage_set_default}",
+                "name": "manage_set_as_default",
+                "required": false
               },
               {
                 "type": "EmbeddedLink",
@@ -1137,7 +1206,8 @@
                     "checkout_action": "manage_delete",
                     "manage_address_choice": "${form.manage_address_choice}",
                     "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
                   }
                 }
               },
@@ -1150,7 +1220,8 @@
                     "checkout_action": "manage_back",
                     "manage_address_choice": "${form.manage_address_choice}",
                     "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
                   }
                 }
               },
@@ -1163,7 +1234,8 @@
                     "checkout_action": "manage_save",
                     "manage_address_choice": "${form.manage_address_choice}",
                     "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}"
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "manage_set_as_default": "${form.manage_set_as_default}"
                   }
                 }
               }
@@ -1173,7 +1245,7 @@
       }
     },
     {
-      "id": "CHECKOUT_REVIEW_RETURN_2",
+      "id": "CHECKOUT_REVIEW_DONE",
       "title": "${data.ui_screen_title}",
       "terminal": true,
       "data": {
@@ -1242,6 +1314,9 @@
               },
               "description": {
                 "type": "string"
+              },
+              "metadata": {
+                "type": "string"
               }
             }
           },
@@ -1272,6 +1347,9 @@
                 "type": "string"
               },
               "description": {
+                "type": "string"
+              },
+              "metadata": {
                 "type": "string"
               }
             }
@@ -1344,7 +1422,19 @@
                 "label": "${data.ui_address_choice_label}",
                 "name": "address_choice",
                 "required": true,
-                "data-source": "${data.address_options}"
+                "data-source": "${data.address_options}",
+                "on-select-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "select_address",
+                    "customer_name": "${form.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${form.address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "note": "${form.note}"
+                  }
+                }
               },
               {
                 "type": "TextInput",

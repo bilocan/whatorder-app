@@ -4,7 +4,9 @@ const { t } = require('../bot/templates');
 const {
   buildCheckoutReviewData,
   buildAddressChoiceState,
+  buildConfirmFlowDraft,
   labelsByAddressChoice,
+  fieldsForAddressChoice,
   composeDeliveryAddressFromFields,
   nextScreenAfterManageWrite,
   manageScreenForReview,
@@ -24,13 +26,13 @@ const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 const REVIEW_SCREENS = new Set([
   S.CHECKOUT_REVIEW,
   S.CHECKOUT_REVIEW_RETURN,
-  S.CHECKOUT_REVIEW_RETURN_2,
+  S.CHECKOUT_REVIEW_DONE,
 ]);
 
 const MANAGE_SCREENS = new Set([
   S.ADDRESS_MANAGE,
   S.ADDRESS_MANAGE_UPDATED,
-  S.ADDRESS_MANAGE_2,
+  S.ADDRESS_MANAGE_AGAIN,
 ]);
 
 const CHECKOUT_EXCHANGE_SCREENS = new Set([...REVIEW_SCREENS, ...MANAGE_SCREENS]);
@@ -52,13 +54,14 @@ async function loadSession(phone) {
   };
 }
 
-function buildManageData({ profile, lang, payload = {}, errorKey = null }) {
+function buildManageData({ profile, lang, payload = {}, errorKey = null, refillFromChoice = false }) {
   const currentAddress = profile.lastDeliveryAddress
     || profile.savedAddresses?.[0]
     || '';
   const state = buildAddressChoiceState({
     savedAddresses: profile.savedAddresses,
     currentAddress,
+    draftChoice: payload[F.MANAGE_ADDRESS_CHOICE],
     lang,
     t,
   });
@@ -72,21 +75,31 @@ function buildManageData({ profile, lang, payload = {}, errorKey = null }) {
     lang,
     t,
   );
-  const selectedFields = splitDeliveryAddressFields(labels[choice] || '');
+  const selectedFields = fieldsForAddressChoice(choice, labels);
   const hasSubmittedStreet = Object.prototype.hasOwnProperty.call(payload, F.DELIVERY_ADDRESS);
   const hasSubmittedApartment = Object.prototype.hasOwnProperty.call(payload, F.DELIVERY_APARTMENT);
+
+  let street;
+  let apartment;
+  if (refillFromChoice) {
+    street = selectedFields.street;
+    apartment = selectedFields.apartment;
+  } else {
+    street = hasSubmittedStreet
+      ? String(payload[F.DELIVERY_ADDRESS] ?? '')
+      : selectedFields.street;
+    apartment = hasSubmittedApartment
+      ? String(payload[F.DELIVERY_APARTMENT] ?? '')
+      : selectedFields.apartment;
+  }
 
   return {
     ...checkoutReviewCopy(lang, t),
     ...checkoutManageCopy(lang, t),
     [F.MANAGE_ADDRESS_CHOICE]: choice,
     [F.MANAGE_ADDRESS_OPTIONS]: state.addressOptions,
-    [F.DELIVERY_ADDRESS]: hasSubmittedStreet
-      ? String(payload[F.DELIVERY_ADDRESS] ?? '')
-      : selectedFields.street,
-    [F.DELIVERY_APARTMENT]: hasSubmittedApartment
-      ? String(payload[F.DELIVERY_APARTMENT] ?? '')
-      : selectedFields.apartment,
+    [F.DELIVERY_ADDRESS]: street,
+    [F.DELIVERY_APARTMENT]: apartment,
     // Always present: the manage screen binds a TextCaption to these, and Meta needs every
     // declared data field on every response for the screen.
     [F.ERROR_MESSAGE]: errorKey ? t(errorKey, lang) : '',
@@ -94,11 +107,13 @@ function buildManageData({ profile, lang, payload = {}, errorKey = null }) {
   };
 }
 
-function manageResponse({ screen, profile, lang, payload, errorKey = null, version }) {
+function manageResponse({
+  screen, profile, lang, payload, errorKey = null, version, refillFromChoice = false,
+}) {
   return {
     version,
     screen,
-    data: buildManageData({ profile, lang, payload, errorKey }),
+    data: buildManageData({ profile, lang, payload, errorKey, refillFromChoice }),
   };
 }
 
@@ -125,15 +140,26 @@ function draftDeliveryAddress(draft, fallbackAddress) {
   return composed.ok ? composed.deliveryAddress : draft.deliveryAddress;
 }
 
+/**
+ * Drop draft address fields only when they mirror a session address that is no longer
+ * on the profile (deleted). Keep novel review edits that were never saved.
+ */
 function cleanAddressDraft(draft, profile, fallbackAddress) {
   if (!draft || typeof draft !== 'object') return null;
   const cleaned = { ...draft };
   const validAddresses = validProfileAddresses(profile);
   const draftAddress = normalizedAddress(draftDeliveryAddress(cleaned, fallbackAddress));
-  if (!draftAddress || !validAddresses.includes(draftAddress)) {
+  if (!draftAddress) {
     delete cleaned.addressChoice;
     delete cleaned.deliveryAddress;
     delete cleaned.deliveryApartment;
+  } else if (!validAddresses.includes(draftAddress)) {
+    const fallbackNorm = normalizedAddress(fallbackAddress);
+    if (fallbackNorm && draftAddress === fallbackNorm) {
+      delete cleaned.addressChoice;
+      delete cleaned.deliveryAddress;
+      delete cleaned.deliveryApartment;
+    }
   }
   return Object.keys(cleaned).length ? cleaned : null;
 }
@@ -192,6 +218,44 @@ async function buildReviewReturnResponse({
   };
 }
 
+async function buildReviewSelectResponse({
+  screen,
+  session,
+  profile,
+  payload,
+  version,
+  businessId,
+}) {
+  const lang = session.language || 'de';
+  const info = await getBusinessInfo(businessId);
+  const labels = labelsByAddressChoice(
+    profile.savedAddresses,
+    session.deliveryAddress || profile.lastDeliveryAddress || '',
+    lang,
+    t,
+  );
+  const choice = payload[F.ADDRESS_CHOICE] || ADDRESS_CHOICE_NEW;
+  const fields = fieldsForAddressChoice(choice, labels);
+  const draft = {
+    ...(buildConfirmFlowDraft(payload) || {}),
+    addressChoice: choice,
+    deliveryAddress: fields.street,
+    deliveryApartment: fields.apartment,
+  };
+  return {
+    version,
+    screen,
+    data: buildCheckoutReviewData({
+      session: { ...session, confirmFlowDraft: draft },
+      basket: session.basket ?? [],
+      info,
+      lang,
+      t,
+      savedAddresses: profile.savedAddresses,
+    }),
+  };
+}
+
 /** Review screens declare review data only — never answer them with manage-shaped data. */
 async function buildReviewDataResponse({
   screen,
@@ -241,6 +305,10 @@ function isUnchangedFromStoredLabel(label, streetValue, apartmentValue) {
     && apartment === normalizedAddress(stored.apartment);
 }
 
+function isManageSetAsDefaultChecked(value) {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
 async function loadSavedAddresses(phone, businessId) {
   try {
     const snap = await customersRef(businessId).doc(phone).get();
@@ -260,9 +328,9 @@ async function buildCheckoutInitResponse({ phone, businessId, version }) {
   const info = await getBusinessInfo(businessId);
   const lang = session.language || 'de';
 
-  // Fail closed: a flow_token pointing at another tenant must never echo this session's
-  // basket, name or address back into the Flow.
-  const crossTenant = session.businessId != null && isTenantMismatch(session, businessId);
+  // Fail closed: missing or mismatched session.businessId must never echo this session's
+  // basket, name or address back into the Flow (same rule as manage exchange writes).
+  const crossTenant = isTenantMismatch(session, businessId);
   if (crossTenant) {
     console.warn(`[flow/exchange] checkout INIT tenant mismatch: token=${businessId} session=${session.businessId}`);
   }
@@ -330,6 +398,20 @@ async function buildCheckoutDataExchangeResponse({
       });
     }
 
+    if (action === 'select_address') {
+      if (MANAGE_SCREENS.has(screen)) {
+        return manageResponse({
+          screen,
+          profile: emptyProfile(),
+          lang,
+          payload,
+          version,
+          refillFromChoice: true,
+        });
+      }
+      return buildBlankReviewResponse({ screen, lang, version, businessId });
+    }
+
     const manageScreen = action === 'manage_addresses'
       ? manageScreenForReview(screen)
       : (MANAGE_SCREENS.has(screen) ? screen : null);
@@ -349,9 +431,38 @@ async function buildCheckoutDataExchangeResponse({
 
   const profile = await loadCustomerAddresses(phone, businessId);
 
+  if (action === 'select_address') {
+    if (MANAGE_SCREENS.has(screen)) {
+      return manageResponse({
+        screen,
+        profile,
+        lang,
+        payload,
+        version,
+        refillFromChoice: true,
+      });
+    }
+    if (REVIEW_SCREENS.has(screen)) {
+      return buildReviewSelectResponse({
+        screen,
+        session,
+        profile,
+        payload,
+        version,
+        businessId,
+      });
+    }
+  }
+
   if (action === 'manage_addresses') {
     const nextScreen = manageScreenForReview(screen);
     if (nextScreen) {
+      // Persist review form fields before leaving so manage_back can restore unsaved edits.
+      const draft = buildConfirmFlowDraft(payload);
+      if (draft) {
+        await ref.set({ confirmFlowDraft: draft, updatedAt: new Date() }, { merge: true });
+        session.confirmFlowDraft = draft;
+      }
       return manageResponse({ screen: nextScreen, profile, lang, version });
     }
   }
@@ -385,6 +496,7 @@ async function buildCheckoutDataExchangeResponse({
     let result;
 
     if (action === 'manage_save') {
+      let savedLabel = exactLabel;
       if (choice !== ADDRESS_CHOICE_NEW && !exactLabel) {
         result = { ok: false, errorKey: 'confirmFlowErrorManageSelect' };
       } else if (choice !== ADDRESS_CHOICE_NEW && isUnchangedFromStoredLabel(
@@ -405,6 +517,7 @@ async function buildCheckoutDataExchangeResponse({
         if (!composed.ok) {
           result = composed;
         } else {
+          savedLabel = composed.deliveryAddress;
           result = await saveCustomerAddress({
             phone,
             businessId,
@@ -413,9 +526,23 @@ async function buildCheckoutDataExchangeResponse({
           });
         }
       }
+
+      // OptIn replaces a third EmbeddedLink (Meta max 2). Apply after a successful save.
+      if (result?.ok && isManageSetAsDefaultChecked(payload[F.MANAGE_SET_AS_DEFAULT])) {
+        if (!savedLabel) {
+          result = { ok: false, errorKey: 'confirmFlowErrorManageSelect' };
+        } else {
+          result = await setDefaultCustomerAddress({
+            phone,
+            businessId,
+            label: savedLabel,
+          });
+        }
+      }
     } else if (!exactLabel) {
       result = { ok: false, errorKey: 'confirmFlowErrorManageSelect' };
     } else if (action === 'manage_set_default') {
+      // Legacy action from older published JSON; OptIn + manage_save is the current path.
       result = await setDefaultCustomerAddress({
         phone,
         businessId,
@@ -446,7 +573,7 @@ async function buildCheckoutDataExchangeResponse({
       lastDeliveryAddress: result.lastDeliveryAddress,
     };
     if (nextScreen === S.CHECKOUT_REVIEW_RETURN
-      || nextScreen === S.CHECKOUT_REVIEW_RETURN_2) {
+      || nextScreen === S.CHECKOUT_REVIEW_DONE) {
       return buildReviewReturnResponse({
         screen: nextScreen,
         profile: nextProfile,

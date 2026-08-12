@@ -3,7 +3,7 @@ jest.mock('../../lib/collections');
 jest.mock('../../bot/menuService');
 jest.mock('../../bot/customerAddresses');
 
-const { sessionRef } = require('../../lib/collections');
+const { sessionRef, customersRef } = require('../../lib/collections');
 const { getBusinessInfo } = require('../../bot/menuService');
 const {
   loadCustomerAddresses,
@@ -12,7 +12,7 @@ const {
   deleteCustomerAddress,
 } = require('../../bot/customerAddresses');
 const { SCREENS: S, FIELDS: F } = require('../../flows/fields');
-const { buildCheckoutDataExchangeResponse } = require('../flowCheckout');
+const { buildCheckoutDataExchangeResponse, buildCheckoutInitResponse } = require('../flowCheckout');
 
 const PHONE = 'phone1';
 const BUSINESS_ID = 'biz1';
@@ -69,6 +69,31 @@ beforeEach(() => {
     savedAddresses: [ADDRESS_1, ADDRESS_2],
     lastDeliveryAddress: ADDRESS_1,
   });
+  customersRef.mockReturnValue({
+    doc: () => ({
+      get: jest.fn().mockResolvedValue({
+        data: () => ({
+          savedAddresses: [ADDRESS_1, ADDRESS_2],
+          lastDeliveryAddress: ADDRESS_1,
+        }),
+      }),
+    }),
+  });
+});
+
+test('INIT fails closed when session businessId is missing', async () => {
+  mockSession({ businessId: undefined, customerName: 'Alex', basket: [{ name: 'Burger', qty: 1, price: 10 }] });
+
+  const response = await buildCheckoutInitResponse({
+    phone: PHONE,
+    businessId: BUSINESS_ID,
+    version: VERSION,
+  });
+
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(response.data[F.CUSTOMER_NAME]).toBe('');
+  expect(response.data[F.ADDRESS_OPTIONS].map((o) => o.id)).toEqual(['addr_new']);
+  expect(response.data.receipt_text).not.toContain('Burger');
 });
 
 test('manage_addresses opens the manage screen with current profile options', async () => {
@@ -80,6 +105,52 @@ test('manage_addresses opens the manage screen with current profile options', as
   expect(response.data[F.MANAGE_ADDRESS_CHOICE]).toBe('addr_0');
   expect(response.data[F.MANAGE_ADDRESS_OPTIONS].map((option) => option.id))
     .toEqual(['addr_0', 'addr_1', 'addr_new']);
+});
+
+test('select_address on review refills street and apartment from the chosen row', async () => {
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_address',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.ADDRESS_CHOICE]: 'addr_1',
+    [F.DELIVERY_ADDRESS]: 'stale street from previous row',
+    [F.DELIVERY_APARTMENT]: 'Top 99',
+    [F.CHECKOUT_NOTE]: 'Keep me',
+  });
+
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(response.data[F.ADDRESS_CHOICE]).toBe('addr_1');
+  expect(response.data[F.DELIVERY_ADDRESS]).toBe(ADDRESS_2);
+  expect(response.data[F.DELIVERY_APARTMENT]).toBe('Top 2');
+  expect(response.data[F.CUSTOMER_NAME]).toBe('Alex');
+  expect(response.data[F.CHECKOUT_NOTE]).toBe('Keep me');
+});
+
+test('select_address on manage refills fields and ignores stale TextInputs', async () => {
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_action: 'select_address',
+    [F.MANAGE_ADDRESS_CHOICE]: 'addr_1',
+    [F.DELIVERY_ADDRESS]: 'stale street',
+    [F.DELIVERY_APARTMENT]: 'Top 99',
+  });
+
+  expect(response.screen).toBe(S.ADDRESS_MANAGE);
+  expect(response.data[F.MANAGE_ADDRESS_CHOICE]).toBe('addr_1');
+  expect(response.data[F.DELIVERY_ADDRESS]).toBe(ADDRESS_2);
+  expect(response.data[F.DELIVERY_APARTMENT]).toBe('Top 2');
+});
+
+test('select_address Neue Adresse clears street and apartment', async () => {
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_address',
+    [F.ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: 'should clear',
+    [F.DELIVERY_APARTMENT]: 'Top 1',
+  });
+
+  expect(response.data[F.ADDRESS_CHOICE]).toBe('addr_new');
+  expect(response.data[F.DELIVERY_ADDRESS]).toBe('');
+  expect(response.data[F.DELIVERY_APARTMENT]).toBe('');
 });
 
 test('tenant mismatch refuses a profile mutation before save', async () => {
@@ -132,11 +203,11 @@ test('tenant mismatch still allows read-only manage_back with review-shaped data
 test('tenant mismatch on a review screen answers with review-shaped data', async () => {
   mockSession({ businessId: 'other-biz' });
 
-  const response = await exchange(S.CHECKOUT_REVIEW_RETURN_2, {
+  const response = await exchange(S.CHECKOUT_REVIEW_DONE, {
     checkout_action: 'manage_addresses',
   });
 
-  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN_2);
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_DONE);
   expect(response.data[F.MANAGE_ADDRESS_OPTIONS]).toBeUndefined();
   expect(response.data[F.ADDRESS_OPTIONS]).toBeDefined();
 });
@@ -301,8 +372,45 @@ test('manage_set_default uses the exact selected profile label', async () => {
   });
 });
 
+test('manage_save with OptIn set-as-default calls setDefault after save', async () => {
+  saveCustomerAddress.mockResolvedValue({
+    ok: true,
+    savedAddresses: [ADDRESS_1, ADDRESS_2],
+    lastDeliveryAddress: ADDRESS_1,
+  });
+  setDefaultCustomerAddress.mockResolvedValue({
+    ok: true,
+    savedAddresses: [ADDRESS_1, ADDRESS_2],
+    lastDeliveryAddress: ADDRESS_2,
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_action: 'manage_save',
+    [F.MANAGE_ADDRESS_CHOICE]: 'addr_1',
+    [F.DELIVERY_ADDRESS]: 'Naschmarkt 5, 1040 Wien',
+    [F.DELIVERY_APARTMENT]: 'Top 2',
+    [F.MANAGE_SET_AS_DEFAULT]: true,
+  });
+
+  expect(saveCustomerAddress).not.toHaveBeenCalled(); // unchanged fields → skip rewrite
+  expect(setDefaultCustomerAddress).toHaveBeenCalledWith({
+    phone: PHONE,
+    businessId: BUSINESS_ID,
+    label: ADDRESS_2,
+  });
+  expect(response.screen).toBe(S.ADDRESS_MANAGE_UPDATED);
+});
+
 test('manage_delete returning to review clears deleted session and draft address fields', async () => {
-  const { ref } = mockSession();
+  const { ref } = mockSession({
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      deliveryAddress: 'Hippgasse 11, 1160 Wien',
+      deliveryApartment: 'Top 14',
+      addressChoice: 'addr_0',
+      specialRequests: 'Ring twice',
+    },
+  });
   deleteCustomerAddress.mockResolvedValue({
     ok: true,
     savedAddresses: [ADDRESS_2],
@@ -356,7 +464,16 @@ test('manage_delete acts on a lastDeliveryAddress-only row', async () => {
 });
 
 test('manage_back rebuilds review from profile and patches stale address draft', async () => {
-  const { ref } = mockSession();
+  const { ref } = mockSession({
+    // Draft mirrors the deleted session address → address fields must clear.
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      deliveryAddress: 'Hippgasse 11, 1160 Wien',
+      deliveryApartment: 'Top 14',
+      addressChoice: 'addr_0',
+      specialRequests: 'Ring twice',
+    },
+  });
   loadCustomerAddresses.mockResolvedValue({
     savedAddresses: [ADDRESS_2],
     lastDeliveryAddress: ADDRESS_2,
@@ -369,7 +486,75 @@ test('manage_back rebuilds review from profile and patches stale address draft',
   expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
   expect(response.data[F.ADDRESS_OPTIONS][0].title).toBe('Naschmarkt 5');
   expect(response.data[F.DELIVERY_ADDRESS]).toBe(ADDRESS_2);
-  expect(ref.set).toHaveBeenCalled();
+  expect(ref.set).toHaveBeenCalledWith({
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      specialRequests: 'Ring twice',
+    },
+    updatedAt: expect.any(Date),
+    deliveryAddress: null,
+  }, { merge: true });
+});
+
+test('manage_back keeps novel unsaved review address edits', async () => {
+  const { ref } = mockSession({
+    deliveryAddress: ADDRESS_1,
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      deliveryAddress: 'New Street 9, 1020 Wien',
+      deliveryApartment: 'Top 1',
+      addressChoice: 'addr_new',
+      specialRequests: 'Leave at door',
+    },
+  });
+  loadCustomerAddresses.mockResolvedValue({
+    savedAddresses: [ADDRESS_1, ADDRESS_2],
+    lastDeliveryAddress: ADDRESS_1,
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_action: 'manage_back',
+  });
+
+  expect(response.data[F.DELIVERY_ADDRESS]).toBe('New Street 9, 1020 Wien');
+  expect(response.data[F.DELIVERY_APARTMENT]).toBe('Top 1');
+  expect(ref.set).toHaveBeenCalledWith({
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      deliveryAddress: 'New Street 9, 1020 Wien',
+      deliveryApartment: 'Top 1',
+      addressChoice: 'addr_new',
+      specialRequests: 'Leave at door',
+    },
+    updatedAt: expect.any(Date),
+  }, { merge: true });
+});
+
+test('manage_addresses stashes review form fields into confirmFlowDraft', async () => {
+  const { ref } = mockSession({ confirmFlowDraft: null });
+
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'manage_addresses',
+    [F.CUSTOMER_NAME]: 'Sam',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: 'Edited Street 1, 1010 Wien',
+    [F.DELIVERY_APARTMENT]: 'Top 7',
+    [F.CHECKOUT_NOTE]: 'Call on arrival',
+  });
+
+  expect(response.screen).toBe(S.ADDRESS_MANAGE);
+  expect(ref.set).toHaveBeenCalledWith({
+    confirmFlowDraft: {
+      customerName: 'Sam',
+      orderType: 'delivery',
+      addressChoice: 'addr_new',
+      deliveryAddress: 'Edited Street 1, 1010 Wien',
+      deliveryApartment: 'Top 7',
+      specialRequests: 'Call on arrival',
+    },
+    updatedAt: expect.any(Date),
+  }, { merge: true });
 });
 
 test('manage_back keeps a session address that matches lastDeliveryAddress only', async () => {

@@ -12,10 +12,11 @@ const SCREENS = {
   CART_DONE:    'CART_DONE',    // final summary — no remove UI, just place order
   CHECKOUT_REVIEW: 'CHECKOUT_REVIEW',
   CHECKOUT_REVIEW_RETURN: 'CHECKOUT_REVIEW_RETURN',
-  CHECKOUT_REVIEW_RETURN_2: 'CHECKOUT_REVIEW_RETURN_2',
+  // Meta screen ids: letters + underscores only (no digits). Mirrors CART_DONE.
+  CHECKOUT_REVIEW_DONE: 'CHECKOUT_REVIEW_DONE',
   ADDRESS_MANAGE: 'ADDRESS_MANAGE',
   ADDRESS_MANAGE_UPDATED: 'ADDRESS_MANAGE_UPDATED',
-  ADDRESS_MANAGE_2: 'ADDRESS_MANAGE_2',
+  ADDRESS_MANAGE_AGAIN: 'ADDRESS_MANAGE_AGAIN',
 };
 
 const FIELDS = {
@@ -99,6 +100,8 @@ const FIELDS = {
   // ADDRESS_MANAGE
   MANAGE_ADDRESS_CHOICE:  'manage_address_choice',
   MANAGE_ADDRESS_OPTIONS: 'manage_address_options',
+  // OptIn (not EmbeddedLink): Meta allows max 2 EmbeddedLinks per screen.
+  MANAGE_SET_AS_DEFAULT:  'manage_set_as_default',
   UI_MANAGE_SCREEN_TITLE: 'ui_manage_screen_title',
   UI_MANAGE_HINT:         'ui_manage_hint',
   UI_MANAGE_SAVE:         'ui_manage_save',

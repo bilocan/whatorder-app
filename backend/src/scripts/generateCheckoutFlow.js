@@ -22,6 +22,7 @@ const OPTION_LIST_SCHEMA = {
       id: { type: 'string' },
       title: { type: 'string' },
       description: { type: 'string' },
+      metadata: { type: 'string' },
     },
   },
 };
@@ -126,6 +127,18 @@ function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
             name: F.ADDRESS_CHOICE,
             required: true,
             'data-source': `\${data.${F.ADDRESS_OPTIONS}}`,
+            'on-select-action': {
+              name: 'data_exchange',
+              payload: {
+                checkout_action: 'select_address',
+                [F.CUSTOMER_NAME]: `\${form.${F.CUSTOMER_NAME}}`,
+                [F.ORDER_TYPE]: `\${form.${F.ORDER_TYPE}}`,
+                [F.ADDRESS_CHOICE]: `\${form.${F.ADDRESS_CHOICE}}`,
+                [F.DELIVERY_ADDRESS]: `\${form.${F.DELIVERY_ADDRESS}}`,
+                [F.DELIVERY_APARTMENT]: `\${form.${F.DELIVERY_APARTMENT}}`,
+                [F.CHECKOUT_NOTE]: `\${form.${F.CHECKOUT_NOTE}}`,
+              },
+            },
           },
           {
             type: 'TextInput',
@@ -151,7 +164,15 @@ function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
             text: `\${data.${F.UI_MANAGE_ADDRESSES_LINK}}`,
             'on-click-action': {
               name: 'data_exchange',
-              payload: { checkout_action: 'manage_addresses' },
+              payload: {
+                checkout_action: 'manage_addresses',
+                [F.CUSTOMER_NAME]: `\${form.${F.CUSTOMER_NAME}}`,
+                [F.ORDER_TYPE]: `\${form.${F.ORDER_TYPE}}`,
+                [F.ADDRESS_CHOICE]: `\${form.${F.ADDRESS_CHOICE}}`,
+                [F.DELIVERY_ADDRESS]: `\${form.${F.DELIVERY_ADDRESS}}`,
+                [F.DELIVERY_APARTMENT]: `\${form.${F.DELIVERY_APARTMENT}}`,
+                [F.CHECKOUT_NOTE]: `\${form.${F.CHECKOUT_NOTE}}`,
+              },
             },
           }] : []),
           {
@@ -195,6 +216,7 @@ function addressManageScreen(id) {
     [F.MANAGE_ADDRESS_CHOICE]: `\${form.${F.MANAGE_ADDRESS_CHOICE}}`,
     [F.DELIVERY_ADDRESS]: `\${form.${F.DELIVERY_ADDRESS}}`,
     [F.DELIVERY_APARTMENT]: `\${form.${F.DELIVERY_APARTMENT}}`,
+    [F.MANAGE_SET_AS_DEFAULT]: `\${form.${F.MANAGE_SET_AS_DEFAULT}}`,
   };
 
   return {
@@ -222,6 +244,7 @@ function addressManageScreen(id) {
           [F.MANAGE_ADDRESS_CHOICE]: `\${data.${F.MANAGE_ADDRESS_CHOICE}}`,
           [F.DELIVERY_ADDRESS]: `\${data.${F.DELIVERY_ADDRESS}}`,
           [F.DELIVERY_APARTMENT]: `\${data.${F.DELIVERY_APARTMENT}}`,
+          [F.MANAGE_SET_AS_DEFAULT]: false,
         },
         children: [
           {
@@ -239,6 +262,14 @@ function addressManageScreen(id) {
             name: F.MANAGE_ADDRESS_CHOICE,
             required: true,
             'data-source': `\${data.${F.MANAGE_ADDRESS_OPTIONS}}`,
+            'on-select-action': {
+              name: 'data_exchange',
+              payload: {
+                checkout_action: 'select_address',
+                [F.MANAGE_ADDRESS_CHOICE]: `\${form.${F.MANAGE_ADDRESS_CHOICE}}`,
+                [F.MANAGE_SET_AS_DEFAULT]: `\${form.${F.MANAGE_SET_AS_DEFAULT}}`,
+              },
+            },
           },
           {
             type: 'TextInput',
@@ -254,15 +285,11 @@ function addressManageScreen(id) {
             'helper-text': `\${data.${F.UI_APARTMENT_HELPER}}`,
           },
           {
-            type: 'EmbeddedLink',
-            text: `\${data.${F.UI_MANAGE_SET_DEFAULT}}`,
-            'on-click-action': {
-              name: 'data_exchange',
-              payload: {
-                checkout_action: 'manage_set_default',
-                ...formPayload,
-              },
-            },
+            // Meta: max 2 EmbeddedLinks per screen. Default uses OptIn; Delete + Back keep the two slots.
+            type: 'OptIn',
+            label: `\${data.${F.UI_MANAGE_SET_DEFAULT}}`,
+            name: F.MANAGE_SET_AS_DEFAULT,
+            required: false,
           },
           {
             type: 'EmbeddedLink',
@@ -311,17 +338,17 @@ function main() {
       [S.CHECKOUT_REVIEW]: [S.ADDRESS_MANAGE],
       [S.ADDRESS_MANAGE]: [S.ADDRESS_MANAGE_UPDATED, S.CHECKOUT_REVIEW_RETURN],
       [S.ADDRESS_MANAGE_UPDATED]: [S.CHECKOUT_REVIEW_RETURN],
-      [S.CHECKOUT_REVIEW_RETURN]: [S.ADDRESS_MANAGE_2],
-      [S.ADDRESS_MANAGE_2]: [S.CHECKOUT_REVIEW_RETURN_2],
-      [S.CHECKOUT_REVIEW_RETURN_2]: [],
+      [S.CHECKOUT_REVIEW_RETURN]: [S.ADDRESS_MANAGE_AGAIN],
+      [S.ADDRESS_MANAGE_AGAIN]: [S.CHECKOUT_REVIEW_DONE],
+      [S.CHECKOUT_REVIEW_DONE]: [],
     },
     screens: [
       checkoutReviewScreen(S.CHECKOUT_REVIEW),
       addressManageScreen(S.ADDRESS_MANAGE),
       addressManageScreen(S.ADDRESS_MANAGE_UPDATED),
       checkoutReviewScreen(S.CHECKOUT_REVIEW_RETURN),
-      addressManageScreen(S.ADDRESS_MANAGE_2),
-      checkoutReviewScreen(S.CHECKOUT_REVIEW_RETURN_2, { includeManageLink: false }),
+      addressManageScreen(S.ADDRESS_MANAGE_AGAIN),
+      checkoutReviewScreen(S.CHECKOUT_REVIEW_DONE, { includeManageLink: false }),
     ],
   };
 

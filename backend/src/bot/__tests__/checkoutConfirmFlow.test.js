@@ -147,11 +147,13 @@ describe('checkoutConfirmFlow', () => {
         id: 'addr_0',
         title: 'Hippgasse 11',
         description: 'Top 14, 1160 Wien',
+        metadata: '1160',
       },
       {
         id: 'addr_1',
         title: 'Naschmarkt 5',
         description: '1040 Wien',
+        metadata: '1040',
       },
       {
         id: 'addr_new',
@@ -164,17 +166,17 @@ describe('checkoutConfirmFlow', () => {
   test('maps manage and review screens through the forward-only topology', () => {
     expect(nextScreenAfterManageWrite('ADDRESS_MANAGE')).toBe('ADDRESS_MANAGE_UPDATED');
     expect(nextScreenAfterManageWrite('ADDRESS_MANAGE_UPDATED')).toBe('CHECKOUT_REVIEW_RETURN');
-    expect(nextScreenAfterManageWrite('ADDRESS_MANAGE_2')).toBe('CHECKOUT_REVIEW_RETURN_2');
+    expect(nextScreenAfterManageWrite('ADDRESS_MANAGE_AGAIN')).toBe('CHECKOUT_REVIEW_DONE');
     expect(manageScreenForReview('CHECKOUT_REVIEW')).toBe('ADDRESS_MANAGE');
-    expect(manageScreenForReview('CHECKOUT_REVIEW_RETURN')).toBe('ADDRESS_MANAGE_2');
+    expect(manageScreenForReview('CHECKOUT_REVIEW_RETURN')).toBe('ADDRESS_MANAGE_AGAIN');
     expect(returnReviewScreenForManage('ADDRESS_MANAGE')).toBe('CHECKOUT_REVIEW_RETURN');
     expect(returnReviewScreenForManage('ADDRESS_MANAGE_UPDATED')).toBe('CHECKOUT_REVIEW_RETURN');
-    expect(returnReviewScreenForManage('ADDRESS_MANAGE_2')).toBe('CHECKOUT_REVIEW_RETURN_2');
+    expect(returnReviewScreenForManage('ADDRESS_MANAGE_AGAIN')).toBe('CHECKOUT_REVIEW_DONE');
   });
 
   test('returns null for screens outside the manage topology', () => {
     expect(nextScreenAfterManageWrite('CHECKOUT_REVIEW')).toBeNull();
-    expect(manageScreenForReview('CHECKOUT_REVIEW_RETURN_2')).toBeNull();
+    expect(manageScreenForReview('CHECKOUT_REVIEW_DONE')).toBeNull();
     expect(returnReviewScreenForManage('CHECKOUT_REVIEW')).toBeNull();
   });
 
@@ -286,20 +288,29 @@ describe('checkoutConfirmFlow', () => {
 
   test('formatAddressOptionParts avoids bare house-number titles', () => {
     expect(formatAddressOptionParts('12, Ottakringer Straße, 1160 Wien')).toEqual({
-      title: '12, Ottakringer Straße',
+      title: 'Ottakringer Straße 12',
       description: '1160 Wien',
+      metadata: '1160',
     });
     expect(formatAddressOptionParts('41, Thaliastraße, 1160 Wien, Austria')).toEqual({
-      title: '41, Thaliastraße',
-      description: '1160 Wien, Austria',
+      title: 'Thaliastraße 41',
+      description: '1160 Wien',
+      metadata: '1160',
+    });
+    expect(formatAddressOptionParts('41, Huttengasse, Katastralgemeinde Ottakring, Ottakring')).toEqual({
+      title: 'Huttengasse 41',
+      description: 'Ottakring',
+      metadata: '',
     });
     expect(formatAddressOptionParts('Lavaterstrasse 3, Stiege 3, Top 10, 1220 Wien')).toEqual({
       title: 'Lavaterstrasse 3',
       description: 'Stiege 3, Top 10, 1220 Wien',
+      metadata: '1220',
     });
     expect(formatAddressOptionParts('Hippgasse 11, Top 14, 1160 Wien')).toEqual({
       title: 'Hippgasse 11',
       description: 'Top 14, 1160 Wien',
+      metadata: '1160',
     });
   });
 
@@ -497,6 +508,64 @@ describe('checkoutConfirmFlow', () => {
         deliveryAddress: 'Hippgasse 11, 1160 Wien',
         specialRequests: '',
       },
+    });
+  });
+
+  test('place-order uses address_choice when TextInputs still show another saved row', () => {
+    const labels = {
+      addr_0: 'Hippgasse 11, Top 14, 1160 Wien',
+      addr_1: 'Naschmarkt 5, Top 2, 1040 Wien',
+    };
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      address_choice: 'addr_1',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: 'Top 14',
+    }, { addressLabels: labels })).toEqual({
+      ok: true,
+      values: expect.objectContaining({
+        deliveryAddress: 'Naschmarkt 5, Top 2, 1040 Wien',
+      }),
+    });
+  });
+
+  test('place-order keeps explicit edits when address_choice is selected', () => {
+    const labels = {
+      addr_0: 'Hippgasse 11, Top 14, 1160 Wien',
+    };
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      address_choice: 'addr_0',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: 'Top 99',
+    }, { addressLabels: labels })).toEqual({
+      ok: true,
+      values: expect.objectContaining({
+        deliveryAddress: 'Hippgasse 11, Top 99, 1160 Wien',
+      }),
+    });
+  });
+
+  test('place-order uses exact saved label when fields match the selected row', () => {
+    const labels = {
+      addr_0: 'Hippgasse 11, Top 14, 1160 Wien',
+    };
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      address_choice: 'addr_0',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: 'Top 14',
+    }, { addressLabels: labels })).toEqual({
+      ok: true,
+      values: expect.objectContaining({
+        deliveryAddress: 'Hippgasse 11, Top 14, 1160 Wien',
+      }),
     });
   });
 

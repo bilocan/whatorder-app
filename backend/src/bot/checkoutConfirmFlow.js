@@ -71,18 +71,18 @@ const FLOW_OPTION_DESC_MAX = 72;
 const NEXT_SCREEN_AFTER_MANAGE_WRITE = {
   [S.ADDRESS_MANAGE]: S.ADDRESS_MANAGE_UPDATED,
   [S.ADDRESS_MANAGE_UPDATED]: S.CHECKOUT_REVIEW_RETURN,
-  [S.ADDRESS_MANAGE_2]: S.CHECKOUT_REVIEW_RETURN_2,
+  [S.ADDRESS_MANAGE_AGAIN]: S.CHECKOUT_REVIEW_DONE,
 };
 
 const MANAGE_SCREEN_FOR_REVIEW = {
   [S.CHECKOUT_REVIEW]: S.ADDRESS_MANAGE,
-  [S.CHECKOUT_REVIEW_RETURN]: S.ADDRESS_MANAGE_2,
+  [S.CHECKOUT_REVIEW_RETURN]: S.ADDRESS_MANAGE_AGAIN,
 };
 
 const RETURN_REVIEW_SCREEN_FOR_MANAGE = {
   [S.ADDRESS_MANAGE]: S.CHECKOUT_REVIEW_RETURN,
   [S.ADDRESS_MANAGE_UPDATED]: S.CHECKOUT_REVIEW_RETURN,
-  [S.ADDRESS_MANAGE_2]: S.CHECKOUT_REVIEW_RETURN_2,
+  [S.ADDRESS_MANAGE_AGAIN]: S.CHECKOUT_REVIEW_DONE,
 };
 
 function nextScreenAfterManageWrite(currentScreen) {
@@ -116,37 +116,75 @@ function isWeakAddressTitleSegment(segment) {
   return false;
 }
 
+/** Drop Nominatim / Kataster noise that makes radio descriptions look like raw geocode dumps. */
+function stripGeocodeNoise(text) {
+  return trimmed(text)
+    .replace(/\bKatastralgemeinde\b[^,]*/gi, '')
+    .replace(/\bAustria\b/gi, '')
+    .replace(/,\s*,+/g, ',')
+    .replace(/^,\s*|,\s*$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function plzMetadata(text) {
+  const match = String(text || '').match(/\b(\d{4})\b/);
+  return match ? match[1] : '';
+}
+
 /**
- * Short radio title + description for Meta Flow option limits (title ≤30, desc ≤72).
- * Never use a bare house number as the title when a street name follows.
+ * Short radio title + description for Meta Flow option limits (title ≤30, desc ≤300, metadata ≤20).
+ * Prefer Austrian "Streetname Number" titles — never "41, Huttengasse".
  */
 function formatAddressOptionParts(address) {
   const full = trimmed(address);
-  if (!full) return { title: '', description: '' };
+  if (!full) return { title: '', description: '', metadata: '' };
 
   const { street, apartment } = splitDeliveryAddressFields(full);
   const streetParts = trimmed(street).split(',').map((p) => p.trim()).filter(Boolean);
+  const metadata = plzMetadata(full);
 
   // Prefer building line without unit: "Hippgasse 11" + desc "Top 14, 1160 Wien"
   if (streetParts.length >= 1 && !isWeakAddressTitleSegment(streetParts[0])) {
-    const locality = streetParts.slice(1).join(', ');
-    const descBits = [apartment, locality].filter(Boolean).join(', ');
+    const locality = stripGeocodeNoise(streetParts.slice(1).join(', '));
+    const descBits = stripGeocodeNoise([apartment, locality].filter(Boolean).join(', '));
     return {
       title: clipFlowOption(streetParts[0], FLOW_OPTION_TITLE_MAX),
-      description: clipFlowOption(descBits || (full.slice(streetParts[0].length).replace(/^,\s*/, '')), FLOW_OPTION_DESC_MAX),
+      description: clipFlowOption(
+        descBits || stripGeocodeNoise(full.slice(streetParts[0].length).replace(/^,\s*/, '')),
+        FLOW_OPTION_DESC_MAX,
+      ),
+      metadata,
     };
   }
 
   const parts = full.split(',').map((p) => p.trim()).filter(Boolean);
   if (parts.length === 0) {
-    return { title: clipFlowOption(full, FLOW_OPTION_TITLE_MAX), description: '' };
+    return { title: clipFlowOption(full, FLOW_OPTION_TITLE_MAX), description: '', metadata };
   }
 
-  // Number-first labels ("12, Ottakringer Straße, 1160 Wien") → title includes street
+  // Number-first labels ("41, Huttengasse, …") → title "Huttengasse 41"
+  if (
+    isWeakAddressTitleSegment(parts[0])
+    && parts.length >= 2
+    && /[A-Za-zÄÖÜäöüß]/.test(parts[1])
+    && !/^\d{4}\b/.test(parts[1])
+  ) {
+    const title = `${parts[1]} ${parts[0]}`.replace(/\s+/g, ' ').trim();
+    const description = stripGeocodeNoise(
+      [apartment, ...parts.slice(2)].filter(Boolean).join(', '),
+    );
+    return {
+      title: clipFlowOption(title, FLOW_OPTION_TITLE_MAX),
+      description: clipFlowOption(description, FLOW_OPTION_DESC_MAX),
+      metadata,
+    };
+  }
+
+  // Fallback: keep pulling weak leading segments until title has a street-like bit
   let titleEnd = 0;
   if (isWeakAddressTitleSegment(parts[0]) && parts.length >= 2) {
     titleEnd = 1;
-    // Keep pulling until title has a letterful segment or we hit PLZ-looking bit
     while (
       titleEnd + 1 < parts.length
       && isWeakAddressTitleSegment(parts.slice(0, titleEnd + 1).join(', '))
@@ -157,10 +195,11 @@ function formatAddressOptionParts(address) {
   }
 
   const title = parts.slice(0, titleEnd + 1).join(', ');
-  const description = parts.slice(titleEnd + 1).join(', ');
+  const description = stripGeocodeNoise(parts.slice(titleEnd + 1).join(', '));
   return {
     title: clipFlowOption(title || full, FLOW_OPTION_TITLE_MAX),
     description: clipFlowOption(description, FLOW_OPTION_DESC_MAX),
+    metadata,
   };
 }
 
@@ -198,6 +237,7 @@ function buildAddressChoiceState({
       id: `addr_${index}`,
       title: parts.title || `addr_${index}`,
       description: parts.description,
+      metadata: parts.metadata,
       _label: label,
     };
   });
@@ -219,12 +259,32 @@ function buildAddressChoiceState({
 
   return {
     addressChoice,
-    addressOptions: options.map(({ id, title, description }) => (
-      description ? { id, title, description } : { id, title }
-    )),
+    addressOptions: options.map(({ id, title, description, metadata }) => {
+      const row = { id, title };
+      if (description) row.description = description;
+      if (metadata) row.metadata = metadata;
+      return row;
+    }),
     labelsByChoice: Object.fromEntries(
       options.filter((option) => option._label).map((option) => [option.id, option._label]),
     ),
+  };
+}
+
+/**
+ * Street + apartment TextInput values for a radio choice.
+ * Saved rows use the full courier label in street (same as review INIT); Neue Adresse clears both.
+ */
+function fieldsForAddressChoice(choice, labelsByChoice = {}) {
+  if (!choice || choice === ADDRESS_CHOICE_NEW) {
+    return { street: '', apartment: '' };
+  }
+  const label = trimmed(labelsByChoice[choice] || '');
+  if (!label) return { street: '', apartment: '' };
+  const fields = splitDeliveryAddressFields(label);
+  return {
+    street: label,
+    apartment: fields.apartment,
   };
 }
 
@@ -399,7 +459,52 @@ function composeDeliveryAddressFromFields(streetValue, apartmentValue) {
   };
 }
 
-function validateCheckoutSubmit(payload = {}) {
+/**
+ * Resolve delivery label for place-order when the address radio and TextInputs can diverge
+ * (no on-select refill). Radio wins when fields are empty, match the selected row, or still
+ * show another saved row (stale after a radio change). Explicit edits of the selected row win.
+ *
+ * @param {object} payload
+ * @param {Record<string, string>} [addressLabels] id → exact stored label
+ */
+function resolveDeliveryAddressForSubmit(payload = {}, addressLabels = {}) {
+  const choice = trimmed(payload[F.ADDRESS_CHOICE]);
+  const selectedExact = (choice && choice !== ADDRESS_CHOICE_NEW)
+    ? trimmed(addressLabels[choice] || '')
+    : '';
+  const composed = composeDeliveryAddressFromFields(
+    payload[F.DELIVERY_ADDRESS],
+    payload[F.DELIVERY_APARTMENT],
+  );
+
+  if (selectedExact) {
+    if (!composed.ok) {
+      // Empty / invalid fields after picking a saved row → trust the radio.
+      if (!trimmed(payload[F.DELIVERY_ADDRESS])) {
+        return { ok: true, deliveryAddress: selectedExact };
+      }
+      return composed;
+    }
+    const composedNorm = composed.deliveryAddress.toLowerCase();
+    const selectedNorm = selectedExact.toLowerCase();
+    if (composedNorm === selectedNorm) {
+      return { ok: true, deliveryAddress: selectedExact };
+    }
+    const matchesOtherSaved = Object.entries(addressLabels).some(([id, label]) => (
+      id !== choice
+      && trimmed(label)
+      && trimmed(label).toLowerCase() === composedNorm
+    ));
+    if (matchesOtherSaved) {
+      return { ok: true, deliveryAddress: selectedExact };
+    }
+    return composed;
+  }
+
+  return composed;
+}
+
+function validateCheckoutSubmit(payload = {}, { addressLabels = {} } = {}) {
   if (payload.checkout_action === 'back_to_cart') {
     return { ok: true, values: null };
   }
@@ -416,12 +521,9 @@ function validateCheckoutSubmit(payload = {}) {
 
   let deliveryAddress = null;
   if (orderType === 'delivery') {
-    const composed = composeDeliveryAddressFromFields(
-      payload[F.DELIVERY_ADDRESS],
-      payload[F.DELIVERY_APARTMENT],
-    );
-    if (!composed.ok) return composed;
-    deliveryAddress = composed.deliveryAddress;
+    const resolved = resolveDeliveryAddressForSubmit(payload, addressLabels);
+    if (!resolved.ok) return resolved;
+    deliveryAddress = resolved.deliveryAddress;
   }
 
   return {
@@ -509,6 +611,7 @@ function checkoutFlowToken(phone, businessId) {
 module.exports = {
   ADDRESS_CHOICE_NEW,
   formatAddressOptionParts,
+  fieldsForAddressChoice,
   buildReceiptText,
   buildCheckoutReviewData,
   buildReviewDataFromProfile,
