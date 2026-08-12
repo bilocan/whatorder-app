@@ -38,7 +38,8 @@ service cloud.firestore {
     match /businesses/{businessId} {
       allow read: if isOwnerOf(businessId) || isAdmin();
       allow create, delete: if isAdmin();
-      allow update: if isOwnerOf(businessId) || isAdmin();
+      allow update: if (isOwnerOf(businessId) || isAdmin())
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deals']);
 
       // Orders are created and updated by the backend (Admin SDK bypasses rules).
       // Dashboard reads orders; mark-ready goes through the backend API.

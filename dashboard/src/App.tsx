@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import MenuPage from './pages/MenuPage';
+import DealsPage from './pages/DealsPage';
 import OptionGroupsPage from './pages/OptionGroupsPage';
 import IncomePage from './pages/IncomePage';
 import SettingsPage from './pages/SettingsPage';
@@ -57,6 +58,7 @@ export default function App() {
               <Route path="customers" element={<CustomersPage />} />
               <Route path="income" element={<IncomePage />} />
               <Route path="menu" element={<MenuPage />} />
+              <Route path="deals" element={<DealsPage />} />
               <Route path="option-groups" element={<OptionGroupsPage />} />
               <Route path="learned-phrases" element={<LearnedPhrasesPage />} />
               <Route path="intent-playground" element={<IntentPlaygroundPage />} />
