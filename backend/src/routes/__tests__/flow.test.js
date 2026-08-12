@@ -21,7 +21,7 @@ jest.mock('../../lib/flowImages', () => ({
 const request = require('supertest');
 const app = require('../../index');
 const { getMenu, getBusinessInfo } = require('../../bot/menuService');
-const { sessionRef } = require('../../lib/collections');
+const { sessionRef, customersRef } = require('../../lib/collections');
 const { decryptRequest } = require('../../lib/flowCrypto');
 const { SCREENS: S, FIELDS: F } = require('../../flows/fields');
 const { attachCategoryImages, attachMenuItemImages } = require('../../lib/flowImages');
@@ -61,6 +61,17 @@ beforeEach(() => {
   jest.clearAllMocks();
   getMenu.mockResolvedValue(MENU);
   mockSession();
+  customersRef.mockReturnValue({
+    doc: jest.fn().mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          savedAddresses: ['Main Street 12, Top 2, 1010 Wien'],
+          lastDeliveryAddress: 'Main Street 12, Top 2, 1010 Wien',
+        }),
+      }),
+    }),
+  });
 });
 
 // ── ping ──────────────────────────────────────────────────────────────────────
@@ -263,6 +274,31 @@ test('checkout data_exchange back_to_cart → SUCCESS with checkout_action', asy
     flow_token: token,
     checkout_action: 'back_to_cart',
   });
+});
+
+test('checkout data_exchange routes review return screens to address management', async () => {
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_REVIEW_RETURN,
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+    data: { checkout_action: 'manage_addresses' },
+  });
+
+  expect(res.status).toBe(200);
+  expect(parsed(res).screen).toBe(S.ADDRESS_MANAGE_2);
+});
+
+test('checkout data_exchange on a non-checkout screen bypasses checkout routing', async () => {
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CART_REVIEW,
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+    data: { checkout_action: 'manage_addresses' },
+  });
+
+  expect(parsed(res).screen).toBe(S.CART_UPDATED);
 });
 
 // ── CATEGORY_SELECT → MENU_BROWSE ─────────────────────────────────────────────

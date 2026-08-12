@@ -14,6 +14,7 @@ const { parseCheckoutFlowToken } = require('../bot/checkoutConfirmFlow');
 const {
   buildCheckoutInitResponse,
   buildCheckoutDataExchangeResponse,
+  CHECKOUT_EXCHANGE_SCREENS,
 } = require('./flowCheckout');
 const { t, tCategory } = require('../bot/templates');
 const {
@@ -182,8 +183,19 @@ router.post('/flow/exchange', async (req, res) => {
       return reply(await buildCheckoutInitResponse({ phone, businessId, version }));
     }
 
-    if (action === 'data_exchange' && parsedToken.isCheckout && screen === S.CHECKOUT_REVIEW) {
-      return reply(buildCheckoutDataExchangeResponse({ payload, flow_token, version }));
+    if (
+      action === 'data_exchange'
+      && parsedToken.isCheckout
+      && CHECKOUT_EXCHANGE_SCREENS.has(screen)
+    ) {
+      return reply(await buildCheckoutDataExchangeResponse({
+        screen,
+        payload,
+        flow_token,
+        version,
+        phone,
+        businessId,
+      }));
     }
 
     // ── INIT → CATEGORY_SELECT ─────────────────────────────────────────────

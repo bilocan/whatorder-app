@@ -2,7 +2,23 @@
   "version": "7.3",
   "data_api_version": "3.0",
   "routing_model": {
-    "CHECKOUT_REVIEW": []
+    "CHECKOUT_REVIEW": [
+      "ADDRESS_MANAGE"
+    ],
+    "ADDRESS_MANAGE": [
+      "ADDRESS_MANAGE_UPDATED",
+      "CHECKOUT_REVIEW_RETURN"
+    ],
+    "ADDRESS_MANAGE_UPDATED": [
+      "CHECKOUT_REVIEW_RETURN"
+    ],
+    "CHECKOUT_REVIEW_RETURN": [
+      "ADDRESS_MANAGE_2"
+    ],
+    "ADDRESS_MANAGE_2": [
+      "CHECKOUT_REVIEW_RETURN_2"
+    ],
+    "CHECKOUT_REVIEW_RETURN_2": []
   },
   "screens": [
     {
@@ -22,9 +38,1164 @@
           "type": "string",
           "__example__": "Type"
         },
+        "ui_address_choice_label": {
+          "type": "string",
+          "__example__": "Delivery address"
+        },
         "ui_address_label": {
           "type": "string",
-          "__example__": "Address"
+          "__example__": "Street"
+        },
+        "ui_apartment_label": {
+          "type": "string",
+          "__example__": "Apartment"
+        },
+        "ui_apartment_helper": {
+          "type": "string",
+          "__example__": "Stiege / Tür / Top, or Haus if none"
+        },
+        "ui_note_label": {
+          "type": "string",
+          "__example__": "Note"
+        },
+        "ui_back_to_cart": {
+          "type": "string",
+          "__example__": "Back to cart"
+        },
+        "ui_place_order": {
+          "type": "string",
+          "__example__": "Place order"
+        },
+        "ui_manage_addresses_link": {
+          "type": "string",
+          "__example__": "Manage addresses"
+        },
+        "receipt_text": {
+          "type": "string",
+          "__example__": "1x Chicken Dürüm  €8.50\n1x Falafel Box  €6.90\n\nTotal: €15.40"
+        },
+        "customer_name": {
+          "type": "string",
+          "__example__": "Alex Smith"
+        },
+        "order_type": {
+          "type": "string",
+          "__example__": "delivery"
+        },
+        "order_type_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "pickup",
+              "title": "Pickup"
+            },
+            {
+              "id": "delivery",
+              "title": "Delivery"
+            }
+          ]
+        },
+        "address_choice": {
+          "type": "string",
+          "__example__": "addr_0"
+        },
+        "address_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "addr_0",
+              "title": "Hippgasse 11",
+              "description": "Top 14, 1160 Wien"
+            },
+            {
+              "id": "addr_1",
+              "title": "Naschmarkt 5",
+              "description": "1040 Wien"
+            },
+            {
+              "id": "addr_new",
+              "title": "New address",
+              "description": "Enter street and apartment below"
+            }
+          ]
+        },
+        "delivery_address": {
+          "type": "string",
+          "__example__": "Hippgasse 11, 1160 Wien"
+        },
+        "delivery_apartment": {
+          "type": "string",
+          "__example__": "Top 14"
+        },
+        "note": {
+          "type": "string",
+          "__example__": "Please ring the bell."
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "checkout_form",
+            "init-values": {
+              "customer_name": "${data.customer_name}",
+              "order_type": "${data.order_type}",
+              "address_choice": "${data.address_choice}",
+              "delivery_address": "${data.delivery_address}",
+              "delivery_apartment": "${data.delivery_apartment}",
+              "note": "${data.note}"
+            },
+            "children": [
+              {
+                "type": "TextBody",
+                "text": "${data.receipt_text}"
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_name_label}",
+                "name": "customer_name",
+                "required": true
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "label": "${data.ui_type_label}",
+                "name": "order_type",
+                "required": true,
+                "data-source": "${data.order_type_options}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "label": "${data.ui_address_choice_label}",
+                "name": "address_choice",
+                "required": true,
+                "data-source": "${data.address_options}"
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_address_label}",
+                "name": "delivery_address",
+                "required": true
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_apartment_label}",
+                "name": "delivery_apartment",
+                "required": true,
+                "helper-text": "${data.ui_apartment_helper}"
+              },
+              {
+                "type": "TextArea",
+                "label": "${data.ui_note_label}",
+                "name": "note",
+                "required": false
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_addresses_link}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_addresses"
+                  }
+                }
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_back_to_cart}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "back_to_cart"
+                  }
+                }
+              },
+              {
+                "type": "Footer",
+                "label": "${data.ui_place_order}",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "checkout_action": "place_order",
+                    "customer_name": "${form.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${form.address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "note": "${form.note}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ADDRESS_MANAGE",
+      "title": "${data.ui_manage_screen_title}",
+      "data": {
+        "ui_screen_title": {
+          "type": "string",
+          "__example__": "Review order"
+        },
+        "ui_name_label": {
+          "type": "string",
+          "__example__": "Name"
+        },
+        "ui_type_label": {
+          "type": "string",
+          "__example__": "Type"
+        },
+        "ui_address_choice_label": {
+          "type": "string",
+          "__example__": "Delivery address"
+        },
+        "ui_address_label": {
+          "type": "string",
+          "__example__": "Street"
+        },
+        "ui_apartment_label": {
+          "type": "string",
+          "__example__": "Apartment"
+        },
+        "ui_apartment_helper": {
+          "type": "string",
+          "__example__": "Stiege / Tür / Top, or Haus if none"
+        },
+        "ui_note_label": {
+          "type": "string",
+          "__example__": "Note"
+        },
+        "ui_back_to_cart": {
+          "type": "string",
+          "__example__": "Back to cart"
+        },
+        "ui_place_order": {
+          "type": "string",
+          "__example__": "Place order"
+        },
+        "ui_manage_addresses_link": {
+          "type": "string",
+          "__example__": "Manage addresses"
+        },
+        "ui_manage_screen_title": {
+          "type": "string",
+          "__example__": "Addresses"
+        },
+        "ui_manage_hint": {
+          "type": "string",
+          "__example__": "Up to 5 saved addresses"
+        },
+        "ui_manage_save": {
+          "type": "string",
+          "__example__": "Save"
+        },
+        "ui_manage_set_default": {
+          "type": "string",
+          "__example__": "Set as default"
+        },
+        "ui_manage_delete": {
+          "type": "string",
+          "__example__": "Delete"
+        },
+        "ui_manage_back": {
+          "type": "string",
+          "__example__": "Back to order"
+        },
+        "manage_address_choice": {
+          "type": "string",
+          "__example__": "addr_0"
+        },
+        "manage_address_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "addr_0",
+              "title": "Hippgasse 11",
+              "description": "Top 14, 1160 Wien"
+            },
+            {
+              "id": "addr_1",
+              "title": "Naschmarkt 5",
+              "description": "1040 Wien"
+            },
+            {
+              "id": "addr_new",
+              "title": "New address",
+              "description": "Enter street and apartment below"
+            }
+          ]
+        },
+        "delivery_address": {
+          "type": "string",
+          "__example__": "Hippgasse 11, 1160 Wien"
+        },
+        "delivery_apartment": {
+          "type": "string",
+          "__example__": "Top 14"
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": "Select a saved address first."
+        },
+        "error_visible": {
+          "type": "boolean",
+          "__example__": false
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "manage_address_form",
+            "init-values": {
+              "manage_address_choice": "${data.manage_address_choice}",
+              "delivery_address": "${data.delivery_address}",
+              "delivery_apartment": "${data.delivery_apartment}"
+            },
+            "children": [
+              {
+                "type": "TextBody",
+                "text": "${data.ui_manage_hint}"
+              },
+              {
+                "type": "TextCaption",
+                "text": "${data.error_message}",
+                "visible": "${data.error_visible}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "label": "${data.ui_address_choice_label}",
+                "name": "manage_address_choice",
+                "required": true,
+                "data-source": "${data.manage_address_options}"
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_address_label}",
+                "name": "delivery_address",
+                "required": true
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_apartment_label}",
+                "name": "delivery_apartment",
+                "required": true,
+                "helper-text": "${data.ui_apartment_helper}"
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_set_default}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_set_default",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_delete}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_delete",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_back}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_back",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              },
+              {
+                "type": "Footer",
+                "label": "${data.ui_manage_save}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_save",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ADDRESS_MANAGE_UPDATED",
+      "title": "${data.ui_manage_screen_title}",
+      "data": {
+        "ui_screen_title": {
+          "type": "string",
+          "__example__": "Review order"
+        },
+        "ui_name_label": {
+          "type": "string",
+          "__example__": "Name"
+        },
+        "ui_type_label": {
+          "type": "string",
+          "__example__": "Type"
+        },
+        "ui_address_choice_label": {
+          "type": "string",
+          "__example__": "Delivery address"
+        },
+        "ui_address_label": {
+          "type": "string",
+          "__example__": "Street"
+        },
+        "ui_apartment_label": {
+          "type": "string",
+          "__example__": "Apartment"
+        },
+        "ui_apartment_helper": {
+          "type": "string",
+          "__example__": "Stiege / Tür / Top, or Haus if none"
+        },
+        "ui_note_label": {
+          "type": "string",
+          "__example__": "Note"
+        },
+        "ui_back_to_cart": {
+          "type": "string",
+          "__example__": "Back to cart"
+        },
+        "ui_place_order": {
+          "type": "string",
+          "__example__": "Place order"
+        },
+        "ui_manage_addresses_link": {
+          "type": "string",
+          "__example__": "Manage addresses"
+        },
+        "ui_manage_screen_title": {
+          "type": "string",
+          "__example__": "Addresses"
+        },
+        "ui_manage_hint": {
+          "type": "string",
+          "__example__": "Up to 5 saved addresses"
+        },
+        "ui_manage_save": {
+          "type": "string",
+          "__example__": "Save"
+        },
+        "ui_manage_set_default": {
+          "type": "string",
+          "__example__": "Set as default"
+        },
+        "ui_manage_delete": {
+          "type": "string",
+          "__example__": "Delete"
+        },
+        "ui_manage_back": {
+          "type": "string",
+          "__example__": "Back to order"
+        },
+        "manage_address_choice": {
+          "type": "string",
+          "__example__": "addr_0"
+        },
+        "manage_address_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "addr_0",
+              "title": "Hippgasse 11",
+              "description": "Top 14, 1160 Wien"
+            },
+            {
+              "id": "addr_1",
+              "title": "Naschmarkt 5",
+              "description": "1040 Wien"
+            },
+            {
+              "id": "addr_new",
+              "title": "New address",
+              "description": "Enter street and apartment below"
+            }
+          ]
+        },
+        "delivery_address": {
+          "type": "string",
+          "__example__": "Hippgasse 11, 1160 Wien"
+        },
+        "delivery_apartment": {
+          "type": "string",
+          "__example__": "Top 14"
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": "Select a saved address first."
+        },
+        "error_visible": {
+          "type": "boolean",
+          "__example__": false
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "manage_address_form",
+            "init-values": {
+              "manage_address_choice": "${data.manage_address_choice}",
+              "delivery_address": "${data.delivery_address}",
+              "delivery_apartment": "${data.delivery_apartment}"
+            },
+            "children": [
+              {
+                "type": "TextBody",
+                "text": "${data.ui_manage_hint}"
+              },
+              {
+                "type": "TextCaption",
+                "text": "${data.error_message}",
+                "visible": "${data.error_visible}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "label": "${data.ui_address_choice_label}",
+                "name": "manage_address_choice",
+                "required": true,
+                "data-source": "${data.manage_address_options}"
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_address_label}",
+                "name": "delivery_address",
+                "required": true
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_apartment_label}",
+                "name": "delivery_apartment",
+                "required": true,
+                "helper-text": "${data.ui_apartment_helper}"
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_set_default}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_set_default",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_delete}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_delete",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_back}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_back",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              },
+              {
+                "type": "Footer",
+                "label": "${data.ui_manage_save}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_save",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "CHECKOUT_REVIEW_RETURN",
+      "title": "${data.ui_screen_title}",
+      "terminal": true,
+      "data": {
+        "ui_screen_title": {
+          "type": "string",
+          "__example__": "Review order"
+        },
+        "ui_name_label": {
+          "type": "string",
+          "__example__": "Name"
+        },
+        "ui_type_label": {
+          "type": "string",
+          "__example__": "Type"
+        },
+        "ui_address_choice_label": {
+          "type": "string",
+          "__example__": "Delivery address"
+        },
+        "ui_address_label": {
+          "type": "string",
+          "__example__": "Street"
+        },
+        "ui_apartment_label": {
+          "type": "string",
+          "__example__": "Apartment"
+        },
+        "ui_apartment_helper": {
+          "type": "string",
+          "__example__": "Stiege / Tür / Top, or Haus if none"
+        },
+        "ui_note_label": {
+          "type": "string",
+          "__example__": "Note"
+        },
+        "ui_back_to_cart": {
+          "type": "string",
+          "__example__": "Back to cart"
+        },
+        "ui_place_order": {
+          "type": "string",
+          "__example__": "Place order"
+        },
+        "ui_manage_addresses_link": {
+          "type": "string",
+          "__example__": "Manage addresses"
+        },
+        "receipt_text": {
+          "type": "string",
+          "__example__": "1x Chicken Dürüm  €8.50\n1x Falafel Box  €6.90\n\nTotal: €15.40"
+        },
+        "customer_name": {
+          "type": "string",
+          "__example__": "Alex Smith"
+        },
+        "order_type": {
+          "type": "string",
+          "__example__": "delivery"
+        },
+        "order_type_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "pickup",
+              "title": "Pickup"
+            },
+            {
+              "id": "delivery",
+              "title": "Delivery"
+            }
+          ]
+        },
+        "address_choice": {
+          "type": "string",
+          "__example__": "addr_0"
+        },
+        "address_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "addr_0",
+              "title": "Hippgasse 11",
+              "description": "Top 14, 1160 Wien"
+            },
+            {
+              "id": "addr_1",
+              "title": "Naschmarkt 5",
+              "description": "1040 Wien"
+            },
+            {
+              "id": "addr_new",
+              "title": "New address",
+              "description": "Enter street and apartment below"
+            }
+          ]
+        },
+        "delivery_address": {
+          "type": "string",
+          "__example__": "Hippgasse 11, 1160 Wien"
+        },
+        "delivery_apartment": {
+          "type": "string",
+          "__example__": "Top 14"
+        },
+        "note": {
+          "type": "string",
+          "__example__": "Please ring the bell."
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "checkout_form",
+            "init-values": {
+              "customer_name": "${data.customer_name}",
+              "order_type": "${data.order_type}",
+              "address_choice": "${data.address_choice}",
+              "delivery_address": "${data.delivery_address}",
+              "delivery_apartment": "${data.delivery_apartment}",
+              "note": "${data.note}"
+            },
+            "children": [
+              {
+                "type": "TextBody",
+                "text": "${data.receipt_text}"
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_name_label}",
+                "name": "customer_name",
+                "required": true
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "label": "${data.ui_type_label}",
+                "name": "order_type",
+                "required": true,
+                "data-source": "${data.order_type_options}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "label": "${data.ui_address_choice_label}",
+                "name": "address_choice",
+                "required": true,
+                "data-source": "${data.address_options}"
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_address_label}",
+                "name": "delivery_address",
+                "required": true
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_apartment_label}",
+                "name": "delivery_apartment",
+                "required": true,
+                "helper-text": "${data.ui_apartment_helper}"
+              },
+              {
+                "type": "TextArea",
+                "label": "${data.ui_note_label}",
+                "name": "note",
+                "required": false
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_addresses_link}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_addresses"
+                  }
+                }
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_back_to_cart}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "back_to_cart"
+                  }
+                }
+              },
+              {
+                "type": "Footer",
+                "label": "${data.ui_place_order}",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "checkout_action": "place_order",
+                    "customer_name": "${form.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${form.address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}",
+                    "note": "${form.note}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ADDRESS_MANAGE_2",
+      "title": "${data.ui_manage_screen_title}",
+      "data": {
+        "ui_screen_title": {
+          "type": "string",
+          "__example__": "Review order"
+        },
+        "ui_name_label": {
+          "type": "string",
+          "__example__": "Name"
+        },
+        "ui_type_label": {
+          "type": "string",
+          "__example__": "Type"
+        },
+        "ui_address_choice_label": {
+          "type": "string",
+          "__example__": "Delivery address"
+        },
+        "ui_address_label": {
+          "type": "string",
+          "__example__": "Street"
+        },
+        "ui_apartment_label": {
+          "type": "string",
+          "__example__": "Apartment"
+        },
+        "ui_apartment_helper": {
+          "type": "string",
+          "__example__": "Stiege / Tür / Top, or Haus if none"
+        },
+        "ui_note_label": {
+          "type": "string",
+          "__example__": "Note"
+        },
+        "ui_back_to_cart": {
+          "type": "string",
+          "__example__": "Back to cart"
+        },
+        "ui_place_order": {
+          "type": "string",
+          "__example__": "Place order"
+        },
+        "ui_manage_addresses_link": {
+          "type": "string",
+          "__example__": "Manage addresses"
+        },
+        "ui_manage_screen_title": {
+          "type": "string",
+          "__example__": "Addresses"
+        },
+        "ui_manage_hint": {
+          "type": "string",
+          "__example__": "Up to 5 saved addresses"
+        },
+        "ui_manage_save": {
+          "type": "string",
+          "__example__": "Save"
+        },
+        "ui_manage_set_default": {
+          "type": "string",
+          "__example__": "Set as default"
+        },
+        "ui_manage_delete": {
+          "type": "string",
+          "__example__": "Delete"
+        },
+        "ui_manage_back": {
+          "type": "string",
+          "__example__": "Back to order"
+        },
+        "manage_address_choice": {
+          "type": "string",
+          "__example__": "addr_0"
+        },
+        "manage_address_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "addr_0",
+              "title": "Hippgasse 11",
+              "description": "Top 14, 1160 Wien"
+            },
+            {
+              "id": "addr_1",
+              "title": "Naschmarkt 5",
+              "description": "1040 Wien"
+            },
+            {
+              "id": "addr_new",
+              "title": "New address",
+              "description": "Enter street and apartment below"
+            }
+          ]
+        },
+        "delivery_address": {
+          "type": "string",
+          "__example__": "Hippgasse 11, 1160 Wien"
+        },
+        "delivery_apartment": {
+          "type": "string",
+          "__example__": "Top 14"
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": "Select a saved address first."
+        },
+        "error_visible": {
+          "type": "boolean",
+          "__example__": false
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "manage_address_form",
+            "init-values": {
+              "manage_address_choice": "${data.manage_address_choice}",
+              "delivery_address": "${data.delivery_address}",
+              "delivery_apartment": "${data.delivery_apartment}"
+            },
+            "children": [
+              {
+                "type": "TextBody",
+                "text": "${data.ui_manage_hint}"
+              },
+              {
+                "type": "TextCaption",
+                "text": "${data.error_message}",
+                "visible": "${data.error_visible}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "label": "${data.ui_address_choice_label}",
+                "name": "manage_address_choice",
+                "required": true,
+                "data-source": "${data.manage_address_options}"
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_address_label}",
+                "name": "delivery_address",
+                "required": true
+              },
+              {
+                "type": "TextInput",
+                "label": "${data.ui_apartment_label}",
+                "name": "delivery_apartment",
+                "required": true,
+                "helper-text": "${data.ui_apartment_helper}"
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_set_default}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_set_default",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_delete}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_delete",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_back}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_back",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              },
+              {
+                "type": "Footer",
+                "label": "${data.ui_manage_save}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_save",
+                    "manage_address_choice": "${form.manage_address_choice}",
+                    "delivery_address": "${form.delivery_address}",
+                    "delivery_apartment": "${form.delivery_apartment}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "CHECKOUT_REVIEW_RETURN_2",
+      "title": "${data.ui_screen_title}",
+      "terminal": true,
+      "data": {
+        "ui_screen_title": {
+          "type": "string",
+          "__example__": "Review order"
+        },
+        "ui_name_label": {
+          "type": "string",
+          "__example__": "Name"
+        },
+        "ui_type_label": {
+          "type": "string",
+          "__example__": "Type"
+        },
+        "ui_address_choice_label": {
+          "type": "string",
+          "__example__": "Delivery address"
+        },
+        "ui_address_label": {
+          "type": "string",
+          "__example__": "Street"
         },
         "ui_apartment_label": {
           "type": "string",
@@ -56,7 +1227,7 @@
         },
         "order_type": {
           "type": "string",
-          "__example__": "pickup"
+          "__example__": "delivery"
         },
         "order_type_options": {
           "type": "array",
@@ -67,6 +1238,9 @@
                 "type": "string"
               },
               "title": {
+                "type": "string"
+              },
+              "description": {
                 "type": "string"
               }
             }
@@ -82,9 +1256,47 @@
             }
           ]
         },
+        "address_choice": {
+          "type": "string",
+          "__example__": "addr_0"
+        },
+        "address_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "addr_0",
+              "title": "Hippgasse 11",
+              "description": "Top 14, 1160 Wien"
+            },
+            {
+              "id": "addr_1",
+              "title": "Naschmarkt 5",
+              "description": "1040 Wien"
+            },
+            {
+              "id": "addr_new",
+              "title": "New address",
+              "description": "Enter street and apartment below"
+            }
+          ]
+        },
         "delivery_address": {
           "type": "string",
-          "__example__": "Main Street 12, 1010 Vienna"
+          "__example__": "Hippgasse 11, 1160 Wien"
         },
         "delivery_apartment": {
           "type": "string",
@@ -104,6 +1316,7 @@
             "init-values": {
               "customer_name": "${data.customer_name}",
               "order_type": "${data.order_type}",
+              "address_choice": "${data.address_choice}",
               "delivery_address": "${data.delivery_address}",
               "delivery_apartment": "${data.delivery_apartment}",
               "note": "${data.note}"
@@ -125,6 +1338,13 @@
                 "name": "order_type",
                 "required": true,
                 "data-source": "${data.order_type_options}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "label": "${data.ui_address_choice_label}",
+                "name": "address_choice",
+                "required": true,
+                "data-source": "${data.address_options}"
               },
               {
                 "type": "TextInput",
@@ -164,6 +1384,7 @@
                     "checkout_action": "place_order",
                     "customer_name": "${form.customer_name}",
                     "order_type": "${form.order_type}",
+                    "address_choice": "${form.address_choice}",
                     "delivery_address": "${form.delivery_address}",
                     "delivery_apartment": "${form.delivery_apartment}",
                     "note": "${form.note}"

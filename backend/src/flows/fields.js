@@ -11,6 +11,11 @@ const SCREENS = {
   CART_UPDATED: 'CART_UPDATED', // editable cart round 2 (identical UI, different ID to satisfy DAG)
   CART_DONE:    'CART_DONE',    // final summary — no remove UI, just place order
   CHECKOUT_REVIEW: 'CHECKOUT_REVIEW',
+  CHECKOUT_REVIEW_RETURN: 'CHECKOUT_REVIEW_RETURN',
+  CHECKOUT_REVIEW_RETURN_2: 'CHECKOUT_REVIEW_RETURN_2',
+  ADDRESS_MANAGE: 'ADDRESS_MANAGE',
+  ADDRESS_MANAGE_UPDATED: 'ADDRESS_MANAGE_UPDATED',
+  ADDRESS_MANAGE_2: 'ADDRESS_MANAGE_2',
 };
 
 const FIELDS = {
@@ -76,16 +81,32 @@ const FIELDS = {
   CUSTOMER_NAME:      'customer_name',
   ORDER_TYPE:         'order_type',
   ORDER_TYPE_OPTIONS: 'order_type_options',
+  ADDRESS_CHOICE:     'address_choice',
+  ADDRESS_OPTIONS:    'address_options',
   DELIVERY_ADDRESS:   'delivery_address',
   DELIVERY_APARTMENT: 'delivery_apartment',
   CHECKOUT_NOTE:      'note',
   UI_NAME_LABEL:      'ui_name_label',
   UI_TYPE_LABEL:      'ui_type_label',
+  UI_ADDRESS_CHOICE_LABEL: 'ui_address_choice_label',
   UI_ADDRESS_LABEL:   'ui_address_label',
   UI_APARTMENT_LABEL: 'ui_apartment_label',
   UI_APARTMENT_HELPER: 'ui_apartment_helper',
   UI_NOTE_LABEL:      'ui_note_label',
   UI_BACK_TO_CART:    'ui_back_to_cart',
+  UI_MANAGE_ADDRESSES_LINK: 'ui_manage_addresses_link',
+
+  // ADDRESS_MANAGE
+  MANAGE_ADDRESS_CHOICE:  'manage_address_choice',
+  MANAGE_ADDRESS_OPTIONS: 'manage_address_options',
+  UI_MANAGE_SCREEN_TITLE: 'ui_manage_screen_title',
+  UI_MANAGE_HINT:         'ui_manage_hint',
+  UI_MANAGE_SAVE:         'ui_manage_save',
+  UI_MANAGE_SET_DEFAULT:  'ui_manage_set_default',
+  UI_MANAGE_DELETE:       'ui_manage_delete',
+  UI_MANAGE_BACK:         'ui_manage_back',
+  ERROR_MESSAGE:          'error_message',
+  ERROR_VISIBLE:          'error_visible',
 };
 
 module.exports = { SCREENS, FIELDS };

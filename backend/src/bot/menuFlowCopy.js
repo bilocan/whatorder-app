@@ -63,12 +63,25 @@ function checkoutReviewCopy(lang, t = defaultT) {
     [F.UI_SCREEN_TITLE]: t('confirmListHeader', lang),
     [F.UI_NAME_LABEL]: t('confirmFlowNameLabel', lang),
     [F.UI_TYPE_LABEL]: t('confirmFlowTypeLabel', lang),
+    [F.UI_ADDRESS_CHOICE_LABEL]: t('confirmFlowAddressChoiceLabel', lang),
     [F.UI_ADDRESS_LABEL]: t('confirmFlowAddressLabel', lang),
     [F.UI_APARTMENT_LABEL]: t('confirmFlowApartmentLabel', lang),
     [F.UI_APARTMENT_HELPER]: t('confirmFlowApartmentHelper', lang),
     [F.UI_NOTE_LABEL]: t('confirmFlowNoteLabel', lang),
     [F.UI_BACK_TO_CART]: t('confirmFlowBackToCart', lang),
     [F.UI_PLACE_ORDER]: t('confirmFlowFooter', lang),
+    [F.UI_MANAGE_ADDRESSES_LINK]: t('confirmFlowManageAddressesLink', lang),
+  };
+}
+
+function checkoutManageCopy(lang, t = defaultT) {
+  return {
+    [F.UI_MANAGE_SCREEN_TITLE]: t('confirmFlowManageTitle', lang),
+    [F.UI_MANAGE_HINT]: t('confirmFlowManageHint', lang),
+    [F.UI_MANAGE_SAVE]: t('confirmFlowManageSave', lang),
+    [F.UI_MANAGE_SET_DEFAULT]: t('confirmFlowManageSetDefault', lang),
+    [F.UI_MANAGE_DELETE]: t('confirmFlowManageDelete', lang),
+    [F.UI_MANAGE_BACK]: t('confirmFlowManageBack', lang),
   };
 }
 
@@ -84,5 +97,6 @@ module.exports = {
   cartEditCopy,
   cartDoneCopy,
   checkoutReviewCopy,
+  checkoutManageCopy,
   clearCartTitle,
 };
