@@ -114,6 +114,8 @@
       "price": "Preis"
     },
     "deliveryFee": "Liefergebühr: €{{fee}}",
+    "discount": "Rabatt ({{label}}): −€{{amount}}",
+    "discountFallback": "Rabatt",
     "total": "Gesamt: €{{total}}",
     "note": "Hinweis: {{note}}",
     "orderedAt": "Bestellt um {{time}}",
@@ -438,7 +440,7 @@
   "deals": {
     "title": "Aktionen",
     "subtitle": "Rabatt gilt nur für Speisen, nicht für die Liefergebühr. Den Rabatt trägst du.",
-    "belegNote": "Kartenzahlung: auf dem Beleg fehlt die Rabatt-Zeile noch. Für Live-Kartenbetriebe erst einschalten, wenn das da ist.",
+    "belegNote": "Auf dem Kundenbeleg steht der Rabatt als eigene Zeile. Gesamtbetrag ist, was der Gast zahlt.",
     "firstOrder": "Erste Bestellung",
     "window": "Zeitraum",
     "discountType": "Art",

@@ -136,19 +136,24 @@ function renderCustomerBelegPdf({
 
     for (const line of lines || []) {
       ensureSpace(doc, margin, rowBudgetPt);
+      const isDiscount = line.kind === 'discount';
       const label = line.name || (line.kind === 'fee' ? 'Liefergebühr' : '');
       const { title, detail } = splitLineLabel(label);
       const qty = line.qty ?? 1;
       const rowTop = doc.y + 8;
+      const titleText = isDiscount ? title : `${title}  ×${qty}`;
+      const amountText = isDiscount
+        ? `-€${euros(Math.abs(Number(line.gross) || 0))}`
+        : `€${euros(line.gross)}`;
       doc.fillColor('#1a1a1a').font('Helvetica-Bold').fontSize(10)
-        .text(`${title}  ×${qty}`, margin, rowTop, { width: pageWidth - 70 });
+        .text(titleText, margin, rowTop, { width: pageWidth - 70 });
       const afterTitleY = doc.y;
-      doc.font('Helvetica-Bold').text(`€${euros(line.gross)}`, margin, rowTop, {
+      doc.font('Helvetica-Bold').text(amountText, margin, rowTop, {
         width: pageWidth,
         align: 'right',
       });
       doc.y = Math.max(afterTitleY, doc.y);
-      const subParts = [
+      const subParts = isDiscount ? [] : [
         detail,
         line.vatRate != null ? `USt ${line.vatRate}%` : null,
         line.net != null ? `Netto ${euros(line.net)}` : null,

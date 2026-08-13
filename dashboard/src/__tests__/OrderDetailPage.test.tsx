@@ -97,4 +97,20 @@ describe('OrderDetailPage order actions', () => {
     });
     expect(init.body).toBeUndefined();
   });
+
+  it('shows the deal discount above the total', async () => {
+    mockGetDoc.mockResolvedValue({
+      exists: () => true,
+      id: 'ord1',
+      data: () => ({
+        ...PENDING_ORDER,
+        discount: 2,
+        discountLabel: '10% Willkommen',
+        total: 6.5,
+      }),
+    });
+    renderPage();
+    expect(await screen.findByText('Discount (10% Willkommen): −€2.00')).toBeInTheDocument();
+    expect(screen.getByText('Total: €6.50')).toBeInTheDocument();
+  });
 });

@@ -35,6 +35,16 @@ function sellerSnapshotFromLegal(legal, brandName) {
 
 function buildBelegLines(order) {
   const lines = [...(order.items || [])];
+  const discount = Number(order.discount) || 0;
+  if (discount > 0) {
+    const label = order.discountLabel && String(order.discountLabel).trim();
+    lines.push({
+      name: label || 'Rabatt',
+      qty: 1,
+      gross: -discount,
+      kind: 'discount',
+    });
+  }
   if (order.deliveryFee && Number(order.deliveryFee) > 0) {
     const vatRate = 10;
     const { netCents, vatCents, grossCents } = splitGrossCents(
@@ -67,6 +77,8 @@ async function allocateReceiptSlot({
   lines,
   totalsByVat,
   totalGross,
+  discount,
+  discountLabel,
 }) {
   const year = new Date().getFullYear();
   const ref = receiptRef(businessId, paymentRef);
@@ -92,6 +104,8 @@ async function allocateReceiptSlot({
       lines,
       totalsByVat,
       totalGross,
+      discount: Number(discount) > 0 ? Number(discount) : 0,
+      discountLabel: Number(discount) > 0 ? (discountLabel || null) : null,
       currency: 'EUR',
       paymentRef,
       gcsPath: null,
@@ -169,6 +183,8 @@ async function issueCustomerBeleg(businessId, orderId, session) {
     lines,
     totalsByVat: order.totalsByVat,
     totalGross: order.totalGross,
+    discount: Number(order.discount) || 0,
+    discountLabel: order.discountLabel || null,
   });
 
   if (!slot.created && slot.status === 'ready') {

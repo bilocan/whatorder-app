@@ -114,6 +114,8 @@
       "price": "Fiyat"
     },
     "deliveryFee": "Teslimat ücreti: €{{fee}}",
+    "discount": "İndirim ({{label}}): −€{{amount}}",
+    "discountFallback": "İndirim",
     "total": "Toplam: €{{total}}",
     "note": "Not: {{note}}",
     "orderedAt": "Sipariş zamanı: {{time}}",
@@ -438,7 +440,7 @@
   "deals": {
     "title": "Kampanyalar",
     "subtitle": "İndirim sadece yemeklere geçer, teslimat ücretine değil. İndirimi sen karşılarsın.",
-    "belegNote": "Kart ödemesi: fişte henüz indirim satırı yok. Canlı kart restoranında bu satır gelmeden açma.",
+    "belegNote": "Müşteri fişinde indirim ayrı satır. Gesamtbetrag, misafirin ödediği tutar.",
     "firstOrder": "İlk sipariş",
     "window": "Tarih aralığı",
     "discountType": "Tür",

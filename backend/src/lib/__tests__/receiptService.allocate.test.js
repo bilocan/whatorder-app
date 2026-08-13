@@ -131,6 +131,24 @@ describe('allocateReceiptSlot', () => {
     expect(counters.get('biz1').nextNumber).toBe(2);
   });
 
+  test('freezes discount and discountLabel on the receipt doc', async () => {
+    mockAllocateHarness();
+    const result = await allocateReceiptSlot(belegPayload({
+      discount: 2,
+      discountLabel: '10% Willkommen',
+      lines: [{ name: 'Döner', gross: 10 }, { name: '10% Willkommen', kind: 'discount', gross: -2 }],
+    }));
+    expect(result.discount).toBe(2);
+    expect(result.discountLabel).toBe('10% Willkommen');
+  });
+
+  test('stores discount 0 and null label when omitted', async () => {
+    mockAllocateHarness();
+    const result = await allocateReceiptSlot(belegPayload());
+    expect(result.discount).toBe(0);
+    expect(result.discountLabel).toBeNull();
+  });
+
   test('increments sequence for distinct paymentRefs on the same business', async () => {
     const { counters } = mockAllocateHarness();
 

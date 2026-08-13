@@ -55,6 +55,8 @@ export interface Order {
   orderType?: 'pickup' | 'delivery';
   deliveryAddress?: string;
   deliveryFee?: number;
+  discount?: number;
+  discountLabel?: string | null;
   paymentStatus?: 'pending' | 'paid' | 'cash' | 'failed' | 'refunded';
   paymentMethod?: 'stripe' | 'cash';
   receiptId?: string;

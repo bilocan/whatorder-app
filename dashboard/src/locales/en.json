@@ -114,6 +114,8 @@
       "price": "Price"
     },
     "deliveryFee": "Delivery fee: €{{fee}}",
+    "discount": "Discount ({{label}}): −€{{amount}}",
+    "discountFallback": "Discount",
     "total": "Total: €{{total}}",
     "note": "Note: {{note}}",
     "orderedAt": "Ordered at {{time}}",
@@ -438,7 +440,7 @@
   "deals": {
     "title": "Deals",
     "subtitle": "Discount applies to food only, not delivery. You fund it.",
-    "belegNote": "Card payments: the receipt does not show a discount line yet. Do not turn this on for a live card restaurant until that ships.",
+    "belegNote": "The customer receipt shows the discount as its own line. Gesamtbetrag is what the guest paid.",
     "firstOrder": "First order",
     "window": "Date window",
     "discountType": "Type",
