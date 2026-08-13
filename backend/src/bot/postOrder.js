@@ -6,6 +6,7 @@ const { startRestaurantBrowsing } = require('./reorder');
 const { looksLikeOrderText } = require('./intentParser');
 const { isConversationalBasket } = require('./featureFlags');
 const { detectOrderStatusQuestion } = require('./orderStatusDetect');
+const { refundOrderPayment } = require('../lib/paymentService');
 const {
   getOrder,
   cancelOrder,
@@ -130,32 +131,50 @@ async function tryReplyOrderStatus({ from, session, lang, businessId, text }) {
   return true;
 }
 
+function cancelTooLateLocaleKey(status) {
+  if (status === 'on_the_way') return 'postOrderCancelTooLateOnTheWay';
+  if (status === 'ready') return 'postOrderCancelTooLateReady';
+  if (status === 'preparing') return 'postOrderCancelTooLatePreparing';
+  if (status === 'delivered') return 'postOrderCancelTooLateDelivered';
+  if (status === 'picked_up') return 'postOrderCancelTooLatePickedUp';
+  if (status === 'cancelled' || status === 'rejected') return 'postOrderCancelTooLateAlreadyClosed';
+  return 'postOrderCancelTooLatePreparing';
+}
+
 // Handles the "Stornieren" button tap and text-based cancel ("stornieren", "iptal" etc.)
 async function handlePostOrderCancelButton({ from, session, lang, businessId }) {
   const phoneNumberId = session.whatsappPhoneNumberId || null;
 
-  if (!session.pendingAmendOrderId) {
-    await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
-    return true;
+  let order = null;
+  if (session.pendingAmendOrderId) {
+    order = await getOrder(businessId, session.pendingAmendOrderId);
+  }
+  // Button/text cancel can arrive after session fields were cleared (multi clear, browsing restart).
+  // Fall back to the customer's latest active order at this restaurant.
+  if (!order) {
+    const last = await getLastOrderForCustomer(businessId, from);
+    if (last?.id) order = { ...last, id: last.id };
   }
 
-  const order = await getOrder(businessId, session.pendingAmendOrderId);
   if (!order) {
     await clearPostOrderSession(from, session);
     await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
     return true;
   }
 
-  // Stripe orders need a refund — hand off to restaurant.
-  if (!isCashOrder(order)) {
-    await sendCallRestaurantReply({ from, lang, businessId, phoneNumberId });
-    return true;
-  }
-
   if (canCustomerCancel(order)) {
+    let paymentRefunded = false;
+    if (!isCashOrder(order)) {
+      const refund = await refundOrderPayment(businessId, order.id, {
+        reason: 'customer_cancel',
+        actor: 'customer',
+        notifyCustomer: false,
+      });
+      paymentRefunded = Boolean(refund.refunded);
+    }
     // skipReentry: this path restarts browsing below — avoid a second button bubble.
-    await cancelOrder(businessId, order.id, { skipReentry: true });
-    // transitionOrder already sends orderCancelled template to the customer.
+    await cancelOrder(businessId, order.id, { skipReentry: true, paymentRefunded });
+    // transitionOrder already sends orderCancelled / orderCancelledRefunded to the customer.
     await clearPostOrderSession(from, session, { consecutiveParseFailures: 0 });
     const info = await getBusinessInfo(businessId);
     await startRestaurantBrowsing({
@@ -171,21 +190,40 @@ async function handlePostOrderCancelButton({ from, session, lang, businessId }) 
     return true;
   }
 
-  // Order is already preparing or later — too late for self-serve cancel.
+  // Order is already preparing / out for delivery — too late for self-serve cancel.
+  // No re-entry buttons here: order is still live; delivered/picked_up already offers reorder CTAs.
   const info = await getBusinessInfo(businessId);
   const phone = info.alertPhone || info.phone || null;
-  await sendText(from, t('postOrderCancelTooLate', lang, info.name, phone), phoneNumberId);
+  await sendText(
+    from,
+    t(cancelTooLateLocaleKey(order.status), lang, info.name, phone),
+    phoneNumberId,
+  );
   return true;
 }
 
 async function tryHandlePostOrderMessage({
   from, session, lang, businessId, text, norm, contactName,
 }) {
-  if (!session.pendingAmendOrderId) return false;
+  const isCancelRequest = detectCancelOrderRequest(text, norm);
+
+  if (!session.pendingAmendOrderId) {
+    // Without an amend-window id, do not steal browsing cancel synonyms
+    // (disambiguation clear, proposal cancel). Post-order cancel still works via
+    // btn_post_cancel and the early intercept when pendingAmendBusinessId is set.
+    if (!isCancelRequest) return false;
+    if (
+      session.state === 'disambiguating_intent'
+      || session.disambiguation
+      || (session.pendingIntentItems && session.pendingIntentItems.length > 0)
+    ) {
+      return false;
+    }
+  }
+
   if (!looksLikePostOrderModify(text, norm)) return false;
 
   const placedAtMs = session.pendingAmendPlacedAt ?? null;
-  const isCancelRequest = detectCancelOrderRequest(text, norm);
 
   // Stale context (> 1 hour): treat order text as a new order, not post-order.
   if (!isCancelRequest && isPostOrderContextExpired(placedAtMs)) {
@@ -264,6 +302,7 @@ module.exports = {
   detectCancelOrderRequest,
   looksLikePostOrderModify,
   canCustomerCancel,
+  cancelTooLateLocaleKey,
   isPostOrderContextExpired,
   isHumanHandoffButton,
   tryReplyOrderStatus,

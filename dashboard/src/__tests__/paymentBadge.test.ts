@@ -33,9 +33,12 @@ describe('paymentBadge', () => {
     expect(paidOut.label).toBe('orders.payment.paid');
   });
 
-  it('maps cash, pending, and failed payment statuses', () => {
+  it('maps cash, pending, failed, and refunded payment statuses', () => {
     expect(paymentBadge(order({ paymentStatus: 'cash' }), t).label).toBe('orders.payment.cash');
     expect(paymentBadge(order({ paymentStatus: 'pending' }), t).label).toBe('orders.payment.pending');
     expect(paymentBadge(order({ paymentStatus: 'failed' }), t).label).toBe('orders.payment.failed');
+    expect(paymentBadge(order({ paymentStatus: 'refunded' }), t)).toEqual(
+      expect.objectContaining({ label: 'orders.payment.refunded', kind: 'refunded' }),
+    );
   });
 });

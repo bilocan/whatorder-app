@@ -1,6 +1,7 @@
 jest.mock('../../lib/firebase', () => ({ db: {}, admin: {} }));
 jest.mock('../../bot/orderService');
 jest.mock('../../lib/receiptService');
+jest.mock('../../lib/paymentService');
 jest.mock('../../lib/dashboardAuth', () => ({
   requireOwnerOrAdmin: (_req, _res, next) => next(),
   requireOwnerOfBusiness: (_req, _res, next) => next(),
@@ -13,12 +14,15 @@ const {
   markReady, markOnTheWay, markPickedUp, markDelivered, cancelOrder,
 } = require('../../bot/orderService');
 const { getReceiptDownload, resendReceiptWhatsApp } = require('../../lib/receiptService');
+const { refundOrderPayment } = require('../../lib/paymentService');
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  refundOrderPayment.mockResolvedValue({ refunded: false, skipped: true, reason: 'not_paid_stripe' });
+});
 
 const TRANSITIONS = [
   { path: 'approve',    fn: approveOrder },
-  { path: 'reject',     fn: rejectOrder },
   { path: 'prepare',    fn: startPreparation },
   { path: 'ready',      fn: markReady },
   { path: 'on-the-way', fn: markOnTheWay },
@@ -38,6 +42,28 @@ describe('Order transition endpoints', () => {
     } else {
       expect(fn).toHaveBeenCalledWith('biz1', 'ord1');
     }
+  });
+
+  test('POST .../reject refunds then rejects (cash/unpaid → no Stripe refund)', async () => {
+    rejectOrder.mockResolvedValue();
+    const res = await request(app).post('/businesses/biz1/orders/ord1/reject');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: 'ok', refunded: false });
+    expect(refundOrderPayment).toHaveBeenCalledWith('biz1', 'ord1', expect.objectContaining({
+      reason: 'owner_reject',
+      actor: 'owner',
+      notifyCustomer: false,
+    }));
+    expect(rejectOrder).toHaveBeenCalledWith('biz1', 'ord1', { paymentRefunded: false });
+  });
+
+  test('POST .../reject marks paymentRefunded when Stripe refund succeeds', async () => {
+    refundOrderPayment.mockResolvedValue({ refunded: true, skipped: false, refundId: 're_1' });
+    rejectOrder.mockResolvedValue();
+    const res = await request(app).post('/businesses/biz1/orders/ord1/reject');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: 'ok', refunded: true });
+    expect(rejectOrder).toHaveBeenCalledWith('biz1', 'ord1', { paymentRefunded: true });
   });
 
   test('POST .../approve passes owner-supplied etaMinutes from body', async () => {
@@ -73,6 +99,34 @@ describe('Order transition endpoints', () => {
     approveOrder.mockRejectedValue(new Error('Database connection failed'));
     const res = await request(app).post('/businesses/biz1/orders/ord1/approve');
     expect(res.status).toBe(500);
+  });
+});
+
+describe('Order refund endpoint', () => {
+  test('POST .../refund → 200 when paid Stripe order refunded', async () => {
+    refundOrderPayment.mockResolvedValue({ refunded: true, skipped: false, refundId: 're_1' });
+    const res = await request(app).post('/businesses/biz1/orders/ord1/refund');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.refunded).toBe(true);
+    expect(refundOrderPayment).toHaveBeenCalledWith('biz1', 'ord1', expect.objectContaining({
+      reason: 'owner_manual',
+      actor: 'owner',
+      notifyCustomer: true,
+    }));
+  });
+
+  test('POST .../refund → 409 when not a paid Stripe charge', async () => {
+    refundOrderPayment.mockResolvedValue({ refunded: false, skipped: true, reason: 'not_paid_stripe' });
+    const res = await request(app).post('/businesses/biz1/orders/ord1/refund');
+    expect(res.status).toBe(409);
+  });
+
+  test('POST .../cancel does not call refund', async () => {
+    cancelOrder.mockResolvedValue();
+    const res = await request(app).post('/businesses/biz1/orders/ord1/cancel');
+    expect(res.status).toBe(200);
+    expect(refundOrderPayment).not.toHaveBeenCalled();
   });
 });
 

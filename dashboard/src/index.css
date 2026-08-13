@@ -433,6 +433,7 @@ button:focus-visible {
 .payment-badge[data-kind='paid'] { --badge-color: var(--pay-paid); }
 .payment-badge[data-kind='unpaid'] { --badge-color: var(--pay-unpaid); }
 .payment-badge[data-kind='failed'] { --badge-color: var(--pay-failed); }
+.payment-badge[data-kind='refunded'] { --badge-color: #6b7280; }
 
 .delivery-pill {
   background: color-mix(in srgb, var(--delivery) 13%, transparent);

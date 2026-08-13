@@ -1,7 +1,7 @@
 import type { DashboardT } from '../i18n';
 import type { Order } from '../types';
 
-export type PaymentBadgeKind = 'cash' | 'paid' | 'unpaid' | 'failed';
+export type PaymentBadgeKind = 'cash' | 'paid' | 'unpaid' | 'failed' | 'refunded';
 
 export function paymentBadge(
   order: Order,
@@ -13,6 +13,9 @@ export function paymentBadge(
   }
   if (status === 'paid') {
     return { label: t('orders.payment.paid'), kind: 'paid', color: '#16a34a' };
+  }
+  if (status === 'refunded') {
+    return { label: t('orders.payment.refunded'), kind: 'refunded', color: '#6b7280' };
   }
   if (status === 'pending') {
     return { label: t('orders.payment.pending'), kind: 'unpaid', color: '#f59e0b' };

@@ -176,7 +176,10 @@ module.exports = {
   orderDelivered: (shortId) => `✅ Bestellung #${shortId} zugestellt. Guten Appetit! 🙏`,
   orderCompletePrompt: () => 'Noch etwas bestellen?',
   orderRejected:  (shortId) => `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Bitte kontaktieren Sie uns.`,
+  orderRejectedRefunded: (shortId) => `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Die Kartenzahlung wird erstattet — meist in wenigen Werktagen wieder auf dem Konto.`,
   orderCancelled: (shortId) => `❌ Bestellung #${shortId} wurde storniert.`,
+  orderCancelledRefunded: (shortId) => `✅ Bestellung #${shortId} wurde storniert. Die Kartenzahlung wird erstattet — meist in wenigen Werktagen wieder auf dem Konto.`,
+  paymentRefunded: (shortId) => `💸 Zahlung für Bestellung #${shortId} wurde erstattet. Das Geld ist meist in wenigen Werktagen wieder auf dem Konto.`,
   orderStatusPending: (shortId) => `⏳ Bestellung #${shortId} ist eingegangen und wartet auf Bestätigung durch das Restaurant.`,
   postOrderCallRestaurant: (name, phone) => phone
     ? `Für Änderungen an Ihrer Bestellung rufen Sie bitte ${name} an: ${phone}`
@@ -191,6 +194,24 @@ module.exports = {
   postReorderBtn: () => 'Nochmal bestellen',
   postRestaurantBtn: () => 'Restaurant wählen',
   postCompleteRestaurantBtn: () => 'Andere Restaurant',
+  postOrderCancelTooLatePreparing: (name, phone) => phone
+    ? `Deine Bestellung wird bereits zubereitet. Für Änderungen ruf bitte ${name} an: ${phone}`
+    : `Deine Bestellung wird bereits zubereitet. Bitte kontaktiere ${name} direkt.`,
+  postOrderCancelTooLateReady: (name, phone) => phone
+    ? `Deine Bestellung ist bereits abholbereit. Für Änderungen ruf bitte ${name} an: ${phone}`
+    : `Deine Bestellung ist bereits abholbereit. Bitte kontaktiere ${name} direkt.`,
+  postOrderCancelTooLateOnTheWay: (name, phone) => phone
+    ? `Deine Bestellung ist bereits unterwegs. Für Änderungen ruf bitte ${name} an: ${phone}`
+    : `Deine Bestellung ist bereits unterwegs. Bitte kontaktiere ${name} direkt.`,
+  postOrderCancelTooLateDelivered: (name, phone) => phone
+    ? `Deine Bestellung wurde bereits zugestellt. Bei Fragen ruf bitte ${name} an: ${phone}`
+    : `Deine Bestellung wurde bereits zugestellt. Bitte kontaktiere ${name} direkt.`,
+  postOrderCancelTooLatePickedUp: (name, phone) => phone
+    ? `Deine Bestellung wurde bereits abgeholt. Bei Fragen ruf bitte ${name} an: ${phone}`
+    : `Deine Bestellung wurde bereits abgeholt. Bitte kontaktiere ${name} direkt.`,
+  postOrderCancelTooLateAlreadyClosed: (name, phone) => phone
+    ? `Diese Bestellung ist bereits beendet. Bei Fragen ruf bitte ${name} an: ${phone}`
+    : `Diese Bestellung ist bereits beendet. Bitte kontaktiere ${name} direkt.`,
   postOrderCancelTooLate: (name, phone) => phone
     ? `Deine Bestellung wird bereits zubereitet. Für Änderungen ruf bitte ${name} an: ${phone}`
     : `Deine Bestellung wird bereits zubereitet. Bitte kontaktiere ${name} direkt.`,

@@ -182,6 +182,163 @@ async function handleCheckoutSessionCompleted(session) {
   }
 }
 
+function orderShortId(orderId) {
+  return String(orderId || '').slice(-6).toUpperCase();
+}
+
+/**
+ * Persist refunded payment/settlement fields. Optionally notify the customer once.
+ * @returns {{ applied: boolean, notified: boolean }}
+ */
+async function applyOrderRefunded(businessId, orderId, {
+  refundId = null,
+  reason = null,
+  actor = null,
+  notifyCustomer = false,
+} = {}) {
+  const orderRef = ordersRef(businessId).doc(orderId);
+  const orderSnap = await orderRef.get();
+  if (!orderSnap.exists) {
+    console.error('[stripe] refund apply: order not found', businessId, orderId);
+    return { applied: false, notified: false };
+  }
+
+  const order = orderSnap.data();
+  const alreadyRefunded = order.paymentStatus === 'refunded';
+  if (!alreadyRefunded) {
+    const update = {
+      paymentStatus: 'refunded',
+      settlementStatus: 'refunded',
+      refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    if (refundId) update.stripeRefundId = refundId;
+    if (reason) update.refundReason = reason;
+    if (actor) update.refundActor = actor;
+    await orderRef.update(update);
+  }
+
+  let notified = false;
+  if (notifyCustomer && !order.refundNotifiedAt) {
+    try {
+      const phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);
+      const lang = order.language || 'en';
+      const shortId = orderShortId(orderId);
+      const bizSnap = await businessRef(businessId).get();
+      await runWithMessageIdentity(PLATFORM_IDENTITY, async () => {
+        applyBusinessInfoIdentity(bizSnap.exists ? bizSnap.data() : { name: order.restaurantName });
+        await sendText(order.customerPhone, t('paymentRefunded', lang, shortId), phoneNumberId);
+        await orderRef.update({
+          refundNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+      notified = true;
+    } catch (err) {
+      const msg = err.name === 'WhatsAppRoutingError'
+        ? err.message
+        : formatOrderWhatsAppSendError(err, {
+          orderId,
+          businessId,
+          phoneNumberId: order.whatsappPhoneNumberId,
+          kind: 'Refund notification',
+        });
+      console.error(`[stripe] ${msg}`);
+    }
+  }
+
+  return { applied: !alreadyRefunded, notified };
+}
+
+/**
+ * Full Stripe refund for a paid card order. Cash / unpaid / already-refunded → no-op.
+ * Idempotent via Stripe idempotency key `wo_refund_${orderId}`.
+ *
+ * @param {string} businessId
+ * @param {string} orderId
+ * @param {{ reason?: string, actor?: string, notifyCustomer?: boolean }} [options]
+ * @returns {Promise<{ refunded: boolean, skipped: boolean, reason?: string, refundId?: string }>}
+ */
+async function refundOrderPayment(businessId, orderId, {
+  reason = 'requested',
+  actor = 'system',
+  notifyCustomer = true,
+} = {}) {
+  const orderRef = ordersRef(businessId).doc(orderId);
+  const orderSnap = await orderRef.get();
+  if (!orderSnap.exists) throw new Error('Order not found');
+
+  const order = orderSnap.data();
+
+  if (order.paymentStatus === 'refunded') {
+    return { refunded: true, skipped: true, reason: 'already_refunded', refundId: order.stripeRefundId || undefined };
+  }
+
+  if (order.paymentMethod !== 'stripe' || order.paymentStatus !== 'paid') {
+    return { refunded: false, skipped: true, reason: 'not_paid_stripe' };
+  }
+
+  if (!order.stripePaymentIntentId) {
+    throw new Error('Missing stripePaymentIntentId for refund');
+  }
+
+  const stripe = getStripe();
+  if (!stripe) throw new Error('Stripe is not configured');
+
+  let refund;
+  try {
+    refund = await stripe.refunds.create({
+      payment_intent: order.stripePaymentIntentId,
+      metadata: {
+        business_id: businessId,
+        order_id: orderId,
+        reason,
+        actor,
+      },
+    }, {
+      idempotencyKey: `wo_refund_${orderId}`,
+    });
+  } catch (err) {
+    // Stripe may reject a second create if the charge is already fully refunded outside our key.
+    if (err?.code === 'charge_already_refunded') {
+      await applyOrderRefunded(businessId, orderId, {
+        refundId: order.stripeRefundId || null,
+        reason,
+        actor,
+        notifyCustomer,
+      });
+      return { refunded: true, skipped: true, reason: 'already_refunded_stripe' };
+    }
+    throw err;
+  }
+
+  await applyOrderRefunded(businessId, orderId, {
+    refundId: refund.id,
+    reason,
+    actor,
+    notifyCustomer,
+  });
+
+  return { refunded: true, skipped: false, refundId: refund.id };
+}
+
+async function handleChargeRefunded(charge) {
+  const refunds = Array.isArray(charge.refunds?.data) ? charge.refunds.data : [];
+  const refund = refunds[0] || null;
+  const businessId = refund?.metadata?.business_id || charge.metadata?.business_id;
+  const orderId = refund?.metadata?.order_id || charge.metadata?.order_id;
+  if (!businessId || !orderId) {
+    console.error('[stripe] charge.refunded missing business_id/order_id metadata', charge.id);
+    return;
+  }
+
+  await applyOrderRefunded(businessId, orderId, {
+    refundId: refund?.id || null,
+    reason: refund?.metadata?.reason || 'stripe_webhook',
+    actor: refund?.metadata?.actor || 'webhook',
+    // Only notifies if cancel/reject path did not already mark refundNotifiedAt.
+    notifyCustomer: true,
+  });
+}
+
 async function processStripeWebhookEvent(event) {
   if (await isStripeEventProcessed(event.id)) return { duplicate: true };
 
@@ -190,6 +347,8 @@ async function processStripeWebhookEvent(event) {
     if (session.payment_status === 'paid') {
       await handleCheckoutSessionCompleted(session);
     }
+  } else if (event.type === 'charge.refunded') {
+    await handleChargeRefunded(event.data.object);
   }
 
   await markStripeEventProcessed(event.id, event.type);
@@ -201,6 +360,9 @@ module.exports = {
   SETTLEMENT_IBAN_INCOMPLETE,
   createCheckoutSessionForOrder,
   handleCheckoutSessionCompleted,
+  refundOrderPayment,
+  applyOrderRefunded,
+  handleChargeRefunded,
   processStripeWebhookEvent,
   paymentBaseUrl,
 };

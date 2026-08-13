@@ -85,7 +85,8 @@
       "cash": "Bar",
       "paid": "Bezahlt",
       "pending": "Offen",
-      "failed": "Fehlgeschlagen"
+      "failed": "Fehlgeschlagen",
+      "refunded": "Erstattet"
     },
     "delivery": "Lieferung",
     "deliveryFee": "+ €{{fee}} Liefergebühr",
@@ -151,7 +152,14 @@
       "onTheWay": "Unterwegs",
       "markReady": "Abholbereit markieren",
       "pickedUp": "Als abgeholt markieren",
-      "delivered": "Als geliefert markieren"
+      "delivered": "Als geliefert markieren",
+      "refund": "Erstatten"
+    },
+    "refund": {
+      "title": "Kartenerstattung",
+      "hint": "Volle Rückzahlung an den Gast. Bestellstatus bleibt unverändert.",
+      "working": "Erstattung läuft…",
+      "done": "Zahlung erstattet. Der Gast wurde per WhatsApp informiert."
     },
     "settlement": {
       "pendingPayout": "Nächste Auszahlung ausstehend",
