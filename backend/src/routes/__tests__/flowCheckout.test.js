@@ -174,6 +174,79 @@ test('select_order_type pickup hides address fields and keeps the typed note', a
   expect(response.data[F.RECEIPT_TEXT]).not.toContain('Delivery to:');
 });
 
+test('select_order_type pickup then delivery keeps a typed Neue Adresse when hidden fields are empty', async () => {
+  const novel = 'Brandgasse 8, Top 1, 1020 Wien';
+  mockSession({
+    orderType: 'delivery',
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      orderType: 'delivery',
+      addressChoice: 'addr_new',
+      deliveryAddress: novel,
+      deliveryApartment: 'Top 1',
+    },
+  });
+
+  const pickup = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'pickup',
+    [F.ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: '',
+    [F.DELIVERY_APARTMENT]: '',
+  });
+
+  expect(pickup.data[F.ORDER_TYPE]).toBe('pickup');
+  expect(pickup.data[F.DELIVERY_ADDRESS]).toBe(novel);
+  expect(pickup.data[F.ADDRESS_CHOICE]).toBe('addr_new');
+
+  const delivery = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: '',
+    [F.DELIVERY_APARTMENT]: '',
+  });
+
+  expect(delivery.data[F.ORDER_TYPE]).toBe('delivery');
+  expect(delivery.data[F.ADDRESS_CHOICE]).toBe('addr_new');
+  expect(delivery.data[F.DELIVERY_ADDRESS]).toBe(novel);
+  expect(delivery.data[F.DELIVERY_APARTMENT]).toBe('Top 1');
+});
+
+test('select_order_type pickup stashes a typed street from the payload for the next delivery tap', async () => {
+  const novel = 'Brandgasse 8, Top 1, 1020 Wien';
+  mockSession({
+    orderType: 'delivery',
+    confirmFlowDraft: null,
+    deliveryAddress: ADDRESS_1,
+  });
+
+  await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'pickup',
+    [F.ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: novel,
+    [F.DELIVERY_APARTMENT]: 'Top 1',
+  });
+
+  const delivery = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: '',
+    [F.DELIVERY_APARTMENT]: '',
+  });
+
+  expect(delivery.data[F.ORDER_TYPE]).toBe('delivery');
+  expect(delivery.data[F.ADDRESS_CHOICE]).toBe('addr_new');
+  expect(delivery.data[F.DELIVERY_ADDRESS]).toBe(novel);
+  expect(delivery.data[F.DELIVERY_APARTMENT]).toBe('Top 1');
+});
+
 test('select_order_type delivery restores the default saved address instead of Neue Adresse', async () => {
   mockSession({ orderType: 'pickup', confirmFlowDraft: { orderType: 'pickup' } });
   const response = await exchange(S.CHECKOUT_REVIEW, {

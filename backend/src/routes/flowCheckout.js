@@ -5,6 +5,7 @@ const {
   buildCheckoutReviewData,
   buildAddressChoiceState,
   buildConfirmFlowDraft,
+  mergeConfirmFlowDraft,
   labelsByAddressChoice,
   fieldsForAddressChoice,
   composeDeliveryAddressFromFields,
@@ -550,11 +551,14 @@ async function buildCheckoutDataExchangeResponse({
   }
 
   if (action === 'select_order_type' && REVIEW_SCREENS.has(screen)) {
+    const draft = mergeConfirmFlowDraft(payload, session.confirmFlowDraft) || {};
+    await ref.set({ confirmFlowDraft: draft, updatedAt: new Date() }, { merge: true });
+    session.confirmFlowDraft = draft;
     return buildReviewFromDraft({
       screen,
       session,
       profile,
-      draft: buildConfirmFlowDraft(payload) || {},
+      draft,
       version,
       businessId,
       phone,

@@ -362,6 +362,24 @@ function buildConfirmFlowDraft(payload = {}) {
   return Object.keys(draft).length ? draft : null;
 }
 
+/**
+ * Hidden If widgets on pickup often submit empty street/apartment. Keep the previous
+ * non-empty draft address unless the payload has a real street.
+ */
+function mergeConfirmFlowDraft(payload = {}, previousDraft = null) {
+  const next = buildConfirmFlowDraft(payload) || {};
+  const prev = previousDraft && typeof previousDraft === 'object' ? previousDraft : {};
+  if (!trimmed(next.deliveryAddress) && trimmed(prev.deliveryAddress)) {
+    next.deliveryAddress = prev.deliveryAddress;
+    if (!trimmed(next.deliveryApartment)
+      && Object.prototype.hasOwnProperty.call(prev, 'deliveryApartment')) {
+      next.deliveryApartment = prev.deliveryApartment;
+    }
+    if (prev.addressChoice) next.addressChoice = prev.addressChoice;
+  }
+  return Object.keys(next).length ? next : null;
+}
+
 function buildCheckoutReviewData({
   session = {},
   basket = [],
@@ -684,6 +702,7 @@ module.exports = {
   buildAddressChoiceState,
   labelsByAddressChoice,
   buildConfirmFlowDraft,
+  mergeConfirmFlowDraft,
   buildCheckoutSubmitPayloadFromSession,
   isDeliverySelectableInReview,
   composeDeliveryAddressFromFields,

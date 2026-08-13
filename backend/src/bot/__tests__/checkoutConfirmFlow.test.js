@@ -3,6 +3,7 @@ const {
   buildReceiptText,
   buildCheckoutReviewData,
   buildConfirmFlowDraft,
+  mergeConfirmFlowDraft,
   buildCheckoutSubmitPayloadFromSession,
   validateCheckoutSubmit,
   applyCheckoutSubmitToSession,
@@ -629,6 +630,28 @@ describe('checkoutConfirmFlow', () => {
       deliveryApartment: '',
     });
     expect(buildConfirmFlowDraft({ checkout_action: 'back_to_cart' })).toBeNull();
+  });
+
+  test('mergeConfirmFlowDraft keeps a previous street when the payload street is empty', () => {
+    expect(mergeConfirmFlowDraft(
+      {
+        order_type: 'pickup',
+        address_choice: 'addr_new',
+        delivery_address: '',
+        delivery_apartment: '',
+      },
+      {
+        orderType: 'delivery',
+        addressChoice: 'addr_new',
+        deliveryAddress: 'Brandgasse 8, Top 1, 1020 Wien',
+        deliveryApartment: 'Top 1',
+      },
+    )).toEqual({
+      orderType: 'pickup',
+      addressChoice: 'addr_new',
+      deliveryAddress: 'Brandgasse 8, Top 1, 1020 Wien',
+      deliveryApartment: 'Top 1',
+    });
   });
 
   test('validates and normalizes a delivery submit', () => {
