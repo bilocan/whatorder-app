@@ -250,4 +250,56 @@ describe('issueCustomerBeleg', () => {
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }), { merge: true });
     expect(uploadReceiptPdf).not.toHaveBeenCalled();
   });
+
+  test('passes a discount line into the PDF when the order has a deal', async () => {
+    const { renderCustomerBelegPdf } = require('../receipts/customerBelegPdf');
+    mockAllocateHarness();
+    const receiptGet = jest.fn()
+      .mockResolvedValueOnce({ exists: false })
+      .mockResolvedValue({ exists: true, data: () => ({ status: 'pending' }) });
+    const receiptSet = jest.fn().mockResolvedValue();
+    receiptRef.mockImplementation((bid, id) => ({
+      id,
+      businessId: bid,
+      path: `businesses/${bid}/receipts/${id}`,
+      kind: 'receipt',
+      get: receiptGet,
+      set: receiptSet,
+    }));
+    const orderUpdate = jest.fn().mockResolvedValue();
+    ordersRef.mockReturnValue({
+      doc: () => ({
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({
+            items: [{ name: 'Pizza Hawaii', qty: 1, vatRate: 10, net: 17.27, vat: 1.73, gross: 19 }],
+            discount: 2.28,
+            discountLabel: '12% Rabatt',
+            deliveryFee: 2,
+            totalsByVat: { '10': { net: 17.02, vat: 1.7, gross: 18.72 } },
+            totalGross: 18.72,
+            customerName: 'Ali',
+            customerPhone: '43',
+          }),
+        }),
+        update: orderUpdate,
+      }),
+    });
+    businessRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({ name: 'Enes Kebap', legal: { legalName: 'Enes Kebap' } }),
+      }),
+    });
+
+    const result = await issueCustomerBeleg('biz1', 'ordDeal', { id: 'cs_deal' });
+    expect(result.status).toBe('ready');
+    expect(renderCustomerBelegPdf).toHaveBeenCalledWith(expect.objectContaining({
+      totalGross: 18.72,
+      lines: expect.arrayContaining([
+        expect.objectContaining({ name: '12% Rabatt', kind: 'discount', gross: -2.28 }),
+        expect.objectContaining({ name: 'Liefergebühr', kind: 'fee' }),
+      ]),
+    }));
+  });
 });
