@@ -26,4 +26,8 @@ function checkoutDealLines(t, lang, totals) {
   return lines.join('\n');
 }
 
-module.exports = { loadCheckoutTotals, checkoutDealLines };
+function chargedCustomerTotal(taxSnapshot, fallbackTotal) {
+  return typeof taxSnapshot?.totalGross === 'number' ? taxSnapshot.totalGross : fallbackTotal;
+}
+
+module.exports = { loadCheckoutTotals, checkoutDealLines, chargedCustomerTotal };

@@ -303,6 +303,14 @@ describe('Place-order promotional deals', () => {
       'order_abc123',
       expect.objectContaining({ totalEuros: 17.3 }),
     );
+    const charged = createCheckoutSessionForOrder.mock.calls[0][2].totalEuros;
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(
+      FROM,
+      expect.objectContaining({
+        body: expect.stringContaining(`Total: €${Number(charged).toFixed(2)}`),
+      }),
+      'test_phone_id',
+    );
     expect(sendCtaUrlMessage).toHaveBeenCalledWith(
       FROM,
       expect.objectContaining({ body: expect.stringContaining('10% Willkommen') }),

@@ -61,7 +61,7 @@ const {
 } = require('../checkoutSlots');
 const { sendOrderEntryPrompt } = require('../orderEntry');
 const { basketSubtotal, orderTotals } = require('../orderTotals');
-const { loadCheckoutTotals, checkoutDealLines } = require('../checkoutDeal');
+const { loadCheckoutTotals, checkoutDealLines, chargedCustomerTotal } = require('../checkoutDeal');
 const { recordParseFailure, resetParseFailures } = require('../postOrder');
 
 // M2: bare `1` no longer confirms — use list row btn_place_order only (digit disambiguation).
@@ -233,16 +233,17 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
   });
 
   if (paymentMethod === 'stripe') {
+    const chargedTotal = chargedCustomerTotal(taxSnapshot, total);
     try {
       const { url, sessionId } = await createCheckoutSessionForOrder(businessId, orderId, {
-        totalEuros: taxSnapshot?.totalGross ?? total,
+        totalEuros: chargedTotal,
         restaurantName: info.name,
         shortId,
         lang,
       });
       await ordersRef(businessId).doc(orderId).update({ paymentStripeSessionId: sessionId });
       await sendCtaUrlMessage(from, {
-        body: t('paymentLink', lang, shortId, itemLines, total.toFixed(2), info.name, info.alertPhone || null, info.address || null, isDelivery ? (session.deliveryAddress || null) : null, checkoutDealLines(t, lang, totals)),
+        body: t('paymentLink', lang, shortId, itemLines, chargedTotal.toFixed(2), info.name, info.alertPhone || null, info.address || null, isDelivery ? (session.deliveryAddress || null) : null, checkoutDealLines(t, lang, totals)),
         buttonLabel: t('payNowBtn', lang),
         url,
       }, phoneNumberId);

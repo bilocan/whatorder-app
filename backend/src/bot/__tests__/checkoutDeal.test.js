@@ -7,7 +7,7 @@ const { t } = require('../../lib/templates');
 const de = require('../../lib/locales/de');
 const en = require('../../lib/locales/en');
 const tr = require('../../lib/locales/tr');
-const { loadCheckoutTotals, checkoutDealLines } = require('../checkoutDeal');
+const { loadCheckoutTotals, checkoutDealLines, chargedCustomerTotal } = require('../checkoutDeal');
 
 describe('loadCheckoutTotals', () => {
   beforeEach(() => {
@@ -45,6 +45,17 @@ describe('loadCheckoutTotals', () => {
       total: 15,
       deal,
     }));
+  });
+});
+
+describe('chargedCustomerTotal', () => {
+  test('uses tax snapshot gross so the pay message matches Stripe', () => {
+    expect(chargedCustomerTotal({ totalGross: 17.31 }, 17.3)).toBe(17.31);
+  });
+
+  test('falls back to orderTotals when no snapshot exists', () => {
+    expect(chargedCustomerTotal(null, 17.3)).toBe(17.3);
+    expect(chargedCustomerTotal({}, 17.3)).toBe(17.3);
   });
 });
 
