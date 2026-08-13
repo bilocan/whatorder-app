@@ -61,9 +61,10 @@ function buildReceiptText({
 /**
  * Delivery is offered on the confirm screen only when the same gates that guard the
  * place path would pass: delivery enabled, not paused by the owner, and the basket at
- * or above minimumOrderValue. Slice 1 has no data_exchange refresh, so a pickup → delivery
- * switch inside the Flow cannot re-price or re-gate; omitting the option when it would
- * fail keeps the shown total honest and avoids a dead end after submit.
+ * or above minimumOrderValue. Pickup ↔ delivery taps refresh the screen
+ * (`select_order_type`) so the receipt re-prices. Delivery is still omitted from the
+ * radio when it would fail those gates, so the customer cannot pick a type that place
+ * would reject.
  */
 function isDeliverySelectableInReview(info = {}, basket = []) {
   if (!isDeliveryOffered(info)) return false;
@@ -212,14 +213,33 @@ function formatAddressOptionParts(address) {
   };
 }
 
+function findOptionByLabel(options, label) {
+  const key = trimmed(label).toLowerCase();
+  if (!key) return null;
+  return options.find((option) => option._label && option._label.toLowerCase() === key) || null;
+}
+
+function isKnownSavedLabel(label, savedAddresses, defaultAddress) {
+  const key = trimmed(label).toLowerCase();
+  if (!key) return false;
+  if (trimmed(defaultAddress).toLowerCase() === key) return true;
+  return (Array.isArray(savedAddresses) ? savedAddresses : []).some(
+    (addr) => trimmed(addr).toLowerCase() === key,
+  );
+}
+
 /**
  * Build address radio rows from profile history + current session label.
  * Always ends with Neue Adresse. Caps at MAX_SAVED_ADDRESS_OPTIONS saved rows.
+ * Selection: explicit saved row, else default (`lastDeliveryAddress`), else last saved,
+ * else Neue Adresse. `addr_new` in the form is ignored unless the typed street is novel.
  */
 function buildAddressChoiceState({
   savedAddresses = [],
   currentAddress = '',
+  defaultAddress = '',
   draftChoice = '',
+  keepNewAddress = false,
   lang,
   t,
 } = {}) {
@@ -234,6 +254,7 @@ function buildAddressChoiceState({
     ordered.push(label);
   };
 
+  pushUnique(defaultAddress);
   pushUnique(currentAddress);
   for (const addr of Array.isArray(savedAddresses) ? savedAddresses : []) {
     pushUnique(addr);
@@ -256,14 +277,28 @@ function buildAddressChoiceState({
     description: clipFlowOption(t('confirmFlowAddressNewDesc', lang), FLOW_OPTION_DESC_MAX),
   });
 
-  const current = trimmed(currentAddress);
-  let addressChoice = ADDRESS_CHOICE_NEW;
+  const savedOptions = options.filter((option) => option._label);
+  const defaultMatch = findOptionByLabel(options, defaultAddress);
+  const currentMatch = findOptionByLabel(options, currentAddress);
+  const lastSaved = savedOptions[savedOptions.length - 1] || null;
   const preferred = trimmed(draftChoice);
-  if (preferred && options.some((o) => o.id === preferred)) {
+  const preferredSaved = preferred
+    && preferred !== ADDRESS_CHOICE_NEW
+    && options.some((option) => option.id === preferred);
+
+  let addressChoice = ADDRESS_CHOICE_NEW;
+  if (preferredSaved) {
     addressChoice = preferred;
-  } else if (current) {
-    const match = options.find((o) => o._label && o._label.toLowerCase() === current.toLowerCase());
-    if (match) addressChoice = match.id;
+  } else if (
+    preferred === ADDRESS_CHOICE_NEW
+    && (
+      keepNewAddress
+      || (trimmed(currentAddress) && !isKnownSavedLabel(currentAddress, savedAddresses, defaultAddress))
+    )
+  ) {
+    addressChoice = ADDRESS_CHOICE_NEW;
+  } else {
+    addressChoice = (defaultMatch || currentMatch || lastSaved)?.id || ADDRESS_CHOICE_NEW;
   }
 
   return {
@@ -297,10 +332,11 @@ function fieldsForAddressChoice(choice, labelsByChoice = {}) {
   };
 }
 
-function labelsByAddressChoice(savedAddresses, currentAddress, lang, t) {
+function labelsByAddressChoice(savedAddresses, currentAddress, lang, t, defaultAddress = '') {
   return buildAddressChoiceState({
     savedAddresses,
     currentAddress,
+    defaultAddress,
     lang,
     t,
   }).labelsByChoice;
@@ -326,6 +362,24 @@ function buildConfirmFlowDraft(payload = {}) {
   return Object.keys(draft).length ? draft : null;
 }
 
+/**
+ * Hidden If widgets on pickup often submit empty street/apartment. Keep the previous
+ * non-empty draft address unless the payload has a real street.
+ */
+function mergeConfirmFlowDraft(payload = {}, previousDraft = null) {
+  const next = buildConfirmFlowDraft(payload) || {};
+  const prev = previousDraft && typeof previousDraft === 'object' ? previousDraft : {};
+  if (!trimmed(next.deliveryAddress) && trimmed(prev.deliveryAddress)) {
+    next.deliveryAddress = prev.deliveryAddress;
+    if (!trimmed(next.deliveryApartment)
+      && Object.prototype.hasOwnProperty.call(prev, 'deliveryApartment')) {
+      next.deliveryApartment = prev.deliveryApartment;
+    }
+    if (prev.addressChoice) next.addressChoice = prev.addressChoice;
+  }
+  return Object.keys(next).length ? next : null;
+}
+
 function buildCheckoutReviewData({
   session = {},
   basket = [],
@@ -333,7 +387,9 @@ function buildCheckoutReviewData({
   lang,
   t,
   savedAddresses = [],
+  defaultAddress = '',
   deal = null,
+  keepNewAddress = false,
 }) {
   const draft = session.confirmFlowDraft ?? {};
   const deliverySelectable = isDeliverySelectableInReview(info, basket);
@@ -350,15 +406,35 @@ function buildCheckoutReviewData({
   // Keep the full courier label in the street field so older published Flows (no Wohnung
   // input) still submit a string with unit pattern. Wohnung field gets the extracted unit
   // when present for editing on republished Flows.
-  const deliveryAddress = Object.prototype.hasOwnProperty.call(draft, 'deliveryAddress')
+  let deliveryAddress = Object.prototype.hasOwnProperty.call(draft, 'deliveryAddress')
     ? draft.deliveryAddress
     : (sessionFull || sessionFields.street);
-  const deliveryApartment = Object.prototype.hasOwnProperty.call(draft, 'deliveryApartment')
+  let deliveryApartment = Object.prototype.hasOwnProperty.call(draft, 'deliveryApartment')
     ? draft.deliveryApartment
     : (Object.prototype.hasOwnProperty.call(draft, 'deliveryAddress') ? '' : sessionFields.apartment);
-  const reviewDeliveryAddress = Object.prototype.hasOwnProperty.call(draft, 'deliveryAddress')
+  let reviewDeliveryAddress = Object.prototype.hasOwnProperty.call(draft, 'deliveryAddress')
     ? draft.deliveryAddress
     : sessionFull;
+
+  const addressState = buildAddressChoiceState({
+    savedAddresses,
+    currentAddress: reviewDeliveryAddress || sessionFull,
+    defaultAddress,
+    draftChoice: draft.addressChoice,
+    keepNewAddress,
+    lang,
+    t,
+  });
+
+  if (addressState.addressChoice !== ADDRESS_CHOICE_NEW && !trimmed(deliveryAddress)) {
+    const selectedLabel = addressState.labelsByChoice[addressState.addressChoice];
+    if (selectedLabel) {
+      deliveryAddress = selectedLabel;
+      deliveryApartment = splitDeliveryAddressFields(selectedLabel).apartment;
+      reviewDeliveryAddress = selectedLabel;
+    }
+  }
+
   const specialRequests = draft.specialRequests ?? trimmed(session.specialRequests);
 
   const reviewSession = {
@@ -371,14 +447,6 @@ function buildCheckoutReviewData({
   if (deliverySelectable) {
     options.push({ id: 'delivery', title: t('confirmFlowTypeDelivery', lang) });
   }
-
-  const addressState = buildAddressChoiceState({
-    savedAddresses,
-    currentAddress: reviewDeliveryAddress || sessionFull,
-    draftChoice: draft.addressChoice,
-    lang,
-    t,
-  });
 
   return {
     [F.RECEIPT_TEXT]: buildReceiptText({
@@ -395,6 +463,7 @@ function buildCheckoutReviewData({
     [F.CUSTOMER_NAME]: customerName,
     [F.ORDER_TYPE]: orderType,
     [F.ORDER_TYPE_OPTIONS]: options,
+    [F.ADDRESS_FIELDS_VISIBLE]: orderType === 'delivery',
     [F.ADDRESS_CHOICE]: addressState.addressChoice,
     [F.ADDRESS_OPTIONS]: addressState.addressOptions,
     [F.DELIVERY_ADDRESS]: deliveryAddress,
@@ -445,6 +514,7 @@ function buildReviewDataFromProfile({
     lang,
     t,
     savedAddresses,
+    defaultAddress: preferredAddress,
     deal,
   });
 }
@@ -632,6 +702,7 @@ module.exports = {
   buildAddressChoiceState,
   labelsByAddressChoice,
   buildConfirmFlowDraft,
+  mergeConfirmFlowDraft,
   buildCheckoutSubmitPayloadFromSession,
   isDeliverySelectableInReview,
   composeDeliveryAddressFromFields,

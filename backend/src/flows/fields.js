@@ -84,6 +84,7 @@ const FIELDS = {
   ORDER_TYPE_OPTIONS: 'order_type_options',
   ADDRESS_CHOICE:     'address_choice',
   ADDRESS_OPTIONS:    'address_options',
+  ADDRESS_FIELDS_VISIBLE: 'address_fields_visible',
   DELIVERY_ADDRESS:   'delivery_address',
   DELIVERY_APARTMENT: 'delivery_apartment',
   CHECKOUT_NOTE:      'note',
