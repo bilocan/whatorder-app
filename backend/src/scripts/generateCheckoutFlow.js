@@ -58,6 +58,60 @@ function exampleAddressOptions(lang) {
   ];
 }
 
+function reviewFormPayload() {
+  return {
+    [F.CUSTOMER_NAME]: `\${form.${F.CUSTOMER_NAME}}`,
+    [F.ORDER_TYPE]: `\${form.${F.ORDER_TYPE}}`,
+    [F.ADDRESS_CHOICE]: `\${form.${F.ADDRESS_CHOICE}}`,
+    [F.DELIVERY_ADDRESS]: `\${form.${F.DELIVERY_ADDRESS}}`,
+    [F.DELIVERY_APARTMENT]: `\${form.${F.DELIVERY_APARTMENT}}`,
+    [F.CHECKOUT_NOTE]: `\${form.${F.CHECKOUT_NOTE}}`,
+  };
+}
+
+function deliveryAddressFields(includeManageLink) {
+  return [
+    {
+      type: 'RadioButtonsGroup',
+      label: `\${data.${F.UI_ADDRESS_CHOICE_LABEL}}`,
+      name: F.ADDRESS_CHOICE,
+      required: true,
+      'data-source': `\${data.${F.ADDRESS_OPTIONS}}`,
+      'on-select-action': {
+        name: 'data_exchange',
+        payload: {
+          checkout_action: 'select_address',
+          ...reviewFormPayload(),
+        },
+      },
+    },
+    {
+      type: 'TextInput',
+      label: `\${data.${F.UI_ADDRESS_LABEL}}`,
+      name: F.DELIVERY_ADDRESS,
+      required: true,
+    },
+    {
+      type: 'TextInput',
+      label: `\${data.${F.UI_APARTMENT_LABEL}}`,
+      name: F.DELIVERY_APARTMENT,
+      required: true,
+      'helper-text': `\${data.${F.UI_APARTMENT_HELPER}}`,
+    },
+    ...(includeManageLink ? [{
+      type: 'EmbeddedLink',
+      text: `\${data.${F.UI_MANAGE_ADDRESSES_LINK}}`,
+      'on-click-action': {
+        name: 'data_exchange',
+        payload: {
+          checkout_action: 'manage_addresses',
+          ...reviewFormPayload(),
+        },
+      },
+    }] : []),
+  ];
+}
+
 function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
   const copy = checkoutReviewCopy(EXAMPLE_LANG);
   if (!includeManageLink) delete copy[F.UI_MANAGE_ADDRESSES_LINK];
@@ -81,6 +135,7 @@ function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
         ],
       },
       [F.ADDRESS_CHOICE]: { type: 'string', '__example__': 'addr_0' },
+      [F.ADDRESS_FIELDS_VISIBLE]: { type: 'boolean', '__example__': true },
       [F.ADDRESS_OPTIONS]: {
         ...OPTION_LIST_SCHEMA,
         '__example__': exampleAddressOptions(EXAMPLE_LANG),
@@ -120,38 +175,19 @@ function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
             name: F.ORDER_TYPE,
             required: true,
             'data-source': `\${data.${F.ORDER_TYPE_OPTIONS}}`,
-          },
-          {
-            type: 'RadioButtonsGroup',
-            label: `\${data.${F.UI_ADDRESS_CHOICE_LABEL}}`,
-            name: F.ADDRESS_CHOICE,
-            required: true,
-            'data-source': `\${data.${F.ADDRESS_OPTIONS}}`,
             'on-select-action': {
               name: 'data_exchange',
               payload: {
-                checkout_action: 'select_address',
-                [F.CUSTOMER_NAME]: `\${form.${F.CUSTOMER_NAME}}`,
-                [F.ORDER_TYPE]: `\${form.${F.ORDER_TYPE}}`,
-                [F.ADDRESS_CHOICE]: `\${form.${F.ADDRESS_CHOICE}}`,
-                [F.DELIVERY_ADDRESS]: `\${form.${F.DELIVERY_ADDRESS}}`,
-                [F.DELIVERY_APARTMENT]: `\${form.${F.DELIVERY_APARTMENT}}`,
-                [F.CHECKOUT_NOTE]: `\${form.${F.CHECKOUT_NOTE}}`,
+                checkout_action: 'select_order_type',
+                ...reviewFormPayload(),
               },
             },
           },
           {
-            type: 'TextInput',
-            label: `\${data.${F.UI_ADDRESS_LABEL}}`,
-            name: F.DELIVERY_ADDRESS,
-            required: true,
-          },
-          {
-            type: 'TextInput',
-            label: `\${data.${F.UI_APARTMENT_LABEL}}`,
-            name: F.DELIVERY_APARTMENT,
-            required: true,
-            'helper-text': `\${data.${F.UI_APARTMENT_HELPER}}`,
+            type: 'If',
+            // Form value, not data: hide immediately on Abholung without waiting for exchange.
+            condition: `\${form.${F.ORDER_TYPE}} == 'delivery'`,
+            then: deliveryAddressFields(includeManageLink),
           },
           {
             type: 'TextArea',
@@ -159,22 +195,6 @@ function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
             name: F.CHECKOUT_NOTE,
             required: false,
           },
-          ...(includeManageLink ? [{
-            type: 'EmbeddedLink',
-            text: `\${data.${F.UI_MANAGE_ADDRESSES_LINK}}`,
-            'on-click-action': {
-              name: 'data_exchange',
-              payload: {
-                checkout_action: 'manage_addresses',
-                [F.CUSTOMER_NAME]: `\${form.${F.CUSTOMER_NAME}}`,
-                [F.ORDER_TYPE]: `\${form.${F.ORDER_TYPE}}`,
-                [F.ADDRESS_CHOICE]: `\${form.${F.ADDRESS_CHOICE}}`,
-                [F.DELIVERY_ADDRESS]: `\${form.${F.DELIVERY_ADDRESS}}`,
-                [F.DELIVERY_APARTMENT]: `\${form.${F.DELIVERY_APARTMENT}}`,
-                [F.CHECKOUT_NOTE]: `\${form.${F.CHECKOUT_NOTE}}`,
-              },
-            },
-          }] : []),
           {
             // EmbeddedLink cannot use `complete` — only data_exchange / navigate / open_url.
             // Endpoint closes the Flow with SUCCESS + checkout_action for nfm_reply.
@@ -192,12 +212,7 @@ function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
               name: 'complete',
               payload: {
                 checkout_action: 'place_order',
-                [F.CUSTOMER_NAME]: `\${form.${F.CUSTOMER_NAME}}`,
-                [F.ORDER_TYPE]: `\${form.${F.ORDER_TYPE}}`,
-                [F.ADDRESS_CHOICE]: `\${form.${F.ADDRESS_CHOICE}}`,
-                [F.DELIVERY_ADDRESS]: `\${form.${F.DELIVERY_ADDRESS}}`,
-                [F.DELIVERY_APARTMENT]: `\${form.${F.DELIVERY_APARTMENT}}`,
-                [F.CHECKOUT_NOTE]: `\${form.${F.CHECKOUT_NOTE}}`,
+                ...reviewFormPayload(),
               },
             },
           },

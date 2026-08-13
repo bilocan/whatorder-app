@@ -1,4 +1,4 @@
-const { sessionRef, customersRef } = require('../lib/collections');
+const { sessionRef } = require('../lib/collections');
 const { getBusinessInfo } = require('../bot/menuService');
 const { t } = require('../bot/templates');
 const {
@@ -42,6 +42,32 @@ function emptyProfile() {
   return { savedAddresses: [], lastDeliveryAddress: null };
 }
 
+function reviewDataFrom({
+  session, basket, info, lang, profile, deal, keepNewAddress = false,
+}) {
+  return buildCheckoutReviewData({
+    session,
+    basket,
+    info,
+    lang,
+    t,
+    savedAddresses: profile?.savedAddresses,
+    defaultAddress: profile?.lastDeliveryAddress || '',
+    deal,
+    keepNewAddress,
+  });
+}
+
+function profileAddressLabels(profile, currentAddress, lang) {
+  return labelsByAddressChoice(
+    profile.savedAddresses,
+    currentAddress,
+    lang,
+    t,
+    profile.lastDeliveryAddress || '',
+  );
+}
+
 function isTenantMismatch(session, businessId) {
   return session.businessId !== businessId;
 }
@@ -62,6 +88,7 @@ function buildManageData({ profile, lang, payload = {}, errorKey = null, refillF
   const state = buildAddressChoiceState({
     savedAddresses: profile.savedAddresses,
     currentAddress,
+    defaultAddress: profile.lastDeliveryAddress || '',
     draftChoice: payload[F.MANAGE_ADDRESS_CHOICE],
     lang,
     t,
@@ -70,12 +97,7 @@ function buildManageData({ profile, lang, payload = {}, errorKey = null, refillF
   const choice = state.addressOptions.some((option) => option.id === requestedChoice)
     ? requestedChoice
     : state.addressChoice;
-  const labels = labelsByAddressChoice(
-    profile.savedAddresses,
-    currentAddress,
-    lang,
-    t,
-  );
+  const labels = profileAddressLabels(profile, currentAddress, lang);
   const selectedFields = fieldsForAddressChoice(choice, labels);
   const hasSubmittedStreet = Object.prototype.hasOwnProperty.call(payload, F.DELIVERY_ADDRESS);
   const hasSubmittedApartment = Object.prototype.hasOwnProperty.call(payload, F.DELIVERY_APARTMENT);
@@ -217,14 +239,49 @@ async function buildReviewReturnResponse({
   return {
     version,
     screen,
-    data: buildCheckoutReviewData({
+    data: reviewDataFrom({
       session: reviewSession,
       basket,
       info,
       lang: reviewSession.language || 'de',
-      t,
-      savedAddresses: profile.savedAddresses,
+      profile,
       deal: totals.deal,
+    }),
+  };
+}
+
+async function buildReviewFromDraft({
+  screen,
+  session,
+  profile,
+  draft,
+  version,
+  businessId,
+  phone,
+  keepNewAddress = false,
+}) {
+  const lang = session.language || 'de';
+  const info = await getBusinessInfo(businessId);
+  const reviewSession = { ...session, confirmFlowDraft: draft };
+  const basket = session.basket ?? [];
+  const totals = await loadCheckoutTotals({
+    businessId,
+    info,
+    customerPhone: phone,
+    basket,
+    session: reviewSession,
+  });
+  return {
+    version,
+    screen,
+    data: reviewDataFrom({
+      session: reviewSession,
+      basket,
+      info,
+      lang,
+      profile,
+      deal: totals.deal,
+      keepNewAddress,
     }),
   };
 }
@@ -238,44 +295,46 @@ async function buildReviewSelectResponse({
   businessId,
   phone,
 }) {
+  const draftFromForm = buildConfirmFlowDraft(payload) || {};
+  // Address radio can re-fire after an order-type refresh (often landing on Neue Adresse).
+  // While pickup is selected, ignore that and keep the pickup draft.
+  if (draftFromForm.orderType === 'pickup') {
+    return buildReviewFromDraft({
+      screen,
+      session,
+      profile,
+      draft: draftFromForm,
+      version,
+      businessId,
+      phone,
+    });
+  }
+
   const lang = session.language || 'de';
-  const info = await getBusinessInfo(businessId);
-  const labels = labelsByAddressChoice(
-    profile.savedAddresses,
+  const labels = profileAddressLabels(
+    profile,
     session.deliveryAddress || profile.lastDeliveryAddress || '',
     lang,
-    t,
   );
   const choice = payload[F.ADDRESS_CHOICE] || ADDRESS_CHOICE_NEW;
   const fields = fieldsForAddressChoice(choice, labels);
   const draft = {
-    ...(buildConfirmFlowDraft(payload) || {}),
+    ...draftFromForm,
     addressChoice: choice,
     deliveryAddress: fields.street,
     deliveryApartment: fields.apartment,
+    orderType: 'delivery',
   };
-  const reviewSession = { ...session, confirmFlowDraft: draft };
-  const basket = session.basket ?? [];
-  const totals = await loadCheckoutTotals({
-    businessId,
-    info,
-    customerPhone: phone,
-    basket,
-    session: reviewSession,
-  });
-  return {
-    version,
+  return buildReviewFromDraft({
     screen,
-    data: buildCheckoutReviewData({
-      session: reviewSession,
-      basket,
-      info,
-      lang,
-      t,
-      savedAddresses: profile.savedAddresses,
-      deal: totals.deal,
-    }),
-  };
+    session,
+    profile,
+    draft,
+    version,
+    businessId,
+    phone,
+    keepNewAddress: choice === ADDRESS_CHOICE_NEW,
+  });
 }
 
 /** Review screens declare review data only — never answer them with manage-shaped data. */
@@ -300,13 +359,12 @@ async function buildReviewDataResponse({
   return {
     version,
     screen,
-    data: buildCheckoutReviewData({
+    data: reviewDataFrom({
       session,
       basket,
       info,
       lang,
-      t,
-      savedAddresses: profile.savedAddresses,
+      profile,
       deal: totals.deal,
     }),
   };
@@ -344,19 +402,6 @@ function isManageSetAsDefaultChecked(value) {
   return value === true || value === 'true' || value === 1 || value === '1';
 }
 
-async function loadSavedAddresses(phone, businessId) {
-  try {
-    const snap = await customersRef(businessId).doc(phone).get();
-    const data = snap.data() || {};
-    return [
-      ...(Array.isArray(data.savedAddresses) ? data.savedAddresses : []),
-      data.lastDeliveryAddress,
-    ].filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
 async function buildCheckoutInitResponse({ phone, businessId, version }) {
   const snap = await sessionRef(phone).get();
   const session = snap.exists ? snap.data() : {};
@@ -370,7 +415,7 @@ async function buildCheckoutInitResponse({ phone, businessId, version }) {
     console.warn(`[flow/exchange] checkout INIT tenant mismatch: token=${businessId} session=${session.businessId}`);
   }
 
-  const savedAddresses = crossTenant ? [] : await loadSavedAddresses(phone, businessId);
+  const profile = crossTenant ? emptyProfile() : await loadCustomerAddresses(phone, businessId);
   const reviewSession = crossTenant ? {} : session;
   const basket = crossTenant ? [] : (session.basket ?? []);
   const totals = await loadCheckoutTotals({
@@ -380,13 +425,12 @@ async function buildCheckoutInitResponse({ phone, businessId, version }) {
     basket,
     session: reviewSession,
   });
-  const data = buildCheckoutReviewData({
+  const data = reviewDataFrom({
     session: reviewSession,
     basket,
     info,
     lang,
-    t,
-    savedAddresses,
+    profile,
     deal: totals.deal,
   });
 
@@ -505,6 +549,18 @@ async function buildCheckoutDataExchangeResponse({
     }
   }
 
+  if (action === 'select_order_type' && REVIEW_SCREENS.has(screen)) {
+    return buildReviewFromDraft({
+      screen,
+      session,
+      profile,
+      draft: buildConfirmFlowDraft(payload) || {},
+      version,
+      businessId,
+      phone,
+    });
+  }
+
   if (action === 'manage_addresses') {
     const nextScreen = manageScreenForReview(screen);
     if (nextScreen) {
@@ -537,11 +593,10 @@ async function buildCheckoutDataExchangeResponse({
     || action === 'manage_set_default'
     || action === 'manage_delete';
   if (isManageMutation && nextScreenAfterManageWrite(screen)) {
-    const labels = labelsByAddressChoice(
-      profile.savedAddresses,
+    const labels = profileAddressLabels(
+      profile,
       profile.lastDeliveryAddress || profile.savedAddresses?.[0] || '',
       lang,
-      t,
     );
     const choice = payload[F.MANAGE_ADDRESS_CHOICE];
     const exactLabel = labels[choice] || null;

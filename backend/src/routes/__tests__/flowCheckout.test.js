@@ -148,6 +148,107 @@ test('manage_addresses opens the manage screen with current profile options', as
     .toEqual(['addr_0', 'addr_1', 'addr_new']);
 });
 
+test('select_order_type pickup hides address fields and keeps the typed note', async () => {
+  getBusinessInfo.mockResolvedValue({
+    name: 'Demo Kitchen',
+    deliveryEnabled: true,
+    deliveryOpen: true,
+    deliveryFee: 2,
+  });
+
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'pickup',
+    [F.ADDRESS_CHOICE]: 'addr_0',
+    [F.DELIVERY_ADDRESS]: ADDRESS_1,
+    [F.DELIVERY_APARTMENT]: 'Top 14',
+    [F.CHECKOUT_NOTE]: 'Keep me',
+  });
+
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(response.data[F.ORDER_TYPE]).toBe('pickup');
+  expect(response.data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
+  expect(response.data[F.CHECKOUT_NOTE]).toBe('Keep me');
+  expect(response.data[F.RECEIPT_TEXT]).toContain('Total: €10.00');
+  expect(response.data[F.RECEIPT_TEXT]).not.toContain('Delivery to:');
+});
+
+test('select_order_type delivery restores the default saved address instead of Neue Adresse', async () => {
+  mockSession({ orderType: 'pickup', confirmFlowDraft: { orderType: 'pickup' } });
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: '',
+    [F.DELIVERY_APARTMENT]: '',
+  });
+
+  expect(response.data[F.ORDER_TYPE]).toBe('delivery');
+  expect(response.data[F.ADDRESS_CHOICE]).toBe('addr_0');
+  expect(response.data[F.DELIVERY_ADDRESS]).toBe(ADDRESS_1);
+  expect(response.data[F.DELIVERY_APARTMENT]).toBe('Top 14');
+});
+
+test('select_order_type delivery shows address fields and prices in the delivery fee', async () => {
+  mockSession({ orderType: 'pickup', confirmFlowDraft: { orderType: 'pickup' } });
+  getBusinessInfo.mockResolvedValue({
+    name: 'Demo Kitchen',
+    deliveryEnabled: true,
+    deliveryOpen: true,
+    deliveryFee: 2,
+  });
+
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.CHECKOUT_NOTE]: 'Keep me',
+  });
+
+  expect(response.data[F.ORDER_TYPE]).toBe('delivery');
+  expect(response.data[F.ADDRESS_FIELDS_VISIBLE]).toBe(true);
+  expect(response.data[F.CHECKOUT_NOTE]).toBe('Keep me');
+  expect(response.data[F.RECEIPT_TEXT]).toContain('Total: €12.00');
+  expect(response.data[F.RECEIPT_TEXT]).toContain('Delivery to:');
+});
+
+test('select_address while pickup stays pickup and does not treat a radio refresh as delivery', async () => {
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_address',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'pickup',
+    [F.ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: ADDRESS_1,
+    [F.DELIVERY_APARTMENT]: 'Top 14',
+    [F.CHECKOUT_NOTE]: 'Keep me',
+  });
+
+  expect(response.data[F.ORDER_TYPE]).toBe('pickup');
+  expect(response.data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
+  expect(response.data[F.DELIVERY_ADDRESS]).toBe(ADDRESS_1);
+  expect(response.data[F.CHECKOUT_NOTE]).toBe('Keep me');
+});
+
+test('select_address keeps pickup when delivery is below the minimum', async () => {
+  getBusinessInfo.mockResolvedValue({
+    name: 'Demo Kitchen',
+    deliveryEnabled: true,
+    deliveryOpen: true,
+    minimumOrderValue: 50,
+  });
+
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_address',
+    [F.ORDER_TYPE]: 'pickup',
+    [F.ADDRESS_CHOICE]: 'addr_1',
+  });
+
+  expect(response.data[F.ORDER_TYPE]).toBe('pickup');
+  expect(response.data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
+});
+
 test('select_address on review refills street and apartment from the chosen row', async () => {
   const response = await exchange(S.CHECKOUT_REVIEW, {
     checkout_action: 'select_address',

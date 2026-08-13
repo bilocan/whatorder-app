@@ -185,6 +185,107 @@ describe('checkoutConfirmFlow', () => {
     ]);
   });
 
+  test('restores the default saved address instead of Neue Adresse', () => {
+    const data = buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        confirmFlowDraft: {
+          orderType: 'delivery',
+          addressChoice: 'addr_new',
+          deliveryAddress: '',
+          deliveryApartment: '',
+        },
+      },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+      savedAddresses: [
+        'Naschmarkt 5, 1040 Wien',
+        'Hippgasse 11, Top 14, 1160 Wien',
+      ],
+      defaultAddress: 'Hippgasse 11, Top 14, 1160 Wien',
+    });
+
+    expect(data[F.ADDRESS_CHOICE]).toBe('addr_0');
+    expect(data[F.DELIVERY_ADDRESS]).toBe('Hippgasse 11, Top 14, 1160 Wien');
+    expect(data[F.DELIVERY_APARTMENT]).toBe('Top 14');
+    expect(data[F.ADDRESS_OPTIONS][0]).toMatchObject({ title: 'Hippgasse 11' });
+  });
+
+  test('without a default selects the last saved delivery address', () => {
+    const data = buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        confirmFlowDraft: { orderType: 'delivery', addressChoice: 'addr_new' },
+      },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+      savedAddresses: [
+        'Older Street 1, 1010 Wien',
+        'Latest Street 9, Top 2, 1090 Wien',
+      ],
+    });
+
+    expect(data[F.ADDRESS_CHOICE]).toBe('addr_1');
+    expect(data[F.DELIVERY_ADDRESS]).toBe('Latest Street 9, Top 2, 1090 Wien');
+  });
+
+  test('keeps Neue Adresse when the typed street is not a saved row', () => {
+    const data = buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        confirmFlowDraft: {
+          orderType: 'delivery',
+          addressChoice: 'addr_new',
+          deliveryAddress: 'Brandgasse 8, 1020 Wien',
+          deliveryApartment: 'Top 1',
+        },
+      },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+      savedAddresses: ['Hippgasse 11, Top 14, 1160 Wien'],
+      defaultAddress: 'Hippgasse 11, Top 14, 1160 Wien',
+    });
+
+    expect(data[F.ADDRESS_CHOICE]).toBe('addr_new');
+    expect(data[F.DELIVERY_ADDRESS]).toBe('Brandgasse 8, 1020 Wien');
+    expect(data[F.DELIVERY_APARTMENT]).toBe('Top 1');
+  });
+
+  test('keeps empty Neue Adresse when the customer explicitly chose it', () => {
+    const data = buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        confirmFlowDraft: {
+          orderType: 'delivery',
+          addressChoice: 'addr_new',
+          deliveryAddress: '',
+          deliveryApartment: '',
+        },
+      },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+      savedAddresses: ['Hippgasse 11, Top 14, 1160 Wien'],
+      defaultAddress: 'Hippgasse 11, Top 14, 1160 Wien',
+      keepNewAddress: true,
+    });
+
+    expect(data[F.ADDRESS_CHOICE]).toBe('addr_new');
+    expect(data[F.DELIVERY_ADDRESS]).toBe('');
+    expect(data[F.DELIVERY_APARTMENT]).toBe('');
+  });
+
   test('maps manage and review screens through the forward-only topology', () => {
     expect(nextScreenAfterManageWrite('ADDRESS_MANAGE')).toBe('ADDRESS_MANAGE_UPDATED');
     expect(nextScreenAfterManageWrite('ADDRESS_MANAGE_UPDATED')).toBe('CHECKOUT_REVIEW_RETURN');
@@ -380,6 +481,50 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.ORDER_TYPE_OPTIONS]).toEqual([
       { id: 'pickup', title: 'confirmFlowTypePickup:en:' },
     ]);
+  });
+
+  test('shows address fields when review order type is delivery', () => {
+    const data = buildCheckoutReviewData({
+      session: { customerName: 'Alex', orderType: 'delivery', deliveryAddress: 'Main Street 12' },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.ORDER_TYPE]).toBe('delivery');
+    expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(true);
+  });
+
+  test('hides address fields when the customer switches the draft to pickup', () => {
+    const data = buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Main Street 12',
+        confirmFlowDraft: { orderType: 'pickup' },
+      },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true, deliveryFee: 2 },
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.ORDER_TYPE]).toBe('pickup');
+    expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
+  });
+
+  test('hides address fields when delivery is not selectable', () => {
+    const data = buildCheckoutReviewData({
+      session: { customerName: 'Alex', orderType: 'delivery', deliveryAddress: 'Main Street 12' },
+      basket,
+      info: { name: 'Min Bistro', deliveryEnabled: true, minimumOrderValue: 30 },
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.ORDER_TYPE]).toBe('pickup');
+    expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
   });
 
   test('payment hint follows the same gate as the place path', () => {

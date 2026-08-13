@@ -260,6 +260,38 @@ test('checkout INIT with empty basket still returns CHECKOUT_REVIEW', async () =
   expect(ref.set).not.toHaveBeenCalled();
 });
 
+test('checkout data_exchange on CHECKOUT_REVIEW without |checkout token still routes to checkout', async () => {
+  getBusinessInfo.mockResolvedValue({
+    name: 'Demo Kitchen',
+    deliveryEnabled: true,
+    deliveryOpen: true,
+    deliveryFee: 2,
+  });
+  mockSession([{ name: 'Burger', qty: 1, price: 10 }], {
+    businessId: 'biz1',
+    language: 'en',
+    customerName: 'Alex',
+    orderType: 'delivery',
+  });
+
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_REVIEW,
+    version: V,
+    flow_token: TOKEN,
+    data: {
+      checkout_action: 'select_order_type',
+      [F.CUSTOMER_NAME]: 'Alex',
+      [F.ORDER_TYPE]: 'pickup',
+    },
+  });
+
+  expect(res.status).toBe(200);
+  expect(parsed(res).screen).toBe(S.CHECKOUT_REVIEW);
+  expect(parsed(res).data[F.ORDER_TYPE]).toBe('pickup');
+  expect(parsed(res).data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
+});
+
 test('checkout data_exchange back_to_cart → SUCCESS with checkout_action', async () => {
   const token = checkoutFlowToken('phone1', 'biz1');
   const res = await post({

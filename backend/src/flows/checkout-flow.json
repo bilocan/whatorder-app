@@ -116,6 +116,10 @@
           "type": "string",
           "__example__": "addr_0"
         },
+        "address_fields_visible": {
+          "type": "boolean",
+          "__example__": true
+        },
         "address_options": {
           "type": "array",
           "items": {
@@ -196,18 +200,11 @@
                 "label": "${data.ui_type_label}",
                 "name": "order_type",
                 "required": true,
-                "data-source": "${data.order_type_options}"
-              },
-              {
-                "type": "RadioButtonsGroup",
-                "label": "${data.ui_address_choice_label}",
-                "name": "address_choice",
-                "required": true,
-                "data-source": "${data.address_options}",
+                "data-source": "${data.order_type_options}",
                 "on-select-action": {
                   "name": "data_exchange",
                   "payload": {
-                    "checkout_action": "select_address",
+                    "checkout_action": "select_order_type",
                     "customer_name": "${form.customer_name}",
                     "order_type": "${form.order_type}",
                     "address_choice": "${form.address_choice}",
@@ -218,39 +215,64 @@
                 }
               },
               {
-                "type": "TextInput",
-                "label": "${data.ui_address_label}",
-                "name": "delivery_address",
-                "required": true
-              },
-              {
-                "type": "TextInput",
-                "label": "${data.ui_apartment_label}",
-                "name": "delivery_apartment",
-                "required": true,
-                "helper-text": "${data.ui_apartment_helper}"
+                "type": "If",
+                "condition": "${form.order_type} == 'delivery'",
+                "then": [
+                  {
+                    "type": "RadioButtonsGroup",
+                    "label": "${data.ui_address_choice_label}",
+                    "name": "address_choice",
+                    "required": true,
+                    "data-source": "${data.address_options}",
+                    "on-select-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "select_address",
+                        "customer_name": "${form.customer_name}",
+                        "order_type": "${form.order_type}",
+                        "address_choice": "${form.address_choice}",
+                        "delivery_address": "${form.delivery_address}",
+                        "delivery_apartment": "${form.delivery_apartment}",
+                        "note": "${form.note}"
+                      }
+                    }
+                  },
+                  {
+                    "type": "TextInput",
+                    "label": "${data.ui_address_label}",
+                    "name": "delivery_address",
+                    "required": true
+                  },
+                  {
+                    "type": "TextInput",
+                    "label": "${data.ui_apartment_label}",
+                    "name": "delivery_apartment",
+                    "required": true,
+                    "helper-text": "${data.ui_apartment_helper}"
+                  },
+                  {
+                    "type": "EmbeddedLink",
+                    "text": "${data.ui_manage_addresses_link}",
+                    "on-click-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "manage_addresses",
+                        "customer_name": "${form.customer_name}",
+                        "order_type": "${form.order_type}",
+                        "address_choice": "${form.address_choice}",
+                        "delivery_address": "${form.delivery_address}",
+                        "delivery_apartment": "${form.delivery_apartment}",
+                        "note": "${form.note}"
+                      }
+                    }
+                  }
+                ]
               },
               {
                 "type": "TextArea",
                 "label": "${data.ui_note_label}",
                 "name": "note",
                 "required": false
-              },
-              {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_manage_addresses_link}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_addresses",
-                    "customer_name": "${form.customer_name}",
-                    "order_type": "${form.order_type}",
-                    "address_choice": "${form.address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}",
-                    "note": "${form.note}"
-                  }
-                }
               },
               {
                 "type": "EmbeddedLink",
@@ -844,6 +866,10 @@
           "type": "string",
           "__example__": "addr_0"
         },
+        "address_fields_visible": {
+          "type": "boolean",
+          "__example__": true
+        },
         "address_options": {
           "type": "array",
           "items": {
@@ -924,18 +950,11 @@
                 "label": "${data.ui_type_label}",
                 "name": "order_type",
                 "required": true,
-                "data-source": "${data.order_type_options}"
-              },
-              {
-                "type": "RadioButtonsGroup",
-                "label": "${data.ui_address_choice_label}",
-                "name": "address_choice",
-                "required": true,
-                "data-source": "${data.address_options}",
+                "data-source": "${data.order_type_options}",
                 "on-select-action": {
                   "name": "data_exchange",
                   "payload": {
-                    "checkout_action": "select_address",
+                    "checkout_action": "select_order_type",
                     "customer_name": "${form.customer_name}",
                     "order_type": "${form.order_type}",
                     "address_choice": "${form.address_choice}",
@@ -946,39 +965,64 @@
                 }
               },
               {
-                "type": "TextInput",
-                "label": "${data.ui_address_label}",
-                "name": "delivery_address",
-                "required": true
-              },
-              {
-                "type": "TextInput",
-                "label": "${data.ui_apartment_label}",
-                "name": "delivery_apartment",
-                "required": true,
-                "helper-text": "${data.ui_apartment_helper}"
+                "type": "If",
+                "condition": "${form.order_type} == 'delivery'",
+                "then": [
+                  {
+                    "type": "RadioButtonsGroup",
+                    "label": "${data.ui_address_choice_label}",
+                    "name": "address_choice",
+                    "required": true,
+                    "data-source": "${data.address_options}",
+                    "on-select-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "select_address",
+                        "customer_name": "${form.customer_name}",
+                        "order_type": "${form.order_type}",
+                        "address_choice": "${form.address_choice}",
+                        "delivery_address": "${form.delivery_address}",
+                        "delivery_apartment": "${form.delivery_apartment}",
+                        "note": "${form.note}"
+                      }
+                    }
+                  },
+                  {
+                    "type": "TextInput",
+                    "label": "${data.ui_address_label}",
+                    "name": "delivery_address",
+                    "required": true
+                  },
+                  {
+                    "type": "TextInput",
+                    "label": "${data.ui_apartment_label}",
+                    "name": "delivery_apartment",
+                    "required": true,
+                    "helper-text": "${data.ui_apartment_helper}"
+                  },
+                  {
+                    "type": "EmbeddedLink",
+                    "text": "${data.ui_manage_addresses_link}",
+                    "on-click-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "manage_addresses",
+                        "customer_name": "${form.customer_name}",
+                        "order_type": "${form.order_type}",
+                        "address_choice": "${form.address_choice}",
+                        "delivery_address": "${form.delivery_address}",
+                        "delivery_apartment": "${form.delivery_apartment}",
+                        "note": "${form.note}"
+                      }
+                    }
+                  }
+                ]
               },
               {
                 "type": "TextArea",
                 "label": "${data.ui_note_label}",
                 "name": "note",
                 "required": false
-              },
-              {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_manage_addresses_link}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_addresses",
-                    "customer_name": "${form.customer_name}",
-                    "order_type": "${form.order_type}",
-                    "address_choice": "${form.address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}",
-                    "note": "${form.note}"
-                  }
-                }
               },
               {
                 "type": "EmbeddedLink",
@@ -1335,6 +1379,10 @@
           "type": "string",
           "__example__": "addr_0"
         },
+        "address_fields_visible": {
+          "type": "boolean",
+          "__example__": true
+        },
         "address_options": {
           "type": "array",
           "items": {
@@ -1415,18 +1463,11 @@
                 "label": "${data.ui_type_label}",
                 "name": "order_type",
                 "required": true,
-                "data-source": "${data.order_type_options}"
-              },
-              {
-                "type": "RadioButtonsGroup",
-                "label": "${data.ui_address_choice_label}",
-                "name": "address_choice",
-                "required": true,
-                "data-source": "${data.address_options}",
+                "data-source": "${data.order_type_options}",
                 "on-select-action": {
                   "name": "data_exchange",
                   "payload": {
-                    "checkout_action": "select_address",
+                    "checkout_action": "select_order_type",
                     "customer_name": "${form.customer_name}",
                     "order_type": "${form.order_type}",
                     "address_choice": "${form.address_choice}",
@@ -1437,17 +1478,42 @@
                 }
               },
               {
-                "type": "TextInput",
-                "label": "${data.ui_address_label}",
-                "name": "delivery_address",
-                "required": true
-              },
-              {
-                "type": "TextInput",
-                "label": "${data.ui_apartment_label}",
-                "name": "delivery_apartment",
-                "required": true,
-                "helper-text": "${data.ui_apartment_helper}"
+                "type": "If",
+                "condition": "${form.order_type} == 'delivery'",
+                "then": [
+                  {
+                    "type": "RadioButtonsGroup",
+                    "label": "${data.ui_address_choice_label}",
+                    "name": "address_choice",
+                    "required": true,
+                    "data-source": "${data.address_options}",
+                    "on-select-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "select_address",
+                        "customer_name": "${form.customer_name}",
+                        "order_type": "${form.order_type}",
+                        "address_choice": "${form.address_choice}",
+                        "delivery_address": "${form.delivery_address}",
+                        "delivery_apartment": "${form.delivery_apartment}",
+                        "note": "${form.note}"
+                      }
+                    }
+                  },
+                  {
+                    "type": "TextInput",
+                    "label": "${data.ui_address_label}",
+                    "name": "delivery_address",
+                    "required": true
+                  },
+                  {
+                    "type": "TextInput",
+                    "label": "${data.ui_apartment_label}",
+                    "name": "delivery_apartment",
+                    "required": true,
+                    "helper-text": "${data.ui_apartment_helper}"
+                  }
+                ]
               },
               {
                 "type": "TextArea",

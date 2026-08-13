@@ -823,10 +823,6 @@ async function sendCheckoutConfirmFlow(from, session, lang, businessId, basket, 
     businessId, info, customerPhone: from, basket, session: reviewSession,
   });
   const profile = await getCustomerProfile(from, businessId);
-  const savedAddresses = [
-    ...(profile?.savedAddresses || []),
-    profile?.lastDeliveryAddress,
-  ].filter(Boolean);
   return sendFlowMessage(from, {
     flowId: process.env.WHATSAPP_CHECKOUT_FLOW_ID,
     flowToken: checkoutFlowToken(from, businessId),
@@ -839,7 +835,11 @@ async function sendCheckoutConfirmFlow(from, session, lang, businessId, basket, 
       info,
       lang,
       t,
-      savedAddresses,
+      savedAddresses: [
+        ...(profile?.savedAddresses || []),
+        profile?.lastDeliveryAddress,
+      ].filter(Boolean),
+      defaultAddress: profile?.lastDeliveryAddress || '',
       deal: totals.deal,
     }),
   });
@@ -1517,6 +1517,7 @@ async function handleConfirming({
       session.deliveryAddress || profile?.lastDeliveryAddress || '',
       lang,
       t,
+      profile?.lastDeliveryAddress || '',
     );
     const validation = validateCheckoutSubmit(payload, { addressLabels });
     if (!validation.ok) {

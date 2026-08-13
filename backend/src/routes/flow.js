@@ -183,9 +183,10 @@ router.post('/flow/exchange', async (req, res) => {
       return reply(await buildCheckoutInitResponse({ phone, businessId, version }));
     }
 
+    // Checkout screens identify the Flow (Flow Tester often uses phone|biz without |checkout).
+    // Menu screens never send CHECKOUT_* / ADDRESS_MANAGE_* ids.
     if (
       action === 'data_exchange'
-      && parsedToken.isCheckout
       && CHECKOUT_EXCHANGE_SCREENS.has(screen)
     ) {
       return reply(await buildCheckoutDataExchangeResponse({
