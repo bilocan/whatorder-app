@@ -61,6 +61,7 @@ const {
 } = require('../checkoutSlots');
 const { sendOrderEntryPrompt } = require('../orderEntry');
 const { basketSubtotal, orderTotals } = require('../orderTotals');
+const { loadCheckoutTotals, checkoutDealLines, chargedCustomerTotal } = require('../checkoutDeal');
 const { recordParseFailure, resetParseFailures } = require('../postOrder');
 
 // M2: bare `1` no longer confirms — use list row btn_place_order only (digit disambiguation).
@@ -156,7 +157,12 @@ async function attachMenuVatRates(businessId, basket) {
 
 async function placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod }) {
   const info = await getBusinessInfo(businessId);
-  const { subtotal, deliveryFee, total, isDelivery } = orderTotals(basket, session, info);
+  const totals = await loadCheckoutTotals({
+    businessId, info, customerPhone: from, basket, session,
+  });
+  const {
+    subtotal, deliveryFee, discount, total, isDelivery,
+  } = totals;
   const phoneNumberId = session.whatsappPhoneNumberId || null;
 
   // Card orders are blocked (order never created) when the Beleg / settlement data is not ready.
@@ -174,7 +180,11 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     }
     try {
       const lines = await attachMenuVatRates(businessId, basket);
-      taxSnapshot = buildOrderTaxSnapshot(lines, { strict: true, deliveryFeeGross: deliveryFee });
+      taxSnapshot = buildOrderTaxSnapshot(lines, {
+        strict: true,
+        deliveryFeeGross: deliveryFee,
+        discountGross: discount,
+      });
     } catch (err) {
       console.warn(`[checkout] card order blocked for ${businessId}: ${err.message}`);
       await sendText(from, t('paymentVatIncomplete', lang), phoneNumberId);
@@ -187,13 +197,21 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     customerName: session.customerName || contactName || null,
     restaurantName: info.name || null,
     items: basket,
-    total: subtotal,
+    total: subtotal - discount,
     language: lang,
     pickupTime: isDelivery ? null : (session.pickupTime || null),
     notes: session.specialRequests || null,
     orderType: session.orderType || 'pickup',
     deliveryAddress: session.deliveryAddress || null,
     deliveryFee,
+    discountSnapshot: totals.deal ? {
+      discount,
+      discountDealId: totals.deal.dealId,
+      discountKind: totals.deal.kind,
+      discountType: totals.deal.discountType,
+      discountValue: totals.deal.discountValue,
+      discountLabel: totals.deal.label,
+    } : { discount: 0 },
     paymentMethod,
     paymentStatus: paymentMethod === 'stripe' ? 'pending' : 'cash',
     whatsappPhoneNumberId: session.whatsappPhoneNumberId || null,
@@ -215,16 +233,17 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
   });
 
   if (paymentMethod === 'stripe') {
+    const chargedTotal = chargedCustomerTotal(taxSnapshot, total);
     try {
       const { url, sessionId } = await createCheckoutSessionForOrder(businessId, orderId, {
-        totalEuros: total,
+        totalEuros: chargedTotal,
         restaurantName: info.name,
         shortId,
         lang,
       });
       await ordersRef(businessId).doc(orderId).update({ paymentStripeSessionId: sessionId });
       await sendCtaUrlMessage(from, {
-        body: t('paymentLink', lang, shortId, itemLines, total.toFixed(2), info.name, info.alertPhone || null, info.address || null, isDelivery ? (session.deliveryAddress || null) : null),
+        body: t('paymentLink', lang, shortId, itemLines, chargedTotal.toFixed(2), info.name, info.alertPhone || null, info.address || null, isDelivery ? (session.deliveryAddress || null) : null, checkoutDealLines(t, lang, totals)),
         buttonLabel: t('payNowBtn', lang),
         url,
       }, phoneNumberId);
@@ -235,7 +254,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     return;
   }
 
-  await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, paymentMethod, info.alertPhone || null, info.address || null), phoneNumberId);
+  await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, paymentMethod, info.alertPhone || null, info.address || null, checkoutDealLines(t, lang, totals)), phoneNumberId);
   await sendButtonMessage(from, {
     body: t('postOrderOptions', lang, info.name),
     buttons: [
@@ -752,38 +771,43 @@ function buildConfirmListRows(session, name, lang, info) {
 
 async function sendConfirmList(from, session, lang, businessId, basket, name) {
   const info = await getBusinessInfo(businessId);
-  const { total: displayTotal } = orderTotals(basket, session, info);
+  const totals = await loadCheckoutTotals({
+    businessId, info, customerPhone: from, basket, session,
+  });
   const rows = buildConfirmListRows(session, name, lang, info);
   if (process.env.NODE_ENV !== 'test') {
     console.log(`[checkout] confirm list ${businessId}: deliveryEnabled=${info.deliveryEnabled} orderType=${session.orderType ?? 'unset'} rows=${rows.map(r => r.id).join(',')}`);
   }
   return sendListMessage(from, {
     header: t('confirmListHeader', lang),
-    body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null, session.specialRequests || null, isPaymentEnabled(info) ? 'stripe' : null),
+    body: buildFinalConfirmBody(session, lang, name, info, totals),
     buttonLabel: t('confirmListBtn', lang),
     sections: [{ title: t('confirmListSection', lang), rows }],
   });
 }
 
-function buildFinalConfirmBody(session, lang, basket, name, info) {
-  const reviewSession = { ...session, customerName: name || session.customerName };
-  const { total: displayTotal } = orderTotals(basket, reviewSession, info);
+function buildFinalConfirmBody(session, lang, name, info, totals) {
+  const discountLine = checkoutDealLines(t, lang, totals);
   return t(
     'finalConfirmBody',
     lang,
     name || session.customerName,
-    displayTotal.toFixed(2),
+    totals.total.toFixed(2),
     session.pickupTime,
     session.deliveryAddress ?? null,
     session.specialRequests || null,
     isPaymentEnabled(info) ? 'stripe' : null,
+    discountLine,
   );
 }
 
 /** Chat gate before the Flow CTA (Add more / Continue). Meta cannot put extra buttons on a Flow message. */
-async function sendConfirmFlowGate(from, session, lang, basket, name, info) {
+async function sendConfirmFlowGate(from, session, lang, businessId, basket, name, info) {
+  const totals = await loadCheckoutTotals({
+    businessId, info, customerPhone: from, basket, session,
+  });
   return sendButtonMessage(from, {
-    body: buildFinalConfirmBody(session, lang, basket, name, info),
+    body: buildFinalConfirmBody(session, lang, name, info, totals),
     buttons: [
       { id: 'btn_confirm_add_more', title: t('confirmGateAddMore', lang) },
       { id: 'btn_confirm_continue', title: t('confirmGateContinue', lang) },
@@ -795,6 +819,9 @@ async function sendConfirmFlowGate(from, session, lang, basket, name, info) {
 // the prefill ships inside flow_action_payload.data (see sendFlowMessage).
 async function sendCheckoutConfirmFlow(from, session, lang, businessId, basket, name, info) {
   const reviewSession = { ...session, customerName: name || session.customerName };
+  const totals = await loadCheckoutTotals({
+    businessId, info, customerPhone: from, basket, session: reviewSession,
+  });
   const profile = await getCustomerProfile(from, businessId);
   const savedAddresses = [
     ...(profile?.savedAddresses || []),
@@ -805,7 +832,7 @@ async function sendCheckoutConfirmFlow(from, session, lang, businessId, basket, 
     flowToken: checkoutFlowToken(from, businessId),
     flowCta: t('confirmFlowCta', lang),
     screen: 'CHECKOUT_REVIEW',
-    body: buildFinalConfirmBody(session, lang, basket, name, info),
+    body: buildFinalConfirmBody(session, lang, name, info, totals),
     data: buildCheckoutReviewData({
       session: reviewSession,
       basket,
@@ -813,6 +840,7 @@ async function sendCheckoutConfirmFlow(from, session, lang, businessId, basket, 
       lang,
       t,
       savedAddresses,
+      deal: totals.deal,
     }),
   });
 }
@@ -829,7 +857,7 @@ async function sendConfirmUi(
   let msgId = null;
 
   if (wantFlow && flowUiMode === 'gate') {
-    msgId = await sendConfirmFlowGate(from, session, lang, basket, name, info);
+    msgId = await sendConfirmFlowGate(from, session, lang, businessId, basket, name, info);
     // Gate message is the success path even when the WA id is falsy (same as list).
     return { msgId, deferredChatLadder: false };
   }

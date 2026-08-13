@@ -41,10 +41,57 @@ describe('GET /api/maps/restaurants', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.restaurants).toEqual([
-      { id: 'biz_a', name: 'Near', lat: 48.2, lng: 16.37, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null },
-      { id: 'biz_b', name: 'Far', lat: 41, lng: 28.97, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null },
+      { id: 'biz_a', name: 'Near', lat: 48.2, lng: 16.37, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: null },
+      { id: 'biz_b', name: 'Far', lat: 41, lng: 28.97, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: null },
     ]);
     expect(sortByDistance).not.toHaveBeenCalled();
+  });
+
+  describe('live window dealLabel', () => {
+    beforeEach(() => {
+      jest.useFakeTimers({ now: new Date('2026-08-13T12:00:00.000Z') });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    test('returns dealLabel for a live window slot', async () => {
+      businessRef.mockImplementation((id) => ({
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          id,
+          data: () => ({
+            name: id === 'biz_a' ? 'Near' : 'Far',
+            lat: id === 'biz_a' ? 48.2 : 41.0,
+            lng: id === 'biz_a' ? 16.37 : 28.97,
+            address: 'Wien',
+            ...(id === 'biz_a' ? {
+              deals: {
+                window: {
+                  dealId: 'w1',
+                  kind: 'window',
+                  discountType: 'percent',
+                  discountValue: 10,
+                  label: '10% Rabatt',
+                  active: true,
+                  startsAt: new Date('2026-08-01T00:00:00.000Z'),
+                  endsAt: new Date('2026-08-31T23:59:59.000Z'),
+                },
+              },
+            } : {}),
+          }),
+        }),
+      }));
+
+      const res = await request(app).get('/api/maps/restaurants').query({ ids: 'biz_a,biz_b' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.restaurants).toEqual([
+        { id: 'biz_a', name: 'Near', lat: 48.2, lng: 16.37, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: '10% Rabatt' },
+        { id: 'biz_b', name: 'Far', lat: 41, lng: 28.97, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: null },
+      ]);
+    });
   });
 
   test('returns resolved imageUrl when present', async () => {

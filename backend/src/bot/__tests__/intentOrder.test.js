@@ -13,7 +13,7 @@ jest.mock('../../lib/llm', () => ({
 }));
 
 const { setSession } = require('../sessionStore');
-const { getMenuContext, resolvePhotoUrl } = require('../menuService');
+const { getMenuContext, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { sendButtonMessage } = require('../../lib/whatsapp');
 const { canCallLlm, parseOrderIntentWithLlm } = require('../../lib/llm');
 const { tryTextIntentOrder } = require('../intentOrder');
@@ -26,6 +26,7 @@ const MENU = [
 beforeEach(() => {
   jest.clearAllMocks();
   getMenuContext.mockResolvedValue({ menu: MENU, menuMatch: null, menuTokenIndex: null });
+  getBusinessInfo.mockResolvedValue(null);
   sendButtonMessage.mockResolvedValue('msg_1');
   setSession.mockResolvedValue();
   resolvePhotoUrl.mockImplementation(url => url ?? null);

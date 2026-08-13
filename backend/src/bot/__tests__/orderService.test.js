@@ -78,6 +78,7 @@ describe('createOrder', () => {
         customerId: '43699000001',
         customerName: 'Ahmet',
         items: ORDER_PARAMS.items,
+        subtotal: 17,
         total: 17,
         status: 'pending',
         source: 'whatsapp',
@@ -183,6 +184,59 @@ describe('createOrder', () => {
     await createOrder(BIZ, { ...ORDER_PARAMS, pickupTime: undefined });
 
     expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ pickupTime: null }));
+  });
+
+  test('persists discount snapshot fields when provided', async () => {
+    const { mockSet } = makeOrdersRef();
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+
+    await createOrder(BIZ, {
+      ...ORDER_PARAMS,
+      total: 15,
+      discountSnapshot: {
+        discount: 2,
+        discountDealId: 'fo1',
+        discountKind: 'first_order',
+        discountType: 'percent',
+        discountValue: 10,
+        discountLabel: '10% Willkommen',
+      },
+    });
+
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({
+      subtotal: 17,
+      total: 15,
+      discount: 2,
+      discountDealId: 'fo1',
+      discountKind: 'first_order',
+      discountType: 'percent',
+      discountValue: 10,
+      discountLabel: '10% Willkommen',
+    }));
+  });
+
+  test('writes discount 0 when no snapshot', async () => {
+    const { mockSet } = makeOrdersRef();
+    businessRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: false }) });
+    await createOrder(BIZ, ORDER_PARAMS);
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ discount: 0 }));
+  });
+
+  test('owner alert includes discount line', async () => {
+    makeOrdersRef();
+    businessRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({ exists: true, data: () => ({ alertPhone: '43699000' }) }),
+    });
+    await createOrder(BIZ, {
+      ...ORDER_PARAMS,
+      total: 15,
+      discountSnapshot: { discount: 2, discountLabel: '10% Willkommen' },
+    });
+    expect(sendText).toHaveBeenCalledWith(
+      '43699000',
+      expect.stringMatching(/10% Willkommen/),
+      expect.anything(),
+    );
   });
 
   // ── Tax snapshot (Phase 0 receipts) ────────────────────────────────────────
@@ -806,6 +860,72 @@ describe('amendOrderAddItems', () => {
       expect.stringMatching(/amended \(add-on\)[\s\S]*Ayran[\s\S]*€10\.50[\s\S]*Ali/),
       'phone_id_test',
     );
+  });
+
+  test('keeps the frozen discount when items are added', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue(undefined);
+    const orderData = {
+      status: 'pending',
+      paymentMethod: 'cash',
+      orderType: 'delivery',
+      items: [{ name: 'Döner', qty: 1, price: 8 }],
+      subtotal: 8,
+      discount: 2,
+      deliveryFee: 3,
+      total: 9,
+      customerName: 'Ali',
+      customerPhone: '+43699000001',
+      whatsappPhoneNumberId: 'phone_id_test',
+    };
+    ordersRef.mockReturnValue({
+      doc: jest.fn().mockReturnValue({
+        get: jest.fn().mockResolvedValue({ exists: true, data: () => orderData }),
+        update: mockUpdate,
+      }),
+    });
+
+    const result = await amendOrderAddItems(
+      BIZ,
+      'order_abc123456789',
+      [{ name: 'Ayran', qty: 1, price: 2.5 }],
+    );
+
+    expect(result.total).toBe(11.5);
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      subtotal: 10.5,
+      total: 11.5,
+    }));
+  });
+
+  test('clamps a frozen discount to the recomputed subtotal', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue(undefined);
+    ordersRef.mockReturnValue({
+      doc: jest.fn().mockReturnValue({
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({
+            status: 'pending',
+            paymentMethod: 'cash',
+            orderType: 'pickup',
+            items: [{ name: 'A', qty: 1, price: 1 }],
+            discount: 20,
+          }),
+        }),
+        update: mockUpdate,
+      }),
+    });
+
+    const result = await amendOrderAddItems(
+      BIZ,
+      'order_1',
+      [{ name: 'B', qty: 1, price: 1 }],
+    );
+
+    expect(result.total).toBe(0);
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      subtotal: 2,
+      total: 0,
+    }));
   });
 
   test('rejects stripe orders', async () => {

@@ -2,6 +2,7 @@ const express = require('express');
 const { businessRef } = require('../lib/collections');
 const { sortByDistance } = require('../lib/distance');
 const { resolvePhotoUrl } = require('../bot/menuService');
+const { marketingDealLabel } = require('../lib/dealResolve');
 
 const router = express.Router();
 
@@ -21,6 +22,7 @@ function toPin(b) {
     imageUrl: b.imageUrl ?? null,
     distanceKm: b.distanceKm ?? null,
     durationMin: b.durationMin ?? null,
+    dealLabel: b.dealLabel ?? null,
   };
 }
 
@@ -49,6 +51,7 @@ router.get('/maps/restaurants', async (req, res) => {
         lng: parseCoord(b.lng),
         address: b.address ?? null,
         imageUrl: resolvePhotoUrl(b.imageUrl) ?? null,
+        dealLabel: marketingDealLabel(b),
       }))
       .filter((b) => b.lat != null && b.lng != null);
 

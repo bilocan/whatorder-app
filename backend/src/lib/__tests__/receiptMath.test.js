@@ -52,6 +52,16 @@ describe('receiptMath', () => {
     expect(snap.items[0]).toMatchObject({ vatRate: 10, qty: 2 });
   });
 
+  test('no-discount VAT split is stable after aggregating bucket gross', () => {
+    const snap = buildOrderTaxSnapshot([
+      { name: 'A', qty: 1, price: 1, vatRate: 10 },
+      { name: 'B', qty: 1, price: 1.15, vatRate: 10 },
+    ]);
+
+    // Aggregate €2.15 gross first, then split: €1.95 net + €0.20 VAT.
+    expect(snap.totalsByVat['10']).toEqual({ net: 1.95, vat: 0.2, gross: 2.15 });
+  });
+
   test('rejects missing vatRate in buildOrderTaxSnapshot when strict', () => {
     expect(() => buildOrderTaxSnapshot(
       [{ name: 'X', qty: 1, price: 1 }],
@@ -96,5 +106,47 @@ describe('receiptMath', () => {
 
     expect(snap.items.filter(item => item.kind === FEE_LINE_KIND)).toHaveLength(1);
     expect(snap.items[0].kind).toBeUndefined();
+  });
+
+  test('discountGross allocates across item VAT buckets and leaves fee untouched', () => {
+    const snap = buildOrderTaxSnapshot(
+      [
+        { name: 'Döner', qty: 1, price: 10, vatRate: 10 },
+        { name: 'Ayran', qty: 1, price: 2.5, vatRate: 20 },
+      ],
+      { deliveryFeeGross: 3, discountGross: 2.5 },
+    );
+
+    expect(snap.items[0].gross).toBeCloseTo(10, 5);
+    expect(snap.items[1].gross).toBeCloseTo(2.5, 5);
+    expect(snap.items[2]).toMatchObject({ kind: FEE_LINE_KIND, gross: 3 });
+
+    const allocated =
+      (10 + 3 - snap.totalsByVat['10'].gross) + (2.5 - snap.totalsByVat['20'].gross);
+    expect(allocated).toBeCloseTo(2.5, 5);
+    expect(snap.totalsByVat['10'].gross + snap.totalsByVat['20'].gross).toBeCloseTo(13, 5);
+    expect(snap.totalGross).toBeCloseTo(13, 5);
+  });
+
+  test('largest remainder distributes leftover cents exactly', () => {
+    const snap = buildOrderTaxSnapshot(
+      [
+        { name: 'A', qty: 1, price: 1.01, vatRate: 10 },
+        { name: 'B', qty: 1, price: 1.00, vatRate: 20 },
+      ],
+      { discountGross: 0.03 },
+    );
+    const cut10 = 101 - Math.round(snap.totalsByVat['10'].gross * 100);
+    const cut20 = 100 - Math.round(snap.totalsByVat['20'].gross * 100);
+    expect(cut10 + cut20).toBe(3);
+    expect(snap.totalGross).toBeCloseTo(1.98, 5);
+  });
+
+  test('omitting discountGross keeps current totals', () => {
+    const snap = buildOrderTaxSnapshot(
+      [{ name: 'Döner', qty: 1, price: 8.5, vatRate: 10 }],
+      { deliveryFeeGross: 2.5 },
+    );
+    expect(snap.totalGross).toBeCloseTo(11, 5);
   });
 });

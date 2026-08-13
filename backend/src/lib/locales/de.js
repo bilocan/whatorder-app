@@ -57,14 +57,17 @@ module.exports = {
   confirmBtn: () => 'Bestätigen',
 
   orderTotal: (total) => `Gesamt: €${total}`,
+  checkoutDiscount: (label, amount) => `🏷️ ${label}: −€${amount}`,
+  dealMarketingLine: (label) => `🏷️ ${label}`,
+  checkoutDeliveryFee: (amount) => `🚚 Liefergebühr: €${amount}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Fertig in ~${prepMins} Min. (gegen ${pickupTime})\n\nWie lautet Ihr Name?`,
-  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod) => {
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod, discountLine) => {
     const detail = deliveryAddress
       ? `🚚 Lieferung an: ${deliveryAddress}`
       : `⏱️ Fertig gegen ${pickupTime}`;
     const notesLine = notes ? `\n📝 Notiz: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Zahlung: Karte' : '';
-    return `✅ Fast fertig!\n\n👤 ${name}\n💶 Gesamt: €${total}\n${detail}${paymentLine}${notesLine}\n\nUnten tippen zum Bestätigen oder Ändern.`;
+    return `✅ Fast fertig!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Gesamt: €${total}\n${detail}${paymentLine}${notesLine}\n\nUnten tippen zum Bestätigen oder Ändern.`;
   },
   confirmListHeader: () => 'Bestellung prüfen',
   confirmListBtn: () => 'Optionen',
@@ -128,11 +131,11 @@ module.exports = {
   confirmPrompt: () => 'YES zum Bestätigen, NO zum Abbrechen.',
   yesNoOnly: () => 'Bitte YES oder NO schreiben.',
   orderConfirmed: (shortId) => `✅ Bestellung erhalten! Bestellnr.: #${shortId}\n\nWir benachrichtigen Sie wenn sie fertig ist. Danke! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address) => {
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Lieferung an: ${deliveryAddress}` : `Fertig um: ${pickupTime}`;
-    return `✅ Bestellung #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nGesamt: €${total}\n${detail}\n\nDanke, ${customerName}! 🙏`;
+    return `✅ Bestellung #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\n${discountLine ? `${discountLine}\n` : ''}Gesamt: €${total}\n${detail}\n\nDanke, ${customerName}! 🙏`;
   },
   checkoutCancelled: () => 'Bestellung abgebrochen.',
   cancelOrderBtn: () => 'Abbrechen',
@@ -141,11 +144,11 @@ module.exports = {
   checkoutBasketUpdated: (basketText) => `✅ Warenkorb aktualisiert.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'Das klingt nach einer Bestellung. Bitte geben Sie Ihre Lieferadresse ein, oder fügen Sie Artikel über den Warenkorb hinzu.',
   payNowBtn: () => 'Jetzt zahlen 💳',
-  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress) => {
+  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Lieferung an: ${deliveryAddress}` : null;
-    return `Bestellung #${shortId} aufgegeben.\n\n${restaurantBlock}\n\n${itemLines}\n\nGesamt: €${total}${detail ? `\n${detail}` : ''}\n\nTippe unten auf den Button zum Bezahlen.`;
+    return `Bestellung #${shortId} aufgegeben.\n\n${restaurantBlock}\n\n${itemLines}\n\n${discountLine ? `${discountLine}\n` : ''}Gesamt: €${total}${detail ? `\n${detail}` : ''}\n\nTippe unten auf den Button zum Bezahlen.`;
   },
   paymentLinkFailed: (shortId) => `Bestellung #${shortId} wurde erstellt, aber der Zahlungslink ist fehlgeschlagen. Bitte kontaktiere das Restaurant.`,
   paymentLegalIncomplete: () => 'Kartenzahlung ist bei diesem Restaurant noch nicht freigeschaltet, deine Bestellung wurde nicht aufgegeben. Bitte kontaktiere das Restaurant direkt.',

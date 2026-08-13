@@ -29,8 +29,8 @@ jest.mock('../receipts/gcsReceiptStorage', () => ({
 
 const { db } = require('../firebase');
 const { receiptRef, receiptCounterRef, ordersRef, businessRef } = require('../collections');
-const { allocateReceiptSlot, issueCustomerBeleg } = require('../receiptService');
-const { uploadReceiptPdf } = require('../receipts/gcsReceiptStorage');
+const { allocateReceiptSlot, issueCustomerBeleg, getReceiptDownload } = require('../receiptService');
+const { uploadReceiptPdf, getReceiptSignedUrl } = require('../receipts/gcsReceiptStorage');
 
 const year = new Date().getFullYear();
 
@@ -129,6 +129,24 @@ describe('allocateReceiptSlot', () => {
     expect(second.created).toBe(false);
     expect(second.belegNumber).toBe(first.belegNumber);
     expect(counters.get('biz1').nextNumber).toBe(2);
+  });
+
+  test('freezes discount and discountLabel on the receipt doc', async () => {
+    mockAllocateHarness();
+    const result = await allocateReceiptSlot(belegPayload({
+      discount: 2,
+      discountLabel: '10% Willkommen',
+      lines: [{ name: 'Döner', gross: 10 }, { name: '10% Willkommen', kind: 'discount', gross: -2 }],
+    }));
+    expect(result.discount).toBe(2);
+    expect(result.discountLabel).toBe('10% Willkommen');
+  });
+
+  test('stores discount 0 and null label when omitted', async () => {
+    mockAllocateHarness();
+    const result = await allocateReceiptSlot(belegPayload());
+    expect(result.discount).toBe(0);
+    expect(result.discountLabel).toBeNull();
   });
 
   test('increments sequence for distinct paymentRefs on the same business', async () => {
@@ -231,5 +249,176 @@ describe('issueCustomerBeleg', () => {
     expect(result.status).toBe('failed');
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }), { merge: true });
     expect(uploadReceiptPdf).not.toHaveBeenCalled();
+  });
+
+  test('passes a discount line into the PDF when the order has a deal', async () => {
+    const { renderCustomerBelegPdf } = require('../receipts/customerBelegPdf');
+    mockAllocateHarness();
+    const receiptGet = jest.fn()
+      .mockResolvedValueOnce({ exists: false })
+      .mockResolvedValue({ exists: true, data: () => ({ status: 'pending' }) });
+    const receiptSet = jest.fn().mockResolvedValue();
+    receiptRef.mockImplementation((bid, id) => ({
+      id,
+      businessId: bid,
+      path: `businesses/${bid}/receipts/${id}`,
+      kind: 'receipt',
+      get: receiptGet,
+      set: receiptSet,
+    }));
+    const orderUpdate = jest.fn().mockResolvedValue();
+    ordersRef.mockReturnValue({
+      doc: () => ({
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({
+            items: [{ name: 'Pizza Hawaii', qty: 1, vatRate: 10, net: 17.27, vat: 1.73, gross: 19 }],
+            discount: 2.28,
+            discountLabel: '12% Rabatt',
+            deliveryFee: 2,
+            totalsByVat: { '10': { net: 17.02, vat: 1.7, gross: 18.72 } },
+            totalGross: 18.72,
+            customerName: 'Ali',
+            customerPhone: '43',
+          }),
+        }),
+        update: orderUpdate,
+      }),
+    });
+    businessRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({ name: 'Enes Kebap', legal: { legalName: 'Enes Kebap' } }),
+      }),
+    });
+
+    const result = await issueCustomerBeleg('biz1', 'ordDeal', { id: 'cs_deal' });
+    expect(result.status).toBe('ready');
+    expect(renderCustomerBelegPdf).toHaveBeenCalledWith(expect.objectContaining({
+      totalGross: 18.72,
+      lines: expect.arrayContaining([
+        expect.objectContaining({ name: '12% Rabatt', kind: 'discount', gross: -2.28 }),
+        expect.objectContaining({ name: 'Liefergebühr', kind: 'fee' }),
+      ]),
+    }));
+  });
+
+  test('rebuilds a ready cs_test_ Beleg that froze without a discount line', async () => {
+    const { renderCustomerBelegPdf } = require('../receipts/customerBelegPdf');
+    const readyReceipt = {
+      status: 'ready',
+      belegNumber: 'WO-2026-000036',
+      orderId: 'ordDeal',
+      gcsPath: 'old.pdf',
+      lines: [
+        { name: 'Pizza', qty: 1, vatRate: 10, gross: 18.5 },
+        { name: 'Liefergebühr', qty: 1, vatRate: 10, gross: 2, kind: 'fee' },
+      ],
+      totalsByVat: { '10': { net: 18.62, vat: 1.86, gross: 20.48 } },
+      totalGross: 20.48,
+      sellerSnapshot: { legalName: 'Enes Kebap' },
+      buyerSnapshot: { name: 'Bilal' },
+    };
+    receiptRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({ exists: true, data: () => readyReceipt }),
+      set: jest.fn().mockResolvedValue(),
+    });
+    ordersRef.mockReturnValue({
+      doc: () => ({
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({
+            items: [{ name: 'Pizza', qty: 1, vatRate: 10, gross: 18.5 }],
+            discount: 2.52,
+            discountLabel: '12% Rabatt',
+            deliveryFee: 2,
+            totalsByVat: { '10': { net: 18.62, vat: 1.86, gross: 20.48 } },
+            totalGross: 20.48,
+          }),
+        }),
+        update: jest.fn().mockResolvedValue(),
+      }),
+    });
+
+    const result = await issueCustomerBeleg('biz1', 'ordDeal', { id: 'cs_test_repair' });
+    expect(result.status).toBe('ready');
+    expect(renderCustomerBelegPdf).toHaveBeenCalledWith(expect.objectContaining({
+      lines: expect.arrayContaining([
+        expect.objectContaining({ name: '12% Rabatt', kind: 'discount', gross: -2.52 }),
+      ]),
+    }));
+    expect(uploadReceiptPdf).toHaveBeenCalled();
+  });
+
+  test('does not rewrite a ready live Beleg missing a discount line', async () => {
+    const { renderCustomerBelegPdf } = require('../receipts/customerBelegPdf');
+    receiptRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          status: 'ready',
+          belegNumber: 'WO-2026-000099',
+          gcsPath: 'live.pdf',
+          lines: [{ name: 'Pizza', qty: 1, gross: 18.5 }],
+        }),
+      }),
+      set: jest.fn(),
+    });
+
+    const result = await issueCustomerBeleg('biz1', 'ordLive', { id: 'cs_live_abc' });
+    expect(result.status).toBe('ready');
+    expect(renderCustomerBelegPdf).not.toHaveBeenCalled();
+    expect(uploadReceiptPdf).not.toHaveBeenCalled();
+  });
+});
+
+describe('getReceiptDownload', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('repairs a ready cs_test_ Beleg missing the discount line before signing', async () => {
+    const { renderCustomerBelegPdf } = require('../receipts/customerBelegPdf');
+    getReceiptSignedUrl.mockResolvedValue('https://signed.example/new.pdf');
+    uploadReceiptPdf.mockResolvedValue('businesses/biz1/receipts/2026/WO-2026-000036.pdf');
+
+    receiptRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          status: 'ready',
+          belegNumber: 'WO-2026-000036',
+          gcsPath: 'old.pdf',
+          lines: [{ name: 'Pizza', qty: 1, gross: 18.5 }],
+          sellerSnapshot: { legalName: 'Enes' },
+          buyerSnapshot: { name: 'B' },
+          totalsByVat: { '10': { net: 16.8, vat: 1.68, gross: 18.48 } },
+          totalGross: 18.48,
+        }),
+      }),
+      set: jest.fn().mockResolvedValue(),
+    });
+    ordersRef.mockReturnValue({
+      doc: () => ({
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({
+            receiptId: 'cs_test_dl',
+            items: [{ name: 'Pizza', qty: 1, gross: 18.5 }],
+            discount: 2.52,
+            discountLabel: '12% Rabatt',
+            totalGross: 16,
+          }),
+        }),
+        update: jest.fn().mockResolvedValue(),
+      }),
+    });
+
+    const result = await getReceiptDownload('biz1', 'ord1');
+    expect(renderCustomerBelegPdf).toHaveBeenCalled();
+    expect(getReceiptSignedUrl).toHaveBeenCalledWith(
+      'businesses/biz1/receipts/2026/WO-2026-000036.pdf'
+    );
+    expect(result.downloadUrl).toBe('https://signed.example/new.pdf');
   });
 });

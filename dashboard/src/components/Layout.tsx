@@ -25,6 +25,7 @@ const mainNavItems = [
   { to: '/orders', key: 'orders' },
   { to: '/customers', key: 'customers' },
   { to: '/menu', key: 'menu' },
+  { to: '/deals', key: 'deals' },
   { to: '/income', key: 'income' },
 ] as const;
 

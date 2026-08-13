@@ -248,6 +248,14 @@ export default function OrderDetailPage() {
         </tbody>
       </table>
 
+      {Number(order.discount) > 0 ? (
+        <p className="order-detail-fee">
+          {t('orderDetail.discount', {
+            label: order.discountLabel || t('orderDetail.discountFallback'),
+            amount: Number(order.discount).toFixed(2),
+          })}
+        </p>
+      ) : null}
       {order.orderType === 'delivery' && order.deliveryFee ? (
         <p className="order-detail-fee">
           {t('orderDetail.deliveryFee', { fee: order.deliveryFee.toFixed(2) })}

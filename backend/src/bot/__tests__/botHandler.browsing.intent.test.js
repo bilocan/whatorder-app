@@ -639,6 +639,41 @@ describe('Intent ordering (Tier A)', () => {
     }));
   });
 
+  describe('live window deal marketing line', () => {
+    beforeEach(() => {
+      jest.useFakeTimers({ now: new Date('2026-08-13T12:00:00.000Z') });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    test('greeting first message appends live deal marketing line', async () => {
+      getBusinessInfo.mockResolvedValue({
+        ...BIZ_INFO,
+        deals: {
+          window: {
+            dealId: 'w1',
+            kind: 'window',
+            discountType: 'percent',
+            discountValue: 10,
+            label: '10% Rabatt',
+            active: true,
+            startsAt: new Date('2026-08-01T00:00:00.000Z'),
+            endsAt: new Date('2026-08-31T23:59:59.000Z'),
+          },
+        },
+      });
+      getSession.mockResolvedValue({});
+
+      await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
+
+      expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+        body: expect.stringContaining('🏷️ 10% Rabatt'),
+      }));
+    });
+  });
+
   test('btn_search opens search prompt', async () => {
     getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
 

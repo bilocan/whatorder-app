@@ -21,6 +21,7 @@ const {
   setDefaultCustomerAddress,
   deleteCustomerAddress,
 } = require('../bot/customerAddresses');
+const { loadCheckoutTotals } = require('../bot/checkoutDeal');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 
 const REVIEW_SCREENS = new Set([
@@ -171,6 +172,7 @@ async function buildReviewReturnResponse({
   ref,
   version,
   businessId,
+  phone,
 }) {
   const currentAddress = typeof session.deliveryAddress === 'string'
     ? session.deliveryAddress.trim()
@@ -204,16 +206,25 @@ async function buildReviewReturnResponse({
       : currentAddress,
   };
   const info = await getBusinessInfo(businessId);
+  const basket = reviewSession.basket ?? [];
+  const totals = await loadCheckoutTotals({
+    businessId,
+    info,
+    customerPhone: phone,
+    basket,
+    session: reviewSession,
+  });
   return {
     version,
     screen,
     data: buildCheckoutReviewData({
       session: reviewSession,
-      basket: reviewSession.basket ?? [],
+      basket,
       info,
       lang: reviewSession.language || 'de',
       t,
       savedAddresses: profile.savedAddresses,
+      deal: totals.deal,
     }),
   };
 }
@@ -225,6 +236,7 @@ async function buildReviewSelectResponse({
   payload,
   version,
   businessId,
+  phone,
 }) {
   const lang = session.language || 'de';
   const info = await getBusinessInfo(businessId);
@@ -242,16 +254,26 @@ async function buildReviewSelectResponse({
     deliveryAddress: fields.street,
     deliveryApartment: fields.apartment,
   };
+  const reviewSession = { ...session, confirmFlowDraft: draft };
+  const basket = session.basket ?? [];
+  const totals = await loadCheckoutTotals({
+    businessId,
+    info,
+    customerPhone: phone,
+    basket,
+    session: reviewSession,
+  });
   return {
     version,
     screen,
     data: buildCheckoutReviewData({
-      session: { ...session, confirmFlowDraft: draft },
-      basket: session.basket ?? [],
+      session: reviewSession,
+      basket,
       info,
       lang,
       t,
       savedAddresses: profile.savedAddresses,
+      deal: totals.deal,
     }),
   };
 }
@@ -264,24 +286,36 @@ async function buildReviewDataResponse({
   lang,
   version,
   businessId,
+  phone,
 }) {
   const info = await getBusinessInfo(businessId);
+  const basket = session.basket ?? [];
+  const totals = await loadCheckoutTotals({
+    businessId,
+    info,
+    customerPhone: phone,
+    basket,
+    session,
+  });
   return {
     version,
     screen,
     data: buildCheckoutReviewData({
       session,
-      basket: session.basket ?? [],
+      basket,
       info,
       lang,
       t,
       savedAddresses: profile.savedAddresses,
+      deal: totals.deal,
     }),
   };
 }
 
 /** Cross-tenant token: review shape, but no basket, name or address from this session. */
-function buildBlankReviewResponse({ screen, lang, version, businessId }) {
+function buildBlankReviewResponse({
+  screen, lang, version, businessId, phone,
+}) {
   return buildReviewDataResponse({
     screen,
     session: {},
@@ -289,6 +323,7 @@ function buildBlankReviewResponse({ screen, lang, version, businessId }) {
     lang,
     version,
     businessId,
+    phone,
   });
 }
 
@@ -336,13 +371,23 @@ async function buildCheckoutInitResponse({ phone, businessId, version }) {
   }
 
   const savedAddresses = crossTenant ? [] : await loadSavedAddresses(phone, businessId);
+  const reviewSession = crossTenant ? {} : session;
+  const basket = crossTenant ? [] : (session.basket ?? []);
+  const totals = await loadCheckoutTotals({
+    businessId,
+    info,
+    customerPhone: phone,
+    basket,
+    session: reviewSession,
+  });
   const data = buildCheckoutReviewData({
-    session: crossTenant ? {} : session,
-    basket: crossTenant ? [] : (session.basket ?? []),
+    session: reviewSession,
+    basket,
     info,
     lang,
     t,
     savedAddresses,
+    deal: totals.deal,
   });
 
   return {
@@ -395,6 +440,7 @@ async function buildCheckoutDataExchangeResponse({
         lang,
         version,
         businessId,
+        phone,
       });
     }
 
@@ -409,7 +455,9 @@ async function buildCheckoutDataExchangeResponse({
           refillFromChoice: true,
         });
       }
-      return buildBlankReviewResponse({ screen, lang, version, businessId });
+      return buildBlankReviewResponse({
+        screen, lang, version, businessId, phone,
+      });
     }
 
     const manageScreen = action === 'manage_addresses'
@@ -426,7 +474,9 @@ async function buildCheckoutDataExchangeResponse({
       });
     }
 
-    return buildBlankReviewResponse({ screen, lang, version, businessId });
+    return buildBlankReviewResponse({
+      screen, lang, version, businessId, phone,
+    });
   }
 
   const profile = await loadCustomerAddresses(phone, businessId);
@@ -450,6 +500,7 @@ async function buildCheckoutDataExchangeResponse({
         payload,
         version,
         businessId,
+        phone,
       });
     }
   }
@@ -477,6 +528,7 @@ async function buildCheckoutDataExchangeResponse({
         ref,
         version,
         businessId,
+        phone,
       });
     }
   }
@@ -581,6 +633,7 @@ async function buildCheckoutDataExchangeResponse({
         ref,
         version,
         businessId,
+        phone,
       });
     }
     return manageResponse({ screen: nextScreen, profile: nextProfile, lang, version });
@@ -591,7 +644,9 @@ async function buildCheckoutDataExchangeResponse({
     return manageResponse({ screen, profile, lang, payload, version });
   }
   if (REVIEW_SCREENS.has(screen)) {
-    return buildReviewDataResponse({ screen, session, profile, lang, version, businessId });
+    return buildReviewDataResponse({
+      screen, session, profile, lang, version, businessId, phone,
+    });
   }
   return { version, screen, data: {} };
 }

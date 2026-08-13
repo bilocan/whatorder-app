@@ -93,7 +93,7 @@ const STATUS_NOTIFY_KEY = {
   cancelled:  'orderCancelled',
 };
 
-async function createOrder(businessId, { customerPhone, customerName, restaurantName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus, whatsappPhoneNumberId, taxSnapshot }) {
+async function createOrder(businessId, { customerPhone, customerName, restaurantName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus, whatsappPhoneNumberId, taxSnapshot, discountSnapshot }) {
   const ref = ordersRef(businessId).doc();
   const resolvedName = customerName || 'WhatsApp Customer';
   const phone = normalizeCustomerPhone(customerPhone) || customerPhone;
@@ -104,6 +104,7 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
     customerName: resolvedName,
     restaurantName: restaurantName || null,
     items,
+    subtotal: total + (Number(discountSnapshot?.discount) || 0),
     total,
     language: language || 'en',
     status: 'pending',
@@ -115,6 +116,14 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
     paymentStatus: paymentStatus || (paymentMethod === 'stripe' ? 'pending' : 'cash'),
     settlementStatus: 'none',
   };
+  doc.discount = Number(discountSnapshot?.discount) || 0;
+  if (doc.discount > 0 && discountSnapshot) {
+    doc.discountDealId = discountSnapshot.discountDealId || null;
+    doc.discountKind = discountSnapshot.discountKind || null;
+    doc.discountType = discountSnapshot.discountType || null;
+    doc.discountValue = discountSnapshot.discountValue ?? null;
+    doc.discountLabel = discountSnapshot.discountLabel || null;
+  }
   if (whatsappPhoneNumberId) doc.whatsappPhoneNumberId = whatsappPhoneNumberId;
   if (notes) doc.notes = notes;
   if (orderType === 'delivery' && deliveryAddress) {
@@ -168,7 +177,10 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
       const itemLines = formatBasketItemsText(items, { numbered: false, mergeIdentical: true });
       const typeLabel = doc.orderType === 'delivery' ? '🚚 Delivery' : '🛍️ Pickup';
       const addressLine = doc.deliveryAddress ? `\nAddress: ${doc.deliveryAddress}` : '';
-      const ownerMsg = `🔔 New Order #${shortId} (${typeLabel})\n\n${itemLines}\n\nTotal: €${doc.total.toFixed(2)}${addressLine}\nCustomer: ${resolvedName} (${phone})`;
+      const discountLine = doc.discount > 0
+        ? `\nDiscount: ${doc.discountLabel || 'Rabatt'} −€${doc.discount.toFixed(2)}`
+        : '';
+      const ownerMsg = `🔔 New Order #${shortId} (${typeLabel})\n\n${itemLines}\n\nTotal: €${doc.total.toFixed(2)}${addressLine}${discountLine}\nCustomer: ${resolvedName} (${phone})`;
       await sendText(biz.alertPhone, ownerMsg, phoneNumberId);
     }
   } catch (err) {
@@ -290,11 +302,13 @@ async function amendOrderAddItems(businessId, orderId, newItems) {
 
   const mergedItems = [...(order.items || []), ...newItems];
   const subtotal = mergedItems.reduce((s, i) => s + (i.price * i.qty), 0);
+  const discount = Math.min(Math.max(Number(order.discount) || 0, 0), subtotal);
   const deliveryFee = order.deliveryFee || 0;
-  const total = order.orderType === 'delivery' ? subtotal + deliveryFee : subtotal;
+  const total = subtotal - discount + (order.orderType === 'delivery' ? deliveryFee : 0);
 
   await ref.update({
     items: mergedItems,
+    subtotal,
     total,
     amendedAt: new Date().toISOString(),
   });
