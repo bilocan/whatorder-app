@@ -29,8 +29,8 @@ jest.mock('../receipts/gcsReceiptStorage', () => ({
 
 const { db } = require('../firebase');
 const { receiptRef, receiptCounterRef, ordersRef, businessRef } = require('../collections');
-const { allocateReceiptSlot, issueCustomerBeleg } = require('../receiptService');
-const { uploadReceiptPdf } = require('../receipts/gcsReceiptStorage');
+const { allocateReceiptSlot, issueCustomerBeleg, getReceiptDownload } = require('../receiptService');
+const { uploadReceiptPdf, getReceiptSignedUrl } = require('../receipts/gcsReceiptStorage');
 
 const year = new Date().getFullYear();
 
@@ -301,5 +301,124 @@ describe('issueCustomerBeleg', () => {
         expect.objectContaining({ name: 'Liefergebühr', kind: 'fee' }),
       ]),
     }));
+  });
+
+  test('rebuilds a ready cs_test_ Beleg that froze without a discount line', async () => {
+    const { renderCustomerBelegPdf } = require('../receipts/customerBelegPdf');
+    const readyReceipt = {
+      status: 'ready',
+      belegNumber: 'WO-2026-000036',
+      orderId: 'ordDeal',
+      gcsPath: 'old.pdf',
+      lines: [
+        { name: 'Pizza', qty: 1, vatRate: 10, gross: 18.5 },
+        { name: 'Liefergebühr', qty: 1, vatRate: 10, gross: 2, kind: 'fee' },
+      ],
+      totalsByVat: { '10': { net: 18.62, vat: 1.86, gross: 20.48 } },
+      totalGross: 20.48,
+      sellerSnapshot: { legalName: 'Enes Kebap' },
+      buyerSnapshot: { name: 'Bilal' },
+    };
+    receiptRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({ exists: true, data: () => readyReceipt }),
+      set: jest.fn().mockResolvedValue(),
+    });
+    ordersRef.mockReturnValue({
+      doc: () => ({
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({
+            items: [{ name: 'Pizza', qty: 1, vatRate: 10, gross: 18.5 }],
+            discount: 2.52,
+            discountLabel: '12% Rabatt',
+            deliveryFee: 2,
+            totalsByVat: { '10': { net: 18.62, vat: 1.86, gross: 20.48 } },
+            totalGross: 20.48,
+          }),
+        }),
+        update: jest.fn().mockResolvedValue(),
+      }),
+    });
+
+    const result = await issueCustomerBeleg('biz1', 'ordDeal', { id: 'cs_test_repair' });
+    expect(result.status).toBe('ready');
+    expect(renderCustomerBelegPdf).toHaveBeenCalledWith(expect.objectContaining({
+      lines: expect.arrayContaining([
+        expect.objectContaining({ name: '12% Rabatt', kind: 'discount', gross: -2.52 }),
+      ]),
+    }));
+    expect(uploadReceiptPdf).toHaveBeenCalled();
+  });
+
+  test('does not rewrite a ready live Beleg missing a discount line', async () => {
+    const { renderCustomerBelegPdf } = require('../receipts/customerBelegPdf');
+    receiptRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          status: 'ready',
+          belegNumber: 'WO-2026-000099',
+          gcsPath: 'live.pdf',
+          lines: [{ name: 'Pizza', qty: 1, gross: 18.5 }],
+        }),
+      }),
+      set: jest.fn(),
+    });
+
+    const result = await issueCustomerBeleg('biz1', 'ordLive', { id: 'cs_live_abc' });
+    expect(result.status).toBe('ready');
+    expect(renderCustomerBelegPdf).not.toHaveBeenCalled();
+    expect(uploadReceiptPdf).not.toHaveBeenCalled();
+  });
+});
+
+describe('getReceiptDownload', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('repairs a ready cs_test_ Beleg missing the discount line before signing', async () => {
+    const { renderCustomerBelegPdf } = require('../receipts/customerBelegPdf');
+    getReceiptSignedUrl.mockResolvedValue('https://signed.example/new.pdf');
+    uploadReceiptPdf.mockResolvedValue('businesses/biz1/receipts/2026/WO-2026-000036.pdf');
+
+    receiptRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          status: 'ready',
+          belegNumber: 'WO-2026-000036',
+          gcsPath: 'old.pdf',
+          lines: [{ name: 'Pizza', qty: 1, gross: 18.5 }],
+          sellerSnapshot: { legalName: 'Enes' },
+          buyerSnapshot: { name: 'B' },
+          totalsByVat: { '10': { net: 16.8, vat: 1.68, gross: 18.48 } },
+          totalGross: 18.48,
+        }),
+      }),
+      set: jest.fn().mockResolvedValue(),
+    });
+    ordersRef.mockReturnValue({
+      doc: () => ({
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({
+            receiptId: 'cs_test_dl',
+            items: [{ name: 'Pizza', qty: 1, gross: 18.5 }],
+            discount: 2.52,
+            discountLabel: '12% Rabatt',
+            totalGross: 16,
+          }),
+        }),
+        update: jest.fn().mockResolvedValue(),
+      }),
+    });
+
+    const result = await getReceiptDownload('biz1', 'ord1');
+    expect(renderCustomerBelegPdf).toHaveBeenCalled();
+    expect(getReceiptSignedUrl).toHaveBeenCalledWith(
+      'businesses/biz1/receipts/2026/WO-2026-000036.pdf'
+    );
+    expect(result.downloadUrl).toBe('https://signed.example/new.pdf');
   });
 });

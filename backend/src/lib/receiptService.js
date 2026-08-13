@@ -64,6 +64,44 @@ function buildBelegLines(order) {
   return lines;
 }
 
+function isStripeTestPaymentRef(ref) {
+  return String(ref || '').startsWith('cs_test_');
+}
+
+function receiptMissingDiscountLine(receipt, order) {
+  if (!(Number(order?.discount) > 0)) return false;
+  return !(receipt?.lines || []).some((line) => line.kind === 'discount');
+}
+
+/**
+ * Test-mode only: rewrite a ready Beleg that froze before the Rabatt line existed.
+ * Never touches cs_live_ receipts.
+ */
+async function repairTestBelegDiscountLine(businessId, orderId, paymentRef, receiptData, order) {
+  if (!isStripeTestPaymentRef(paymentRef)) return null;
+  if (!receiptData || receiptData.status !== 'ready') return null;
+
+  let orderData = order;
+  if (!orderData) {
+    const orderSnap = await ordersRef(businessId).doc(orderId).get();
+    if (!orderSnap.exists) return null;
+    orderData = orderSnap.data();
+  }
+  if (!receiptMissingDiscountLine(receiptData, orderData)) return null;
+
+  const lines = buildBelegLines(orderData);
+  console.warn(
+    `[receipt] repairing test Beleg discount line businessId=${businessId} paymentRef=${paymentRef}`
+  );
+  return finalizeReceiptPdf(businessId, paymentRef, {
+    ...receiptData,
+    orderId,
+    lines,
+    discount: Number(orderData.discount) || 0,
+    discountLabel: orderData.discountLabel || null,
+  });
+}
+
 /**
  * Allocate beleg number + create pending receipt doc idempotently by paymentRef.
  * receiptId === paymentRef (Stripe Checkout session id).
@@ -131,6 +169,13 @@ async function issueCustomerBeleg(businessId, orderId, session) {
   if (existingSnap.exists) {
     const data = existingSnap.data();
     if (data.status === 'ready') {
+      const repaired = await repairTestBelegDiscountLine(
+        businessId,
+        orderId,
+        paymentRef,
+        data
+      );
+      if (repaired) return repaired;
       return { receiptId: paymentRef, ...data };
     }
     if (data.status === 'pending' || (data.status === 'failed' && data.belegNumber)) {
@@ -221,11 +266,17 @@ async function finalizeReceiptPdf(businessId, paymentRef, data) {
 
     const gcsPath = await uploadReceiptPdf(businessId, data.belegNumber, pdfBuffer, issuedAt);
 
-    await ref.set({
+    const persist = {
       status: 'ready',
       gcsPath,
       error: admin.firestore.FieldValue.delete(),
-    }, { merge: true });
+    };
+    if (Array.isArray(data.lines)) persist.lines = data.lines;
+    if (data.discount != null) {
+      persist.discount = Number(data.discount) || 0;
+      persist.discountLabel = data.discountLabel || null;
+    }
+    await ref.set(persist, { merge: true });
 
     await ordersRef(businessId).doc(data.orderId).update({
       receiptId: paymentRef,
@@ -285,7 +336,17 @@ async function getReceiptDownload(businessId, orderId) {
     throw err;
   }
 
-  const downloadUrl = await getReceiptSignedUrl(receipt.gcsPath);
+  let gcsPath = receipt.gcsPath;
+  const repaired = await repairTestBelegDiscountLine(
+    businessId,
+    orderId,
+    receiptId,
+    receipt,
+    order
+  );
+  if (repaired?.gcsPath) gcsPath = repaired.gcsPath;
+
+  const downloadUrl = await getReceiptSignedUrl(gcsPath);
   return {
     belegNumber: receipt.belegNumber,
     status: receipt.status,
