@@ -176,7 +176,10 @@ module.exports = {
   orderDelivered: (shortId) => `✅ Order #${shortId} delivered. Enjoy your meal! 🙏`,
   orderCompletePrompt: () => 'Order something else?',
   orderRejected:  (shortId) => `❌ Sorry, order #${shortId} could not be accepted. Please contact us.`,
+  orderRejectedRefunded: (shortId) => `❌ Sorry, order #${shortId} could not be accepted. Your card payment will be refunded — usually back on your account within a few business days.`,
   orderCancelled: (shortId) => `❌ Order #${shortId} has been cancelled.`,
+  orderCancelledRefunded: (shortId) => `✅ Order #${shortId} has been cancelled. Your card payment will be refunded — usually back on your account within a few business days.`,
+  paymentRefunded: (shortId) => `💸 Payment for order #${shortId} has been refunded. The money is usually back on your account within a few business days.`,
   orderStatusPending: (shortId) => `⏳ Order #${shortId} was received and is waiting for the restaurant to confirm.`,
   postOrderCallRestaurant: (name, phone) => phone
     ? `To change your order, please call ${name}: ${phone}`
@@ -191,6 +194,24 @@ module.exports = {
   postReorderBtn: () => 'Reorder',
   postRestaurantBtn: () => 'Choose restaurant',
   postCompleteRestaurantBtn: () => 'Other restaurant',
+  postOrderCancelTooLatePreparing: (name, phone) => phone
+    ? `Your order is already being prepared. To make changes, please call ${name}: ${phone}`
+    : `Your order is already being prepared. Please contact ${name} directly.`,
+  postOrderCancelTooLateReady: (name, phone) => phone
+    ? `Your order is already ready for pickup. To make changes, please call ${name}: ${phone}`
+    : `Your order is already ready for pickup. Please contact ${name} directly.`,
+  postOrderCancelTooLateOnTheWay: (name, phone) => phone
+    ? `Your order is already on the way. To make changes, please call ${name}: ${phone}`
+    : `Your order is already on the way. Please contact ${name} directly.`,
+  postOrderCancelTooLateDelivered: (name, phone) => phone
+    ? `Your order was already delivered. If you have questions, please call ${name}: ${phone}`
+    : `Your order was already delivered. Please contact ${name} directly.`,
+  postOrderCancelTooLatePickedUp: (name, phone) => phone
+    ? `Your order was already picked up. If you have questions, please call ${name}: ${phone}`
+    : `Your order was already picked up. Please contact ${name} directly.`,
+  postOrderCancelTooLateAlreadyClosed: (name, phone) => phone
+    ? `This order is already closed. If you have questions, please call ${name}: ${phone}`
+    : `This order is already closed. Please contact ${name} directly.`,
   postOrderCancelTooLate: (name, phone) => phone
     ? `Your order is already being prepared. To make changes, please call ${name}: ${phone}`
     : `Your order is already being prepared. Please contact ${name} directly.`,

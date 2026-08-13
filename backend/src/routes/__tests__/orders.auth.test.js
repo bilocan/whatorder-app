@@ -10,13 +10,16 @@ jest.mock('../../lib/collections', () => ({
 }));
 jest.mock('../../bot/orderService', () => ({
   approveOrder: jest.fn().mockResolvedValue(),
-  rejectOrder: jest.fn(),
+  rejectOrder: jest.fn().mockResolvedValue(),
   startPreparation: jest.fn(),
   markReady: jest.fn(),
   markOnTheWay: jest.fn(),
   markPickedUp: jest.fn(),
   markDelivered: jest.fn(),
   cancelOrder: jest.fn(),
+}));
+jest.mock('../../lib/paymentService', () => ({
+  refundOrderPayment: jest.fn().mockResolvedValue({ refunded: false, skipped: true, reason: 'not_paid_stripe' }),
 }));
 
 const request = require('supertest');
@@ -105,7 +108,7 @@ describe('order route auth (requireOwnerOfBusiness)', () => {
       .post('/api/businesses/biz1/orders/ord1/reject')
       .set('Authorization', 'Bearer valid-token');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ status: 'ok' });
+    expect(res.body).toEqual({ status: 'ok', refunded: false });
   });
 
   test('auth applies on bare /businesses mount (no /api prefix)', async () => {

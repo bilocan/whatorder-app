@@ -216,9 +216,12 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
     const lang = order.language || 'en';
     const notifyArgs = toStatus === 'approved' ? [shortId, etaTime] : [shortId];
     const bizSnap = await businessRef(businessId).get();
+    let notifyKey = STATUS_NOTIFY_KEY[toStatus];
+    if (options.paymentRefunded && toStatus === 'rejected') notifyKey = 'orderRejectedRefunded';
+    if (options.paymentRefunded && toStatus === 'cancelled') notifyKey = 'orderCancelledRefunded';
     await runWithMessageIdentity(PLATFORM_IDENTITY, async () => {
       applyBusinessInfoIdentity(bizSnap.exists ? bizSnap.data() : { name: order.restaurantName });
-      const statusText = t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs);
+      const statusText = t(notifyKey, lang, ...notifyArgs);
       // Self-serve cancel already restarts browsing — skip buttons to avoid double CTA.
       if (TERMINAL_REENTRY_STATUSES.has(toStatus) && !options.skipReentry) {
         // Re-open ordering after meal finished, reject, or owner cancel (no Cancel on this message).
@@ -238,6 +241,15 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
       } else {
         await sendText(order.customerPhone, statusText, phoneNumberId);
       }
+      if (options.paymentRefunded) {
+        try {
+          await ref.update({
+            refundNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } catch (stampErr) {
+          console.error('[orderService] refundNotifiedAt stamp failed:', stampErr.message);
+        }
+      }
     });
   } catch (err) {
     const msg = err.name === 'WhatsAppRoutingError'
@@ -248,7 +260,7 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
 }
 
 const approveOrder      = (bid, oid, etaMinutes) => transitionOrder(bid, oid, 'approved', { etaMinutes });
-const rejectOrder       = (bid, oid) => transitionOrder(bid, oid, 'rejected');
+const rejectOrder       = (bid, oid, options) => transitionOrder(bid, oid, 'rejected', options);
 const startPreparation  = (bid, oid) => transitionOrder(bid, oid, 'preparing');
 const markReady         = (bid, oid) => transitionOrder(bid, oid, 'ready');
 const markOnTheWay      = (bid, oid) => transitionOrder(bid, oid, 'on_the_way');

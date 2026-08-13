@@ -97,6 +97,34 @@ export async function postOrderAction(
   return { ok: true, nextStatus };
 }
 
+export function canManualRefund(order: {
+  paymentMethod?: string;
+  paymentStatus?: string;
+}): boolean {
+  return order.paymentMethod === 'stripe' && order.paymentStatus === 'paid';
+}
+
+export type PostOrderRefundResult =
+  | { ok: true; skipped?: boolean }
+  | { ok: false; error: string };
+
+export async function postOrderRefund(
+  businessId: string,
+  orderId: string,
+): Promise<PostOrderRefundResult> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_URL}/api/businesses/${businessId}/orders/${orderId}/refund`, {
+    method: 'POST',
+    headers,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    return { ok: false, error: body.error ?? `Request failed (${res.status})` };
+  }
+  const body = await res.json().catch(() => ({})) as { skipped?: boolean };
+  return { ok: true, skipped: body.skipped };
+}
+
 export type ReceiptDownloadResult =
   | { ok: true; belegNumber: string; status: string; downloadUrl: string }
   | { ok: false; error: string; status?: number };

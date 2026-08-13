@@ -176,7 +176,10 @@ module.exports = {
   orderDelivered: (shortId) => `✅ Sipariş #${shortId} teslim edildi. Afiyet olsun! 🙏`,
   orderCompletePrompt: () => 'Başka bir şey sipariş etmek ister misin?',
   orderRejected:  (shortId) => `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Lütfen bize ulaşın.`,
+  orderRejectedRefunded: (shortId) => `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Kart ödemeniz iade edilecek — genellikle birkaç iş günü içinde hesabınıza döner.`,
   orderCancelled: (shortId) => `❌ Sipariş #${shortId} iptal edildi.`,
+  orderCancelledRefunded: (shortId) => `✅ Sipariş #${shortId} iptal edildi. Kart ödemeniz iade edilecek — genellikle birkaç iş günü içinde hesabınıza döner.`,
+  paymentRefunded: (shortId) => `💸 #${shortId} sipariş ödemesi iade edildi. Para genellikle birkaç iş günü içinde hesabınıza döner.`,
   orderStatusPending: (shortId) => `⏳ Sipariş #${shortId} alındı, restoran onayı bekleniyor.`,
   postOrderCallRestaurant: (name, phone) => phone
     ? `Siparişinizde değişiklik için lütfen ${name} arayın: ${phone}`
@@ -191,9 +194,27 @@ module.exports = {
   postReorderBtn: () => 'Tekrar sipariş',
   postRestaurantBtn: () => 'Restoran seç',
   postCompleteRestaurantBtn: () => 'Başka restoran',
+  postOrderCancelTooLatePreparing: (name, phone) => phone
+    ? `Siparişiniz hazırlanmaya başladı. Değişiklik için lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz hazırlanmaya başladı. Lütfen ${name} ile iletişime geçin.`,
+  postOrderCancelTooLateReady: (name, phone) => phone
+    ? `Siparişiniz teslim almaya hazır. Değişiklik için lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz teslim almaya hazır. Lütfen ${name} ile iletişime geçin.`,
+  postOrderCancelTooLateOnTheWay: (name, phone) => phone
+    ? `Siparişiniz zaten yolda. Değişiklik için lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz zaten yolda. Lütfen ${name} ile iletişime geçin.`,
+  postOrderCancelTooLateDelivered: (name, phone) => phone
+    ? `Siparişiniz zaten teslim edildi. Sorunuz varsa lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz zaten teslim edildi. Lütfen ${name} ile iletişime geçin.`,
+  postOrderCancelTooLatePickedUp: (name, phone) => phone
+    ? `Siparişiniz zaten teslim alındı. Sorunuz varsa lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz zaten teslim alındı. Lütfen ${name} ile iletişime geçin.`,
+  postOrderCancelTooLateAlreadyClosed: (name, phone) => phone
+    ? `Bu sipariş zaten kapandı. Sorunuz varsa lütfen ${name} arayın: ${phone}`
+    : `Bu sipariş zaten kapandı. Lütfen ${name} ile iletişime geçin.`,
   postOrderCancelTooLate: (name, phone) => phone
-    ? `Siparişiniz hazırlanmaya başlandı. Değişiklik için lütfen ${name} arayın: ${phone}`
-    : `Siparişiniz hazırlanmaya başlandı. Lütfen ${name} ile iletişime geçin.`,
+    ? `Siparişiniz hazırlanmaya başladı. Değişiklik için lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz hazırlanmaya başladı. Lütfen ${name} ile iletişime geçin.`,
 
   askOrderType: (fee) => `Siparişinizi nasıl almak istersiniz?\n\nTeslimat ücreti: €${Number(fee).toFixed(2)}`,
   pickupBtn: () => 'Gel Al',

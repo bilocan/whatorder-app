@@ -107,7 +107,7 @@ describe('M4 post-order routing', () => {
 
     await handleMessage(ROUTING, msg({ text: 'stornieren' }));
 
-    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true });
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true, paymentRefunded: false });
     expect(patchSession).toHaveBeenCalled();
   });
 
@@ -215,7 +215,7 @@ describe('M4 post-order routing', () => {
     expect(firstWrite).not.toHaveProperty('pendingAmendOrderId');
   });
 
-  test('cancel request after context expiry still gets call-restaurant reply', async () => {
+  test('cancel request when order already terminal gets too-late call-restaurant text', async () => {
     getSession.mockResolvedValue({
       ...POST_ORDER_SESSION,
       pendingAmendPlacedAt: Date.now() - 24 * 60 * 60 * 1000,
