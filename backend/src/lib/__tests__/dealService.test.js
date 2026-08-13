@@ -119,7 +119,12 @@ function mockHarness({ exists = true, deals = {}, history = {} } = {}) {
             biz.deals = { ...data.deals };
           }
         } else if (ref.kind === 'deal') {
-          hist[ref.id] = { ...(hist[ref.id] || {}), ...data };
+          if (!Object.prototype.hasOwnProperty.call(hist, ref.id)) {
+            const err = new Error(`No document to update: ${ref.path}`);
+            err.code = 5;
+            throw err;
+          }
+          hist[ref.id] = { ...hist[ref.id], ...data };
         }
       },
     };
@@ -316,6 +321,45 @@ describe('upsertDeal', () => {
     expect(live).not.toHaveProperty('createdBy');
     expect(biz.deals.window).toEqual({ dealId: 'win-keep' });
   });
+
+  test('upserts when live slot has no history doc', async () => {
+    const seeded = {
+      dealId: 'local_window_10pct',
+      kind: 'window',
+      discountType: 'percent',
+      discountValue: 10,
+      label: '10% Rabatt',
+      startsAt: new Date(START),
+      endsAt: new Date(END),
+      active: true,
+    };
+    const { hist } = mockHarness({
+      deals: { window: seeded },
+      history: {},
+    });
+
+    const result = await upsertDeal({
+      businessId: 'biz1',
+      kindParam: 'window',
+      body: {
+        discountType: 'percent',
+        discountValue: 12,
+        label: '10% Rabatt',
+        startsAt: START,
+        endsAt: END,
+      },
+      uid: 'owner1',
+      now: NOW,
+    });
+
+    expect(result.window).toEqual(expect.objectContaining({
+      dealId: 'new-deal-id',
+      discountValue: 12,
+      label: '10% Rabatt',
+    }));
+    expect(hist.local_window_10pct.status).toBe('ended');
+    expect(hist['new-deal-id'].status).toBe('active');
+  });
 });
 
 describe('setDealActive', () => {
@@ -368,6 +412,32 @@ describe('setDealActive', () => {
       expect(err).toEqual({ status: 404, message: 'No live deal' });
     }
   });
+
+  test('pauses a live slot that has no history doc', async () => {
+    const slot = {
+      dealId: 'local_window_10pct',
+      kind: 'window',
+      discountType: 'percent',
+      discountValue: 10,
+      label: '10% Rabatt',
+      active: true,
+    };
+    const { hist } = mockHarness({
+      deals: { window: slot },
+      history: {},
+    });
+
+    const result = await setDealActive({
+      businessId: 'biz1',
+      kindParam: 'window',
+      active: false,
+      uid: 'owner1',
+      now: NOW,
+    });
+
+    expect(result.window.active).toBe(false);
+    expect(hist.local_window_10pct.status).toBe('paused');
+  });
 });
 
 describe('endDeal', () => {
@@ -411,6 +481,32 @@ describe('endDeal', () => {
     expect(biz.deals.window).toEqual(win);
     expect(hist.fo1.status).toBe('ended');
     expect(hist.fo1.endedAt.toMillis()).toBe(NOW.getTime());
+  });
+
+  test('ends a live slot that has no history doc', async () => {
+    const slot = {
+      dealId: 'local_window_10pct',
+      kind: 'window',
+      discountType: 'percent',
+      discountValue: 10,
+      label: '10% Rabatt',
+      active: true,
+    };
+    const { biz, hist } = mockHarness({
+      deals: { window: slot },
+      history: {},
+    });
+
+    const result = await endDeal({
+      businessId: 'biz1',
+      kindParam: 'window',
+      uid: 'owner1',
+      now: NOW,
+    });
+
+    expect(result.window).toBeNull();
+    expect(biz.deals.window).toBeNull();
+    expect(hist.local_window_10pct.status).toBe('ended');
   });
 });
 

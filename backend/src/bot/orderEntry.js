@@ -28,7 +28,7 @@ async function buildOrderEntryButtons(lang, businessId) {
 async function sendOrderEntryPrompt({ from, session, lang, businessId, basket = [], bodyOverride, fresh = false }) {
   const [buttons, info] = await Promise.all([
     buildOrderEntryButtons(lang, businessId),
-    getBusinessInfo(businessId).catch(() => null),
+    Promise.resolve(getBusinessInfo(businessId)).catch(() => null),
   ]);
   const rawBody = bodyOverride ?? t('orderEntryBody', lang);
   const msgId = await sendButtonMessage(from, {

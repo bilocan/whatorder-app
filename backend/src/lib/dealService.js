@@ -145,6 +145,40 @@ function hasLiveSlot(slot) {
   return Boolean(slot && slot.dealId);
 }
 
+function historyFromLiveSlot(slot, patch) {
+  return {
+    dealId: slot.dealId,
+    kind: slot.kind,
+    discountType: slot.discountType,
+    discountValue: slot.discountValue,
+    label: slot.label,
+    startsAt: slot.startsAt ?? null,
+    endsAt: slot.endsAt ?? null,
+    active: patch.active ?? slot.active,
+    updatedAt: patch.updatedAt ?? slot.updatedAt ?? null,
+    status: patch.status,
+    createdAt: slot.updatedAt || patch.updatedAt || null,
+    createdBy: slot.createdBy ?? null,
+    ...(patch.endedAt ? { endedAt: patch.endedAt } : {}),
+  };
+}
+
+async function loadHistory(tx, businessId, slot) {
+  if (!hasLiveSlot(slot)) return null;
+  const ref = dealRef(businessId, slot.dealId);
+  const snap = await tx.get(ref);
+  return { ref, snap, slot };
+}
+
+function patchOrCreateHistory(tx, loaded, patch) {
+  if (!loaded) return;
+  if (loaded.snap.exists) {
+    tx.update(loaded.ref, patch);
+    return;
+  }
+  tx.set(loaded.ref, historyFromLiveSlot(loaded.slot, patch));
+}
+
 async function listDeals(businessId) {
   const bizSnap = await businessRef(businessId).get();
   const deals = bizSnap.exists ? (bizSnap.data().deals || {}) : {};
@@ -169,15 +203,15 @@ async function upsertDeal({ businessId, kindParam, body, uid, now }) {
     const dealId = crypto.randomUUID();
     const deals = { ...(bizSnap.data().deals || {}) };
     const prev = deals[slotKey];
-
-    if (hasLiveSlot(prev)) {
-      tx.update(dealRef(businessId, prev.dealId), {
-        status: 'ended',
-        endedAt: nowTs,
-      });
-    }
+    const prevHistory = await loadHistory(tx, businessId, prev);
 
     const live = liveSlotFrom(dealId, kind, validated, nowTs);
+    patchOrCreateHistory(tx, prevHistory, {
+      status: 'ended',
+      endedAt: nowTs,
+      active: false,
+      updatedAt: nowTs,
+    });
     tx.set(dealRef(businessId, dealId), {
       ...live,
       status: 'active',
@@ -205,11 +239,12 @@ async function setDealActive({ businessId, kindParam, active, uid, now }) {
     const deals = { ...(bizSnap.data().deals || {}) };
     const slot = deals[slotKey];
     if (!hasLiveSlot(slot)) throw { status: 404, message: 'No live deal' };
+    const loaded = await loadHistory(tx, businessId, slot);
 
     const updated = { ...slot, active, updatedAt: nowTs };
     deals[slotKey] = updated;
     tx.update(bizRef, { deals });
-    tx.update(dealRef(businessId, slot.dealId), {
+    patchOrCreateHistory(tx, loaded, {
       active,
       status: active ? 'active' : 'paused',
       updatedAt: nowTs,
@@ -230,10 +265,13 @@ async function endDeal({ businessId, kindParam, uid, now }) {
     const deals = { ...(bizSnap.data().deals || {}) };
     const slot = deals[slotKey];
     if (!hasLiveSlot(slot)) throw { status: 404, message: 'No live deal' };
+    const loaded = await loadHistory(tx, businessId, slot);
 
-    tx.update(dealRef(businessId, slot.dealId), {
+    patchOrCreateHistory(tx, loaded, {
       status: 'ended',
       endedAt: nowTs,
+      active: false,
+      updatedAt: nowTs,
     });
     deals[slotKey] = null;
     tx.update(bizRef, { deals });
