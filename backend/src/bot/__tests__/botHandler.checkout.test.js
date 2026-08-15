@@ -944,7 +944,7 @@ describe('Checkout confirm Flow', () => {
     }));
   });
 
-  test('defaults delivery before applying saved-address profile prefill', async () => {
+  test('defaults pickup on confirm Flow; does not prefill delivery address until Lieferung is chosen', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,
       checkoutConfirmFlow: true,
@@ -963,6 +963,10 @@ describe('Checkout confirm Flow', () => {
     expect(sendFlowMessage).toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
+      orderType: 'pickup',
+      customerName: 'Ahmet',
+    }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       orderType: 'delivery',
       deliveryAddress: 'Naschmarkt 5, Top 2, 1040 Wien',
     }));
@@ -1188,10 +1192,41 @@ describe('Checkout confirm Flow', () => {
     expect(createOrder).not.toHaveBeenCalled();
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('minimum order value'),
+      buttons: [expect.objectContaining({ id: 'btn_add_more' })],
     }));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'browsing',
       orderType: 'delivery',
+    }));
+  });
+
+  test('delivery_below_minimum Flow completion shows the gate without placing', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO, checkoutConfirmFlow: true, deliveryEnabled: true, minimumOrderValue: 30,
+    });
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      businessId: BIZ,
+      customerName: 'John',
+      orderType: 'delivery',
+      deliveryAddress: null,
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'flow_completion',
+      data: { checkout_action: 'delivery_below_minimum' },
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('minimum order value'),
+      buttons: [expect.objectContaining({ id: 'btn_add_more' })],
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      orderType: 'delivery',
+      deliveryAddress: null,
     }));
   });
 

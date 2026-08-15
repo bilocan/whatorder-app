@@ -471,7 +471,7 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.RECEIPT_TEXT]).toContain('finalConfirmBody:en:Alex|19.00||||');
   });
 
-  test('omits delivery while the basket is below the minimum order value', () => {
+  test('still offers delivery while the basket is below the minimum order value', () => {
     const data = buildCheckoutReviewData({
       session: { customerName: 'Alex', orderType: 'pickup' },
       basket,
@@ -480,8 +480,10 @@ describe('checkoutConfirmFlow', () => {
       t: translate,
     });
 
+    expect(data[F.ORDER_TYPE]).toBe('pickup');
     expect(data[F.ORDER_TYPE_OPTIONS]).toEqual([
       { id: 'pickup', title: 'confirmFlowTypePickup:en:' },
+      { id: 'delivery', title: 'confirmFlowTypeDelivery:en:' },
     ]);
   });
 
@@ -516,7 +518,7 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
   });
 
-  test('hides address fields when delivery is not selectable', () => {
+  test('keeps delivery selectable when below minimum (gate runs on place, not by hiding Lieferung)', () => {
     const data = buildCheckoutReviewData({
       session: { customerName: 'Alex', orderType: 'delivery', deliveryAddress: 'Main Street 12' },
       basket,
@@ -525,8 +527,12 @@ describe('checkoutConfirmFlow', () => {
       t: translate,
     });
 
-    expect(data[F.ORDER_TYPE]).toBe('pickup');
-    expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
+    expect(data[F.ORDER_TYPE]).toBe('delivery');
+    expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(true);
+    expect(data[F.ORDER_TYPE_OPTIONS]).toEqual([
+      { id: 'pickup', title: 'confirmFlowTypePickup:en:' },
+      { id: 'delivery', title: 'confirmFlowTypeDelivery:en:' },
+    ]);
   });
 
   test('payment hint follows the same gate as the place path', () => {

@@ -239,12 +239,11 @@ function isDeliveryOffered(info) {
 
 /**
  * Required checkout slots still missing after profile pre-fill.
- * orderType is not listed: delivery is the default when offered (set in advanceCheckoutFromSlots).
+ * orderType is not listed: Abholung (pickup) is the default when unset.
  */
 function getMissingCheckoutSlots(session, info) {
   const missing = [];
-  const orderType = session.orderType
-    || (isDeliveryOffered(info) ? 'delivery' : 'pickup');
+  const orderType = session.orderType || 'pickup';
   if (orderType === 'delivery' && !session.deliveryAddress) missing.push('deliveryAddress');
   if (!isFilledName(session.customerName)) missing.push('customerName');
   return missing;

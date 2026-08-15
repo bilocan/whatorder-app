@@ -1,6 +1,6 @@
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 const { formatBasketItemsText } = require('./botHelpers');
-const { basketSubtotal, orderTotals } = require('./orderTotals');
+const { orderTotals } = require('./orderTotals');
 const { isDeliveryOffered } = require('./checkoutSlots');
 const { isPaymentEnabled } = require('./paymentGate');
 const { checkoutReviewCopy } = require('./menuFlowCopy');
@@ -59,17 +59,15 @@ function buildReceiptText({
 }
 
 /**
- * Delivery is offered on the confirm screen only when the same gates that guard the
- * place path would pass: delivery enabled, not paused by the owner, and the basket at
- * or above minimumOrderValue. Pickup ↔ delivery taps refresh the screen
- * (`select_order_type`) so the receipt re-prices. Delivery is still omitted from the
- * radio when it would fail those gates, so the customer cannot pick a type that place
- * would reject.
+ * Delivery is offered on the confirm screen when enabled and not paused by the owner.
+ * Mindestbestellwert is enforced on place (and on chat btn_delivery), not by hiding the
+ * Lieferung option — customers default to Abholung and only hit the gate after choosing
+ * delivery. Pickup ↔ delivery taps refresh the screen (`select_order_type`) so the
+ * receipt re-prices.
  */
-function isDeliverySelectableInReview(info = {}, basket = []) {
+function isDeliverySelectableInReview(info = {}, _basket = []) {
   if (!isDeliveryOffered(info)) return false;
   if (info.deliveryOpen === false) return false;
-  if (info.minimumOrderValue && basketSubtotal(basket) < info.minimumOrderValue) return false;
   return true;
 }
 
@@ -397,7 +395,7 @@ function buildCheckoutReviewData({
     ? draft.orderType
     : (ORDER_TYPES.has(session.orderType)
       ? session.orderType
-      : (deliverySelectable ? 'delivery' : 'pickup'));
+      : 'pickup');
   const orderType = (requestedType === 'delivery' && !deliverySelectable) ? 'pickup' : requestedType;
 
   const customerName = draft.customerName ?? trimmed(session.customerName);

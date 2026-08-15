@@ -305,8 +305,10 @@ async function skipToConfirmingWithPrefill({
 }) {
   const info = businessInfo ?? await getBusinessInfo(businessId);
   let s = { ...session };
+  // Default Abholung. Lieferung + Mindestbestellwert only after the customer picks
+  // delivery on the confirm / prüfen screen (or via chat order-type edit).
   if (!s.orderType) {
-    s = { ...s, orderType: isDeliveryOffered(info) ? 'delivery' : 'pickup' };
+    s = { ...s, orderType: 'pickup' };
   }
   const profile = await getCustomerProfile(from, businessId);
   s = applyProfilePrefill(s, profile);
@@ -455,12 +457,15 @@ async function sendOrderTypePrompt(from, lang, deliveryFee, body) {
   });
 }
 
-// Renders the basket with a below-minimum warning (Confirm button hidden) or, once the
+// Renders the basket with a below-minimum warning (only Mehr hinzufügen) or, once the
 // subtotal meets minimumOrderValue, the plain basket with Confirm available again.
 async function sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue }) {
   const subtotal = basketSubtotal(basket);
   const meets = !minimumOrderValue || subtotal >= minimumOrderValue;
-  const buttons = basketViewButtons(lang, { includeConfirm: meets });
+  // Below min: only Add more. Entfernen / Confirm belong on the normal basket view.
+  const buttons = meets
+    ? basketViewButtons(lang, { includeConfirm: true })
+    : [{ id: 'btn_add_more', title: t('addMoreBtn', lang) }];
   const body = meets
     ? buildBasketText(basket, lang)
     : `${t('belowMinimumOrderValue', lang, minimumOrderValue.toFixed(2))}\n\n${buildBasketText(basket, lang)}`;
@@ -481,8 +486,9 @@ async function proceedToDeliveryAddress({ from, session, lang, businessId }) {
 }
 
 /**
- * Default delivery path: deliveryOpen + minimumOrderValue gates, then address picker.
- * Pickup is offered on the address picker (not as a prior step).
+ * Explicit delivery path (customer chose Lieferung, or still gated from a prior pick):
+ * deliveryOpen + minimumOrderValue gates, then address picker / Flow confirm.
+ * Pickup escape stays on the address picker when chat slots are used.
  */
 async function beginDefaultDeliveryCheckout({ from, session, lang, businessId, basket }) {
   const info = await getBusinessInfo(businessId);
@@ -593,7 +599,7 @@ async function applyPickupSelection({ from, session, lang, businessId, basket })
 // Called whenever a delivery order's basket may have changed (add more / re-submit cart)
 // while still gated on minimumOrderValue (no deliveryAddress collected yet). Re-checks the
 // minimum: if still short, re-shows the gate. If now met, resumes straight into address
-// selection. Never re-asks pickup/delivery, since delivery is the default.
+// selection. Never re-asks pickup/delivery — orderType stays delivery from the prior pick.
 async function resumeDeliveryCheckout({ from, session, lang, businessId, basket }) {
   const info = await getBusinessInfo(businessId);
   const subtotal = basketSubtotal(basket);
@@ -612,7 +618,8 @@ async function resumeDeliveryCheckout({ from, session, lang, businessId, basket 
 }
 
 // Called right after a basket is confirmed (cart submit / "Confirm" tap). Defaults to
-// delivery when offered (address picker includes pickup). Notes stay optional on confirm.
+// Abholung (pickup). Lieferungs gates (including Mindestbestellwert) run only after the
+// customer explicitly chooses delivery. Notes stay optional on confirm.
 async function proceedFromConfirmedBasket({ from, session, lang, businessId, basket }) {
   const info = await getBusinessInfo(businessId);
   if (isConversationalBasket(info)) {
@@ -620,56 +627,46 @@ async function proceedFromConfirmedBasket({ from, session, lang, businessId, bas
     return;
   }
 
-  if (session.orderType === 'pickup') {
-    if (shouldSkipChatCheckoutSlots(info)) {
-      await skipToConfirmingWithPrefill({
-        from, session, lang, businessId, basket, businessInfo: info,
-      });
-      return;
-    }
-    const knownName = await getKnownName(from, businessId);
-    if (knownName) {
-      await transitionToConfirming(from, session, lang, businessId, basket, knownName);
-    } else {
-      const askId = await sendText(from, t('askName', lang));
-      await setSession(from, { ...session, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
-    }
-    return;
-  }
-
-  if (session.orderType === 'delivery' || info.deliveryEnabled) {
+  // Explicit delivery only (gated resume, prior selection, or conversational slot).
+  if (session.orderType === 'delivery') {
     await beginDefaultDeliveryCheckout({ from, session, lang, businessId, basket });
     return;
   }
 
+  const pickupSession = { ...session, orderType: 'pickup' };
+
   if (shouldSkipChatCheckoutSlots(info)) {
     await skipToConfirmingWithPrefill({
-      from, session, lang, businessId, basket, businessInfo: info,
+      from, session: pickupSession, lang, businessId, basket, businessInfo: info,
     });
     return;
   }
 
   const knownName = await getKnownName(from, businessId);
   if (knownName) {
-    await transitionToConfirming(from, session, lang, businessId, basket, knownName);
+    await transitionToConfirming(from, pickupSession, lang, businessId, basket, knownName);
   } else {
     const askId = await sendText(from, t('askName', lang));
-    await setSession(from, { ...session, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
+    await setSession(from, {
+      ...pickupSession,
+      state: 'awaiting_name',
+      pendingDeleteIds: askId ? [askId] : [],
+    });
   }
 }
 
 /** M3: ask only missing checkout slots; profile pre-fill for returning customers. */
 async function advanceCheckoutFromSlots({ from, session, lang, businessId, basket, info }) {
   let s = { ...session };
-  // Flow-on owns address collection, so it can safely prefill a saved delivery address after
-  // defaulting the type. Flag-off keeps the legacy picker path when the type was still unset.
-  if (shouldSkipChatCheckoutSlots(info) && !s.orderType) {
-    s = { ...s, orderType: isDeliveryOffered(info) ? 'delivery' : 'pickup' };
+  // Default Abholung. Delivery address prefill only applies once orderType is delivery
+  // (explicit slot / prüfen selection / gated resume).
+  if (!s.orderType) {
+    s = { ...s, orderType: 'pickup' };
   }
   const profile = await getCustomerProfile(from, businessId);
   s = applyProfilePrefill(s, profile);
   if (!s.orderType) {
-    s = { ...s, orderType: isDeliveryOffered(info) ? 'delivery' : 'pickup' };
+    s = { ...s, orderType: 'pickup' };
   }
 
   const missing = getMissingCheckoutSlots(s, info);
@@ -740,7 +737,7 @@ function shouldShowOrderTypeRow(session, info) {
 
 function buildConfirmListRows(session, name, lang, info) {
   const deliveryOffered = shouldShowOrderTypeRow(session, info);
-  const orderType = session.orderType || (deliveryOffered ? 'delivery' : null);
+  const orderType = session.orderType || (deliveryOffered ? 'pickup' : null);
 
   const rows = [
     { id: 'btn_place_order', title: t('confirmBtn', lang) },
@@ -950,7 +947,7 @@ async function transitionToConfirming(from, session, lang, businessId, basket, n
   });
 }
 
-// Address picker rows. Always includes enter/share + pickup escape (delivery is the default path).
+// Address picker rows. Always includes enter/share + pickup escape (customer chose delivery).
 async function getDeliveryAddressRows(session, phone, businessId, lang) {
   const rows = [];
 
@@ -1499,6 +1496,24 @@ async function handleConfirming({
         state: 'browsing',
         pendingDeleteIds: msgId ? [msgId] : [],
       });
+      return;
+    }
+
+    // Flow closed early: customer picked Lieferung while below Mindestbestellwert.
+    if (payload.checkout_action === 'delivery_below_minimum') {
+      const info = await getBusinessInfo(businessId);
+      const gatedSession = {
+        ...session,
+        orderType: 'delivery',
+        deliveryAddress: null,
+        confirmingOrderTypeEdit: false,
+        confirmFlowDraft: null,
+      };
+      if (await gateDeliverySubmit({ from, session: gatedSession, lang, basket, info })) {
+        return;
+      }
+      // Race: basket now meets min — reopen confirm as delivery.
+      await transitionToConfirming(from, gatedSession, lang, businessId, basket, session.customerName || '');
       return;
     }
 
