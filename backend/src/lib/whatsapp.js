@@ -213,6 +213,11 @@ async function sendFlowMessage(to, { flowId, flowToken, flowCta, screen, body, d
     flow_cta: clampWaButtonTitle(flowCta, 'Open'),
     flow_action: flowAction,
   };
+  // DRAFT Flows only open with mode=draft (Meta). Test menu Flow is DRAFT.
+  if (String(process.env.WHATSAPP_FLOW_DRAFT_MODE || '').toLowerCase() === 'true'
+    || process.env.WHATSAPP_FLOW_DRAFT_MODE === '1') {
+    parameters.mode = 'draft';
+  }
   if (flowAction === 'navigate') {
     parameters.flow_action_payload = Object.keys(data).length ? { screen, data } : { screen };
   }

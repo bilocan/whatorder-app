@@ -829,27 +829,30 @@ describe('Checkout confirm Flow', () => {
     delete process.env.WHATSAPP_CHECKOUT_FLOW_ID;
   });
 
-  test('flag on sends Add more / Continue gate instead of Flow or list', async () => {
+  test('flag on sends checkout Flow CTA directly (no Add more / Continue gate)', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true });
-    sendButtonMessage.mockResolvedValue('confirm_gate_msg_id');
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'checkout_flow_test_id',
+      screen: 'CHECKOUT_REVIEW',
+      flowCta: expect.any(String),
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_confirm_add_more' }),
         expect.objectContaining({ id: 'btn_confirm_continue' }),
       ]),
     }));
-    expect(sendFlowMessage).not.toHaveBeenCalled();
     expect(sendListMessage).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
-      pendingDeleteIds: ['confirm_gate_msg_id'],
+      pendingDeleteIds: ['confirm_flow_msg_id'],
     }));
   });
 
-  test('Continue sends CHECKOUT_REVIEW Flow with navigate prefill', async () => {
+  test('stale Continue still sends CHECKOUT_REVIEW Flow with navigate prefill', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true });
     sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
     getSession.mockResolvedValue({
@@ -917,7 +920,7 @@ describe('Checkout confirm Flow', () => {
     }));
   });
 
-  test('Add more from gate opens menu/catalog without basket intermediate', async () => {
+  test('stale Add more from old gate opens menu/catalog without basket intermediate', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true });
     getSession.mockResolvedValue({
       ...BASE_SESSION,
@@ -952,17 +955,12 @@ describe('Checkout confirm Flow', () => {
       name: 'Ahmet',
       lastDeliveryAddress: 'Naschmarkt 5, Top 2, 1040 Wien',
     });
-    sendButtonMessage.mockResolvedValue('confirm_gate_msg_id');
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
     getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing' });
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
-    expect(sendFlowMessage).not.toHaveBeenCalled();
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_confirm_continue' }),
-      ]),
-    }));
+    expect(sendFlowMessage).toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
       orderType: 'delivery',
@@ -1083,14 +1081,15 @@ describe('Checkout confirm Flow', () => {
     }));
   });
 
-  test('falsy gate message id still lands in confirming when address is complete', async () => {
+  test('null Flow message id falls back to confirm list when address is complete', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,
       checkoutConfirmFlow: true,
       deliveryEnabled: true,
       deliveryOpen: true,
     });
-    sendButtonMessage.mockResolvedValue(null);
+    sendFlowMessage.mockResolvedValue(null);
+    sendListMessage.mockResolvedValue('list_msg_id');
     getSession.mockResolvedValue({
       ...BASE_SESSION,
       state: 'browsing',
@@ -1101,11 +1100,11 @@ describe('Checkout confirm Flow', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
-    expect(sendButtonMessage).toHaveBeenCalled();
-    expect(sendFlowMessage).not.toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
-      pendingDeleteIds: [],
+      pendingDeleteIds: ['list_msg_id'],
     }));
   });
 

@@ -4,6 +4,7 @@ const {
   computeLinePrice,
   linePriceForItem,
   formatFlowOptionTitle,
+  optionLabelEmoji,
   selectionsFromOrderItemPayload,
 } = require('../optionPricing');
 const { FIELDS: F } = require('../../flows/fields');
@@ -64,13 +65,35 @@ describe('linePriceForItem', () => {
   });
 });
 
-describe('formatFlowOptionTitle', () => {
-  test('appends price suffix when extra > 0', () => {
-    expect(formatFlowOptionTitle('Cheese', 1.5)).toBe('Cheese +€1.50');
+describe('optionLabelEmoji', () => {
+  test('maps common DE/EN toppings', () => {
+    expect(optionLabelEmoji('Tomaten')).toBe('🍅');
+    expect(optionLabelEmoji('Salad')).toBe('🥬');
+    expect(optionLabelEmoji('Zwiebel')).toBe('🧅');
+    expect(optionLabelEmoji('Sauce')).toBe('🫙');
+    expect(optionLabelEmoji('Käse')).toBe('🧀');
+    expect(optionLabelEmoji('Reis')).toBe('🌾');
+    expect(optionLabelEmoji('Pilav')).toBe('🌾');
+    expect(optionLabelEmoji('Reis oder Pommes')).toBe('🌾');
+    expect(optionLabelEmoji('', 'reis')).toBe('🌾');
   });
 
-  test('leaves free options unchanged', () => {
-    expect(formatFlowOptionTitle('Tomato', 0)).toBe('Tomato');
+  test('returns empty when unknown', () => {
+    expect(optionLabelEmoji('Extra whatever')).toBe('');
+  });
+});
+
+describe('formatFlowOptionTitle', () => {
+  test('appends price suffix when extra > 0', () => {
+    expect(formatFlowOptionTitle('Cheese', 1.5)).toBe('🧀 Cheese +€1.50');
+  });
+
+  test('prefixes emoji for free options', () => {
+    expect(formatFlowOptionTitle('Tomato', 0)).toBe('🍅 Tomato');
+  });
+
+  test('leaves unknown labels without emoji', () => {
+    expect(formatFlowOptionTitle('Mystery', 0)).toBe('Mystery');
   });
 
   test('truncates long labels to fit 30 char Flow limit', () => {

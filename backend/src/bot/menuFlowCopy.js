@@ -33,9 +33,13 @@ function orderItemCopy(lang, t = defaultT) {
   return {
     [F.UI_SCREEN_TITLE]: t('menuFlowCustomise', lang),
     [F.UI_QTY_LABEL]: t('menuFlowQtyLabel', lang),
+    [F.UI_QTY_HELPER]: t('menuFlowQtyHelper', lang),
     [F.UI_NOTES_LABEL]: t('menuFlowNotesLabel', lang),
     [F.UI_NOTES_HELPER]: t('menuFlowNotesHelper', lang),
     [F.UI_ADD_TO_CART]: t('menuFlowAddToCart', lang),
+    [F.UI_FOOTER_LEFT_CAPTION]: t('menuFlowFooterLeftCaption', lang),
+    // Same wording as checkout confirm; Meta EmbeddedLink max 25 chars.
+    [F.UI_BACK_TO_CART]: t('confirmFlowBackToCart', lang),
   };
 }
 

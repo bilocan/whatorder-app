@@ -17,7 +17,6 @@ const {
   orderItemCopy,
   cartEditCopy,
   cartDoneCopy,
-  clearCartTitle,
 } = require('../bot/menuFlowCopy');
 const { t } = require('../bot/templates');
 
@@ -30,6 +29,11 @@ const LIST_OPTION_PROPS = {
   description: { type: 'string' },
   image: { type: 'string' },
   'alt-text': { type: 'string' },
+};
+
+const CART_OPTION_PROPS = {
+  ...LIST_OPTION_PROPS,
+  metadata: { type: 'string' },
 };
 
 const CATEGORY_OPTION_PROPS = {
@@ -197,8 +201,10 @@ function radioSlot(n) {
   };
 }
 
-function orderItem(exampleItem) {
+async function orderItem(exampleItem) {
   const copy = orderItemCopy(EXAMPLE_LANG);
+  const exampleDesc = exampleItem.description || '';
+  const examplePrice = `€${Number(exampleItem.price).toFixed(2)}`;
   return {
     id: S.ORDER_ITEM,
     title: `\${data.${F.UI_SCREEN_TITLE}}`,
@@ -206,9 +212,35 @@ function orderItem(exampleItem) {
       ...uiSchema(copy),
       [F.ITEM_ID]:          { type: 'string', '__example__': exampleItem.id },
       [F.ITEM_NAME]:        { type: 'string', '__example__': exampleItem.name },
-      [F.ITEM_DESCRIPTION]: { type: 'string', '__example__': exampleItem.description || '' },
-      [F.ITEM_PRICE]:       { type: 'string', '__example__': `€${Number(exampleItem.price).toFixed(2)}` },
-      [F.QTY_OPTIONS]:      { ...OPTS_SCHEMA, '__example__': [{ id: '1', title: '1' }, { id: '2', title: '2' }, { id: '3', title: '3' }] },
+      [F.ITEM_DESCRIPTION]: { type: 'string', '__example__': exampleDesc },
+      [F.ITEM_DESCRIPTION_VISIBLE]: { type: 'boolean', '__example__': !!exampleDesc },
+      [F.ITEM_PRICE]:       { type: 'string', '__example__': examplePrice },
+      [F.UI_BACK_TO_CART_VISIBLE]: { type: 'boolean', '__example__': true },
+      [F.FORM_INIT_VALUES]: {
+        type: 'object',
+        properties: {
+          [F.QTY]: { type: 'number' },
+          [F.NOTES]: { type: 'string' },
+          [F.MULTI_VALUE]: { type: 'array', items: { type: 'string' } },
+          [F.SLOT1_VALUE]: { type: 'string' },
+          [F.SLOT2_VALUE]: { type: 'string' },
+          [F.SLOT3_VALUE]: { type: 'string' },
+        },
+        // Explicit empties: Meta reuses Form state when reopening ORDER_ITEM.
+        '__example__': {
+          [F.QTY]: 1,
+          [F.NOTES]: '',
+          [F.MULTI_VALUE]: [],
+          [F.SLOT1_VALUE]: '',
+          [F.SLOT2_VALUE]: '',
+          [F.SLOT3_VALUE]: '',
+        },
+      },
+      [F.ERROR_MESSAGES]: {
+        type: 'object',
+        properties: { [F.QTY]: { type: 'string' } },
+        '__example__': {},
+      },
       // Slot 1 (single-select) — flat fields so visible/data-source binding works
       [F.SLOT1_VISIBLE]:  { type: 'boolean', '__example__': true  },
       [F.SLOT1_LABEL]:    { type: 'string',  '__example__': 'Sauce' },
@@ -234,15 +266,26 @@ function orderItem(exampleItem) {
       children: [{
         type: 'Form',
         name: 'order_form',
+        'init-values': `\${data.${F.FORM_INIT_VALUES}}`,
+        // Server can set field errors (e.g. qty > 10). Pattern also blocks client-side.
+        'error-messages': `\${data.${F.ERROR_MESSAGES}}`,
         children: [
           { type: 'TextHeading', text: `\${data.${F.ITEM_NAME}}` },
-          { type: 'TextBody',    text: `\${data.${F.ITEM_PRICE}}` },
           {
-            type: 'RadioButtonsGroup',
+            type: 'If',
+            condition: `\${data.${F.ITEM_DESCRIPTION_VISIBLE}}`,
+            then: [{ type: 'TextCaption', text: `\${data.${F.ITEM_DESCRIPTION}}` }],
+          },
+          {
+            type: 'TextInput',
             label: `\${data.${F.UI_QTY_LABEL}}`,
             name: F.QTY,
             required: true,
-            'data-source': `\${data.${F.QTY_OPTIONS}}`,
+            'input-type': 'number',
+            'max-chars': 2,
+            // Anchored: unanchored (10|[1-9]) wrongly accepts "11".
+            pattern: '^(10|[1-9])$',
+            'helper-text': `\${data.${F.UI_QTY_HELPER}}`,
           },
           radioSlot(1),
           radioSlot(2),
@@ -263,8 +306,20 @@ function orderItem(exampleItem) {
             'helper-text': `\${data.${F.UI_NOTES_HELPER}}`,
           },
           {
+            type: 'EmbeddedLink',
+            text: `\${data.${F.UI_BACK_TO_CART}}`,
+            visible: `\${data.${F.UI_BACK_TO_CART_VISIBLE}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: { cart_action: 'back_to_cart' },
+            },
+          },
+          {
             type: 'Footer',
             label: `\${data.${F.UI_ADD_TO_CART}}`,
+            // Meta requires left-caption whenever right-caption is set.
+            'left-caption': `\${data.${F.UI_FOOTER_LEFT_CAPTION}}`,
+            'right-caption': `\${data.${F.ITEM_PRICE}}`,
             'on-click-action': {
               name: 'data_exchange',
               payload: {
@@ -286,24 +341,45 @@ function orderItem(exampleItem) {
 
 function cartReview() { return cartEditScreen(S.CART_REVIEW); }
 
-function cartEditScreen(id) {
+async function cartEditScreen(id) {
   const copy = cartEditCopy(EXAMPLE_LANG);
+  const exampleRows = await Promise.all([
+    withTileImage({
+      id: '0',
+      title: '1x Dürüm Huhn',
+      description: 'Tomaten, Salat, Sauce',
+      metadata: '€8.50',
+    }),
+    withTileImage({
+      id: '1',
+      title: '1x Falafel Box',
+      description: '',
+      metadata: '€6.90',
+    }),
+  ]);
+  const discountLabel = t('menuFlowDiscountPercentLabel', EXAMPLE_LANG, 12);
   return {
     id,
     title: `\${data.${F.UI_SCREEN_TITLE}}`,
     terminal: true,
     data: {
       ...uiSchema(copy),
-      [F.BASKET_TEXT]:  { type: 'string', '__example__': '1x Dürüm Huhn  €8.50\n1x Falafel Box  €6.90' },
-      [F.TOTAL_LABEL]:  { type: 'string', '__example__': t('orderTotal', EXAMPLE_LANG, '15.40') },
+      [F.SUBTOTAL_LABEL]: { type: 'string', '__example__': t('menuFlowSubtotal', EXAMPLE_LANG, '15.40') },
+      [F.DISCOUNT_LABEL]: {
+        type: 'string',
+        '__example__': t('menuFlowDiscount', EXAMPLE_LANG, discountLabel, '1.85'),
+      },
+      [F.DISCOUNT_VISIBLE]: { type: 'boolean', '__example__': true },
+      [F.DELIVERY_LABEL]: {
+        type: 'string',
+        '__example__': t('menuFlowDeliveryFee', EXAMPLE_LANG, '0.00'),
+      },
+      [F.DELIVERY_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.TOTAL_LABEL]:  { type: 'string', '__example__': t('orderTotal', EXAMPLE_LANG, '13.55') },
       [F.BASKET_ITEMS]: {
         type: 'array',
-        items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } } },
-        '__example__': [
-          { id: '0', title: '1x Dürüm Huhn' },
-          { id: '1', title: '1x Falafel Box' },
-          { id: 'clear', title: clearCartTitle(EXAMPLE_LANG) },
-        ],
+        items: { type: 'object', properties: CART_OPTION_PROPS },
+        '__example__': exampleRows,
       },
     },
     layout: {
@@ -312,16 +388,33 @@ function cartEditScreen(id) {
         type: 'Form',
         name: 'cart_form',
         children: [
-          { type: 'TextBody',       text: `\${data.${F.BASKET_TEXT}}` },
-          { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
-          { type: 'TextCaption',    text: `\${data.${F.UI_CART_HINT}}` },
+          { type: 'TextCaption', text: `\${data.${F.UI_CART_HINT}}` },
           {
             type: 'CheckboxGroup',
+            // required:false keeps Place order enabled with nothing checked.
+            // Meta appends a localized "(optional)" suffix to the label (client UI language).
             label: `\${data.${F.UI_REMOVE_LABEL}}`,
             name: F.REMOVE_ITEMS,
             required: false,
+            'media-size': 'large',
             'data-source': `\${data.${F.BASKET_ITEMS}}`,
           },
+          { type: 'TextBody', text: `\${data.${F.SUBTOTAL_LABEL}}` },
+          {
+            type: 'If',
+            condition: `\${data.${F.DISCOUNT_VISIBLE}}`,
+            then: [
+              { type: 'TextBody', text: `\${data.${F.DISCOUNT_LABEL}}` },
+            ],
+          },
+          {
+            type: 'If',
+            condition: `\${data.${F.DELIVERY_VISIBLE}}`,
+            then: [
+              { type: 'TextBody', text: `\${data.${F.DELIVERY_LABEL}}` },
+            ],
+          },
+          { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
           {
             type: 'EmbeddedLink',
             text: `\${data.${F.UI_REMOVE_SELECTED}}`,
@@ -410,9 +503,9 @@ async function main() {
       categorySelectScreen(S.CATEGORY_SELECT, EXAMPLE_CATEGORIES),
       categorySelectScreen(S.CATEGORY_SELECT_RETURN, EXAMPLE_CATEGORIES),
       menuBrowse(EXAMPLE_CATEGORY, EXAMPLE_MENU_ITEMS),
-      orderItem(EXAMPLE_ITEM),
-      cartReview(),
-      cartUpdated(),
+      await orderItem(EXAMPLE_ITEM),
+      await cartReview(),
+      await cartUpdated(),
       cartDone(),
     ],
   };

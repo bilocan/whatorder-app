@@ -9,12 +9,15 @@ const {
   isAllowedPhotoFetchUrl,
   flowListImageFromUrl,
   normalizeStoredFlowListImage,
+  padFlowOrderItemImage,
   attachListImages,
   attachCategoryImages,
   attachMenuItemImages,
   clearFlowImageCache,
   MAX_DOWNLOAD_BYTES,
   MAX_LIST_IMAGE_BYTES,
+  ORDER_ITEM_PAD_W,
+  ORDER_ITEM_PAD_H,
 } = require('../flowImages');
 const { resolvePhotoUrl } = require('../../bot/menuService');
 
@@ -76,6 +79,16 @@ describe('flowImages', () => {
     const a = await colorTileBase64('Kebap');
     const b = await colorTileBase64('Kebap');
     expect(b).toBe(a);
+  });
+
+  test('padFlowOrderItemImage left-aligns square thumb on wide white canvas', async () => {
+    const square = await colorTileBase64('pad-test');
+    const padded = await padFlowOrderItemImage(square);
+    expect(padded).toBeTruthy();
+    expect(padded).not.toBe(square);
+    const meta = await sharp(Buffer.from(padded, 'base64')).metadata();
+    expect(meta.width).toBe(ORDER_ITEM_PAD_W);
+    expect(meta.height).toBe(ORDER_ITEM_PAD_H);
   });
 
   describe('normalizeStoredFlowListImage', () => {

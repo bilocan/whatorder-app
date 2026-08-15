@@ -169,14 +169,14 @@ describe('Checkout confirm Flow: chat slot short-circuit', () => {
     delete process.env.WHATSAPP_CHECKOUT_FLOW_ID;
   });
 
-  test('confirm basket skips address picker to confirming gate', async () => {
+  test('confirm basket skips address picker to confirming Flow CTA', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,
       checkoutConfirmFlow: true,
       deliveryEnabled: true,
       deliveryOpen: true,
     });
-    sendButtonMessage.mockResolvedValue('confirm_gate_msg_id');
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
     getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing' });
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
@@ -188,12 +188,7 @@ describe('Checkout confirm Flow: chat slot short-circuit', () => {
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_delivery_address_choice',
     }));
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_confirm_continue' }),
-      ]),
-    }));
-    expect(sendFlowMessage).not.toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
   });
 
   test('resume after minimum goes to confirming not address', async () => {
@@ -204,7 +199,7 @@ describe('Checkout confirm Flow: chat slot short-circuit', () => {
       deliveryOpen: true,
       minimumOrderValue: 10,
     });
-    sendButtonMessage.mockResolvedValue('confirm_gate_msg_id');
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
     getSession.mockResolvedValue({
       ...BASE_SESSION,
       state: 'browsing',
@@ -228,7 +223,7 @@ describe('Checkout confirm Flow: chat slot short-circuit', () => {
       deliveryEnabled: true,
       deliveryOpen: false,
     });
-    sendButtonMessage.mockResolvedValue('confirm_gate_msg_id');
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
     mockCustomerProfile(null);
     getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_order_type' });
 
@@ -247,7 +242,7 @@ describe('Checkout confirm Flow: chat slot short-circuit', () => {
       checkoutConfirmFlow: true,
       deliveryEnabled: true,
     });
-    sendButtonMessage.mockResolvedValue('confirm_gate_msg_id');
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
     mockCustomerProfile(null);
     getSession.mockResolvedValue({
       ...BASE_SESSION,
@@ -291,14 +286,14 @@ describe('Checkout confirm Flow: chat slot short-circuit', () => {
     expect(patchSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'confirming' }));
   });
 
-  test('back-to-cart session with null address re-confirms through the gate', async () => {
+  test('back-to-cart session with null address re-confirms with Flow CTA', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,
       checkoutConfirmFlow: true,
       deliveryEnabled: true,
       deliveryOpen: true,
     });
-    sendButtonMessage.mockResolvedValue('confirm_gate_msg_id');
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
     getSession.mockResolvedValue({
       ...BASE_SESSION,
       state: 'browsing',
@@ -312,7 +307,7 @@ describe('Checkout confirm Flow: chat slot short-circuit', () => {
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_delivery_address_choice',
     }));
-    expect(sendFlowMessage).not.toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
   });
 });
 
