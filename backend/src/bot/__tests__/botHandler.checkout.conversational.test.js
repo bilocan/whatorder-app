@@ -565,7 +565,7 @@ describe('Checkout state: M3 slot-filling checkout', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringMatching(/Name/i));
   });
 
-  test('Flow flag off keeps address picker when order type was unset despite saved address', async () => {
+  test('flag on — unset order type defaults to pickup (no address picker / no delivery prefill)', async () => {
     mockCustomerProfile({ name: 'Hamza', lastDeliveryAddress: 'Hauptstraße 5, Top 2' });
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,
@@ -584,20 +584,15 @@ describe('Checkout state: M3 slot-filling checkout', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_delivery_address_choice',
-      orderType: 'delivery',
+      state: 'confirming',
+      orderType: 'pickup',
+      customerName: 'Hamza',
     }));
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'confirming',
-      deliveryAddress: 'Hauptstraße 5, Top 2',
+      state: 'awaiting_delivery_address_choice',
     }));
-    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      sections: [expect.objectContaining({
-        rows: expect.arrayContaining([
-          expect.objectContaining({ id: 'delivery_addr_saved' }),
-          expect.objectContaining({ id: 'delivery_addr_new' }),
-        ]),
-      })],
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      deliveryAddress: 'Hauptstraße 5, Top 2',
     }));
   });
 

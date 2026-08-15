@@ -304,7 +304,7 @@ test('select_address while pickup stays pickup and does not treat a radio refres
   expect(response.data[F.CHECKOUT_NOTE]).toBe('Keep me');
 });
 
-test('select_address keeps pickup when delivery is below the minimum', async () => {
+test('select_address keeps pickup when the customer is still on Abholung', async () => {
   getBusinessInfo.mockResolvedValue({
     name: 'Demo Kitchen',
     deliveryEnabled: true,
@@ -320,6 +320,66 @@ test('select_address keeps pickup when delivery is below the minimum', async () 
 
   expect(response.data[F.ORDER_TYPE]).toBe('pickup');
   expect(response.data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
+});
+
+test('select_order_type delivery below minimum closes Flow with delivery_below_minimum', async () => {
+  const { ref } = mockSession({
+    orderType: 'pickup',
+    deliveryAddress: null,
+    basket: [{ name: 'Pommes', qty: 1, price: 4.5 }],
+    confirmFlowDraft: null,
+  });
+  getBusinessInfo.mockResolvedValue({
+    name: 'Demo Kitchen',
+    deliveryEnabled: true,
+    deliveryOpen: true,
+    deliveryFee: 2,
+    minimumOrderValue: 10,
+  });
+
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.CHECKOUT_NOTE]: '',
+  });
+
+  expect(response.screen).toBe('SUCCESS');
+  expect(response.data.extension_message_response.params).toEqual({
+    flow_token: FLOW_TOKEN,
+    checkout_action: 'delivery_below_minimum',
+  });
+  expect(ref.set).toHaveBeenCalledWith(expect.objectContaining({
+    orderType: 'delivery',
+    deliveryAddress: null,
+    confirmFlowDraft: null,
+  }), { merge: true });
+});
+
+test('select_order_type delivery at/above minimum stays on review', async () => {
+  mockSession({
+    orderType: 'pickup',
+    basket: [{ name: 'Burger', qty: 2, price: 10 }],
+    confirmFlowDraft: null,
+  });
+  getBusinessInfo.mockResolvedValue({
+    name: 'Demo Kitchen',
+    deliveryEnabled: true,
+    deliveryOpen: true,
+    deliveryFee: 2,
+    minimumOrderValue: 10,
+  });
+
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.CHECKOUT_NOTE]: '',
+  });
+
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(response.data[F.ORDER_TYPE]).toBe('delivery');
+  expect(response.data[F.ADDRESS_FIELDS_VISIBLE]).toBe(true);
 });
 
 test('select_address on review refills street and apartment from the chosen row', async () => {

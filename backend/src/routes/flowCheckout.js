@@ -23,6 +23,7 @@ const {
   deleteCustomerAddress,
 } = require('../bot/customerAddresses');
 const { loadCheckoutTotals } = require('../bot/checkoutDeal');
+const { basketSubtotal } = require('../bot/orderTotals');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 
 const REVIEW_SCREENS = new Set([
@@ -552,6 +553,37 @@ async function buildCheckoutDataExchangeResponse({
 
   if (action === 'select_order_type' && REVIEW_SCREENS.has(screen)) {
     const draft = mergeConfirmFlowDraft(payload, session.confirmFlowDraft) || {};
+    const selectedType = draft.orderType || payload[F.ORDER_TYPE];
+    const basket = Array.isArray(session.basket) ? session.basket : [];
+    const info = await getBusinessInfo(businessId);
+
+    // Option 3: Lieferung below Mindestbestellwert closes the Flow immediately so the bot
+    // can show the chat gate (Mehr hinzufügen). Same destination as place_order gate, earlier.
+    if (
+      selectedType === 'delivery'
+      && info.minimumOrderValue
+      && basketSubtotal(basket) < info.minimumOrderValue
+    ) {
+      await ref.set({
+        orderType: 'delivery',
+        deliveryAddress: null,
+        confirmFlowDraft: null,
+        updatedAt: new Date(),
+      }, { merge: true });
+      return {
+        version,
+        screen: 'SUCCESS',
+        data: {
+          extension_message_response: {
+            params: {
+              flow_token,
+              checkout_action: 'delivery_below_minimum',
+            },
+          },
+        },
+      };
+    }
+
     await ref.set({ confirmFlowDraft: draft, updatedAt: new Date() }, { merge: true });
     session.confirmFlowDraft = draft;
     return buildReviewFromDraft({

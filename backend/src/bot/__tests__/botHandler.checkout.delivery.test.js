@@ -102,28 +102,18 @@ beforeEach(() => {
 });
 afterEach(clearBotHandlerEnv);
 
-describe('Delivery flow: confirming basket → default delivery (notes skipped)', () => {
-  test('delivery-enabled business defaults to delivery and shows address picker with pickup', async () => {
+describe('Delivery flow: confirming basket → default pickup (notes skipped)', () => {
+  test('delivery-enabled business defaults to pickup and asks for name (no early min-order gate)', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryEnabled: true, deliveryFee: 2.5 });
     getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing' });
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'awaiting_delivery_address_choice',
-      orderType: 'delivery',
+      state: 'awaiting_name',
+      orderType: 'pickup',
     }));
-    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      sections: expect.arrayContaining([
-        expect.objectContaining({
-          rows: expect.arrayContaining([
-            expect.objectContaining({ id: 'delivery_addr_new' }),
-            expect.objectContaining({ id: 'delivery_addr_share' }),
-            expect.objectContaining({ id: 'delivery_addr_pickup' }),
-          ]),
-        }),
-      ]),
-    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: expect.arrayContaining([
         expect.objectContaining({ id: 'btn_pickup' }),
@@ -144,7 +134,7 @@ describe('Delivery flow: confirming basket → default delivery (notes skipped)'
     }));
   });
 
-  test('below minimumOrderValue on confirm shows gate without address picker', async () => {
+  test('below minimumOrderValue on confirm does not gate while defaulting to pickup', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO, deliveryEnabled: true, deliveryFee: 2.5, minimumOrderValue: 20,
     });
@@ -153,8 +143,11 @@ describe('Delivery flow: confirming basket → default delivery (notes skipped)'
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'browsing',
-      orderType: 'delivery',
+      state: 'awaiting_name',
+      orderType: 'pickup',
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/minimum order|Mindestbestellwert/i),
     }));
     expect(sendListMessage).not.toHaveBeenCalled();
   });
@@ -183,7 +176,7 @@ describe('Checkout confirm Flow: chat slot short-circuit', () => {
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
-      orderType: 'delivery',
+      orderType: 'pickup',
     }));
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_delivery_address_choice',
@@ -416,7 +409,15 @@ describe('Delivery minimum order value gate', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('20.00'),
-      buttons: expect.not.arrayContaining([expect.objectContaining({ id: 'btn_confirm' })]),
+      buttons: [
+        expect.objectContaining({ id: 'btn_add_more' }),
+      ],
+    }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.not.arrayContaining([
+        expect.objectContaining({ id: 'btn_remove_item' }),
+        expect.objectContaining({ id: 'btn_confirm' }),
+      ]),
     }));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'browsing',
