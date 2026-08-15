@@ -58,45 +58,28 @@ function exampleAddressOptions(lang) {
   ];
 }
 
+/** Payload for review nav / place: address comes from server data (read-only on Prüfen). */
 function reviewFormPayload() {
   return {
     [F.CUSTOMER_NAME]: `\${form.${F.CUSTOMER_NAME}}`,
     [F.ORDER_TYPE]: `\${form.${F.ORDER_TYPE}}`,
-    [F.ADDRESS_CHOICE]: `\${form.${F.ADDRESS_CHOICE}}`,
-    [F.DELIVERY_ADDRESS]: `\${form.${F.DELIVERY_ADDRESS}}`,
-    [F.DELIVERY_APARTMENT]: `\${form.${F.DELIVERY_APARTMENT}}`,
+    [F.ADDRESS_CHOICE]: `\${data.${F.ADDRESS_CHOICE}}`,
+    [F.DELIVERY_ADDRESS]: `\${data.${F.DELIVERY_ADDRESS}}`,
+    [F.DELIVERY_APARTMENT]: `\${data.${F.DELIVERY_APARTMENT}}`,
     [F.CHECKOUT_NOTE]: `\${form.${F.CHECKOUT_NOTE}}`,
   };
 }
 
+/** Delivery block on Prüfen: show default/selected address; edit only via manage. */
 function deliveryAddressFields(includeManageLink) {
   return [
     {
-      type: 'RadioButtonsGroup',
-      label: `\${data.${F.UI_ADDRESS_CHOICE_LABEL}}`,
-      name: F.ADDRESS_CHOICE,
-      required: true,
-      'data-source': `\${data.${F.ADDRESS_OPTIONS}}`,
-      'on-select-action': {
-        name: 'data_exchange',
-        payload: {
-          checkout_action: 'select_address',
-          ...reviewFormPayload(),
-        },
-      },
+      type: 'TextCaption',
+      text: `\${data.${F.UI_ADDRESS_CHOICE_LABEL}}`,
     },
     {
-      type: 'TextInput',
-      label: `\${data.${F.UI_ADDRESS_LABEL}}`,
-      name: F.DELIVERY_ADDRESS,
-      required: true,
-    },
-    {
-      type: 'TextInput',
-      label: `\${data.${F.UI_APARTMENT_LABEL}}`,
-      name: F.DELIVERY_APARTMENT,
-      required: true,
-      'helper-text': `\${data.${F.UI_APARTMENT_HELPER}}`,
+      type: 'TextBody',
+      text: `\${data.${F.DELIVERY_ADDRESS_DISPLAY}}`,
     },
     ...(includeManageLink ? [{
       type: 'EmbeddedLink',
@@ -136,12 +119,12 @@ function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
       },
       [F.ADDRESS_CHOICE]: { type: 'string', '__example__': 'addr_0' },
       [F.ADDRESS_FIELDS_VISIBLE]: { type: 'boolean', '__example__': true },
-      [F.ADDRESS_OPTIONS]: {
-        ...OPTION_LIST_SCHEMA,
-        '__example__': exampleAddressOptions(EXAMPLE_LANG),
-      },
-      [F.DELIVERY_ADDRESS]: { type: 'string', '__example__': 'Hippgasse 11, 1160 Wien' },
+      [F.DELIVERY_ADDRESS]: { type: 'string', '__example__': 'Hippgasse 11, Top 14, 1160 Wien' },
       [F.DELIVERY_APARTMENT]: { type: 'string', '__example__': 'Top 14' },
+      [F.DELIVERY_ADDRESS_DISPLAY]: {
+        type: 'string',
+        '__example__': 'Hippgasse 11, Top 14, 1160 Wien',
+      },
       [F.CHECKOUT_NOTE]: { type: 'string', '__example__': 'Please ring the bell.' },
     },
     layout: {
@@ -153,9 +136,6 @@ function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
         'init-values': {
           [F.CUSTOMER_NAME]: `\${data.${F.CUSTOMER_NAME}}`,
           [F.ORDER_TYPE]: `\${data.${F.ORDER_TYPE}}`,
-          [F.ADDRESS_CHOICE]: `\${data.${F.ADDRESS_CHOICE}}`,
-          [F.DELIVERY_ADDRESS]: `\${data.${F.DELIVERY_ADDRESS}}`,
-          [F.DELIVERY_APARTMENT]: `\${data.${F.DELIVERY_APARTMENT}}`,
           [F.CHECKOUT_NOTE]: `\${data.${F.CHECKOUT_NOTE}}`,
         },
         children: [

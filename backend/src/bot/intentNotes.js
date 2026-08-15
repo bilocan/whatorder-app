@@ -79,6 +79,11 @@ function collectSpicySpecialNote(rawText, matchedItems, lang = 'de') {
 function tagLinesWithNote(items, note, lang = 'de') {
   return (items ?? []).map(i => {
     const line = { name: i.name, qty: i.qty, price: i.price };
+    const menuId = i.menuItemId || i.itemId;
+    if (menuId) {
+      line.menuItemId = menuId;
+      line.itemId = menuId;
+    }
     const perLine = resolveLineSpicyNote(i, lang) ?? ((note ?? '').trim() || null);
     const lineNote = combineLineNotes(i, perLine);
     if (lineNote) line.note = lineNote;
@@ -86,8 +91,13 @@ function tagLinesWithNote(items, note, lang = 'de') {
   });
 }
 
-function toBasketLine({ name, qty, price }, note) {
+function toBasketLine({ name, qty, price, menuItemId, itemId }, note) {
   const line = { name, qty, price };
+  const menuId = itemId || menuItemId;
+  if (menuId) {
+    line.menuItemId = menuId;
+    line.itemId = menuId;
+  }
   const n = (note ?? '').trim();
   if (n) line.note = n;
   return line;

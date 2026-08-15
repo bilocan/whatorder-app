@@ -113,6 +113,10 @@ function applyAdd(basket, op) {
     qty: clampQty(item.qty),
     price: Number(item.price),
     ...(item.note ? { note: item.note } : {}),
+    ...((item.menuItemId || item.itemId) ? {
+      menuItemId: item.menuItemId || item.itemId,
+      itemId: item.menuItemId || item.itemId,
+    } : {}),
   })));
 
   const changed = next.length !== basket.length

@@ -126,6 +126,14 @@ describe('mergeIntoBasket', () => {
       { name: 'Kebap — Sauce', qty: 1, price: 7.5, note: 'extra scharf' },
     ]);
   });
+
+  test('persists menuItemId on new lines', () => {
+    expect(mergeIntoBasket([], [
+      { name: 'Lahmacun', qty: 1, price: 6.5, menuItemId: 'lah1' },
+    ])).toEqual([
+      { name: 'Lahmacun', qty: 1, price: 6.5, menuItemId: 'lah1', itemId: 'lah1' },
+    ]);
+  });
 });
 
 describe('expandPerUnitSpicyMatched', () => {

@@ -38,8 +38,6 @@ function orderItemCopy(lang, t = defaultT) {
     [F.UI_NOTES_HELPER]: t('menuFlowNotesHelper', lang),
     [F.UI_ADD_TO_CART]: t('menuFlowAddToCart', lang),
     [F.UI_FOOTER_LEFT_CAPTION]: t('menuFlowFooterLeftCaption', lang),
-    // Same wording as checkout confirm; Meta EmbeddedLink max 25 chars.
-    [F.UI_BACK_TO_CART]: t('confirmFlowBackToCart', lang),
   };
 }
 
@@ -48,10 +46,22 @@ function cartEditCopy(lang, t = defaultT) {
     [F.UI_SCREEN_TITLE]: t('menuFlowCartTitle', lang),
     [F.UI_CART_HINT]: t('menuFlowCartHint', lang),
     [F.UI_REMOVE_LABEL]: t('menuFlowRemoveLabel', lang),
+    [F.UI_REMOVE_MODE_LABEL]: t('menuFlowRemoveModeLabel', lang),
+    // Meta EmbeddedLink max 25 chars; apply after radio mode.
     [F.UI_REMOVE_SELECTED]: t('menuFlowRemoveSelected', lang),
     [F.UI_ADD_MORE]: t('menuFlowAddMore', lang),
     [F.UI_PLACE_ORDER]: t('menuFlowPlaceOrder', lang),
   };
+}
+
+function cartRemoveModeOptions(lang, t = defaultT, { allowEdit = true } = {}) {
+  const opts = [
+    { id: 'one', title: t('menuFlowRemoveOne', lang) },
+    { id: 'line', title: t('menuFlowRemoveLine', lang) },
+    { id: 'all', title: t('menuFlowRemoveAll', lang) },
+  ];
+  if (allowEdit) opts.push({ id: 'edit', title: t('menuFlowRemoveEdit', lang) });
+  return opts;
 }
 
 function cartDoneCopy(lang, t = defaultT) {
@@ -71,6 +81,7 @@ function checkoutReviewCopy(lang, t = defaultT) {
     [F.UI_ADDRESS_LABEL]: t('confirmFlowAddressLabel', lang),
     [F.UI_APARTMENT_LABEL]: t('confirmFlowApartmentLabel', lang),
     [F.UI_APARTMENT_HELPER]: t('confirmFlowApartmentHelper', lang),
+    [F.UI_DELIVERY_ADDRESS_EMPTY]: t('confirmFlowAddressEmpty', lang),
     [F.UI_NOTE_LABEL]: t('confirmFlowNoteLabel', lang),
     [F.UI_BACK_TO_CART]: t('confirmFlowBackToCart', lang),
     [F.UI_PLACE_ORDER]: t('confirmFlowFooter', lang),
@@ -99,6 +110,7 @@ module.exports = {
   menuBrowseCopy,
   orderItemCopy,
   cartEditCopy,
+  cartRemoveModeOptions,
   cartDoneCopy,
   checkoutReviewCopy,
   checkoutManageCopy,

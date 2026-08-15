@@ -125,4 +125,10 @@ describe('toBasketLine', () => {
       name: 'Kebap', qty: 1, price: 7.5, note: 'extra scharf',
     });
   });
+
+  test('persists menuItemId as itemId for Flow cart thumbs', () => {
+    expect(toBasketLine({ name: 'Lahmacun', qty: 1, price: 6.5, menuItemId: 'lah1' }, null)).toEqual({
+      name: 'Lahmacun', qty: 1, price: 6.5, menuItemId: 'lah1', itemId: 'lah1',
+    });
+  });
 });

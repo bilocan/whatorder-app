@@ -117,6 +117,7 @@ describe('checkoutConfirmFlow', () => {
           description: 'confirmFlowAddressNewDesc:en:',
         },
       ],
+      [F.DELIVERY_ADDRESS_DISPLAY]: 'Main Street 12',
       [F.UI_SCREEN_TITLE]: 'confirmListHeader:en:',
       [F.UI_NAME_LABEL]: 'confirmFlowNameLabel:en:',
       [F.UI_PLACE_ORDER]: 'confirmFlowFooter:en:',

@@ -7,6 +7,11 @@ const SCREENS = {
   CATEGORY_SELECT_RETURN: 'CATEGORY_SELECT_RETURN', // identical to CATEGORY_SELECT but routable from CART screens
   MENU_BROWSE:            'MENU_BROWSE',
   ORDER_ITEM:             'ORDER_ITEM',
+  // Cart → edit clones (Meta forbids A↔B; forward-only like ADDRESS_MANAGE).
+  ORDER_ITEM_EDIT:        'ORDER_ITEM_EDIT',
+  ORDER_ITEM_EDIT_AGAIN:  'ORDER_ITEM_EDIT_AGAIN',
+  CART_EDITED:            'CART_EDITED',
+  CART_EDITED_AGAIN:      'CART_EDITED_AGAIN',
   CART_REVIEW:  'CART_REVIEW',  // editable cart round 1
   CART_UPDATED: 'CART_UPDATED', // editable cart round 2 (identical UI, different ID to satisfy DAG)
   CART_DONE:    'CART_DONE',    // final summary — no remove UI, just place order
@@ -69,6 +74,8 @@ const FIELDS = {
   TOTAL_LABEL:    'total_label',
   BASKET_ITEMS:   'basket_items',
   REMOVE_ITEMS:   'remove_items', // CheckboxGroup — multi-select removal
+  REMOVE_MODE:    'remove_mode',  // Radio: one | line
+  REMOVE_MODE_OPTIONS: 'remove_mode_options',
 
   // Menu Flow UI copy (filled from session.language on every exchange)
   UI_SCREEN_TITLE:     'ui_screen_title',
@@ -82,9 +89,14 @@ const FIELDS = {
   UI_NOTES_LABEL:      'ui_notes_label',
   UI_NOTES_HELPER:     'ui_notes_helper',
   UI_ADD_TO_CART:      'ui_add_to_cart',
+  // Footer payload: 'add_item' | 'back_to_cart' (model B: no EmbeddedLink on ORDER_ITEM).
+  UI_ORDER_FOOTER_ACTION: 'ui_order_footer_action',
+  UI_MULTI_TOGGLE:        'ui_multi_toggle',
+  UI_MULTI_TOGGLE_VISIBLE: 'ui_multi_toggle_visible',
   UI_FOOTER_LEFT_CAPTION: 'ui_footer_left_caption',
   UI_CART_HINT:        'ui_cart_hint',
   UI_REMOVE_LABEL:     'ui_remove_label',
+  UI_REMOVE_MODE_LABEL: 'ui_remove_mode_label',
   UI_REMOVE_SELECTED:  'ui_remove_selected',
   UI_ADD_MORE:         'ui_add_more',
   UI_PLACE_ORDER:      'ui_place_order',
@@ -99,6 +111,8 @@ const FIELDS = {
   ADDRESS_FIELDS_VISIBLE: 'address_fields_visible',
   DELIVERY_ADDRESS:   'delivery_address',
   DELIVERY_APARTMENT: 'delivery_apartment',
+  // Read-only summary on CHECKOUT_REVIEW (full label or empty-state copy).
+  DELIVERY_ADDRESS_DISPLAY: 'delivery_address_display',
   CHECKOUT_NOTE:      'note',
   UI_NAME_LABEL:      'ui_name_label',
   UI_TYPE_LABEL:      'ui_type_label',
@@ -106,6 +120,7 @@ const FIELDS = {
   UI_ADDRESS_LABEL:   'ui_address_label',
   UI_APARTMENT_LABEL: 'ui_apartment_label',
   UI_APARTMENT_HELPER: 'ui_apartment_helper',
+  UI_DELIVERY_ADDRESS_EMPTY: 'ui_delivery_address_empty',
   UI_NOTE_LABEL:      'ui_note_label',
   UI_BACK_TO_CART:    'ui_back_to_cart',
   UI_BACK_TO_CART_VISIBLE: 'ui_back_to_cart_visible',
