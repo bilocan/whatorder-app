@@ -847,10 +847,10 @@ async function sendCheckoutConfirmFlow(from, session, lang, businessId, basket, 
 
 /**
  * @param {'gate'|'flow'} flowUiMode
- *   gate = first entry (Add more / Continue). flow = after Continue / validation re-offer.
+ *   flow = default (checkout Flow CTA). gate = legacy Add more / Continue (stale taps only).
  */
 async function sendConfirmUi(
-  from, session, lang, businessId, basket, name, businessInfo = null, flowUiMode = 'gate',
+  from, session, lang, businessId, basket, name, businessInfo = null, flowUiMode = 'flow',
 ) {
   const info = businessInfo ?? await getBusinessInfo(businessId);
   const wantFlow = shouldSkipChatCheckoutSlots(info);
@@ -911,8 +911,7 @@ async function offerCheckoutConfirmFlow(from, session, lang, businessId, basket,
 // survives exactly one re-offer and is dropped by the next session write — place, back to
 // cart, or any other transition all clear it without extra bookkeeping.
 async function reofferConfirming(from, session, lang, businessId, basket) {
-  // After the customer already chose Continue (or failed Flow submit), re-offer the Flow
-  // message — not the Add more / Continue gate — to avoid a third tap.
+  // Re-offer the Flow CTA (not a chat gate). Checkout Flow already has Sepete dön / Zum Warenkorb.
   const { msgId, deferredChatLadder } = await sendConfirmUi(
     from, session, lang, businessId, basket, session.customerName, null, 'flow',
   );
@@ -940,7 +939,7 @@ async function transitionToConfirming(from, session, lang, businessId, basket, n
   }
 
   const { msgId, deferredChatLadder } = await sendConfirmUi(
-    from, session, lang, businessId, basket, name, info, 'gate',
+    from, session, lang, businessId, basket, name, info, 'flow',
   );
   if (deferredChatLadder) return;
   await setSession(from, {

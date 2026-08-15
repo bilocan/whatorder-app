@@ -32,7 +32,10 @@ const FIELDS = {
   // ORDER_ITEM
   ITEM_NAME:        'item_name',
   ITEM_DESCRIPTION: 'item_description',
+  ITEM_DESCRIPTION_VISIBLE: 'item_description_visible',
   ITEM_PRICE:       'item_price',
+  ITEM_IMAGE:       'item_image',
+  ITEM_IMAGE_VISIBLE: 'item_image_visible',
   QTY_OPTIONS:      'qty_options',
   QTY:              'qty',
   SLOT1_VISIBLE:  'slot1_visible',
@@ -57,10 +60,15 @@ const FIELDS = {
   NOTES:          'notes',
 
   // CART_REVIEW
-  BASKET_TEXT:  'basket_text',
-  TOTAL_LABEL:  'total_label',
-  BASKET_ITEMS: 'basket_items',
-  REMOVE_ITEMS: 'remove_items', // CheckboxGroup — multi-select removal
+  BASKET_TEXT:    'basket_text',    // CART_DONE plain list; edit screens use CheckboxGroup rows
+  SUBTOTAL_LABEL: 'subtotal_label',
+  DISCOUNT_LABEL: 'discount_label',
+  DISCOUNT_VISIBLE: 'discount_visible',
+  DELIVERY_LABEL: 'delivery_label',
+  DELIVERY_VISIBLE: 'delivery_visible',
+  TOTAL_LABEL:    'total_label',
+  BASKET_ITEMS:   'basket_items',
+  REMOVE_ITEMS:   'remove_items', // CheckboxGroup — multi-select removal
 
   // Menu Flow UI copy (filled from session.language on every exchange)
   UI_SCREEN_TITLE:     'ui_screen_title',
@@ -68,9 +76,13 @@ const FIELDS = {
   UI_NEXT:             'ui_next',
   UI_CUSTOMISE:        'ui_customise',
   UI_QTY_LABEL:        'ui_qty_label',
+  UI_QTY_HELPER:       'ui_qty_helper',
+  FORM_INIT_VALUES:    'form_init_values',
+  ERROR_MESSAGES:      'error_messages',
   UI_NOTES_LABEL:      'ui_notes_label',
   UI_NOTES_HELPER:     'ui_notes_helper',
   UI_ADD_TO_CART:      'ui_add_to_cart',
+  UI_FOOTER_LEFT_CAPTION: 'ui_footer_left_caption',
   UI_CART_HINT:        'ui_cart_hint',
   UI_REMOVE_LABEL:     'ui_remove_label',
   UI_REMOVE_SELECTED:  'ui_remove_selected',
@@ -96,6 +108,7 @@ const FIELDS = {
   UI_APARTMENT_HELPER: 'ui_apartment_helper',
   UI_NOTE_LABEL:      'ui_note_label',
   UI_BACK_TO_CART:    'ui_back_to_cart',
+  UI_BACK_TO_CART_VISIBLE: 'ui_back_to_cart_visible',
   UI_MANAGE_ADDRESSES_LINK: 'ui_manage_addresses_link',
 
   // ADDRESS_MANAGE

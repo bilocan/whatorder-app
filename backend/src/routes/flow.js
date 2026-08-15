@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { decryptRequest, encryptResponse } = require('../lib/flowCrypto');
-const { getMenu } = require('../bot/menuService');
+const { getMenu, getBusinessInfo } = require('../bot/menuService');
 const { sessionRef } = require('../lib/collections');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 const {
@@ -9,13 +9,18 @@ const {
   computeLinePrice,
   selectionsFromOrderItemPayload,
 } = require('../lib/optionPricing');
-const { attachCategoryImages, attachMenuItemImages } = require('../lib/flowImages');
+const {
+  attachCategoryImages,
+  attachMenuItemImages,
+  attachListImages,
+} = require('../lib/flowImages');
 const { parseCheckoutFlowToken } = require('../bot/checkoutConfirmFlow');
 const {
   buildCheckoutInitResponse,
   buildCheckoutDataExchangeResponse,
   CHECKOUT_EXCHANGE_SCREENS,
 } = require('./flowCheckout');
+const { loadCheckoutTotals } = require('../bot/checkoutDeal');
 const { t, tCategory } = require('../bot/templates');
 const {
   resolveFlowLang,
@@ -24,19 +29,88 @@ const {
   orderItemCopy,
   cartEditCopy,
   cartDoneCopy,
-  clearCartTitle,
 } = require('../bot/menuFlowCopy');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function qtyOptions() {
-  return [1, 2, 3].map(n => ({ id: String(n), title: String(n) }));
+/** Qty from TextInput (string) or legacy ChipsSelector (one-element array). */
+function normalizeQtyId(qty) {
+  if (Array.isArray(qty)) return qty[0] ?? '1';
+  return qty ?? '1';
 }
 
-/** WhatsApp Flows RadioButtonsGroup title max length. */
+const FLOW_QTY_MAX = 10;
+
+function normalizeMultiInit(multiValue) {
+  if (Array.isArray(multiValue)) return multiValue.filter(Boolean).map(String);
+  if (multiValue) return [String(multiValue)];
+  return [];
+}
+
+/** Fresh ORDER_ITEM defaults. Meta keeps Form values when reopening the same screen
+ *  unless init-values explicitly reset every input (notes/qty/slots/multi). */
+function orderItemFormInit({
+  qtyInit = 1,
+  notes = '',
+  multiValue = [],
+  slot1 = '',
+  slot2 = '',
+  slot3 = '',
+} = {}) {
+  return {
+    [F.QTY]: qtyInit,
+    [F.NOTES]: notes == null ? '' : String(notes),
+    [F.MULTI_VALUE]: normalizeMultiInit(multiValue),
+    [F.SLOT1_VALUE]: slot1 == null ? '' : String(slot1),
+    [F.SLOT2_VALUE]: slot2 == null ? '' : String(slot2),
+    [F.SLOT3_VALUE]: slot3 == null ? '' : String(slot3),
+  };
+}
+
+function buildOrderItemScreenData(item, lang, {
+  qtyInit = 1,
+  qtyError = null,
+  notes = '',
+  multiValue = [],
+  slot1 = '',
+  slot2 = '',
+  slot3 = '',
+  backToCartVisible = false,
+} = {}) {
+  const description = String(item.description || '').trim();
+  const price = `€${Number(item.price).toFixed(2)}`;
+  return {
+    ...orderItemCopy(lang),
+    [F.ITEM_ID]: item.id,
+    [F.ITEM_NAME]: item.name,
+    [F.ITEM_DESCRIPTION]: description,
+    [F.ITEM_DESCRIPTION_VISIBLE]: !!description,
+    [F.ITEM_PRICE]: price,
+    [F.UI_BACK_TO_CART_VISIBLE]: !!backToCartVisible,
+    [F.FORM_INIT_VALUES]: orderItemFormInit({
+      qtyInit, notes, multiValue, slot1, slot2, slot3,
+    }),
+    [F.ERROR_MESSAGES]: qtyError ? { [F.QTY]: qtyError } : {},
+    ...mapOptionSlots(item.optionGroups),
+  };
+}
+
+/** WhatsApp Flows RadioButtonsGroup / CheckboxGroup title max length. */
 function flowTitle(text) {
   const s = String(text ?? '');
   return s.length > 30 ? s.slice(0, 28) + '…' : s;
+}
+
+/** CheckboxGroup option description max length. */
+function flowDescription(text) {
+  const s = String(text ?? '');
+  return s.length > 300 ? s.slice(0, 298) + '…' : s;
+}
+
+/** CheckboxGroup option metadata max length (price). */
+function flowMetadata(text) {
+  const s = String(text ?? '');
+  return s.length > 20 ? s.slice(0, 20) : s;
 }
 
 async function loadFlowLang(phone) {
@@ -93,7 +167,10 @@ function mapOptionSlots(optionGroups = []) {
       [F[`SLOT${n}_VISIBLE`]]:  true,
       [F[`SLOT${n}_LABEL`]]:    group.label,
       [F[`SLOT${n}_REQUIRED`]]: group.required ?? false,
-      [F[`SLOT${n}_OPTIONS`]]:  group.options.map(o => ({ id: o.id, title: formatFlowOptionTitle(o.label, o.price) })),
+      [F[`SLOT${n}_OPTIONS`]]:  group.options.map(o => ({
+        id: o.id,
+        title: formatFlowOptionTitle(o.label || o.name, o.price, o.id),
+      })),
     };
   }
 
@@ -103,36 +180,122 @@ function mapOptionSlots(optionGroups = []) {
     ...slotFields(3, singles[2] ?? null),
     [F.MULTI_VISIBLE]: !!multi,
     [F.MULTI_LABEL]:   multi?.label ?? '',
-    [F.MULTI_OPTIONS]: multi ? multi.options.map(o => ({ id: o.id, title: formatFlowOptionTitle(o.label, o.price) })) : [],
+    [F.MULTI_OPTIONS]: multi
+      ? multi.options.map(o => ({
+        id: o.id,
+        title: formatFlowOptionTitle(o.label || o.name, o.price, o.id),
+      }))
+      : [],
   };
 }
 
 // Build cart display data. cartReviewData includes basket_items (for CART_REVIEW's remove UI).
-function basketSummary(basket, lang) {
-  const total = basket.reduce((s, i) => s + i.price * i.qty, 0);
+function dealShortLabel(deal, lang) {
+  if (deal?.discountType === 'percent' && deal.discountValue != null) {
+    return t('menuFlowDiscountPercentLabel', lang, deal.discountValue);
+  }
+  if (deal?.discountType === 'fixed' && deal.discountValue != null) {
+    return t('menuFlowDiscountFixedLabel', lang, Number(deal.discountValue).toFixed(2));
+  }
+  return String(deal?.label || '').trim();
+}
+
+async function cartPriceLabels(basket, lang, { businessId, phone, session = {} } = {}) {
+  let totals = {
+    subtotal: basket.reduce((s, i) => s + i.price * i.qty, 0),
+    discount: 0,
+    deliveryFee: 0,
+    total: 0,
+    isDelivery: false,
+    deal: null,
+  };
+  totals.total = totals.subtotal;
+  if (businessId) {
+    try {
+      const info = await getBusinessInfo(businessId);
+      totals = await loadCheckoutTotals({
+        businessId,
+        info,
+        customerPhone: phone,
+        basket,
+        session,
+        now: new Date(),
+      });
+    } catch (err) {
+      console.warn('[flow/exchange] cart deal resolve failed:', err.message);
+    }
+  }
+  const hasDiscount = totals.discount > 0 && totals.deal;
+  const shortLabel = hasDiscount ? dealShortLabel(totals.deal, lang) : '';
+  const showDelivery = !!totals.isDelivery;
   return {
-    [F.BASKET_TEXT]: basket.map(i => `${i.qty}x ${i.name}  €${(i.price * i.qty).toFixed(2)}`).join('\n'),
-    [F.TOTAL_LABEL]: t('orderTotal', lang, total.toFixed(2)),
+    [F.SUBTOTAL_LABEL]: t('menuFlowSubtotal', lang, Number(totals.subtotal).toFixed(2)),
+    [F.DISCOUNT_LABEL]: hasDiscount
+      ? t('menuFlowDiscount', lang, shortLabel, Number(totals.discount).toFixed(2))
+      : '',
+    [F.DISCOUNT_VISIBLE]: !!hasDiscount,
+    [F.DELIVERY_LABEL]: showDelivery
+      ? t('menuFlowDeliveryFee', lang, Number(totals.deliveryFee || 0).toFixed(2))
+      : '',
+    [F.DELIVERY_VISIBLE]: showDelivery,
+    [F.TOTAL_LABEL]: t('orderTotal', lang, Number(totals.total).toFixed(2)),
   };
 }
-function buildCartData(basket, lang) {
+
+async function basketSummary(basket, lang, opts = {}) {
+  const prices = await cartPriceLabels(basket, lang, opts);
+  return {
+    [F.BASKET_TEXT]: basket.map(i => `${i.qty}x ${i.name}  €${(i.price * i.qty).toFixed(2)}`).join('\n'),
+    [F.TOTAL_LABEL]: prices[F.TOTAL_LABEL],
+  };
+}
+
+/** Prefer structured Flow fields; fall back to legacy "Name — opts (notes)" chat lines. */
+function cartRowCopy(item) {
+  const baseName = String(item.baseName || item.name || '').trim();
+  let detail = String(item.detail || '').trim();
+  if (!item.baseName && !detail) {
+    const m = baseName.match(/^(.*?)(?:\s+[—–-]\s+(.*?))?(?:\s+\((.*)\))?$/);
+    if (m) {
+      const name = (m[1] || baseName).trim();
+      const opts = (m[2] || '').trim();
+      const notes = (m[3] || '').trim();
+      detail = [opts, notes].filter(Boolean).join(' · ');
+      return { baseName: name, detail };
+    }
+  }
+  return { baseName: item.baseName || baseName, detail };
+}
+
+async function buildCartData(basket, lang, menu = [], opts = {}) {
+  const flowListImageById = {};
+  const productRows = basket.map((i, idx) => {
+    const { baseName, detail } = cartRowCopy(i);
+    const title = flowTitle(`${i.qty}x ${baseName}`);
+    const rowId = String(idx);
+    if (i.itemId) {
+      const menuItem = menu.find(m => m.id === i.itemId);
+      if (menuItem?.flowListImage) flowListImageById[rowId] = menuItem.flowListImage;
+    }
+    return {
+      id: rowId,
+      title,
+      description: flowDescription(detail),
+      metadata: flowMetadata(`€${(Number(i.price) * Number(i.qty)).toFixed(2)}`),
+    };
+  });
+
+  // No clear-cart row: Meta list thumbs + a fake "clear" option looked like a product
+  // and conflicted with Place order (checked clear does not clear on complete).
   return {
     ...cartEditCopy(lang),
-    ...basketSummary(basket, lang),
-    [F.BASKET_ITEMS]: [
-      ...basket.map((i, idx) => {
-        const full = `${i.qty}x ${i.name}`;
-        // WhatsApp Flows CheckboxGroup silently drops form values when any title exceeds 30 chars
-        const title = full.length > 30 ? full.slice(0, 28) + '…' : full;
-        return { id: String(idx), title };
-      }),
-      { id: 'clear', title: clearCartTitle(lang) },
-    ],
+    ...await cartPriceLabels(basket, lang, opts),
+    [F.BASKET_ITEMS]: await attachListImages(productRows, { flowListImageById }),
   };
 }
 
 // Build a readable label from submitted slot values + the flat slots data returned by mapOptionSlots.
-function buildCustomLabel(item, payload, slots) {
+function buildCustomParts(item, payload, slots) {
   const parts = [];
   for (const n of [1, 2, 3]) {
     if (!slots[F[`SLOT${n}_VISIBLE`]]) continue;
@@ -150,7 +313,9 @@ function buildCustomLabel(item, payload, slots) {
       .join(', ');
     parts.push(labels);
   }
-  return parts.length ? `${item.name} — ${parts.join(', ')}` : item.name;
+  const detail = parts.join(', ');
+  const displayName = detail ? `${item.name} — ${detail}` : item.name;
+  return { baseName: item.name, detail, displayName };
 }
 
 // ── Route ─────────────────────────────────────────────────────────────────────
@@ -250,54 +415,103 @@ router.post('/flow/exchange', async (req, res) => {
       const item = menu.find(m => m.id === itemId);
       if (!item) throw new Error(`Item not found: ${itemId}`);
 
-      const slots = mapOptionSlots(item.optionGroups);
+      const sessionSnap = await sessionRef(phone).get();
+      const basketLen = sessionSnap.exists ? (sessionSnap.data().basket ?? []).length : 0;
+
       return reply({
         version,
         screen: S.ORDER_ITEM,
-        data: {
-          ...orderItemCopy(lang),
-          [F.ITEM_ID]:          item.id,
-          [F.ITEM_NAME]:        item.name,
-          [F.ITEM_DESCRIPTION]: item.description || '',
-          [F.ITEM_PRICE]:       `€${Number(item.price).toFixed(2)}`,
-          [F.QTY_OPTIONS]:      qtyOptions(),
-          ...slots,
-        },
+        data: buildOrderItemScreenData(item, lang, { backToCartVisible: basketLen > 0 }),
       });
     }
 
     // ── ORDER_ITEM → append to basket → CART_REVIEW ──────────────────────────
     if (action === 'data_exchange' && screen === S.ORDER_ITEM) {
       const lang = await loadFlowLang(phone);
+
+      // System back from cart lands on ORDER_ITEM; this link returns without adding.
+      if (payload.cart_action === 'back_to_cart') {
+        const ref = sessionRef(phone);
+        const snap = await ref.get();
+        const session = snap.exists ? snap.data() : {};
+        const basket = session.basket ?? [];
+        const menu = await getMenu(businessId);
+        if (!basket.length) {
+          return reply({
+            version,
+            screen: S.CATEGORY_SELECT_RETURN,
+            data: {
+              ...categorySelectCopy(lang),
+              [F.CATEGORIES]: await categoriesWithImages(menu, lang),
+            },
+          });
+        }
+        return reply({
+          version,
+          screen: S.CART_REVIEW,
+          data: await buildCartData(basket, lang, menu, { businessId, phone, session }),
+        });
+      }
+
       const itemId  = payload[F.ITEM_ID];
-      const qtyId   = payload[F.QTY] ?? '1';
+      const qtyId   = normalizeQtyId(payload[F.QTY]);
       const notes   = payload[F.NOTES] ?? '';
       const menu = await getMenu(businessId);
       const item = menu.find(m => m.id === itemId);
       if (!item) throw new Error(`Item not found: ${itemId}`);
 
-      const qty = Math.min(99, Math.max(1, parseInt(qtyId, 10) || 1));
+      const sessionSnap = await sessionRef(phone).get();
+      const session = sessionSnap.exists ? sessionSnap.data() : {};
+      const backToCartVisible = (session.basket ?? []).length > 0;
+
+      const parsedQty = parseInt(qtyId, 10);
+      if (!Number.isFinite(parsedQty) || parsedQty < 1 || parsedQty > FLOW_QTY_MAX) {
+        const keep = Number.isFinite(parsedQty) ? Math.min(99, Math.max(0, parsedQty)) : 1;
+        return reply({
+          version,
+          screen: S.ORDER_ITEM,
+          data: buildOrderItemScreenData(item, lang, {
+            qtyInit: keep,
+            qtyError: t('menuFlowQtyError', lang),
+            // Keep the user's other inputs while correcting qty.
+            notes,
+            multiValue: payload[F.MULTI_VALUE],
+            slot1: payload[F.SLOT1_VALUE] ?? '',
+            slot2: payload[F.SLOT2_VALUE] ?? '',
+            slot3: payload[F.SLOT3_VALUE] ?? '',
+            backToCartVisible,
+          }),
+        });
+      }
+      const qty = parsedQty;
       const slots = mapOptionSlots(item.optionGroups);
-      const itemName = buildCustomLabel(item, payload, slots);
+      const { baseName, detail, displayName } = buildCustomParts(item, payload, slots);
       const itemNotes = notes.trim() || null;
       const selections = selectionsFromOrderItemPayload(item, payload, F);
       const linePrice = computeLinePrice(item.price, item.optionGroups, selections);
+      const lineDetail = [detail, itemNotes].filter(Boolean).join(' · ');
       const basketItem = {
-        name: itemNotes ? `${itemName} (${itemNotes})` : itemName,
+        itemId: item.id,
+        baseName,
+        detail: lineDetail,
+        name: itemNotes ? `${displayName} (${itemNotes})` : displayName,
         qty,
         price: linePrice,
       };
 
       const ref = sessionRef(phone);
-      const snap = await ref.get();
-      const existing = snap.exists ? (snap.data().basket ?? []) : [];
+      const existing = session.basket ?? [];
       const existingIdx = existing.findIndex(i => i.name === basketItem.name);
       const newBasket = existingIdx >= 0
         ? existing.map((i, idx) => idx === existingIdx ? { ...i, qty: i.qty + qty } : i)
         : [...existing, basketItem];
       await ref.set({ basket: newBasket, updatedAt: new Date() }, { merge: true });
 
-      return reply({ version, screen: S.CART_REVIEW, data: buildCartData(newBasket, lang) });
+      return reply({
+        version,
+        screen: S.CART_REVIEW,
+        data: await buildCartData(newBasket, lang, menu, { businessId, phone, session }),
+      });
     }
 
     // ── CART_REVIEW + CART_UPDATED: editable cart chain ─────────────────────
@@ -355,9 +569,11 @@ router.post('/flow/exchange', async (req, res) => {
             },
           });
         }
+        const session = snap.exists ? snap.data() : {};
+        const cartOpts = { businessId, phone, session };
         const data = nextScreen === S.CART_DONE
-          ? { ...cartDoneCopy(lang), ...basketSummary(newBasket, lang) }
-          : buildCartData(newBasket, lang);
+          ? { ...cartDoneCopy(lang), ...await basketSummary(newBasket, lang, cartOpts) }
+          : await buildCartData(newBasket, lang, await getMenu(businessId), cartOpts);
         return reply({ version, screen: nextScreen, data });
       }
 
@@ -365,9 +581,11 @@ router.post('/flow/exchange', async (req, res) => {
       const ref = sessionRef(phone);
       const snap = await ref.get();
       const existing = snap.exists ? (snap.data().basket ?? []) : [];
+      const session = snap.exists ? snap.data() : {};
+      const cartOpts = { businessId, phone, session };
       const data = nextScreen === S.CART_DONE
-        ? { ...cartDoneCopy(lang), ...basketSummary(existing, lang) }
-        : buildCartData(existing, lang);
+        ? { ...cartDoneCopy(lang), ...await basketSummary(existing, lang, cartOpts) }
+        : await buildCartData(existing, lang, await getMenu(businessId), cartOpts);
       return reply({ version, screen: nextScreen, data });
     }
 

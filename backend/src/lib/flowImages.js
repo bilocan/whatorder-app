@@ -131,6 +131,48 @@ async function colorTileBase64(seed) {
   return b64;
 }
 
+/** ORDER_ITEM hero: square thumb left-aligned on a wide white canvas. */
+const ORDER_ITEM_PAD_H = THUMB_SIZE;
+const ORDER_ITEM_PAD_W = Math.round(THUMB_SIZE * 2);
+/** Match WhatsApp Flow screen white so the right pad does not show as a gray bar. */
+const ORDER_ITEM_PAD_BG = '#FFFFFF';
+
+/**
+ * Left-align a square Flow thumb inside a wider JPEG.
+ * Meta Image has no horizontal align; white right pad makes the dish sit on the left
+ * while title/price stay below (stacked). On failure returns the original Base64.
+ */
+async function padFlowOrderItemImage(rawB64) {
+  if (!rawB64) return rawB64;
+  const key = `padL:${String(rawB64).slice(0, 48)}:${String(rawB64).length}`;
+  const cached = cacheGet(key);
+  if (cached) return cached;
+  try {
+    const input = Buffer.from(String(rawB64), 'base64');
+    const thumb = await sharp(input)
+      .resize(ORDER_ITEM_PAD_H, ORDER_ITEM_PAD_H, { fit: 'cover' })
+      .png()
+      .toBuffer();
+    const buf = await sharp({
+      create: {
+        width: ORDER_ITEM_PAD_W,
+        height: ORDER_ITEM_PAD_H,
+        channels: 3,
+        background: ORDER_ITEM_PAD_BG,
+      },
+    })
+      .composite([{ input: thumb, gravity: 'west' }])
+      .jpeg({ quality: THUMB_JPEG_QUALITY, mozjpeg: true })
+      .toBuffer();
+    if (buf.length > MAX_LIST_IMAGE_BYTES) return String(rawB64);
+    const b64 = buf.toString('base64');
+    cacheSet(key, b64);
+    return b64;
+  } catch {
+    return String(rawB64);
+  }
+}
+
 async function readBodyLimited(res, maxBytes) {
   const lenHeader = res.headers.get('content-length');
   if (lenHeader != null) {
@@ -269,12 +311,34 @@ async function attachMenuItemImages(items, menuSlice, opts = {}) {
   return attachListImages(items, { flowListImageById, ...opts });
 }
 
+/**
+ * Intentional trash-can thumb for CART_REVIEW clear-cart row.
+ * Avoids Meta's empty landscape placeholder when other options have images.
+ */
+async function clearCartIconBase64() {
+  const key = 'icon:clear-cart-v1';
+  const cached = cacheGet(key);
+  if (cached) return cached;
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${THUMB_SIZE}" height="${THUMB_SIZE}" viewBox="0 0 96 96">`
+    + '<rect width="96" height="96" rx="12" fill="#F3F4F6"/>'
+    + '<path fill="#6B7280" d="M38 26h20l3 5h11v7H24v-7h11l3-5zm-6 16h32v36c0 4-3 7-7 7H39c-4 0-7-3-7-7V42zm10 8v24h5V50h-5zm11 0v24h5V50h-5z"/>'
+    + '</svg>',
+  );
+  const buf = await sharp(svg).png({ compressionLevel: 9 }).toBuffer();
+  const b64 = buf.toString('base64');
+  cacheSet(key, b64);
+  return b64;
+}
+
 module.exports = {
   colorTileBase64,
   colorForSeed,
   isAllowedPhotoFetchUrl,
   flowListImageFromUrl,
   normalizeStoredFlowListImage,
+  padFlowOrderItemImage,
+  clearCartIconBase64,
   attachListImages,
   attachCategoryImages,
   attachMenuItemImages,
@@ -284,5 +348,7 @@ module.exports = {
   FETCH_TIMEOUT_MS,
   THUMB_SIZE,
   THUMB_JPEG_QUALITY,
+  ORDER_ITEM_PAD_W,
+  ORDER_ITEM_PAD_H,
   ALLOWED_PHOTO_HOSTS,
 };

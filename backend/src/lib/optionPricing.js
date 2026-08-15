@@ -36,14 +36,56 @@ function linePriceForItem(item, selections) {
   return computeLinePrice(item?.price, item?.optionGroups, selections);
 }
 
+/**
+ * Small emoji prefix for Flow option titles (mock-style).
+ * Match on DE/EN/TR keywords; no match → no emoji.
+ */
+function optionLabelEmoji(label, id = '') {
+  const s = `${label || ''} ${id || ''}`
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const rules = [
+    [/knoblauch|garlic|sarimsak/, '🧄'],
+    [/zwiebel|onion|sogan/, '🧅'],
+    [/tomaten?|tomato/, '🍅'],
+    [/salat|salad|lettuce/, '🥬'],
+    [/gurke|cucumber|salatalik/, '🥒'],
+    [/paprika|pepper|biber/, '🫑'],
+    [/pilz|mushroom|mantar/, '🍄'],
+    [/oliv|zeytin/, '🫒'],
+    [/mais|corn|misir/, '🌽'],
+    [/kaese|kase|cheese|peynir|mozarella|mozzarella/, '🧀'],
+    // Sauce before generic food words; 🥣 often missing on older WhatsApp — use 🫙.
+    [/sauce|sosse|soße|specialsauce|cocktailsauce|joghurtsauce|\bsos\b|mayo|ketchup|joghurt|yogurt|ayran/, '🫙'],
+    [/scharf|chili|spicy|aci|harissa/, '🌶️'],
+    // Reis before Pommes so "Reis oder Pommes" maps to rice. 🍚 often missing on WhatsApp — use 🌾.
+    [/reis|rice|pilav|pilaw|pirinc/, '🌾'],
+    [/pommes|fries|patates/, '🍟'],
+    [/ei\b|egg|yumurta/, '🥚'],
+    [/huhn|chicken|tavuk/, '🍗'],
+    [/rind|beef|dana/, '🥩'],
+    [/lamm|lamb|kuzu/, '🍖'],
+    [/falafel/, '🧆'],
+    [/fisch|fish|balik/, '🐟'],
+  ];
+  for (const [re, emoji] of rules) {
+    if (re.test(s)) return emoji;
+  }
+  return '';
+}
+
 /** WhatsApp Flow option titles — max 30 chars including price suffix. */
-function formatFlowOptionTitle(label, price) {
+function formatFlowOptionTitle(label, price, id = '') {
+  const text = label || '';
+  const emoji = optionLabelEmoji(text, id);
+  const named = emoji ? `${emoji} ${text}` : String(text);
   const extra = parseOptionPrice(price);
   const suffix = extra != null ? ` +€${extra.toFixed(2)}` : '';
-  const full = `${label}${suffix}`;
+  const full = `${named}${suffix}`;
   if (full.length <= 30) return full;
   const maxLabel = Math.max(3, 30 - suffix.length);
-  return `${label.slice(0, maxLabel - 1)}…${suffix}`;
+  return `${named.slice(0, maxLabel - 1)}…${suffix}`;
 }
 
 function selectionsFromOrderItemPayload(item, payload, fields) {
@@ -71,6 +113,7 @@ module.exports = {
   sumSelectedOptionPrices,
   computeLinePrice,
   linePriceForItem,
+  optionLabelEmoji,
   formatFlowOptionTitle,
   selectionsFromOrderItemPayload,
 };
