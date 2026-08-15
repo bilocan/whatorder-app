@@ -448,6 +448,11 @@ function buildCheckoutReviewData({
     options.push({ id: 'delivery', title: t('confirmFlowTypeDelivery', lang) });
   }
 
+  const displayAddress = trimmed(deliveryAddress)
+    || trimmed(reviewDeliveryAddress)
+    || '';
+  const addressDisplay = displayAddress || t('confirmFlowAddressEmpty', lang);
+
   return {
     [F.RECEIPT_TEXT]: buildReceiptText({
       session: reviewSession,
@@ -468,6 +473,7 @@ function buildCheckoutReviewData({
     [F.ADDRESS_OPTIONS]: addressState.addressOptions,
     [F.DELIVERY_ADDRESS]: deliveryAddress,
     [F.DELIVERY_APARTMENT]: deliveryApartment,
+    [F.DELIVERY_ADDRESS_DISPLAY]: addressDisplay,
     [F.CHECKOUT_NOTE]: specialRequests,
     ...checkoutReviewCopy(lang, t),
   };

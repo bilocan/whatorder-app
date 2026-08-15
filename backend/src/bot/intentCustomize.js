@@ -357,8 +357,8 @@ async function persistCustomize(from, session, lang, businessId, intentCustomize
   }));
 }
 
-function lineForBasket(session, { name, qty, price }) {
-  return toBasketLine({ name, qty, price }, session.pendingIntentNote);
+function lineForBasket(session, { name, qty, price, menuItemId, itemId }) {
+  return toBasketLine({ name, qty, price, menuItemId, itemId }, session.pendingIntentNote);
 }
 
 async function finishCustomization({ from, session, lang, businessId, readyBasket }) {
@@ -428,7 +428,12 @@ async function completeCurrentUnit({ from, session, lang, businessId, ic, select
   const lineName = buildOptionLabel(item, selections);
   const lineQty = ic.unitMode === 'each' ? 1 : item.qty;
   const linePrice = linePriceForItem(item, selections);
-  const readyBasket = mergeIntoBasket(ic.readyBasket, [lineForBasket(session, { name: lineName, qty: lineQty, price: linePrice })]);
+  const readyBasket = mergeIntoBasket(ic.readyBasket, [lineForBasket(session, {
+    name: lineName,
+    qty: lineQty,
+    price: linePrice,
+    menuItemId: item.menuItemId || item.id,
+  })]);
 
   if (ic.unitMode === 'each' && ic.unitIndex < ic.unitTotal) {
     const nextIc = {
@@ -485,6 +490,7 @@ async function applyPerUnitModifiersFromText({ from, session, lang, businessId, 
       name: lineName,
       qty: 1,
       price: linePriceForItem(item, selections),
+      menuItemId: item.menuItemId || item.id,
     })]);
   }
 

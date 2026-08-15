@@ -249,7 +249,7 @@ describe('Intent ordering (Tier A)', () => {
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'browsing',
-      basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+      basket: [expect.objectContaining({ name: 'Ayran', qty: 1, price: 2.00 })],
     }));
     expect(setSession.mock.calls[0][1]).not.toHaveProperty('pendingIntentItems');
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
@@ -412,7 +412,7 @@ describe('Intent ordering (Tier A)', () => {
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'customizing_intent',
-      basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+      basket: [expect.objectContaining({ name: 'Ayran', qty: 1, price: 2.00 })],
       intentCustomize: expect.objectContaining({
         queue: [expect.objectContaining({ name: 'Döner', qty: 2 })],
         unitMode: null,
@@ -460,9 +460,13 @@ describe('Intent ordering (Tier A)', () => {
 
     expect(stored.state).toBe('browsing');
     expect(stored.basket).toEqual([
-      { name: 'Ayran', qty: 1, price: 2.00 },
-      { name: 'Kebap Sandwich Huhn — Tomato, Salad, Onion, Scharfe Sauce', qty: 1, price: 7.50 },
-      { name: 'Kebap Sandwich Huhn — Tomato, Salad', qty: 1, price: 7.50 },
+      expect.objectContaining({ name: 'Ayran', qty: 1, price: 2.00 }),
+      expect.objectContaining({
+        name: 'Kebap Sandwich Huhn — Tomato, Salad, Onion, Scharfe Sauce', qty: 1, price: 7.50,
+      }),
+      expect.objectContaining({
+        name: 'Kebap Sandwich Huhn — Tomato, Salad', qty: 1, price: 7.50,
+      }),
     ]);
   });
 
@@ -495,8 +499,8 @@ describe('Intent ordering (Tier A)', () => {
 
     expect(stored.state).toBe('browsing');
     expect(stored.basket).toEqual([
-      { name: 'Ayran', qty: 1, price: 2.00 },
-      { name: 'Döner — Chicken, Tomato, Salad', qty: 2, price: 8.50 },
+      expect.objectContaining({ name: 'Ayran', qty: 1, price: 2.00 }),
+      expect.objectContaining({ name: 'Döner — Chicken, Tomato, Salad', qty: 2, price: 8.50 }),
     ]);
   });
 
@@ -529,8 +533,8 @@ describe('Intent ordering (Tier A)', () => {
 
     expect(stored.state).toBe('browsing');
     expect(stored.basket).toEqual([
-      { name: 'Döner — Chicken', qty: 1, price: 8.50 },
-      { name: 'Döner — Lamb', qty: 1, price: 8.50 },
+      expect.objectContaining({ name: 'Döner — Chicken', qty: 1, price: 8.50 }),
+      expect.objectContaining({ name: 'Döner — Lamb', qty: 1, price: 8.50 }),
     ]);
   });
 

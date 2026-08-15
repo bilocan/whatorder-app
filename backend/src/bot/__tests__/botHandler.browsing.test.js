@@ -429,7 +429,7 @@ describe('Browsing state: confirm-checkout text commands', () => {
 
       expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
         state: 'browsing',
-        basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+        basket: [expect.objectContaining({ name: 'Ayran', qty: 1, price: 2.00 })],
       }));
       expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
         state: 'awaiting_name',

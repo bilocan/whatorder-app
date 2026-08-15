@@ -17,6 +17,7 @@ const {
   orderItemCopy,
   cartEditCopy,
   cartDoneCopy,
+  cartRemoveModeOptions,
 } = require('../bot/menuFlowCopy');
 const { t } = require('../bot/templates');
 
@@ -201,12 +202,12 @@ function radioSlot(n) {
   };
 }
 
-async function orderItem(exampleItem) {
+async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
   const copy = orderItemCopy(EXAMPLE_LANG);
   const exampleDesc = exampleItem.description || '';
   const examplePrice = `€${Number(exampleItem.price).toFixed(2)}`;
   return {
-    id: S.ORDER_ITEM,
+    id: screenId,
     title: `\${data.${F.UI_SCREEN_TITLE}}`,
     data: {
       ...uiSchema(copy),
@@ -215,7 +216,9 @@ async function orderItem(exampleItem) {
       [F.ITEM_DESCRIPTION]: { type: 'string', '__example__': exampleDesc },
       [F.ITEM_DESCRIPTION_VISIBLE]: { type: 'boolean', '__example__': !!exampleDesc },
       [F.ITEM_PRICE]:       { type: 'string', '__example__': examplePrice },
-      [F.UI_BACK_TO_CART_VISIBLE]: { type: 'boolean', '__example__': true },
+      [F.UI_ORDER_FOOTER_ACTION]: { type: 'string', '__example__': 'add_item' },
+      [F.UI_MULTI_TOGGLE]: { type: 'string', '__example__': t('menuFlowMultiClearAll', EXAMPLE_LANG) },
+      [F.UI_MULTI_TOGGLE_VISIBLE]: { type: 'boolean', '__example__': true },
       [F.FORM_INIT_VALUES]: {
         type: 'object',
         properties: {
@@ -299,20 +302,30 @@ async function orderItem(exampleItem) {
             'data-source': `\${data.${F.MULTI_OPTIONS}}`,
           },
           {
+            type: 'EmbeddedLink',
+            text: `\${data.${F.UI_MULTI_TOGGLE}}`,
+            visible: `\${data.${F.UI_MULTI_TOGGLE_VISIBLE}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: {
+                multi_action: 'toggle',
+                [F.UI_ORDER_FOOTER_ACTION]: `\${data.${F.UI_ORDER_FOOTER_ACTION}}`,
+                [F.ITEM_ID]:     `\${data.${F.ITEM_ID}}`,
+                [F.QTY]:         `\${form.${F.QTY}}`,
+                [F.SLOT1_VALUE]: `\${form.${F.SLOT1_VALUE}}`,
+                [F.SLOT2_VALUE]: `\${form.${F.SLOT2_VALUE}}`,
+                [F.SLOT3_VALUE]: `\${form.${F.SLOT3_VALUE}}`,
+                [F.MULTI_VALUE]: `\${form.${F.MULTI_VALUE}}`,
+                [F.NOTES]:       `\${form.${F.NOTES}}`,
+              },
+            },
+          },
+          {
             type: 'TextArea',
             label: `\${data.${F.UI_NOTES_LABEL}}`,
             name: F.NOTES,
             required: false,
             'helper-text': `\${data.${F.UI_NOTES_HELPER}}`,
-          },
-          {
-            type: 'EmbeddedLink',
-            text: `\${data.${F.UI_BACK_TO_CART}}`,
-            visible: `\${data.${F.UI_BACK_TO_CART_VISIBLE}}`,
-            'on-click-action': {
-              name: 'data_exchange',
-              payload: { cart_action: 'back_to_cart' },
-            },
           },
           {
             type: 'Footer',
@@ -323,6 +336,8 @@ async function orderItem(exampleItem) {
             'on-click-action': {
               name: 'data_exchange',
               payload: {
+                // add_item | back_to_cart — set by exchange (menu vs system back).
+                cart_action: `\${data.${F.UI_ORDER_FOOTER_ACTION}}`,
                 [F.ITEM_ID]:    `\${data.${F.ITEM_ID}}`,
                 [F.QTY]:        `\${form.${F.QTY}}`,
                 [F.SLOT1_VALUE]: `\${form.${F.SLOT1_VALUE}}`,
@@ -362,6 +377,8 @@ async function cartEditScreen(id) {
     id,
     title: `\${data.${F.UI_SCREEN_TITLE}}`,
     terminal: true,
+    // System back → endpoint BACK; ORDER_ITEM Footer becomes Zum Warenkorb.
+    refresh_on_back: true,
     data: {
       ...uiSchema(copy),
       [F.SUBTOTAL_LABEL]: { type: 'string', '__example__': t('menuFlowSubtotal', EXAMPLE_LANG, '15.40') },
@@ -381,14 +398,34 @@ async function cartEditScreen(id) {
         items: { type: 'object', properties: CART_OPTION_PROPS },
         '__example__': exampleRows,
       },
+      [F.REMOVE_MODE_OPTIONS]: {
+        type: 'array',
+        items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } } },
+        '__example__': cartRemoveModeOptions(EXAMPLE_LANG),
+      },
+      [F.FORM_INIT_VALUES]: {
+        type: 'object',
+        properties: {
+          [F.REMOVE_MODE]: { type: 'string' },
+        },
+        '__example__': { [F.REMOVE_MODE]: 'one' },
+      },
+      [F.ERROR_MESSAGE]: { type: 'string', '__example__': '' },
+      [F.ERROR_VISIBLE]: { type: 'boolean', '__example__': false },
     },
     layout: {
       type: 'SingleColumnLayout',
       children: [{
         type: 'Form',
         name: 'cart_form',
+        'init-values': `\${data.${F.FORM_INIT_VALUES}}`,
         children: [
           { type: 'TextCaption', text: `\${data.${F.UI_CART_HINT}}` },
+          {
+            type: 'TextBody',
+            text: `\${data.${F.ERROR_MESSAGE}}`,
+            visible: `\${data.${F.ERROR_VISIBLE}}`,
+          },
           {
             type: 'CheckboxGroup',
             // required:false keeps Place order enabled with nothing checked.
@@ -416,11 +453,22 @@ async function cartEditScreen(id) {
           },
           { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
           {
+            type: 'RadioButtonsGroup',
+            label: `\${data.${F.UI_REMOVE_MODE_LABEL}}`,
+            name: F.REMOVE_MODE,
+            required: true,
+            'data-source': `\${data.${F.REMOVE_MODE_OPTIONS}}`,
+          },
+          {
             type: 'EmbeddedLink',
             text: `\${data.${F.UI_REMOVE_SELECTED}}`,
             'on-click-action': {
               name: 'data_exchange',
-              payload: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: `\${form.${F.REMOVE_ITEMS}}` },
+              payload: {
+                cart_action: 'remove_items',
+                [F.REMOVE_ITEMS]: `\${form.${F.REMOVE_ITEMS}}`,
+                [F.REMOVE_MODE]: `\${form.${F.REMOVE_MODE}}`,
+              },
             },
           },
           {
@@ -495,17 +543,26 @@ async function main() {
       [S.CATEGORY_SELECT_RETURN]: [S.MENU_BROWSE],
       [S.MENU_BROWSE]:            [S.ORDER_ITEM],
       [S.ORDER_ITEM]:             [S.CART_REVIEW],
-      [S.CART_REVIEW]:  [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED],
-      [S.CART_UPDATED]: [S.CATEGORY_SELECT_RETURN, S.CART_DONE],
-      [S.CART_DONE]:    [S.CATEGORY_SELECT_RETURN],
+      // Forward-only edit chain (Meta rejects CART ↔ ORDER_ITEM cycles).
+      [S.CART_REVIEW]:            [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED, S.ORDER_ITEM_EDIT],
+      [S.ORDER_ITEM_EDIT]:        [S.CART_EDITED],
+      [S.CART_EDITED]:            [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED, S.ORDER_ITEM_EDIT_AGAIN],
+      [S.ORDER_ITEM_EDIT_AGAIN]:  [S.CART_EDITED_AGAIN],
+      [S.CART_EDITED_AGAIN]:      [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED],
+      [S.CART_UPDATED]:           [S.CATEGORY_SELECT_RETURN, S.CART_DONE],
+      [S.CART_DONE]:              [S.CATEGORY_SELECT_RETURN],
     },
     screens: [
       categorySelectScreen(S.CATEGORY_SELECT, EXAMPLE_CATEGORIES),
       categorySelectScreen(S.CATEGORY_SELECT_RETURN, EXAMPLE_CATEGORIES),
       menuBrowse(EXAMPLE_CATEGORY, EXAMPLE_MENU_ITEMS),
       await orderItem(EXAMPLE_ITEM),
-      await cartReview(),
-      await cartUpdated(),
+      await orderItem(EXAMPLE_ITEM, S.ORDER_ITEM_EDIT),
+      await orderItem(EXAMPLE_ITEM, S.ORDER_ITEM_EDIT_AGAIN),
+      await cartEditScreen(S.CART_REVIEW),
+      await cartEditScreen(S.CART_EDITED),
+      await cartEditScreen(S.CART_EDITED_AGAIN),
+      await cartEditScreen(S.CART_UPDATED),
       cartDone(),
     ],
   };

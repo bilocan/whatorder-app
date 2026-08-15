@@ -18,17 +18,20 @@ test('review screens refresh on order type select', () => {
   }
 });
 
-test('review screens wrap address widgets in If so pickup hides them immediately', () => {
+test('review screens show read-only delivery address (no radio / street inputs)', () => {
   for (const id of REVIEW_IDS) {
     const addressIf = formChildren(id).find((child) => child.type === 'If');
     expect(addressIf.condition).toBe(`\${form.${F.ORDER_TYPE}} == 'delivery'`);
-    const thenNames = addressIf.then.map((child) => child.name);
-    expect(thenNames).toEqual(expect.arrayContaining([
-      F.ADDRESS_CHOICE,
-      F.DELIVERY_ADDRESS,
-      F.DELIVERY_APARTMENT,
-    ]));
-    expect(formChildren(id).find((child) => child.name === F.ADDRESS_CHOICE)).toBeUndefined();
+    const thenTypes = addressIf.then.map((child) => child.type);
+    expect(thenTypes).toContain('TextCaption');
+    expect(thenTypes).toContain('TextBody');
+    expect(addressIf.then.find((child) => child.name === F.ADDRESS_CHOICE)).toBeUndefined();
+    expect(addressIf.then.find((child) => child.name === F.DELIVERY_ADDRESS)).toBeUndefined();
+    expect(addressIf.then.find((child) => child.name === F.DELIVERY_APARTMENT)).toBeUndefined();
+    const addressBody = addressIf.then.find(
+      (child) => child.type === 'TextBody' && child.text === `\${data.${F.DELIVERY_ADDRESS_DISPLAY}}`,
+    );
+    expect(addressBody).toBeDefined();
   }
 });
 
@@ -38,4 +41,10 @@ test('manage addresses link lives inside the delivery If', () => {
     (child) => child['on-click-action']?.payload?.checkout_action === 'manage_addresses',
   );
   expect(manage).toBeDefined();
+});
+
+test('place order payload binds address from data (not form)', () => {
+  const footer = formChildren(S.CHECKOUT_REVIEW).find((child) => child.type === 'Footer');
+  expect(footer['on-click-action'].payload[F.DELIVERY_ADDRESS]).toBe(`\${data.${F.DELIVERY_ADDRESS}}`);
+  expect(footer['on-click-action'].payload[F.ADDRESS_CHOICE]).toBe(`\${data.${F.ADDRESS_CHOICE}}`);
 });

@@ -62,7 +62,19 @@ const MENU = [
     id: 'p1', name: 'Pizza', price: 15, category: 'mains',
     optionGroups: [
       { id: 'size', type: 'single', label: 'Size', required: true, options: [{ id: 's', label: 'Small' }, { id: 'l', label: 'Large' }] },
-      { id: 'extras', type: 'multi', label: 'Extras', required: false, options: [{ id: 'cheese', label: 'Cheese', price: 2.5 }] },
+      {
+        id: 'extras', type: 'multi', label: 'Extras', required: false, multiDefault: 'all',
+        options: [{ id: 'cheese', label: 'Cheese', price: 2.5 }],
+      },
+    ],
+  },
+  {
+    id: 'p2', name: 'Pizza Plain', price: 12, category: 'mains',
+    optionGroups: [
+      {
+        id: 'tops', type: 'multi', label: 'Toppings', required: false, multiDefault: 'none',
+        options: [{ id: 'onion', label: 'Onion' }, { id: 'olive', label: 'Olive' }],
+      },
     ],
   },
 ];
@@ -443,7 +455,7 @@ test('CATEGORY_SELECT → MENU_BROWSE filters by category', async () => {
   });
   const body = parsed(res);
   expect(body.screen).toBe(S.MENU_BROWSE);
-  expect(body.data[F.MENU_ITEMS]).toHaveLength(2);
+  expect(body.data[F.MENU_ITEMS]).toHaveLength(3);
   expect(attachMenuItemImages).toHaveBeenCalled();
   // item with description uses "— description" format; item without does not
   const burger = body.data[F.MENU_ITEMS].find(i => i.id === 'b1');
@@ -477,13 +489,13 @@ test('MENU_BROWSE → ORDER_ITEM with no option groups', async () => {
     [F.SLOT3_VALUE]: '',
   });
   expect(body.data[F.ERROR_MESSAGES]).toEqual({});
-  expect(body.data[F.UI_BACK_TO_CART_VISIBLE]).toBe(false);
-  expect(body.data[F.UI_BACK_TO_CART]).toBeTruthy();
+  expect(body.data[F.UI_ORDER_FOOTER_ACTION]).toBe('add_item');
+  expect(body.data[F.UI_ADD_TO_CART]).toBeTruthy();
   expect(body.data[F.SLOT1_VISIBLE]).toBe(false);
   expect(body.data[F.MULTI_VISIBLE]).toBe(false);
 });
 
-test('MENU_BROWSE → ORDER_ITEM shows back-to-cart when basket has items', async () => {
+test('MENU_BROWSE → ORDER_ITEM keeps add footer when basket has items', async () => {
   mockSession([{ name: 'Burger', qty: 1, price: 10 }]);
   const res = await post({
     action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
@@ -491,7 +503,7 @@ test('MENU_BROWSE → ORDER_ITEM shows back-to-cart when basket has items', asyn
   });
   const body = parsed(res);
   expect(body.screen).toBe(S.ORDER_ITEM);
-  expect(body.data[F.UI_BACK_TO_CART_VISIBLE]).toBe(true);
+  expect(body.data[F.UI_ORDER_FOOTER_ACTION]).toBe('add_item');
 });
 
 test('ORDER_ITEM back_to_cart returns CART_REVIEW without adding', async () => {
@@ -504,7 +516,11 @@ test('ORDER_ITEM back_to_cart returns CART_REVIEW without adding', async () => {
   const body = parsed(res);
   expect(body.screen).toBe(S.CART_REVIEW);
   expect(body.data[F.BASKET_ITEMS]).toHaveLength(1);
-  expect(ref.set).not.toHaveBeenCalled();
+  // Clears any in-progress cart edit pointer; does not mutate basket.
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({ flowCartEditIndex: null }),
+    expect.anything(),
+  );
 });
 
 test('ORDER_ITEM back_to_cart with empty basket → category select', async () => {
@@ -512,6 +528,32 @@ test('ORDER_ITEM back_to_cart with empty basket → category select', async () =
   const res = await post({
     action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
     data: { cart_action: 'back_to_cart' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CATEGORY_SELECT_RETURN);
+});
+
+test('BACK from CART_REVIEW refreshes ORDER_ITEM with view-cart footer', async () => {
+  mockSession(
+    [{ name: 'Burger', baseName: 'Burger', detail: '', itemId: 'b1', qty: 1, price: 10 }],
+    { flowLastOrderItemId: 'b1', flowLastOrderScreen: S.ORDER_ITEM },
+  );
+  const res = await post({
+    action: 'BACK', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: {},
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.ITEM_ID]).toBe('b1');
+  expect(body.data[F.UI_ORDER_FOOTER_ACTION]).toBe('back_to_cart');
+  expect(body.data[F.UI_ADD_TO_CART]).toMatch(/Warenkorb|cart|Sepete/i);
+});
+
+test('BACK from cart without last item → category select', async () => {
+  mockSession([{ name: 'Burger', qty: 1, price: 10 }]);
+  const res = await post({
+    action: 'BACK', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: {},
   });
   const body = parsed(res);
   expect(body.screen).toBe(S.CATEGORY_SELECT_RETURN);
@@ -570,6 +612,8 @@ test('ORDER_ITEM adds plain item to empty basket', async () => {
     qty: 2,
     price: 10,
   });
+  expect(saved.flowLastOrderItemId).toBe('b1');
+  expect(saved.flowLastOrderScreen).toBe(S.ORDER_ITEM);
 });
 
 test('ORDER_ITEM accepts ChipsSelector qty as one-element array', async () => {
@@ -611,10 +655,11 @@ test('ORDER_ITEM with slot value + multi value + notes builds custom name', asyn
   expect(saved.basket[0]).toMatchObject({
     itemId: 'p1',
     baseName: 'Pizza',
-    detail: expect.stringContaining('extra crispy'),
+    notes: 'extra crispy',
     price: 17.5,
   });
   expect(saved.basket[0].detail).toContain('Large');
+  expect(saved.basket[0].detail).not.toContain('extra crispy');
 });
 
 test('ORDER_ITEM → CART_REVIEW row uses baseName, detail, metadata, image', async () => {
@@ -682,8 +727,8 @@ test('ORDER_ITEM rejects invalid qty with field error', async () => {
   expect(body.data[F.ERROR_MESSAGES][F.QTY]).toBeTruthy();
 });
 
-test('MENU_BROWSE → ORDER_ITEM clears notes and option form state', async () => {
-  // Regression: Meta keeps Form fields when reopening ORDER_ITEM unless init resets them.
+test('MENU_BROWSE → ORDER_ITEM applies multiDefault all and clears notes/slots', async () => {
+  // multiDefault all → checkboxes preselected; notes/slots still reset for a fresh item.
   const res = await post({
     action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
     data: { [F.ITEM_ID]: 'p1' },
@@ -691,8 +736,62 @@ test('MENU_BROWSE → ORDER_ITEM clears notes and option form state', async () =
   const body = parsed(res);
   expect(body.screen).toBe(S.ORDER_ITEM);
   expect(body.data[F.FORM_INIT_VALUES][F.NOTES]).toBe('');
-  expect(body.data[F.FORM_INIT_VALUES][F.MULTI_VALUE]).toEqual([]);
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI_VALUE]).toEqual(['cheese']);
   expect(body.data[F.FORM_INIT_VALUES][F.SLOT1_VALUE]).toBe('');
+  expect(body.data[F.UI_MULTI_TOGGLE_VISIBLE]).toBe(true);
+  expect(body.data[F.UI_MULTI_TOGGLE]).toBe('Alle abwählen');
+});
+
+test('MENU_BROWSE → ORDER_ITEM respects multiDefault none', async () => {
+  const res = await post({
+    action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'p2' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI_VALUE]).toEqual([]);
+  expect(body.data[F.UI_MULTI_TOGGLE_VISIBLE]).toBe(true);
+  expect(body.data[F.UI_MULTI_TOGGLE]).toBe('Alle wählen');
+});
+
+test('ORDER_ITEM multi toggle clears all when all selected', async () => {
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      multi_action: 'toggle',
+      [F.UI_ORDER_FOOTER_ACTION]: 'add_item',
+      [F.ITEM_ID]: 'p1',
+      [F.QTY]: '2',
+      [F.SLOT1_VALUE]: 'l',
+      [F.MULTI_VALUE]: ['cheese'],
+      [F.NOTES]: 'keep me',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI_VALUE]).toEqual([]);
+  expect(body.data[F.FORM_INIT_VALUES][F.QTY]).toBe(2);
+  expect(body.data[F.FORM_INIT_VALUES][F.SLOT1_VALUE]).toBe('l');
+  expect(body.data[F.FORM_INIT_VALUES][F.NOTES]).toBe('keep me');
+  expect(body.data[F.UI_MULTI_TOGGLE]).toBe('Alle wählen');
+  expect(body.data[F.UI_ORDER_FOOTER_ACTION]).toBe('add_item');
+});
+
+test('ORDER_ITEM multi toggle selects all when partial/empty', async () => {
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      multi_action: 'toggle',
+      [F.UI_ORDER_FOOTER_ACTION]: 'add_item',
+      [F.ITEM_ID]: 'p2',
+      [F.QTY]: '1',
+      [F.MULTI_VALUE]: [],
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI_VALUE]).toEqual(['onion', 'olive']);
+  expect(body.data[F.UI_MULTI_TOGGLE]).toBe('Alle abwählen');
 });
 
 test('CART_REVIEW basket item title truncated at 30 chars', async () => {
@@ -724,54 +823,213 @@ test('CART_REVIEW add_more → CATEGORY_SELECT_RETURN', async () => {
   expect(parsed(res).screen).toBe(S.CATEGORY_SELECT_RETURN);
 });
 
-test('CART_REVIEW remove_items by index → CART_UPDATED', async () => {
+test('CART_REVIEW does not duplicate notes when detail and notes match', async () => {
+  mockSession([{
+    name: 'Lahmacun (1 Stueck) (acili)',
+    baseName: 'Lahmacun (1 Stueck)',
+    detail: 'acili',
+    notes: 'acili',
+    qty: 1,
+    price: 6.5,
+    itemId: 'lah1',
+  }]);
+  getMenu.mockResolvedValue([
+    { id: 'lah1', name: 'Lahmacun (1 Stueck)', price: 6.5, category: 'mains' },
+  ]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: [], [F.REMOVE_MODE]: 'one' },
+  });
+  expect(parsed(res).data[F.BASKET_ITEMS][0].description).toBe('acili');
+});
+
+test('CART_REVIEW keeps menu SKU "(1 Stueck)" in title, not as notes detail', async () => {
+  mockSession([{ name: 'Lahmacun (1 Stueck)', qty: 1, price: 6.5, menuItemId: 'lah1' }]);
+  getMenu.mockResolvedValue([
+    { id: 'lah1', name: 'Lahmacun (1 Stueck)', price: 6.5, category: 'mains', flowListImage: 'thumb_lah' },
+  ]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: [], [F.REMOVE_MODE]: 'one' },
+  });
+  const row = parsed(res).data[F.BASKET_ITEMS][0];
+  expect(row.title).toBe('1x Lahmacun (1 Stueck)');
+  expect(row.description || '').not.toMatch(/Stueck|Stück/i);
+});
+
+test('CART_REVIEW edit does not prefill notes from SKU "(1 Stueck)"', async () => {
+  mockSession([{
+    name: 'Lahmacun (1 Stueck)', qty: 1, price: 6.5, menuItemId: 'lah1',
+  }]);
+  getMenu.mockResolvedValue([
+    { id: 'lah1', name: 'Lahmacun (1 Stueck)', price: 6.5, category: 'mains', description: 'Mit Salat' },
+  ]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: {
+      cart_action: 'remove_items',
+      [F.REMOVE_ITEMS]: ['0'],
+      [F.REMOVE_MODE]: 'edit',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM_EDIT);
+  expect(body.data[F.FORM_INIT_VALUES][F.NOTES]).toBe('');
+});
+
+test('CART_REVIEW resolves thumbs from menuItemId (chat/intent lines)', async () => {
+  mockSession([
+    { name: 'Burger', qty: 1, price: 10, menuItemId: 'b1' },
+  ]);
+  getMenu.mockResolvedValue([
+    { id: 'b1', name: 'Burger', price: 10, category: 'mains', flowListImage: 'thumb_b1' },
+  ]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: [], [F.REMOVE_MODE]: 'one' },
+  });
+  expect(parsed(res).screen).toBe(S.CART_REVIEW);
+  expect(attachListImages.mock.calls.at(-1)[1].flowListImageById['0']).toBe('thumb_b1');
+});
+
+test('CART_REVIEW resolves thumbs by exact name when no ids', async () => {
+  mockSession([{ name: 'Burger', qty: 1, price: 10 }]);
+  getMenu.mockResolvedValue([
+    { id: 'b1', name: 'Burger', price: 10, category: 'mains', flowListImage: 'thumb_b1' },
+  ]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: [], [F.REMOVE_MODE]: 'one' },
+  });
+  expect(attachListImages.mock.calls.at(-1)[1].flowListImageById['0']).toBe('thumb_b1');
+});
+
+test('CART_REVIEW remove_one by index → stay on CART_REVIEW with remaining lines', async () => {
   const ref = mockSession(BASKET2);
   const res = await post({
     action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
-    data: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: ['0'] },
+    data: { cart_action: 'remove_one', [F.REMOVE_ITEMS]: ['0'] },
   });
-  expect(parsed(res).screen).toBe(S.CART_UPDATED);
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CART_REVIEW);
+  expect(body.data[F.BASKET_ITEMS]).toHaveLength(1);
   const [saved] = ref.set.mock.calls[0];
   expect(saved.basket).toHaveLength(1);
   expect(saved.basket[0].name).toBe('Fries');
 });
 
-test('CART_REVIEW remove_items string (not array) → treated as single id', async () => {
+test('CART_REVIEW remove_items + mode one string id → decrement Fries qty', async () => {
   const ref = mockSession(BASKET2);
   const res = await post({
     action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
-    data: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: '1' },
+    data: {
+      cart_action: 'remove_items',
+      [F.REMOVE_ITEMS]: '1',
+      [F.REMOVE_MODE]: 'one',
+    },
   });
-  expect(parsed(res).screen).toBe(S.CART_UPDATED);
+  expect(parsed(res).screen).toBe(S.CART_REVIEW);
+  expect(parsed(res).data[F.BASKET_ITEMS]).toHaveLength(2);
   const [saved] = ref.set.mock.calls[0];
-  expect(saved.basket).toHaveLength(1);
+  expect(saved.basket).toHaveLength(2);
+  expect(saved.basket[1]).toMatchObject({ name: 'Fries', qty: 1 });
 });
 
-test('CART_REVIEW remove_items clear → empty basket → CATEGORY_SELECT_RETURN', async () => {
+test('CART_REVIEW remove_items mode one on multi-qty → decrement by 1', async () => {
+  const ref = mockSession([{ name: 'Lahmacun', qty: 3, price: 6.5 }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: {
+      cart_action: 'remove_items',
+      [F.REMOVE_ITEMS]: ['0'],
+      [F.REMOVE_MODE]: 'one',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CART_REVIEW);
+  expect(body.data[F.BASKET_ITEMS]).toHaveLength(1);
+  expect(body.data[F.BASKET_ITEMS][0].title).toMatch(/^2x /);
+  expect(body.data[F.REMOVE_MODE_OPTIONS]).toHaveLength(4);
+  const [saved] = ref.set.mock.calls[0];
+  expect(saved.basket).toEqual([{ name: 'Lahmacun', qty: 2, price: 6.5 }]);
+});
+
+test('CART_REVIEW remove_items mode all clears basket without selection', async () => {
   const ref = mockSession(BASKET2);
   const res = await post({
     action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
-    data: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: ['clear'] },
+    data: {
+      cart_action: 'remove_items',
+      [F.REMOVE_ITEMS]: [],
+      [F.REMOVE_MODE]: 'all',
+    },
   });
   expect(parsed(res).screen).toBe(S.CATEGORY_SELECT_RETURN);
   const [saved] = ref.set.mock.calls[0];
   expect(saved.basket).toHaveLength(0);
 });
 
-test('CART_REVIEW remove_items makes basket empty → CATEGORY_SELECT_RETURN', async () => {
-  mockSession([{ name: 'Burger', qty: 1, price: 10 }]);
+test('CART_REVIEW remove_items mode line drops whole multi-qty line', async () => {
+  const ref = mockSession([{ name: 'Lahmacun', qty: 10, price: 6.5 }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: {
+      cart_action: 'remove_items',
+      [F.REMOVE_ITEMS]: ['0'],
+      [F.REMOVE_MODE]: 'line',
+    },
+  });
+  expect(parsed(res).screen).toBe(S.CATEGORY_SELECT_RETURN);
+  const [saved] = ref.set.mock.calls[0];
+  expect(saved.basket).toHaveLength(0);
+});
+
+test('CART_REVIEW remove_items without mode defaults to line (legacy)', async () => {
+  const ref = mockSession(BASKET2);
   const res = await post({
     action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
     data: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: ['0'] },
   });
+  expect(parsed(res).screen).toBe(S.CART_REVIEW);
+  const [saved] = ref.set.mock.calls[0];
+  expect(saved.basket).toEqual([{ name: 'Fries', qty: 2, price: 5 }]);
+});
+
+test('CART_REVIEW remove_line clear → empty basket → CATEGORY_SELECT_RETURN', async () => {
+  const ref = mockSession(BASKET2);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: { cart_action: 'remove_line', [F.REMOVE_ITEMS]: ['clear'] },
+  });
+  expect(parsed(res).screen).toBe(S.CATEGORY_SELECT_RETURN);
+  const [saved] = ref.set.mock.calls[0];
+  expect(saved.basket).toHaveLength(0);
+});
+
+test('CART_REVIEW remove_line makes basket empty → CATEGORY_SELECT_RETURN', async () => {
+  mockSession([{ name: 'Burger', qty: 1, price: 10 }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: { cart_action: 'remove_line', [F.REMOVE_ITEMS]: ['0'] },
+  });
   expect(parsed(res).screen).toBe(S.CATEGORY_SELECT_RETURN);
 });
 
-test('CART_REVIEW remove_items empty array → passthrough → CART_UPDATED', async () => {
+test('CART_REVIEW remove_items empty array → stay on CART_REVIEW', async () => {
   mockSession(BASKET2);
   const res = await post({
     action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
-    data: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: [] },
+    data: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: [], [F.REMOVE_MODE]: 'one' },
+  });
+  expect(parsed(res).screen).toBe(S.CART_REVIEW);
+  expect(parsed(res).data[F.BASKET_ITEMS]).toHaveLength(2);
+});
+
+test('CART_UPDATED remove_one empty array → stay on CART_UPDATED', async () => {
+  mockSession(BASKET2);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_UPDATED, version: V, flow_token: TOKEN,
+    data: { cart_action: 'remove_one', [F.REMOVE_ITEMS]: [] },
   });
   expect(parsed(res).screen).toBe(S.CART_UPDATED);
 });
@@ -787,16 +1045,87 @@ test('CART_REVIEW fallback (no cart_action) → CART_UPDATED', async () => {
 
 // ── CART_UPDATED (editable cart round 2) ─────────────────────────────────────
 
-test('CART_UPDATED remove_items → CART_DONE with basket summary', async () => {
+test('CART_UPDATED remove_one → stay on CART_UPDATED with remaining lines', async () => {
   mockSession(BASKET2);
   const res = await post({
     action: 'data_exchange', screen: S.CART_UPDATED, version: V, flow_token: TOKEN,
-    data: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: ['0'] },
+    data: { cart_action: 'remove_one', [F.REMOVE_ITEMS]: ['0'] },
   });
   const body = parsed(res);
-  expect(body.screen).toBe(S.CART_DONE);
-  expect(body.data[F.BASKET_TEXT]).toBeDefined();
-  expect(body.data[F.TOTAL_LABEL]).toBeDefined();
+  expect(body.screen).toBe(S.CART_UPDATED);
+  expect(body.data[F.BASKET_ITEMS]).toHaveLength(1);
+});
+
+test('CART_REVIEW edit mode needs exactly one selection', async () => {
+  mockSession([
+    { name: 'Burger', baseName: 'Burger', itemId: 'b1', qty: 1, price: 10 },
+    { name: 'Fries', baseName: 'Fries', itemId: 'f1', qty: 1, price: 5 },
+  ]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: {
+      cart_action: 'remove_items',
+      [F.REMOVE_ITEMS]: [],
+      [F.REMOVE_MODE]: 'edit',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CART_REVIEW);
+  expect(body.data[F.ERROR_VISIBLE]).toBe(true);
+});
+
+test('CART_REVIEW edit mode → ORDER_ITEM_EDIT with prefill', async () => {
+  const ref = mockSession([{
+    name: 'Pizza — Large (extra cheese)',
+    baseName: 'Pizza',
+    itemId: 'p1',
+    qty: 2,
+    price: 17.5,
+    notes: 'extra cheese',
+    flowSelections: { size: 'l', extras: ['cheese'] },
+  }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: {
+      cart_action: 'remove_items',
+      [F.REMOVE_ITEMS]: ['0'],
+      [F.REMOVE_MODE]: 'edit',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM_EDIT);
+  expect(body.data[F.ITEM_ID]).toBe('p1');
+  expect(body.data[F.FORM_INIT_VALUES][F.QTY]).toBe(2);
+  expect(body.data[F.FORM_INIT_VALUES][F.SLOT1_VALUE]).toBe('l');
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI_VALUE]).toEqual(['cheese']);
+  expect(body.data[F.FORM_INIT_VALUES][F.NOTES]).toBe('extra cheese');
+  expect(body.data[F.UI_ORDER_FOOTER_ACTION]).toBe('add_item');
+  expect(body.data[F.UI_ADD_TO_CART]).toBe('Speichern');
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({ flowCartEditIndex: 0 }),
+    expect.anything(),
+  );
+});
+
+test('ORDER_ITEM_EDIT save replaces basket line', async () => {
+  const ref = mockSession([
+    {
+      name: 'Burger', baseName: 'Burger', itemId: 'b1', qty: 1, price: 10,
+      flowSelections: {},
+    },
+    { name: 'Fries', baseName: 'Fries', itemId: 'f1', qty: 1, price: 5 },
+  ], { flowCartEditIndex: 0 });
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM_EDIT, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'b1', [F.QTY]: '3', [F.NOTES]: 'no onion' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CART_EDITED);
+  const [saved] = ref.set.mock.calls[0];
+  expect(saved.flowCartEditIndex).toBeNull();
+  expect(saved.basket).toHaveLength(2);
+  expect(saved.basket[0]).toMatchObject({ itemId: 'b1', qty: 3, notes: 'no onion' });
+  expect(saved.basket[1].name).toBe('Fries');
 });
 
 test('CART_UPDATED fallback → CART_DONE', async () => {
