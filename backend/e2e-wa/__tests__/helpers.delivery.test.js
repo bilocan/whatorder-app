@@ -2,6 +2,9 @@
 
 const {
   ADDRESS_SHORTCIRCUIT,
+  DELIVERY_ADDRESS,
+  DELIVERY_PHRASE,
+  DELIVERY_PHRASE_NO_ADDRESS,
   E2E_DONER_GROUPS,
   completeCustomizing,
   completeDeliveryAddressAsk,
@@ -9,9 +12,6 @@ const {
   addDonerAyranDeliveryNoAddress,
   confirmOrder,
 } = require('../scenarios/helpers');
-
-const DELIVERY_PHRASE = '1 döner und 1 ayran zum Liefern, Hauptstraße 5';
-const DELIVERY_PHRASE_NO_ADDRESS = '1 döner und 1 ayran zum Liefern';
 
 function fakeDeliverySession(initial = {}) {
   let snap = {
@@ -67,7 +67,7 @@ test('completeCustomizing clicks single option button without sending text', asy
         state: 'browsing',
         basket: [{ name: 'Döner', qty: 1 }, { name: 'Ayran', qty: 1 }],
         orderType: 'delivery',
-        deliveryAddress: 'Hauptstraße 5',
+        deliveryAddress: DELIVERY_ADDRESS,
       });
     }
     return 'btn';
@@ -249,7 +249,7 @@ test('addDonerAyranDelivery sends locked phrase and completes Enes multi customi
           { name: 'Mis Ayran 0.25L', qty: 1 },
         ],
         orderType: 'delivery',
-        deliveryAddress: 'Hauptstraße 5',
+        deliveryAddress: DELIVERY_ADDRESS,
       });
       return 'standard';
     }
@@ -274,7 +274,7 @@ test('addDonerAyranDelivery waits for the complete delivery postcondition', asyn
     if (waitCount === 2) {
       session.setSnap({
         orderType: 'delivery',
-        deliveryAddress: 'Hauptstraße 5',
+        deliveryAddress: DELIVERY_ADDRESS,
       });
     }
     const snap = await session.getSession();
@@ -285,7 +285,7 @@ test('addDonerAyranDelivery waits for the complete delivery postcondition', asyn
   await expect(addDonerAyranDelivery(session, { log: () => {} })).resolves.toEqual(
     expect.objectContaining({
       orderType: 'delivery',
-      deliveryAddress: 'Hauptstraße 5',
+      deliveryAddress: DELIVERY_ADDRESS,
     }),
   );
   expect(session.waitForSession).toHaveBeenCalledTimes(2);
@@ -410,6 +410,21 @@ test.each([
   await expect(addDonerAyranDelivery(session, { log: () => {} })).rejects.toThrow(message);
 });
 
+test('addDonerAyranDelivery throws when the delivery address has no unit', async () => {
+  const session = fakeDeliverySession({
+    basket: [{}, {}],
+    orderType: 'delivery',
+    deliveryAddress: 'Hauptstraße 5',
+  });
+
+  await expect(addDonerAyranDelivery(session, { log: () => {} })).rejects.toThrow(/unit/i);
+});
+
+test('delivery phrase keeps Top in the same comma segment as the street', () => {
+  expect(DELIVERY_PHRASE).toBe('1 döner und 1 ayran zum Liefern, Hauptstraße 5 Top 1');
+  expect(DELIVERY_PHRASE).not.toMatch(/Hauptstraße 5,\s*Top/i);
+});
+
 test('confirmOrder clicks a localized confirm button', async () => {
   const session = fakeDeliverySession({ state: 'confirming' });
   session.sendButtonReply.mockImplementation(async ({ title }) => {
@@ -468,4 +483,19 @@ test('confirmOrder retries ja when a stale confirm click leaves confirming', asy
   expect(session.sendButtonReply).toHaveBeenCalled();
   expect(session.sendText).toHaveBeenCalledWith('ja');
   expect(waits).toBe(2);
+});
+
+test('confirmOrder dumps checkout fields when ja leaves the session confirming', async () => {
+  const session = fakeDeliverySession({
+    state: 'confirming',
+    customerName: 'E2E Testkunde',
+    orderType: 'delivery',
+    deliveryAddress: 'Hauptstraße 5',
+  });
+  session.waitForSession.mockRejectedValue(new Error('waitForSession timed out'));
+
+  await expect(confirmOrder(session, { log: () => {} })).rejects.toThrow(
+    /still confirming after ja.*type=delivery.*Hauptstraße 5/i,
+  );
+  expect(session.sendText).toHaveBeenCalledWith('ja');
 });

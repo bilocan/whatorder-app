@@ -53,25 +53,13 @@ test('loadScriptFile validates happy_delivery_address_prompt Pack C script', () 
     id: 'happy_delivery_address_prompt',
     pack: 'c',
     priority: 'p1',
-    manual: 'M2 row 50',
-    timeout_ms: 120_000,
+    timeout_ms: 90_000,
   });
-  expect(doc.steps).toHaveLength(9);
+  expect(doc.steps).toHaveLength(6);
   expect(doc.steps[4]).toEqual({
-    gate: {
-      name: 'state',
-      in: [
-        'awaiting_delivery_address_choice',
-        'awaiting_delivery_address',
-        'awaiting_delivery_address_confirm',
-        'awaiting_delivery_address_unit',
-      ],
-    },
+    gate: { name: 'state', in: ['confirming'] },
   });
-  expect(doc.steps[5]).toEqual({ macro: 'complete_delivery_address_ask' });
-  expect(doc.steps[8]).toEqual({
-    gate: { name: 'order_stripe_delivery', address_includes: 'Hauptstraße' },
-  });
+  expect(doc.steps[5]).toEqual({ gate: { name: 'no_order' } });
 });
 
 test('loadScriptFile validates fertig_confirm_checkout Pack C scripts', () => {
