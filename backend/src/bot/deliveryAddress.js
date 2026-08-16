@@ -18,6 +18,15 @@ function isHausSkip(norm) {
 function normalizeBuildingLabel(address) {
   return String(address || '')
     .replace(/,\s*(Austria|Österreich|Osterreich)\s*$/i, '')
+    // Google sometimes returns "Street 11/Stiege 5" — prefer comma form for courier + UI.
+    .replace(/\/\s*(stiege|top|t[uü]r)\b/gi, (_, word) => {
+      const w = String(word).toLowerCase();
+      if (w === 'top') return ', Top';
+      if (w === 'tur' || w === 'tür') return ', Tür';
+      return ', Stiege';
+    })
+    .replace(/\s*,\s*/g, ', ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -215,6 +224,30 @@ function splitDeliveryAddressFields(address) {
   return { street: raw, apartment: '' };
 }
 
+/**
+ * Split a courier label into confirm-screen lines (building / unit / locality).
+ * Uses the same unit extraction as Flow edit fields.
+ */
+function formatConfirmAddressDisplay(address) {
+  const full = normalizeBuildingLabel(address);
+  if (!full) {
+    return { label: '', building: '', unit: '', locality: '' };
+  }
+  const { street, apartment } = splitDeliveryAddressFields(full);
+  const streetParts = String(street || full)
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const building = streetParts[0] || full;
+  const locality = streetParts.slice(1).join(', ');
+  return {
+    label: full,
+    building,
+    unit: apartment || '',
+    locality,
+  };
+}
+
 module.exports = {
   hasUnitPattern,
   isHausSkip,
@@ -224,6 +257,7 @@ module.exports = {
   parseDeliveryUnit,
   splitStreetAndUnitHint,
   splitDeliveryAddressFields,
+  formatConfirmAddressDisplay,
   isNearlySameAddress,
   addressKey,
   UNIT_PATTERN,

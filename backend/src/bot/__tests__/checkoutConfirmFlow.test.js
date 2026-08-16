@@ -10,6 +10,7 @@ const {
   parseCheckoutFlowToken,
   checkoutFlowToken,
   formatAddressOptionParts,
+  fieldsForAddressChoice,
   nextScreenAfterManageWrite,
   manageScreenForReview,
   returnReviewScreenForManage,
@@ -40,7 +41,7 @@ describe('checkoutConfirmFlow', () => {
     delete process.env.STRIPE_SECRET_KEY;
   });
 
-  test('builds receipt text from the current checkout context', () => {
+  test('builds receipt text from the current checkout context', async () => {
     const receipt = buildReceiptText({
       session: {
         customerName: 'Alex',
@@ -57,12 +58,15 @@ describe('checkoutConfirmFlow', () => {
     });
 
     expect(receipt).toContain('Demo Kitchen');
-    expect(receipt).toContain('finalConfirmBody:en:Alex|21.00|19:30|Main Street 12|Ring twice|stripe');
+    expect(receipt).toContain('orderTotal:en:21.00');
+    expect(receipt).toContain('confirmFlowPaymentCard:en:');
     expect(receipt).toContain('2× Chicken Dürüm');
     expect(receipt).toContain('1× Ayran');
+    expect(receipt).not.toContain('Main Street 12');
+    expect(receipt).not.toContain('Alex');
   });
 
-  test('drops a leftover delivery address from a pickup receipt', () => {
+  test('drops a leftover delivery address from a pickup receipt', async () => {
     const receipt = buildReceiptText({
       session: {
         customerName: 'Alex',
@@ -79,8 +83,8 @@ describe('checkoutConfirmFlow', () => {
     expect(receipt).not.toContain('Main Street 12');
   });
 
-  test('builds localized checkout review prefill and includes delivery fee', () => {
-    const data = buildCheckoutReviewData({
+  test('builds localized checkout review prefill and includes delivery fee', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: ' Alex ',
         orderType: 'delivery',
@@ -101,6 +105,7 @@ describe('checkoutConfirmFlow', () => {
 
     expect(data).toMatchObject({
       [F.CUSTOMER_NAME]: 'Alex',
+      [F.CUSTOMER_NAME_DISPLAY]: 'Alex',
       [F.ORDER_TYPE]: 'delivery',
       [F.DELIVERY_ADDRESS]: 'Main Street 12',
       [F.CHECKOUT_NOTE]: 'Ring twice',
@@ -123,11 +128,25 @@ describe('checkoutConfirmFlow', () => {
       [F.UI_PLACE_ORDER]: 'confirmFlowFooter:en:',
       [F.UI_BACK_TO_CART]: 'confirmFlowBackToCart:en:',
     });
-    expect(data[F.RECEIPT_TEXT]).toContain('finalConfirmBody:en:Alex|21.00|19:30');
+    expect(data[F.RECEIPT_TEXT]).toContain('orderTotal:en:21.00');
+    expect(data[F.RECEIPT_TEXT]).toContain('checkoutDeliveryFee:en:2.00');
+    expect(data[F.DELIVERY_ADDRESS_DISPLAY]).toBeTruthy();
   });
 
-  test('includes the resolved deal label and reduced total in checkout review', () => {
-    const data = buildCheckoutReviewData({
+  test('shows empty-name hint on review when name is missing', async () => {
+    const data = await buildCheckoutReviewData({
+      session: { orderType: 'pickup' },
+      basket,
+      info: { name: 'Demo Kitchen' },
+      lang: 'en',
+      t: translate,
+    });
+    expect(data[F.CUSTOMER_NAME]).toBe('');
+    expect(data[F.CUSTOMER_NAME_DISPLAY]).toBe('confirmFlowNameEmpty:en:');
+  });
+
+  test('includes the resolved deal label and reduced total in checkout review', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Alex',
         orderType: 'pickup',
@@ -145,11 +164,11 @@ describe('checkoutConfirmFlow', () => {
     });
 
     expect(data[F.RECEIPT_TEXT]).toMatch(/10% Willkommen/);
-    expect(data[F.RECEIPT_TEXT]).toContain('finalConfirmBody:de:Alex|17.00|19:30');
+    expect(data[F.RECEIPT_TEXT]).toContain('orderTotal:de:17.00');
   });
 
-  test('includes multiple saved addresses and Neue Adresse in address options', () => {
-    const data = buildCheckoutReviewData({
+  test('includes multiple saved addresses and Neue Adresse in address options', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Alex',
         orderType: 'delivery',
@@ -170,14 +189,12 @@ describe('checkoutConfirmFlow', () => {
       {
         id: 'addr_0',
         title: 'Hippgasse 11',
-        description: 'Top 14, 1160 Wien',
-        metadata: '1160',
+        description: 'Top 14 · 1160 Wien',
       },
       {
         id: 'addr_1',
         title: 'Naschmarkt 5',
         description: '1040 Wien',
-        metadata: '1040',
       },
       {
         id: 'addr_new',
@@ -187,8 +204,8 @@ describe('checkoutConfirmFlow', () => {
     ]);
   });
 
-  test('restores the default saved address instead of Neue Adresse', () => {
-    const data = buildCheckoutReviewData({
+  test('restores the default saved address instead of Neue Adresse', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Alex',
         orderType: 'delivery',
@@ -216,8 +233,8 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.ADDRESS_OPTIONS][0]).toMatchObject({ title: 'Hippgasse 11' });
   });
 
-  test('without a default selects the last saved delivery address', () => {
-    const data = buildCheckoutReviewData({
+  test('without a default selects the last saved delivery address', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Alex',
         orderType: 'delivery',
@@ -237,8 +254,8 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.DELIVERY_ADDRESS]).toBe('Latest Street 9, Top 2, 1090 Wien');
   });
 
-  test('keeps Neue Adresse when the typed street is not a saved row', () => {
-    const data = buildCheckoutReviewData({
+  test('keeps Neue Adresse when the typed street is not a saved row', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Alex',
         orderType: 'delivery',
@@ -262,8 +279,8 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.DELIVERY_APARTMENT]).toBe('Top 1');
   });
 
-  test('keeps empty Neue Adresse when the customer explicitly chose it', () => {
-    const data = buildCheckoutReviewData({
+  test('keeps empty Neue Adresse when the customer explicitly chose it', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Alex',
         orderType: 'delivery',
@@ -288,7 +305,7 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.DELIVERY_APARTMENT]).toBe('');
   });
 
-  test('maps manage and review screens through the forward-only topology', () => {
+  test('maps manage and review screens through the forward-only topology', async () => {
     expect(nextScreenAfterManageWrite('ADDRESS_MANAGE')).toBe('ADDRESS_MANAGE_UPDATED');
     expect(nextScreenAfterManageWrite('ADDRESS_MANAGE_UPDATED')).toBe('CHECKOUT_REVIEW_RETURN');
     expect(nextScreenAfterManageWrite('ADDRESS_MANAGE_AGAIN')).toBe('CHECKOUT_REVIEW_DONE');
@@ -299,13 +316,13 @@ describe('checkoutConfirmFlow', () => {
     expect(returnReviewScreenForManage('ADDRESS_MANAGE_AGAIN')).toBe('CHECKOUT_REVIEW_DONE');
   });
 
-  test('returns null for screens outside the manage topology', () => {
+  test('returns null for screens outside the manage topology', async () => {
     expect(nextScreenAfterManageWrite('CHECKOUT_REVIEW')).toBeNull();
     expect(manageScreenForReview('CHECKOUT_REVIEW_DONE')).toBeNull();
     expect(returnReviewScreenForManage('CHECKOUT_REVIEW')).toBeNull();
   });
 
-  test('maps address choices to the exact labels used by radio options', () => {
+  test('maps address choices to the exact labels used by radio options', async () => {
     expect(labelsByAddressChoice(
       [' Naschmarkt 5, 1040 Wien ', 'Hippgasse 11, Top 14, 1160 Wien'],
       'Hippgasse 11, Top 14, 1160 Wien',
@@ -317,7 +334,7 @@ describe('checkoutConfirmFlow', () => {
     });
   });
 
-  test('rebuilds review from profile default and clears stale draft address fields', () => {
+  test('rebuilds review from profile default and clears stale draft address fields', async () => {
     const session = {
       customerName: 'Alex',
       orderType: 'delivery',
@@ -333,7 +350,7 @@ describe('checkoutConfirmFlow', () => {
       },
     };
 
-    const data = buildReviewDataFromProfile({
+    const data = await buildReviewDataFromProfile({
       session,
       basket,
       info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
@@ -363,7 +380,7 @@ describe('checkoutConfirmFlow', () => {
     expect(session.confirmFlowDraft.deliveryAddress).toBe('Deleted Street 1, 1010 Wien');
   });
 
-  test('falls back to first saved profile address, then to a blank new address', () => {
+  test('falls back to first saved profile address, then to a blank new address', async () => {
     const base = {
       session: {
         customerName: 'Alex',
@@ -376,7 +393,7 @@ describe('checkoutConfirmFlow', () => {
       t: translate,
     };
 
-    const first = buildReviewDataFromProfile({
+    const first = await buildReviewDataFromProfile({
       ...base,
       profile: {
         savedAddresses: ['First Street 1, Top 3, 1010 Wien'],
@@ -386,7 +403,7 @@ describe('checkoutConfirmFlow', () => {
     expect(first[F.DELIVERY_ADDRESS]).toBe('First Street 1, Top 3, 1010 Wien');
     expect(first[F.ADDRESS_CHOICE]).toBe('addr_0');
 
-    const empty = buildReviewDataFromProfile({
+    const empty = await buildReviewDataFromProfile({
       ...base,
       profile: { savedAddresses: [], lastDeliveryAddress: null },
     });
@@ -395,7 +412,7 @@ describe('checkoutConfirmFlow', () => {
     expect(empty[F.ADDRESS_CHOICE]).toBe('addr_new');
   });
 
-  test('composes manage delivery fields with checkout validation rules', () => {
+  test('composes manage delivery fields with checkout validation rules', async () => {
     expect(composeDeliveryAddressFromFields(
       'Hippgasse 11, 1160 Wien',
       'Top 14',
@@ -409,18 +426,40 @@ describe('checkoutConfirmFlow', () => {
     )).toEqual({ ok: false, errorKey: 'confirmFlowErrorApartment' });
     expect(composeDeliveryAddressFromFields('', 'Top 14'))
       .toEqual({ ok: false, errorKey: 'confirmFlowErrorAddress' });
+    expect(composeDeliveryAddressFromFields(
+      'Aspernstraße 6, 1220 Wien',
+      'Haus',
+    )).toEqual({
+      ok: true,
+      deliveryAddress: 'Aspernstraße 6, 1220 Wien',
+    });
   });
 
-  test('formatAddressOptionParts avoids bare house-number titles', () => {
+  test('fieldsForAddressChoice refills Haus when the saved label has no unit', async () => {
+    expect(fieldsForAddressChoice('addr_0', {
+      addr_0: 'Aspernstraße 6, 1220 Wien',
+    })).toEqual({
+      street: 'Aspernstraße 6, 1220 Wien',
+      apartment: 'Haus',
+    });
+    expect(fieldsForAddressChoice('addr_0', {
+      addr_0: 'Hippgasse 11, Top 14, 1160 Wien',
+    })).toEqual({
+      street: 'Hippgasse 11, Top 14, 1160 Wien',
+      apartment: 'Top 14',
+    });
+  });
+
+  test('formatAddressOptionParts avoids bare house-number titles', async () => {
     expect(formatAddressOptionParts('12, Ottakringer Straße, 1160 Wien')).toEqual({
       title: 'Ottakringer Straße 12',
       description: '1160 Wien',
-      metadata: '1160',
+      metadata: '',
     });
     expect(formatAddressOptionParts('41, Thaliastraße, 1160 Wien, Austria')).toEqual({
       title: 'Thaliastraße 41',
       description: '1160 Wien',
-      metadata: '1160',
+      metadata: '',
     });
     expect(formatAddressOptionParts('41, Huttengasse, Katastralgemeinde Ottakring, Ottakring')).toEqual({
       title: 'Huttengasse 41',
@@ -429,18 +468,39 @@ describe('checkoutConfirmFlow', () => {
     });
     expect(formatAddressOptionParts('Lavaterstrasse 3, Stiege 3, Top 10, 1220 Wien')).toEqual({
       title: 'Lavaterstrasse 3',
-      description: 'Stiege 3, Top 10, 1220 Wien',
-      metadata: '1220',
+      description: 'Stiege 3, Top 10 · 1220 Wien',
+      metadata: '',
     });
     expect(formatAddressOptionParts('Hippgasse 11, Top 14, 1160 Wien')).toEqual({
       title: 'Hippgasse 11',
-      description: 'Top 14, 1160 Wien',
-      metadata: '1160',
+      description: 'Top 14 · 1160 Wien',
+      metadata: '',
     });
   });
 
-  test('defaults review to pickup and does not offer unavailable delivery', () => {
-    const data = buildCheckoutReviewData({
+  test('buildAddressChoiceState marks default with star metadata', async () => {
+    const { buildAddressChoiceState } = require('../checkoutConfirmFlow');
+    const state = buildAddressChoiceState({
+      savedAddresses: [
+        'Hippgasse 11, Top 14, 1160 Wien',
+        'Naschmarkt 5, 1040 Wien',
+      ],
+      defaultAddress: 'Naschmarkt 5, 1040 Wien',
+      lang: 'de',
+      t: translate,
+    });
+    // default is pushed first → addr_0
+    expect(state.addressOptions[0]).toMatchObject({
+      id: 'addr_0',
+      title: 'Naschmarkt 5',
+      description: '1040 Wien',
+      metadata: '★',
+    });
+    expect(state.addressOptions[1].metadata).toBeUndefined();
+  });
+
+  test('defaults review to pickup and does not offer unavailable delivery', async () => {
+    const data = await buildCheckoutReviewData({
       session: {},
       basket: [],
       info: { name: 'Pickup Only', deliveryEnabled: false },
@@ -454,8 +514,8 @@ describe('checkoutConfirmFlow', () => {
     ]);
   });
 
-  test('omits delivery while the owner has delivery paused', () => {
-    const data = buildCheckoutReviewData({
+  test('omits delivery while the owner has delivery paused', async () => {
+    const data = await buildCheckoutReviewData({
       session: { customerName: 'Alex', orderType: 'delivery', deliveryAddress: 'Main Street 12' },
       basket,
       info: { name: 'Paused Bistro', deliveryEnabled: true, deliveryOpen: false, deliveryFee: 2 },
@@ -468,11 +528,12 @@ describe('checkoutConfirmFlow', () => {
       { id: 'pickup', title: 'confirmFlowTypePickup:en:' },
     ]);
     // Pickup receipt shows neither the address nor the delivery fee.
-    expect(data[F.RECEIPT_TEXT]).toContain('finalConfirmBody:en:Alex|19.00||||');
+    expect(data[F.RECEIPT_TEXT]).toContain('orderTotal:en:19.00');
+    expect(data[F.RECEIPT_TEXT]).not.toContain('checkoutDeliveryFee');
   });
 
-  test('still offers delivery while the basket is below the minimum order value', () => {
-    const data = buildCheckoutReviewData({
+  test('still offers delivery while the basket is below the minimum order value', async () => {
+    const data = await buildCheckoutReviewData({
       session: { customerName: 'Alex', orderType: 'pickup' },
       basket,
       info: { name: 'Min Bistro', deliveryEnabled: true, minimumOrderValue: 30, deliveryFee: 2 },
@@ -487,8 +548,8 @@ describe('checkoutConfirmFlow', () => {
     ]);
   });
 
-  test('shows address fields when review order type is delivery', () => {
-    const data = buildCheckoutReviewData({
+  test('shows address fields when review order type is delivery', async () => {
+    const data = await buildCheckoutReviewData({
       session: { customerName: 'Alex', orderType: 'delivery', deliveryAddress: 'Main Street 12' },
       basket,
       info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
@@ -500,8 +561,8 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(true);
   });
 
-  test('hides address fields when the customer switches the draft to pickup', () => {
-    const data = buildCheckoutReviewData({
+  test('hides address fields when the customer switches the draft to pickup', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Alex',
         orderType: 'delivery',
@@ -518,8 +579,8 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
   });
 
-  test('keeps delivery selectable when below minimum (gate runs on place, not by hiding Lieferung)', () => {
-    const data = buildCheckoutReviewData({
+  test('keeps delivery selectable when below minimum (gate runs on place, not by hiding Lieferung)', async () => {
+    const data = await buildCheckoutReviewData({
       session: { customerName: 'Alex', orderType: 'delivery', deliveryAddress: 'Main Street 12' },
       basket,
       info: { name: 'Min Bistro', deliveryEnabled: true, minimumOrderValue: 30 },
@@ -535,25 +596,25 @@ describe('checkoutConfirmFlow', () => {
     ]);
   });
 
-  test('payment hint follows the same gate as the place path', () => {
+  test('payment hint follows the same gate as the place path', async () => {
     const info = {
       name: 'Card Bistro',
       deliveryEnabled: false,
       paymentEnabled: true,
       legal: COMPLETE_LEGAL,
     };
-    const build = () => buildCheckoutReviewData({
+    const build = async () => buildCheckoutReviewData({
       session: { customerName: 'Alex' }, basket, info, lang: 'en', t: translate,
     });
 
     // paymentEnabled alone is not enough — Stripe must be configured too.
-    expect(build()[F.RECEIPT_TEXT]).not.toContain('|stripe');
+    expect((await build())[F.RECEIPT_TEXT]).not.toContain('confirmFlowPaymentCard');
     process.env.STRIPE_SECRET_KEY = 'sk_test_123';
-    expect(build()[F.RECEIPT_TEXT]).toContain('|stripe');
+    expect((await build())[F.RECEIPT_TEXT]).toContain('confirmFlowPaymentCard:en:');
   });
 
-  test('prefers the draft of a failed submit over stale session values', () => {
-    const data = buildCheckoutReviewData({
+  test('prefers the draft of a failed submit over stale session values', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Old Name',
         orderType: 'pickup',
@@ -580,17 +641,18 @@ describe('checkoutConfirmFlow', () => {
       [F.DELIVERY_APARTMENT]: 'Top 7',
       [F.CHECKOUT_NOTE]: 'Ring twice',
     });
-    expect(data[F.RECEIPT_TEXT]).toContain('finalConfirmBody:en:Ahmet Yilmaz|21.00');
+    expect(data[F.CUSTOMER_NAME]).toBe('Ahmet Yilmaz');
+    expect(data[F.RECEIPT_TEXT]).toContain('orderTotal:en:21.00');
   });
 
-  test('street-only draft clears stale apartment from the session', () => {
+  test('street-only draft clears stale apartment from the session', async () => {
     const draft = buildConfirmFlowDraft({
       checkout_action: 'place_order',
       customer_name: 'Alex',
       order_type: 'delivery',
       delivery_address: 'New Street 7, 1070 Wien',
     });
-    const data = buildCheckoutReviewData({
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Alex',
         orderType: 'delivery',
@@ -611,7 +673,7 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.DELIVERY_APARTMENT]).toBe('');
   });
 
-  test('collects a partial draft from a rejected payload', () => {
+  test('collects a partial draft from a rejected payload', async () => {
     expect(buildConfirmFlowDraft({
       checkout_action: 'place_order',
       customer_name: ' A ',
@@ -639,7 +701,7 @@ describe('checkoutConfirmFlow', () => {
     expect(buildConfirmFlowDraft({ checkout_action: 'back_to_cart' })).toBeNull();
   });
 
-  test('mergeConfirmFlowDraft keeps a previous street when the payload street is empty', () => {
+  test('mergeConfirmFlowDraft keeps a previous street when the payload street is empty', async () => {
     expect(mergeConfirmFlowDraft(
       {
         order_type: 'pickup',
@@ -661,7 +723,7 @@ describe('checkoutConfirmFlow', () => {
     });
   });
 
-  test('validates and normalizes a delivery submit', () => {
+  test('validates and normalizes a delivery submit', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: '  Alex  ',
@@ -680,7 +742,7 @@ describe('checkoutConfirmFlow', () => {
     });
   });
 
-  test('rejects delivery without apartment when street has no unit', () => {
+  test('rejects delivery without apartment when street has no unit', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: 'Alex',
@@ -690,7 +752,7 @@ describe('checkoutConfirmFlow', () => {
     })).toEqual({ ok: false, errorKey: 'confirmFlowErrorApartment' });
   });
 
-  test('accepts Haus apartment and keeps building-only address', () => {
+  test('accepts Haus apartment and keeps building-only address', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: 'Alex',
@@ -708,7 +770,7 @@ describe('checkoutConfirmFlow', () => {
     });
   });
 
-  test('place-order uses address_choice when TextInputs still show another saved row', () => {
+  test('place-order uses address_choice when TextInputs still show another saved row', async () => {
     const labels = {
       addr_0: 'Hippgasse 11, Top 14, 1160 Wien',
       addr_1: 'Naschmarkt 5, Top 2, 1040 Wien',
@@ -728,7 +790,7 @@ describe('checkoutConfirmFlow', () => {
     });
   });
 
-  test('place-order keeps explicit edits when address_choice is selected', () => {
+  test('place-order keeps explicit edits when address_choice is selected', async () => {
     const labels = {
       addr_0: 'Hippgasse 11, Top 14, 1160 Wien',
     };
@@ -747,7 +809,7 @@ describe('checkoutConfirmFlow', () => {
     });
   });
 
-  test('place-order uses exact saved label when fields match the selected row', () => {
+  test('place-order uses exact saved label when fields match the selected row', async () => {
     const labels = {
       addr_0: 'Hippgasse 11, Top 14, 1160 Wien',
     };
@@ -766,7 +828,7 @@ describe('checkoutConfirmFlow', () => {
     });
   });
 
-  test('composes Top apartment into deliveryAddress', () => {
+  test('composes Top apartment into deliveryAddress', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: 'Alex',
@@ -776,7 +838,7 @@ describe('checkoutConfirmFlow', () => {
     }).values.deliveryAddress).toBe('Hippgasse 11, Top 14, 1160 Wien');
   });
 
-  test('composes apartment onto building when street still holds slash unit', () => {
+  test('composes apartment onto building when street still holds slash unit', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: 'Alex',
@@ -786,7 +848,7 @@ describe('checkoutConfirmFlow', () => {
     }).values.deliveryAddress).toBe('Herbststraße 5, Top 14, 1160 Wien');
   });
 
-  test('accepts slash unit in street when apartment field omitted (old Flow)', () => {
+  test('accepts slash unit in street when apartment field omitted (old Flow)', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: 'Alex',
@@ -795,7 +857,7 @@ describe('checkoutConfirmFlow', () => {
     }).ok).toBe(true);
   });
 
-  test('waives apartment when street already has unit pattern', () => {
+  test('waives apartment when street already has unit pattern', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: 'Alex',
@@ -813,7 +875,7 @@ describe('checkoutConfirmFlow', () => {
     });
   });
 
-  test('rejects absurd unit 9888', () => {
+  test('rejects absurd unit 9888', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: 'Alex',
@@ -823,8 +885,8 @@ describe('checkoutConfirmFlow', () => {
     })).toEqual({ ok: false, errorKey: 'confirmFlowErrorApartment' });
   });
 
-  test('prefills full address in street and extracted unit in apartment', () => {
-    const data = buildCheckoutReviewData({
+  test('prefills full address in street and extracted unit in apartment', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Alex',
         orderType: 'delivery',
@@ -841,8 +903,8 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.DELIVERY_APARTMENT]).toBe('Top 14');
   });
 
-  test('prefills slash unit address fully in street and Top in apartment', () => {
-    const data = buildCheckoutReviewData({
+  test('prefills slash unit address fully in street and Top in apartment', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Alex',
         orderType: 'delivery',
@@ -858,8 +920,8 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.DELIVERY_APARTMENT]).toBe('Top 14');
   });
 
-  test('keeps draft street verbatim when it embeds Top and apartment is separate', () => {
-    const data = buildCheckoutReviewData({
+  test('keeps draft street verbatim when it embeds Top and apartment is separate', async () => {
+    const data = await buildCheckoutReviewData({
       session: {
         customerName: 'Alex',
         orderType: 'delivery',
@@ -880,7 +942,7 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.DELIVERY_APARTMENT]).toBe('9888');
   });
 
-  test('rejects a short customer name with the name error key', () => {
+  test('rejects a short customer name with the name error key', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: ' A ',
@@ -888,7 +950,7 @@ describe('checkoutConfirmFlow', () => {
     })).toEqual({ ok: false, errorKey: 'confirmFlowErrorName' });
   });
 
-  test('rejects delivery without an address with the address error key', () => {
+  test('rejects delivery without an address with the address error key', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: 'Alex',
@@ -897,7 +959,7 @@ describe('checkoutConfirmFlow', () => {
     })).toEqual({ ok: false, errorKey: 'confirmFlowErrorAddress' });
   });
 
-  test('accepts pickup without an address and trims an empty note', () => {
+  test('accepts pickup without an address and trims an empty note', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: 'Alex',
@@ -915,12 +977,12 @@ describe('checkoutConfirmFlow', () => {
     });
   });
 
-  test('back to cart bypasses checkout field validation', () => {
+  test('back to cart bypasses checkout field validation', async () => {
     expect(validateCheckoutSubmit({ checkout_action: 'back_to_cart' }))
       .toEqual({ ok: true, values: null });
   });
 
-  test('rejects an unsupported order type', () => {
+  test('rejects an unsupported order type', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',
       customer_name: 'Alex',
@@ -928,7 +990,7 @@ describe('checkoutConfirmFlow', () => {
     }).ok).toBe(false);
   });
 
-  test('applies normalized values to a new session object', () => {
+  test('applies normalized values to a new session object', async () => {
     const session = {
       state: 'confirming',
       basket,
@@ -953,7 +1015,7 @@ describe('checkoutConfirmFlow', () => {
     expect(next).not.toBe(session);
   });
 
-  test('buildCheckoutSubmitPayloadFromSession merges draft over stale session address', () => {
+  test('buildCheckoutSubmitPayloadFromSession merges draft over stale session address', async () => {
     const payload = buildCheckoutSubmitPayloadFromSession({
       customerName: 'Alex',
       orderType: 'delivery',
@@ -980,7 +1042,7 @@ describe('checkoutConfirmFlow', () => {
     });
   });
 
-  test('buildCheckoutSubmitPayloadFromSession keeps unit-in-street when no draft', () => {
+  test('buildCheckoutSubmitPayloadFromSession keeps unit-in-street when no draft', async () => {
     const payload = buildCheckoutSubmitPayloadFromSession({
       customerName: 'Alex',
       orderType: 'delivery',
@@ -991,7 +1053,7 @@ describe('checkoutConfirmFlow', () => {
     expect(validateCheckoutSubmit(payload).ok).toBe(true);
   });
 
-  test('builds and parses checkout tokens', () => {
+  test('builds and parses checkout tokens', async () => {
     const token = checkoutFlowToken('+431234', 'biz-7');
     expect(token).toBe('+431234|biz-7|checkout');
     expect(parseCheckoutFlowToken(token)).toEqual({
@@ -1001,7 +1063,7 @@ describe('checkoutConfirmFlow', () => {
     });
   });
 
-  test('parses legacy menu tokens and rejects malformed tokens', () => {
+  test('parses legacy menu tokens and rejects malformed tokens', async () => {
     expect(parseCheckoutFlowToken('+431234|biz-7')).toEqual({
       phone: '+431234',
       businessId: 'biz-7',

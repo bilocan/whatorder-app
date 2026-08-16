@@ -14,15 +14,17 @@ const {
 const { getBusinessInfo, getMenuContext } = require('../menuService');
 const { createOrder } = require('../orderService');
 const { customersRef, ordersRef, menuRef } = require('../../lib/collections');
-const { reverseGeocode, validateDeliveryAddress } = require('../../lib/geocode');
+const { reverseGeocode } = require('../../lib/geocode');
+const {
+  resolveTypedDeliveryAddress,
+  shouldConfirmDeliveryBuilding,
+} = require('../resolveTypedDeliveryAddress');
 const {
   hasUnitPattern,
   normalizeBuildingLabel,
   composeDeliveryLabel,
   isDeliverableBuildingLabel,
   parseDeliveryUnit,
-  splitStreetAndUnitHint,
-  isNearlySameAddress,
 } = require('../deliveryAddress');
 const { isStripeConfigured } = require('../../lib/stripe');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
@@ -281,7 +283,7 @@ async function getCustomerProfile(phone, businessId) {
     const data = snap.data();
     if (!data) return null;
     return {
-      name: data.name ?? null,
+      name: data.customerName ?? data.name ?? null,
       lastDeliveryAddress: data.lastDeliveryAddress ?? null,
       savedAddresses: Array.isArray(data.savedAddresses) ? data.savedAddresses : [],
     };
@@ -357,17 +359,11 @@ async function presentBuildingConfirm({ from, session, lang, building, lat, lng 
   });
 }
 
-/**
- * Confirm when building was corrected OR when customer omitted PLZ.
- * With PLZ present and label nearly identical, skip Yes/Edit (Wien optional).
- * Without PLZ always confirm — Wien alone is not enough (ambiguous Hauptstraße).
- */
 async function presentBuildingConfirmOrContinue({
   from, session, lang, businessId, basket, building, lat, lng, rawInput,
 }) {
   const label = normalizeBuildingLabel(building);
-  const inputHasPlz = /\b\d{4}\b/.test(String(rawInput || ''));
-  if (rawInput && inputHasPlz && isNearlySameAddress(rawInput, label)) {
+  if (!shouldConfirmDeliveryBuilding(rawInput, label)) {
     await continueAfterBuildingAccepted({
       from, session, lang, businessId, basket, building: label, lat, lng,
     });
@@ -402,50 +398,6 @@ async function continueAfterBuildingAccepted({ from, session, lang, businessId, 
 }
 
 const EDIT_ADDRESS = new Set(['edit', 'ändern', 'andern', 'aendern', 'düzenle', 'duzenle', 'change', 'degistir', 'değiştir']);
-
-async function resolveTypedDeliveryAddress(rawText) {
-  const trimmed = rawText.trim();
-  const { query, unitHint } = splitStreetAndUnitHint(trimmed);
-
-  // Try building-only first; add Wien when locality missing (AT pilot default).
-  const hasLocality = /\b(wien|vienna|\d{4})\b/i.test(query);
-  const candidates = [];
-  const push = (c) => {
-    if (c && !candidates.includes(c)) candidates.push(c);
-  };
-  push(query);
-  if (!hasLocality) push(`${query}, Wien`);
-  if (query !== trimmed) push(trimmed);
-  if (query !== trimmed && !/\b(wien|vienna|\d{4})\b/i.test(trimmed)) {
-    push(`${query}, Wien`);
-  }
-
-  let validated = null;
-  for (const candidate of candidates) {
-    validated = await validateDeliveryAddress(candidate);
-    if (validated?.formattedAddress && isDeliverableBuildingLabel(validated.formattedAddress)) {
-      break;
-    }
-    validated = null;
-  }
-
-  if (!validated?.formattedAddress) {
-    // Never accept unverified raw text (fake Hausnummer like "1111111" must fail).
-    console.warn(`[checkout] delivery address unresolved: ${trimmed.slice(0, 80)}`);
-    return { ok: false };
-  }
-
-  let building = normalizeBuildingLabel(validated.formattedAddress);
-  if (unitHint) {
-    building = composeDeliveryLabel(building, unitHint);
-  }
-  return {
-    ok: true,
-    building,
-    lat: validated.lat ?? null,
-    lng: validated.lng ?? null,
-  };
-}
 
 async function sendOrderTypePrompt(from, lang, deliveryFee, body) {
   return sendButtonMessage(from, {
@@ -826,7 +778,7 @@ async function sendCheckoutConfirmFlow(from, session, lang, businessId, basket, 
     flowCta: t('confirmFlowCta', lang),
     screen: 'CHECKOUT_REVIEW',
     body: buildFinalConfirmBody(session, lang, name, info, totals),
-    data: buildCheckoutReviewData({
+    data: await buildCheckoutReviewData({
       session: reviewSession,
       basket,
       info,

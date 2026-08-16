@@ -5,6 +5,8 @@ const { FIELDS: F } = require('../flows/fields');
 const { t: defaultT } = require('./templates');
 
 const FLOW_LANGS = new Set(['de', 'en', 'tr']);
+/** Match checkoutConfirmFlow.MAX_SAVED_ADDRESS_OPTIONS (avoid circular require). */
+const DEFAULT_MAX_SAVED_ADDRESSES = 5;
 
 function resolveFlowLang(sessionOrLang) {
   const raw = typeof sessionOrLang === 'string'
@@ -75,28 +77,43 @@ function cartDoneCopy(lang, t = defaultT) {
 function checkoutReviewCopy(lang, t = defaultT) {
   return {
     [F.UI_SCREEN_TITLE]: t('confirmListHeader', lang),
+    [F.UI_REVIEW_INTRO]: t('confirmFlowReviewIntro', lang),
+    [F.UI_REVIEW_SECTION_BASKET]: t('confirmFlowReviewSectionBasket', lang),
     [F.UI_NAME_LABEL]: t('confirmFlowNameLabel', lang),
+    [F.UI_NAME_EMPTY]: t('confirmFlowNameEmpty', lang),
     [F.UI_TYPE_LABEL]: t('confirmFlowTypeLabel', lang),
     [F.UI_ADDRESS_CHOICE_LABEL]: t('confirmFlowAddressChoiceLabel', lang),
     [F.UI_ADDRESS_LABEL]: t('confirmFlowAddressLabel', lang),
+    [F.UI_ADDRESS_HELPER]: t('confirmFlowAddressHelper', lang),
     [F.UI_APARTMENT_LABEL]: t('confirmFlowApartmentLabel', lang),
     [F.UI_APARTMENT_HELPER]: t('confirmFlowApartmentHelper', lang),
     [F.UI_DELIVERY_ADDRESS_EMPTY]: t('confirmFlowAddressEmpty', lang),
     [F.UI_NOTE_LABEL]: t('confirmFlowNoteLabel', lang),
     [F.UI_BACK_TO_CART]: t('confirmFlowBackToCart', lang),
     [F.UI_PLACE_ORDER]: t('confirmFlowFooter', lang),
-    [F.UI_MANAGE_ADDRESSES_LINK]: t('confirmFlowManageAddressesLink', lang),
+    [F.UI_MANAGE_ADDRESSES_LINK]: t('confirmFlowProfileLink', lang),
   };
 }
 
-function checkoutManageCopy(lang, t = defaultT) {
+function checkoutManageCopy(lang, t = defaultT, { savedCount = 0, maxSaved = DEFAULT_MAX_SAVED_ADDRESSES } = {}) {
+  const n = Math.max(0, Number(savedCount) || 0);
+  const max = Math.max(1, Number(maxSaved) || DEFAULT_MAX_SAVED_ADDRESSES);
   return {
     [F.UI_MANAGE_SCREEN_TITLE]: t('confirmFlowManageTitle', lang),
-    [F.UI_MANAGE_HINT]: t('confirmFlowManageHint', lang),
+    [F.UI_MANAGE_HINT]: t('confirmFlowManageHint', lang, n, max),
+    [F.UI_MANAGE_EDIT_CAPTION]: t('confirmFlowManageEditCaption', lang),
+    [F.UI_MANAGE_SELECT_HINT]: t('confirmFlowManageSelectHint', lang),
+    [F.UI_MANAGE_EDIT]: t('confirmFlowManageEdit', lang),
     [F.UI_MANAGE_SAVE]: t('confirmFlowManageSave', lang),
     [F.UI_MANAGE_SET_DEFAULT]: t('confirmFlowManageSetDefault', lang),
     [F.UI_MANAGE_DELETE]: t('confirmFlowManageDelete', lang),
     [F.UI_MANAGE_BACK]: t('confirmFlowManageBack', lang),
+    [F.UI_MANAGE_CONFIRM_YES]: t('confirmFlowManageConfirmYes', lang),
+    [F.UI_MANAGE_CONFIRM_EDIT]: t('confirmFlowManageConfirmEdit', lang),
+    [F.UI_MANAGE_CONFIRM_TYPED]: t('confirmFlowManageConfirmTyped', lang),
+    [F.UI_MANAGE_CONFIRM_FOUND]: t('confirmFlowManageConfirmFound', lang),
+    [F.UI_PROFILE_NAME_LABEL]: t('confirmFlowProfileNameLabel', lang),
+    [F.UI_PROFILE_NAME_HELPER]: t('confirmFlowProfileNameHelper', lang),
   };
 }
 

@@ -50,6 +50,7 @@ describe('loadCustomerAddresses', () => {
     createCustomerStore();
 
     await expect(loadCustomerAddresses(PHONE, BIZ)).resolves.toEqual({
+      customerName: null,
       savedAddresses: [],
       lastDeliveryAddress: null,
     });
@@ -62,6 +63,7 @@ describe('loadCustomerAddresses', () => {
     });
 
     await expect(loadCustomerAddresses(PHONE, BIZ)).resolves.toEqual({
+      customerName: null,
       savedAddresses: ['Addr A', 'Addr B'],
       lastDeliveryAddress: 'Addr A',
     });
@@ -80,6 +82,7 @@ describe('saveCustomerAddress', () => {
 
     expect(result).toEqual({
       ok: true,
+      customerName: null,
       savedAddresses: ['Hauptstraße 5, Top 2'],
       lastDeliveryAddress: null,
     });
@@ -100,6 +103,7 @@ describe('saveCustomerAddress', () => {
 
     expect(result).toEqual({
       ok: true,
+      customerName: null,
       savedAddresses: ['Hippgasse 11, Top 14, 1160 Wien'],
       lastDeliveryAddress: null,
     });
@@ -156,6 +160,7 @@ describe('saveCustomerAddress', () => {
 
     expect(result).toEqual({
       ok: true,
+      customerName: null,
       savedAddresses: ['New Label', 'Other'],
       lastDeliveryAddress: 'New Label',
     });
@@ -181,6 +186,7 @@ describe('saveCustomerAddress', () => {
 
     expect(result).toEqual({
       ok: true,
+      customerName: null,
       savedAddresses: ['Legacy Default Fixed'],
       lastDeliveryAddress: 'Legacy Default Fixed',
     });
@@ -201,6 +207,7 @@ describe('saveCustomerAddress', () => {
 
     expect(result).toEqual({
       ok: true,
+      customerName: null,
       savedAddresses: ['Same Label'],
       lastDeliveryAddress: 'Same Label',
     });
@@ -266,6 +273,7 @@ describe('setDefaultCustomerAddress', () => {
 
     expect(result).toEqual({
       ok: true,
+      customerName: null,
       savedAddresses: ['Addr A', 'Addr B'],
       lastDeliveryAddress: 'Addr B',
     });
@@ -289,6 +297,7 @@ describe('setDefaultCustomerAddress', () => {
 
     expect(result).toEqual({
       ok: true,
+      customerName: null,
       savedAddresses: ['Legacy Default'],
       lastDeliveryAddress: 'Legacy Default',
     });
@@ -341,6 +350,7 @@ describe('deleteCustomerAddress', () => {
 
     expect(result).toEqual({
       ok: true,
+      customerName: null,
       savedAddresses: [],
       lastDeliveryAddress: null,
     });
@@ -364,6 +374,7 @@ describe('deleteCustomerAddress', () => {
 
     expect(result).toEqual({
       ok: true,
+      customerName: null,
       savedAddresses: ['Default Addr'],
       lastDeliveryAddress: 'Default Addr',
     });
@@ -387,6 +398,7 @@ describe('deleteCustomerAddress', () => {
 
     expect(result).toEqual({
       ok: true,
+      customerName: null,
       savedAddresses: ['Older', 'Newest'],
       lastDeliveryAddress: 'Newest',
     });
@@ -406,6 +418,7 @@ describe('deleteCustomerAddress', () => {
 
     expect(result).toEqual({
       ok: true,
+      customerName: null,
       savedAddresses: ['Kept Addr'],
       lastDeliveryAddress: 'Kept Addr',
     });

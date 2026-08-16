@@ -1,4 +1,4 @@
-const { sessionRef } = require('../lib/collections');
+﻿const { sessionRef } = require('../lib/collections');
 const { getBusinessInfo } = require('../bot/menuService');
 const { t } = require('../bot/templates');
 const {
@@ -13,18 +13,30 @@ const {
   manageScreenForReview,
   returnReviewScreenForManage,
   ADDRESS_CHOICE_NEW,
+  MAX_SAVED_ADDRESS_OPTIONS,
 } = require('../bot/checkoutConfirmFlow');
-const { splitDeliveryAddressFields } = require('../bot/deliveryAddress');
+const {
+  splitDeliveryAddressFields,
+  isHausSkip,
+  formatConfirmAddressDisplay,
+  normalizeBuildingLabel,
+} = require('../bot/deliveryAddress');
+const {
+  resolveTypedDeliveryAddress,
+  shouldConfirmDeliveryBuilding,
+} = require('../bot/resolveTypedDeliveryAddress');
 const { checkoutReviewCopy, checkoutManageCopy } = require('../bot/menuFlowCopy');
 const {
   loadCustomerAddresses,
   saveCustomerAddress,
+  saveCustomerName,
   setDefaultCustomerAddress,
   deleteCustomerAddress,
 } = require('../bot/customerAddresses');
 const { loadCheckoutTotals } = require('../bot/checkoutDeal');
 const { basketSubtotal } = require('../bot/orderTotals');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
+const { attachAddressListImages, addressHomeIconBase64 } = require('../lib/flowImages');
 
 const REVIEW_SCREENS = new Set([
   S.CHECKOUT_REVIEW,
@@ -41,14 +53,153 @@ const MANAGE_SCREENS = new Set([
 const CHECKOUT_EXCHANGE_SCREENS = new Set([...REVIEW_SCREENS, ...MANAGE_SCREENS]);
 
 function emptyProfile() {
-  return { savedAddresses: [], lastDeliveryAddress: null };
+  return { savedAddresses: [], lastDeliveryAddress: null, customerName: null };
 }
 
-function reviewDataFrom({
+function trimmedName(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/**
+ * Persist profile name from manage form. Syncs session so Prüfen shows the new name.
+ */
+async function applyNameFromManagePayload({
+  phone, businessId, payload, profile, session, ref,
+}) {
+  if (!Object.prototype.hasOwnProperty.call(payload, F.CUSTOMER_NAME)) {
+    return { ok: true, profile, session };
+  }
+  const name = trimmedName(payload[F.CUSTOMER_NAME]);
+  if (name.length < 2) {
+    return { ok: false, errorKey: 'confirmFlowErrorName' };
+  }
+
+  let nextProfile = profile;
+  const current = trimmedName(profile.customerName);
+  if (name !== current) {
+    const saved = await saveCustomerName({ phone, businessId, name });
+    if (!saved.ok) return saved;
+    nextProfile = {
+      ...profile,
+      customerName: saved.customerName,
+      savedAddresses: saved.savedAddresses ?? profile.savedAddresses,
+      lastDeliveryAddress: saved.lastDeliveryAddress ?? profile.lastDeliveryAddress,
+    };
+  } else if (!current) {
+    nextProfile = { ...profile, customerName: name };
+  }
+
+  const sessionName = trimmedName(session.customerName);
+  const draft = session.confirmFlowDraft && typeof session.confirmFlowDraft === 'object'
+    ? { ...session.confirmFlowDraft, customerName: name }
+    : { customerName: name };
+  if (name !== sessionName || session.confirmFlowDraft?.customerName !== name) {
+    await ref.set({
+      customerName: name,
+      confirmFlowDraft: draft,
+      updatedAt: new Date(),
+    }, { merge: true });
+    return {
+      ok: true,
+      profile: nextProfile,
+      session: { ...session, customerName: name, confirmFlowDraft: draft },
+    };
+  }
+
+  return { ok: true, profile: nextProfile, session };
+}
+
+function profileWithSessionName(profile, session) {
+  if (trimmedName(profile.customerName)) return profile;
+  const seed = trimmedName(session.customerName)
+    || trimmedName(session.confirmFlowDraft?.customerName);
+  if (seed.length < 2) return profile;
+  return { ...profile, customerName: seed };
+}
+
+/**
+ * After Profil: selected saved row (or a new default) becomes the order delivery address
+ * so Prüfen updates. Name-only return with no selection keeps the current address.
+ */
+async function applyAddressFromManageReturn({
+  payload = {},
+  profile,
+  session,
+  ref,
+  lang,
+  preferredLabel = null,
+}) {
+  const labels = profileAddressLabels(
+    profile,
+    profile.lastDeliveryAddress || profile.savedAddresses?.[0] || '',
+    lang,
+  );
+  const choice = payload[F.MANAGE_ADDRESS_CHOICE];
+  let label = trimmedName(preferredLabel);
+  let choiceId = null;
+
+  if (!label && choice && choice !== ADDRESS_CHOICE_NEW && labels[choice]) {
+    label = labels[choice];
+    choiceId = choice;
+  }
+
+  if (!label) {
+    const defaultAddr = trimmedName(profile.lastDeliveryAddress);
+    const sessionAddr = trimmedName(session.deliveryAddress);
+    if (defaultAddr && defaultAddr.toLowerCase() !== sessionAddr.toLowerCase()) {
+      label = defaultAddr;
+    }
+  }
+
+  if (!label) return session;
+
+  const sessionAddr = trimmedName(session.deliveryAddress);
+  const draftAddr = trimmedName(session.confirmFlowDraft?.deliveryAddress);
+  if (
+    sessionAddr.toLowerCase() === label.toLowerCase()
+    && (!draftAddr || draftAddr.toLowerCase() === label.toLowerCase())
+  ) {
+    return session;
+  }
+
+  const parts = splitDeliveryAddressFields(label);
+  const draft = session.confirmFlowDraft && typeof session.confirmFlowDraft === 'object'
+    ? { ...session.confirmFlowDraft }
+    : {};
+  draft.deliveryAddress = label;
+  draft.deliveryApartment = parts.apartment;
+  draft.orderType = 'delivery';
+  if (choiceId) {
+    draft.addressChoice = choiceId;
+  } else {
+    delete draft.addressChoice;
+  }
+
+  const next = {
+    ...session,
+    deliveryAddress: label,
+    orderType: 'delivery',
+    confirmFlowDraft: draft,
+  };
+  await ref.set({
+    deliveryAddress: label,
+    orderType: 'delivery',
+    confirmFlowDraft: draft,
+    updatedAt: new Date(),
+  }, { merge: true });
+  return next;
+}
+
+async function reviewDataFrom({
   session, basket, info, lang, profile, deal, keepNewAddress = false,
 }) {
+  // Active session name wins for this order; profile fills gaps (and after Profile edits we sync both).
+  const resolvedName = trimmedName(session?.customerName) || trimmedName(profile?.customerName);
+  const reviewSession = resolvedName
+    ? { ...session, customerName: resolvedName }
+    : session;
   return buildCheckoutReviewData({
-    session,
+    session: reviewSession,
     basket,
     info,
     lang,
@@ -83,7 +234,17 @@ async function loadSession(phone) {
   };
 }
 
-function buildManageData({ profile, lang, payload = {}, errorKey = null, refillFromChoice = false }) {
+async function buildManageData({
+  profile,
+  lang,
+  payload = {},
+  errorKey = null,
+  refillFromChoice = false,
+  editVisible = false,
+  manageUiMode = null,
+  confirmPendingLabel = '',
+  confirmTypedLabel = '',
+}) {
   const currentAddress = profile.lastDeliveryAddress
     || profile.savedAddresses?.[0]
     || '';
@@ -118,13 +279,41 @@ function buildManageData({ profile, lang, payload = {}, errorKey = null, refillF
       : selectedFields.apartment;
   }
 
+  const savedCount = state.addressOptions.filter((option) => option.id !== ADDRESS_CHOICE_NEW).length;
+  const addressOptions = await attachAddressListImages(state.addressOptions, ADDRESS_CHOICE_NEW);
+  const mode = manageUiMode || (editVisible ? 'edit' : 'list');
+  // List mode: no radio preselected - avoids Meta init select_address echo opening the form.
+  const formChoice = mode === 'list' ? '' : choice;
+  const showFields = mode === 'edit' || mode === 'confirm';
+
+  const copy = checkoutManageCopy(lang, t, { savedCount, maxSaved: MAX_SAVED_ADDRESS_OPTIONS });
+  if (mode === 'confirm') {
+    copy[F.UI_MANAGE_HINT] = t('confirmFlowManageConfirmHint', lang);
+  }
+
+  const confirmDisplay = mode === 'confirm'
+    ? formatConfirmAddressDisplay(confirmPendingLabel)
+    : { label: '', building: '', unit: '', locality: '' };
+  const pinImage = await addressHomeIconBase64();
+
   return {
     ...checkoutReviewCopy(lang, t),
-    ...checkoutManageCopy(lang, t),
-    [F.MANAGE_ADDRESS_CHOICE]: choice,
-    [F.MANAGE_ADDRESS_OPTIONS]: state.addressOptions,
-    [F.DELIVERY_ADDRESS]: street,
-    [F.DELIVERY_APARTMENT]: apartment,
+    ...copy,
+    [F.MANAGE_ADDRESS_CHOICE]: formChoice,
+    [F.MANAGE_ADDRESS_OPTIONS]: addressOptions,
+    [F.DELIVERY_ADDRESS]: showFields ? street : '',
+    [F.DELIVERY_APARTMENT]: showFields ? apartment : '',
+    [F.MANAGE_UI_MODE]: mode,
+    [F.MANAGE_CONFIRM_PENDING]: mode === 'confirm' ? String(confirmDisplay.label || confirmPendingLabel || '') : '',
+    [F.MANAGE_CONFIRM_TYPED]: mode === 'confirm' ? String(confirmTypedLabel || '') : '',
+    [F.MANAGE_CONFIRM_BUILDING]: confirmDisplay.building || '',
+    [F.MANAGE_CONFIRM_UNIT]: confirmDisplay.unit || '',
+    [F.MANAGE_CONFIRM_LOCALITY]: confirmDisplay.locality || '',
+    [F.MANAGE_CONFIRM_UNIT_VISIBLE]: Boolean(confirmDisplay.unit),
+    [F.MANAGE_CONFIRM_PIN_IMAGE]: pinImage,
+    [F.CUSTOMER_NAME]: Object.prototype.hasOwnProperty.call(payload, F.CUSTOMER_NAME)
+      ? String(payload[F.CUSTOMER_NAME] ?? '')
+      : (trimmedName(profile.customerName) || ''),
     // Always present: the manage screen binds a TextCaption to these, and Meta needs every
     // declared data field on every response for the screen.
     [F.ERROR_MESSAGE]: errorKey ? t(errorKey, lang) : '',
@@ -132,13 +321,33 @@ function buildManageData({ profile, lang, payload = {}, errorKey = null, refillF
   };
 }
 
-function manageResponse({
-  screen, profile, lang, payload, errorKey = null, version, refillFromChoice = false,
+async function manageResponse({
+  screen,
+  profile,
+  lang,
+  payload,
+  errorKey = null,
+  version,
+  refillFromChoice = false,
+  editVisible = false,
+  manageUiMode = null,
+  confirmPendingLabel = '',
+  confirmTypedLabel = '',
 }) {
   return {
     version,
     screen,
-    data: buildManageData({ profile, lang, payload, errorKey, refillFromChoice }),
+    data: await buildManageData({
+      profile,
+      lang,
+      payload,
+      errorKey,
+      refillFromChoice,
+      editVisible,
+      manageUiMode,
+      confirmPendingLabel,
+      confirmTypedLabel,
+    }),
   };
 }
 
@@ -241,7 +450,7 @@ async function buildReviewReturnResponse({
   return {
     version,
     screen,
-    data: reviewDataFrom({
+    data: await reviewDataFrom({
       session: reviewSession,
       basket,
       info,
@@ -276,7 +485,7 @@ async function buildReviewFromDraft({
   return {
     version,
     screen,
-    data: reviewDataFrom({
+    data: await reviewDataFrom({
       session: reviewSession,
       basket,
       info,
@@ -361,7 +570,7 @@ async function buildReviewDataResponse({
   return {
     version,
     screen,
-    data: reviewDataFrom({
+    data: await reviewDataFrom({
       session,
       basket,
       info,
@@ -373,7 +582,7 @@ async function buildReviewDataResponse({
 }
 
 /** Cross-tenant token: review shape, but no basket, name or address from this session. */
-function buildBlankReviewResponse({
+async function buildBlankReviewResponse({
   screen, lang, version, businessId, phone,
 }) {
   return buildReviewDataResponse({
@@ -390,14 +599,21 @@ function buildBlankReviewResponse({
 /**
  * The manage radio and the TextInputs are decoupled (no on-select data_exchange), so a
  * Speichern with untouched inputs means "keep this address", not "rewrite it".
+ * Haus and empty apartment both mean building-only (no unit in the stored label).
  */
 function isUnchangedFromStoredLabel(label, streetValue, apartmentValue) {
   const street = normalizedAddress(streetValue);
-  const apartment = normalizedAddress(apartmentValue);
+  const apartment = normalizeApartmentForCompare(apartmentValue);
   if (!street && !apartment) return true;
   const stored = splitDeliveryAddressFields(label || '');
   return street === normalizedAddress(stored.street)
-    && apartment === normalizedAddress(stored.apartment);
+    && apartment === normalizeApartmentForCompare(stored.apartment);
+}
+
+function normalizeApartmentForCompare(value) {
+  const apartment = normalizedAddress(value);
+  if (!apartment || isHausSkip(apartment)) return '';
+  return apartment;
 }
 
 function isManageSetAsDefaultChecked(value) {
@@ -427,7 +643,7 @@ async function buildCheckoutInitResponse({ phone, businessId, version }) {
     basket,
     session: reviewSession,
   });
-  const data = reviewDataFrom({
+  const data = await reviewDataFrom({
     session: reviewSession,
     basket,
     info,
@@ -499,6 +715,7 @@ async function buildCheckoutDataExchangeResponse({
           payload,
           version,
           refillFromChoice: true,
+          editVisible: true,
         });
       }
       return buildBlankReviewResponse({
@@ -517,6 +734,7 @@ async function buildCheckoutDataExchangeResponse({
         payload,
         errorKey: 'confirmFlowErrorManageGeneric',
         version,
+        editVisible: false,
       });
     }
 
@@ -536,6 +754,9 @@ async function buildCheckoutDataExchangeResponse({
         payload,
         version,
         refillFromChoice: true,
+        // Real tap opens the form. List mode sends no preselected radio, so Meta should
+        // not echo select_address on open (that echo was why we needed a Düzenle button).
+        editVisible: true,
       });
     }
     if (REVIEW_SCREENS.has(screen)) {
@@ -549,6 +770,18 @@ async function buildCheckoutDataExchangeResponse({
         phone,
       });
     }
+  }
+
+  if (action === 'manage_open_edit' && MANAGE_SCREENS.has(screen)) {
+    return manageResponse({
+      screen,
+      profile,
+      lang,
+      payload,
+      version,
+      refillFromChoice: true,
+      editVisible: true,
+    });
   }
 
   if (action === 'select_order_type' && REVIEW_SCREENS.has(screen)) {
@@ -606,17 +839,44 @@ async function buildCheckoutDataExchangeResponse({
         await ref.set({ confirmFlowDraft: draft, updatedAt: new Date() }, { merge: true });
         session.confirmFlowDraft = draft;
       }
-      return manageResponse({ screen: nextScreen, profile, lang, version });
+      return manageResponse({
+        screen: nextScreen,
+        profile: profileWithSessionName(profile, session),
+        lang,
+        version,
+      });
     }
   }
 
   if (action === 'manage_back') {
     const nextScreen = returnReviewScreenForManage(screen);
     if (nextScreen) {
+      const named = await applyNameFromManagePayload({
+        phone, businessId, payload, profile, session, ref,
+      });
+      if (!named.ok) {
+        return manageResponse({
+          screen,
+          profile: named.profile || profile,
+          lang,
+          payload,
+          errorKey: named.errorKey,
+          version,
+          editVisible: true,
+        });
+      }
+      const withAddress = await applyAddressFromManageReturn({
+        payload,
+        profile: named.profile,
+        session: named.session,
+        ref,
+        lang,
+      });
+      await ref.set({ flowManageAddressConfirm: null, updatedAt: new Date() }, { merge: true });
       return buildReviewReturnResponse({
         screen: nextScreen,
-        profile,
-        session,
+        profile: named.profile,
+        session: withAddress,
         ref,
         version,
         businessId,
@@ -625,13 +885,134 @@ async function buildCheckoutDataExchangeResponse({
     }
   }
 
+  if (action === 'manage_confirm_reject' && MANAGE_SCREENS.has(screen)) {
+    const pending = session.flowManageAddressConfirm;
+    await ref.set({ flowManageAddressConfirm: null, updatedAt: new Date() }, { merge: true });
+    return manageResponse({
+      screen,
+      profile,
+      lang,
+      payload: {
+        ...payload,
+        [F.MANAGE_ADDRESS_CHOICE]: pending?.choice || payload[F.MANAGE_ADDRESS_CHOICE],
+        [F.DELIVERY_ADDRESS]: pending?.street ?? payload[F.DELIVERY_ADDRESS],
+        [F.DELIVERY_APARTMENT]: pending?.apartment ?? payload[F.DELIVERY_APARTMENT],
+      },
+      version,
+      editVisible: true,
+    });
+  }
+
+  if (action === 'manage_confirm_accept' && nextScreenAfterManageWrite(screen)) {
+    const pending = session.flowManageAddressConfirm;
+    const labels = profileAddressLabels(
+      profile,
+      profile.lastDeliveryAddress || profile.savedAddresses?.[0] || '',
+      lang,
+    );
+    const choice = pending?.choice || payload[F.MANAGE_ADDRESS_CHOICE];
+    const exactLabel = labels[choice] || null;
+    const label = (pending?.label || payload[F.MANAGE_CONFIRM_PENDING] || '').trim();
+    const setDefault = pending
+      ? Boolean(pending.setDefault)
+      : isManageSetAsDefaultChecked(payload[F.MANAGE_SET_AS_DEFAULT]);
+
+    if (!label || (choice !== ADDRESS_CHOICE_NEW && !exactLabel)) {
+      return manageResponse({
+        screen,
+        profile,
+        lang,
+        payload,
+        errorKey: 'confirmFlowErrorManageGeneric',
+        version,
+        editVisible: true,
+      });
+    }
+
+    await ref.set({ flowManageAddressConfirm: null, updatedAt: new Date() }, { merge: true });
+    let result = await saveCustomerAddress({
+      phone,
+      businessId,
+      label,
+      replaceLabel: choice === ADDRESS_CHOICE_NEW ? null : exactLabel,
+    });
+    if (result.ok && setDefault) {
+      result = await setDefaultCustomerAddress({
+        phone,
+        businessId,
+        label,
+      });
+    }
+
+    if (!result.ok) {
+      return manageResponse({
+        screen,
+        profile,
+        lang,
+        payload,
+        errorKey: result.errorKey,
+        version,
+        editVisible: true,
+      });
+    }
+
+    const nextScreen = nextScreenAfterManageWrite(screen);
+    const nextProfile = {
+      savedAddresses: result.savedAddresses,
+      lastDeliveryAddress: result.lastDeliveryAddress,
+      customerName: result.customerName ?? profile.customerName ?? null,
+    };
+    if (nextScreen === S.CHECKOUT_REVIEW_RETURN
+      || nextScreen === S.CHECKOUT_REVIEW_DONE) {
+      const withAddress = await applyAddressFromManageReturn({
+        payload,
+        profile: nextProfile,
+        session,
+        ref,
+        lang,
+        preferredLabel: result.lastDeliveryAddress || label,
+      });
+      return buildReviewReturnResponse({
+        screen: nextScreen,
+        profile: nextProfile,
+        session: withAddress,
+        ref,
+        version,
+        businessId,
+        phone,
+      });
+    }
+    return manageResponse({ screen: nextScreen, profile: nextProfile, lang, version });
+  }
+
   const isManageMutation = action === 'manage_save'
     || action === 'manage_set_default'
     || action === 'manage_delete';
   if (isManageMutation && nextScreenAfterManageWrite(screen)) {
+    let workingProfile = profile;
+    let workingSession = session;
+    if (action === 'manage_save') {
+      const named = await applyNameFromManagePayload({
+        phone, businessId, payload, profile, session, ref,
+      });
+      if (!named.ok) {
+        return manageResponse({
+          screen,
+          profile,
+          lang,
+          payload,
+          errorKey: named.errorKey,
+          version,
+          editVisible: true,
+        });
+      }
+      workingProfile = named.profile;
+      workingSession = named.session;
+    }
+
     const labels = profileAddressLabels(
-      profile,
-      profile.lastDeliveryAddress || profile.savedAddresses?.[0] || '',
+      workingProfile,
+      workingProfile.lastDeliveryAddress || workingProfile.savedAddresses?.[0] || '',
       lang,
     );
     const choice = payload[F.MANAGE_ADDRESS_CHOICE];
@@ -640,17 +1021,30 @@ async function buildCheckoutDataExchangeResponse({
 
     if (action === 'manage_save') {
       let savedLabel = exactLabel;
+      const streetRaw = typeof payload[F.DELIVERY_ADDRESS] === 'string'
+        ? payload[F.DELIVERY_ADDRESS].trim()
+        : '';
+      // Edit fields may be hidden (If) until select_address - empty payload then means "keep".
+      const fieldsHiddenOrEmpty = !streetRaw;
       if (choice !== ADDRESS_CHOICE_NEW && !exactLabel) {
         result = { ok: false, errorKey: 'confirmFlowErrorManageSelect' };
-      } else if (choice !== ADDRESS_CHOICE_NEW && isUnchangedFromStoredLabel(
-        exactLabel,
-        payload[F.DELIVERY_ADDRESS],
-        payload[F.DELIVERY_APARTMENT],
-      )) {
+      } else if (
+        choice !== ADDRESS_CHOICE_NEW
+        && exactLabel
+        && (
+          fieldsHiddenOrEmpty
+          || isUnchangedFromStoredLabel(
+            exactLabel,
+            payload[F.DELIVERY_ADDRESS],
+            payload[F.DELIVERY_APARTMENT],
+          )
+        )
+      ) {
         result = {
           ok: true,
-          savedAddresses: profile.savedAddresses,
-          lastDeliveryAddress: profile.lastDeliveryAddress,
+          savedAddresses: workingProfile.savedAddresses,
+          lastDeliveryAddress: workingProfile.lastDeliveryAddress,
+          customerName: workingProfile.customerName,
         };
       } else {
         const composed = composeDeliveryAddressFromFields(
@@ -660,13 +1054,44 @@ async function buildCheckoutDataExchangeResponse({
         if (!composed.ok) {
           result = composed;
         } else {
-          savedLabel = composed.deliveryAddress;
-          result = await saveCustomerAddress({
-            phone,
-            businessId,
-            label: composed.deliveryAddress,
-            replaceLabel: choice === ADDRESS_CHOICE_NEW ? null : exactLabel,
-          });
+          const resolved = await resolveTypedDeliveryAddress(composed.deliveryAddress);
+          if (!resolved.ok) {
+            result = { ok: false, errorKey: 'confirmFlowErrorAddressInvalid' };
+          } else if (shouldConfirmDeliveryBuilding(composed.deliveryAddress, resolved.building)) {
+            const apartmentRaw = typeof payload[F.DELIVERY_APARTMENT] === 'string'
+              ? payload[F.DELIVERY_APARTMENT].trim()
+              : '';
+            const pendingLabel = normalizeBuildingLabel(resolved.building);
+            await ref.set({
+              flowManageAddressConfirm: {
+                label: pendingLabel,
+                typed: composed.deliveryAddress,
+                choice,
+                setDefault: isManageSetAsDefaultChecked(payload[F.MANAGE_SET_AS_DEFAULT]),
+                street: streetRaw,
+                apartment: apartmentRaw,
+              },
+              updatedAt: new Date(),
+            }, { merge: true });
+            return manageResponse({
+              screen,
+              profile: workingProfile,
+              lang,
+              payload,
+              version,
+              manageUiMode: 'confirm',
+              confirmPendingLabel: pendingLabel,
+              confirmTypedLabel: composed.deliveryAddress,
+            });
+          } else {
+            savedLabel = normalizeBuildingLabel(resolved.building);
+            result = await saveCustomerAddress({
+              phone,
+              businessId,
+              label: savedLabel,
+              replaceLabel: choice === ADDRESS_CHOICE_NEW ? null : exactLabel,
+            });
+          }
         }
       }
 
@@ -702,32 +1127,52 @@ async function buildCheckoutDataExchangeResponse({
     if (!result.ok) {
       return manageResponse({
         screen,
-        profile,
+        profile: workingProfile,
         lang,
         payload,
         errorKey: result.errorKey,
         version,
+        editVisible: true,
       });
     }
+
+    await ref.set({ flowManageAddressConfirm: null, updatedAt: new Date() }, { merge: true });
 
     const nextScreen = nextScreenAfterManageWrite(screen);
     const nextProfile = {
       savedAddresses: result.savedAddresses,
       lastDeliveryAddress: result.lastDeliveryAddress,
+      customerName: result.customerName ?? workingProfile.customerName ?? null,
     };
     if (nextScreen === S.CHECKOUT_REVIEW_RETURN
       || nextScreen === S.CHECKOUT_REVIEW_DONE) {
+      const preferredLabel = action === 'manage_delete'
+        ? (result.lastDeliveryAddress || null)
+        : (result.lastDeliveryAddress || exactLabel);
+      const withAddress = await applyAddressFromManageReturn({
+        payload,
+        profile: nextProfile,
+        session: workingSession,
+        ref,
+        lang,
+        preferredLabel,
+      });
       return buildReviewReturnResponse({
         screen: nextScreen,
         profile: nextProfile,
-        session,
+        session: withAddress,
         ref,
         version,
         businessId,
         phone,
       });
     }
-    return manageResponse({ screen: nextScreen, profile: nextProfile, lang, version });
+    return manageResponse({
+      screen: nextScreen,
+      profile: nextProfile,
+      lang,
+      version,
+    });
   }
 
   // Unknown checkout exchange: stay on the current screen with its own data shape.

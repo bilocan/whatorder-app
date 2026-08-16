@@ -21,6 +21,8 @@ jest.mock('../../lib/flowImages', () => ({
     image: `img_${i.id}`,
     'alt-text': i.title,
   }))),
+  attachAddressListImages: jest.fn(async (options) => options),
+  addressHomeIconBase64: jest.fn(async () => 'AA=='),
 }));
 jest.mock('../../bot/checkoutDeal', () => ({
   loadCheckoutTotals: jest.fn(async ({ basket, session = {}, info = {} }) => {
