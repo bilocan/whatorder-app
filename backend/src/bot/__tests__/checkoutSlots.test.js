@@ -36,6 +36,23 @@ describe('checkoutSlots', () => {
       expect(slots.deliveryAddress).toBe('Musterstraße 1');
     });
 
+    test('keeps Top in the same comma segment (e2e-wa checkout Flow place)', () => {
+      const slots = extractCheckoutSlotsRules(
+        '1 döner und 1 ayran zum Liefern, Hauptstraße 5 Top 1',
+        '1 doner und 1 ayran zum liefern, hauptstrasse 5 top 1',
+      );
+      expect(slots.orderType).toBe('delivery');
+      expect(slots.deliveryAddress).toBe('Hauptstraße 5 Top 1');
+    });
+
+    test('drops a following Top segment after a comma', () => {
+      const slots = extractCheckoutSlotsRules(
+        '1 döner zum Liefern, Hauptstraße 5, Top 1',
+        '1 doner zum liefern, hauptstrasse 5, top 1',
+      );
+      expect(slots.deliveryAddress).toBe('Hauptstraße 5');
+    });
+
     test('pickup phrase', () => {
       const slots = extractCheckoutSlotsRules('zum Abholen bitte', 'zum abholen bitte');
       expect(slots.orderType).toBe('pickup');

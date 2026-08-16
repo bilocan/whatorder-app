@@ -1,6 +1,12 @@
 'use strict';
 
-const DELIVERY_PHRASE = '1 döner und 1 ayran zum Liefern, Hauptstraße 5';
+const { hasUnitPattern } = require('../../src/bot/deliveryAddress');
+
+// Keep Top in the same comma segment as the street. extractCheckoutSlotsRules
+// splits on commas, so "Hauptstraße 5, Top 1" stores only "Hauptstraße 5".
+// Checkout Flow typed `ja` then fails confirmFlowErrorApartment (no unit).
+const DELIVERY_ADDRESS = 'Hauptstraße 5 Top 1';
+const DELIVERY_PHRASE = `1 döner und 1 ayran zum Liefern, ${DELIVERY_ADDRESS}`;
 const DELIVERY_PHRASE_NO_ADDRESS = '1 döner und 1 ayran zum Liefern';
 const ADDRESS_SHORTCIRCUIT = 'Hauptstraße 5, 1030 Wien, Top 1';
 
@@ -306,6 +312,7 @@ async function addDonerAyranDelivery(session, opts = {}) {
         && (
           expectAddress === 'present'
             ? Boolean(String(s?.deliveryAddress || '').trim())
+              && hasUnitPattern(s.deliveryAddress)
             : !String(s?.deliveryAddress || '').trim()
         ),
       { timeoutMs: 45_000 },
@@ -332,6 +339,11 @@ async function addDonerAyranDelivery(session, opts = {}) {
   const hasAddress = Boolean(String(sess?.deliveryAddress || '').trim());
   if (expectAddress === 'present' && !hasAddress) {
     throw new Error('Expected non-empty delivery address');
+  }
+  if (expectAddress === 'present' && !hasUnitPattern(sess.deliveryAddress)) {
+    throw new Error(
+      `Checkout Flow place requires a unit (Top/Tür/Stiege) in the delivery address, got ${sess.deliveryAddress}`,
+    );
   }
   if (expectAddress === 'absent' && hasAddress) {
     throw new Error('Expected empty delivery address');
@@ -401,6 +413,10 @@ async function completeDeliveryAddressAsk(session, opts = {}) {
  * WA Web often reports a successful DOM click on a stale/unloadable Bestätigen
  * bubble while the session stays in `confirming` and no order is created —
  * same pattern as startCheckoutFromBasket's fertig retry.
+ *
+ * Do not click Prüfen / Kontrol / Review: that opens the checkout Flow, which
+ * WA Web cannot complete. Typed `ja` still places when session fields validate
+ * (name + pickup, or delivery with a unit in the address).
  * @param {import('../lib/session').WaE2eSession} session
  * @param {{ log?: (...a: any[]) => void, leaveConfirmingTimeoutMs?: number }} [opts]
  */
@@ -430,10 +446,21 @@ async function confirmOrder(session, opts = {}) {
     log('no confirm bubble, sending ja');
     await session.sendText('ja');
   }
-  await session.waitForSession(
-    (s) => s && s.state !== 'confirming',
-    { timeoutMs: 45_000 },
-  );
+  try {
+    await session.waitForSession(
+      (s) => s && s.state !== 'confirming',
+      { timeoutMs: 45_000 },
+    );
+  } catch (err) {
+    const snap = await session.getSession().catch(() => null);
+    throw new Error(
+      'confirmOrder still confirming after ja '
+      + `(checkout Flow place needs a filled name and, for delivery, a unit). `
+      + `state=${snap?.state || 'none'} name=${snap?.customerName || ''} `
+      + `type=${snap?.orderType || ''} addr=${snap?.deliveryAddress || ''} `
+      + `(${err.message})`,
+    );
+  }
   return clicked || 'ja';
 }
 
@@ -443,6 +470,9 @@ function sleep(ms) {
 
 module.exports = {
   ADDRESS_SHORTCIRCUIT,
+  DELIVERY_ADDRESS,
+  DELIVERY_PHRASE,
+  DELIVERY_PHRASE_NO_ADDRESS,
   E2E_DONER_GROUPS,
   clickAny,
   openRestaurant,
