@@ -554,6 +554,10 @@ test('manage errors are flagged visible for the manage screen caption', async ()
 });
 
 test('manage_save on a saved row with untouched inputs is a keep, not a rewrite', async () => {
+  const { ref } = mockSession({
+    deliveryAddress: ADDRESS_1,
+    orderType: 'delivery',
+  });
   const response = await exchange(S.ADDRESS_MANAGE, {
     checkout_action: 'manage_save',
     [F.MANAGE_ADDRESS_CHOICE]: 'addr_1',
@@ -562,8 +566,41 @@ test('manage_save on a saved row with untouched inputs is a keep, not a rewrite'
   });
 
   expect(saveCustomerAddress).not.toHaveBeenCalled();
-  expect(response.screen).toBe(S.ADDRESS_MANAGE_UPDATED);
-  expect(response.data[F.ERROR_VISIBLE]).toBe(false);
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
+  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe(ADDRESS_2);
+  // One Speichern returns to review with the selected address applied.
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({ deliveryAddress: ADDRESS_2 }),
+    { merge: true },
+  );
+});
+
+test('manage_save keep with full courier label in Straße still applies selected row', async () => {
+  const { ref } = mockSession({
+    deliveryAddress: ADDRESS_1,
+    orderType: 'delivery',
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      deliveryAddress: ADDRESS_1,
+      deliveryApartment: 'Top 14',
+    },
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_action: 'manage_save',
+    [F.MANAGE_ADDRESS_CHOICE]: 'addr_1',
+    // Prefill puts the full label in Straße (fieldsForAddressChoice).
+    [F.DELIVERY_ADDRESS]: ADDRESS_2,
+    [F.DELIVERY_APARTMENT]: 'Top 2',
+  });
+
+  expect(saveCustomerAddress).not.toHaveBeenCalled();
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
+  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe(ADDRESS_2);
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({ deliveryAddress: ADDRESS_2 }),
+    { merge: true },
+  );
 });
 
 test('manage_save on a saved row with inputs matching that label writes nothing', async () => {
@@ -575,7 +612,63 @@ test('manage_save on a saved row with inputs matching that label writes nothing'
   });
 
   expect(saveCustomerAddress).not.toHaveBeenCalled();
-  expect(response.screen).toBe(S.ADDRESS_MANAGE_UPDATED);
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
+});
+
+test('manage_save from ADDRESS_MANAGE_UPDATED still returns to review with selected address', async () => {
+  const { ref } = mockSession({
+    deliveryAddress: ADDRESS_1,
+    orderType: 'delivery',
+  });
+  loadCustomerAddresses.mockResolvedValue({
+    savedAddresses: [ADDRESS_1, ADDRESS_2],
+    lastDeliveryAddress: ADDRESS_1,
+    customerName: 'Alex',
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE_UPDATED, {
+    checkout_action: 'manage_save',
+    [F.MANAGE_ADDRESS_CHOICE]: 'addr_1',
+    [F.DELIVERY_ADDRESS]: ADDRESS_2,
+    [F.DELIVERY_APARTMENT]: 'Top 2',
+  });
+
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
+  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe(ADDRESS_2);
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({ deliveryAddress: ADDRESS_2 }),
+    { merge: true },
+  );
+});
+
+test('manage_save new address applies it to the order even when not profile default', async () => {
+  const novel = 'Brandgasse 8, Top 1, 1020 Wien';
+  const { ref } = mockSession({
+    deliveryAddress: ADDRESS_1,
+    orderType: 'delivery',
+  });
+  saveCustomerAddress.mockResolvedValue({
+    ok: true,
+    savedAddresses: [ADDRESS_1, ADDRESS_2, novel],
+    // New row is saved but OptIn was off — default stays ADDRESS_1.
+    lastDeliveryAddress: ADDRESS_1,
+    customerName: 'Alex',
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE_UPDATED, {
+    checkout_action: 'manage_save',
+    [F.MANAGE_ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: 'Brandgasse 8, 1020 Wien',
+    [F.DELIVERY_APARTMENT]: 'Top 1',
+  });
+
+  expect(saveCustomerAddress).toHaveBeenCalled();
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
+  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe(novel);
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({ deliveryAddress: novel }),
+    { merge: true },
+  );
 });
 
 test('manage_save keep treats Haus as matching a building-only saved label', async () => {
@@ -592,7 +685,7 @@ test('manage_save keep treats Haus as matching a building-only saved label', asy
   });
 
   expect(saveCustomerAddress).not.toHaveBeenCalled();
-  expect(response.screen).toBe(S.ADDRESS_MANAGE_UPDATED);
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
 });
 
 test('select_address refills Haus for a building-only saved row', async () => {
@@ -663,7 +756,7 @@ test('manage_save edits using the exact profile label behind the selected option
     label: 'New Street 3, Top 4, 1020 Wien',
     replaceLabel: ADDRESS_1,
   });
-  expect(response.screen).toBe(S.ADDRESS_MANAGE_UPDATED);
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
 });
 
 test('manage_save refuses an edit choice that is not in the current profile options', async () => {
@@ -742,7 +835,7 @@ test('manage_save with OptIn set-as-default calls setDefault after save', async 
     businessId: BUSINESS_ID,
     label: ADDRESS_2,
   });
-  expect(response.screen).toBe(S.ADDRESS_MANAGE_UPDATED);
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
 });
 
 test('manage_delete returning to review clears deleted session and draft address fields', async () => {
@@ -808,7 +901,7 @@ test('manage_delete acts on a lastDeliveryAddress-only row', async () => {
     businessId: BUSINESS_ID,
     label: ADDRESS_1,
   });
-  expect(response.screen).toBe(S.ADDRESS_MANAGE_UPDATED);
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
 });
 
 test('manage_back applies the selected saved address on review', async () => {
@@ -1166,8 +1259,14 @@ test('manage_confirm_accept saves the pending normalized label', async () => {
     flowManageAddressConfirm: null,
     updatedAt: expect.any(Date),
   }, { merge: true });
-  expect(response.screen).toBe(S.ADDRESS_MANAGE_UPDATED);
-  expect(response.data[F.MANAGE_UI_MODE]).toBe('list');
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({
+      deliveryAddress: 'Lavaterstraße 3, Top 4, 1220 Wien',
+    }),
+    { merge: true },
+  );
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
+  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('Lavaterstraße 3, Top 4, 1220 Wien');
 });
 
 test('manage_confirm_reject returns to edit with original fields', async () => {

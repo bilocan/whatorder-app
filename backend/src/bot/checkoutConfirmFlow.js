@@ -81,7 +81,10 @@ const FLOW_OPTION_TITLE_MAX = 30;
 const FLOW_OPTION_DESC_MAX = 72;
 
 const NEXT_SCREEN_AFTER_MANAGE_WRITE = {
-  [S.ADDRESS_MANAGE]: S.ADDRESS_MANAGE_UPDATED,
+  // Prefer review return on Speichern so one Kaydet is enough (UPDATED clone looked
+  // identical → customers tapped Speichern twice). ADDRESS_MANAGE_UPDATED stays in
+  // the Flow JSON for Meta routing / legacy mid-path positions.
+  [S.ADDRESS_MANAGE]: S.CHECKOUT_REVIEW_RETURN,
   [S.ADDRESS_MANAGE_UPDATED]: S.CHECKOUT_REVIEW_RETURN,
   [S.ADDRESS_MANAGE_AGAIN]: S.CHECKOUT_REVIEW_DONE,
 };

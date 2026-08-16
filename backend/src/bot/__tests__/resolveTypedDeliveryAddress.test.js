@@ -53,6 +53,54 @@ describe('resolveTypedDeliveryAddress', () => {
     });
   });
 
+  test('strips Google PLZ-as-subpremise so confirm does not invent Top', async () => {
+    validateDeliveryAddress.mockResolvedValue({
+      formattedAddress: 'Hauptstraße 5/1290, 1140 Wien, Austria',
+      lat: 48.2,
+      lng: 16.3,
+    });
+
+    const result = await resolveTypedDeliveryAddress('Hauptstrasse 5, 1290 Wien');
+    expect(result).toEqual({
+      ok: true,
+      building: 'Hauptstraße 5, 1140 Wien',
+      lat: 48.2,
+      lng: 16.3,
+    });
+    expect(shouldConfirmDeliveryBuilding(
+      'Hauptstrasse 5, 1290 Wien',
+      result.building,
+    )).toBe(true);
+  });
+
+  test('retries with Wien when PLZ-only query fails (Hauptstrasse 5, 1290)', async () => {
+    validateDeliveryAddress.mockImplementation(async (candidate) => {
+      // Wrong PLZ (with or without Wien) fails; street + Wien resolves.
+      if (candidate === 'Hauptstrasse 5, Wien') {
+        return {
+          formattedAddress: 'Hauptstraße 5, 1140 Wien, Austria',
+          lat: 48.2,
+          lng: 16.3,
+        };
+      }
+      return null;
+    });
+
+    const result = await resolveTypedDeliveryAddress('Hauptstrasse 5, 1290');
+    expect(result).toEqual({
+      ok: true,
+      building: 'Hauptstraße 5, 1140 Wien',
+      lat: 48.2,
+      lng: 16.3,
+    });
+    expect(validateDeliveryAddress.mock.calls.map((c) => c[0])).toEqual([
+      'Hauptstrasse 5, 1290',
+      'Hauptstrasse 5, 1290, Wien',
+      'Hauptstrasse 5, Wien',
+    ]);
+    expect(shouldConfirmDeliveryBuilding('Hauptstrasse 5, 1290', result.building)).toBe(true);
+  });
+
   test('fails closed when validation cannot resolve', async () => {
     validateDeliveryAddress.mockResolvedValue(null);
     await expect(resolveTypedDeliveryAddress('Nowhere 999')).resolves.toEqual({ ok: false });

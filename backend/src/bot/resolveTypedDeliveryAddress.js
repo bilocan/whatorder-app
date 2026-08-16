@@ -17,17 +17,31 @@ async function resolveTypedDeliveryAddress(rawText) {
 
   const { query, unitHint } = splitStreetAndUnitHint(trimmed);
 
-  // Try building-only first; add Wien when locality missing (AT pilot default).
-  const hasLocality = /\b(wien|vienna|\d{4})\b/i.test(query);
+  // PLZ alone is not enough locality — "Hauptstrasse 5, 1290" must still try Wien
+  // (pilot default) and a PLZ-stripped fallback when the typed PLZ is wrong.
+  const hasCity = /\b(wien|vienna)\b/i.test(query);
+  const hasPlz = /\b\d{4}\b/.test(query);
   const candidates = [];
   const push = (c) => {
     if (c && !candidates.includes(c)) candidates.push(c);
   };
   push(query);
-  if (!hasLocality) push(`${query}, Wien`);
+  if (!hasCity) push(`${query}, Wien`);
   if (query !== trimmed) push(trimmed);
-  if (query !== trimmed && !/\b(wien|vienna|\d{4})\b/i.test(trimmed)) {
-    push(`${query}, Wien`);
+  if (query !== trimmed && !/\b(wien|vienna)\b/i.test(trimmed)) {
+    push(`${trimmed}, Wien`);
+  }
+  if (hasPlz && !hasCity) {
+    const withoutPlz = query
+      .replace(/,?\s*\b\d{4}\b/g, '')
+      .replace(/\s*,\s*,/g, ',')
+      .replace(/^,\s*|,\s*$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (withoutPlz && withoutPlz !== query) {
+      push(`${withoutPlz}, Wien`);
+      push(withoutPlz);
+    }
   }
 
   let validated = null;

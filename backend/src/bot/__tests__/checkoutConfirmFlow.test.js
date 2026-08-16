@@ -306,7 +306,7 @@ describe('checkoutConfirmFlow', () => {
   });
 
   test('maps manage and review screens through the forward-only topology', async () => {
-    expect(nextScreenAfterManageWrite('ADDRESS_MANAGE')).toBe('ADDRESS_MANAGE_UPDATED');
+    expect(nextScreenAfterManageWrite('ADDRESS_MANAGE')).toBe('CHECKOUT_REVIEW_RETURN');
     expect(nextScreenAfterManageWrite('ADDRESS_MANAGE_UPDATED')).toBe('CHECKOUT_REVIEW_RETURN');
     expect(nextScreenAfterManageWrite('ADDRESS_MANAGE_AGAIN')).toBe('CHECKOUT_REVIEW_DONE');
     expect(manageScreenForReview('CHECKOUT_REVIEW')).toBe('ADDRESS_MANAGE');
