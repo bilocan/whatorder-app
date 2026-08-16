@@ -83,6 +83,14 @@ describe('deliveryAddress helpers', () => {
       query: 'Hippgasse 11, 1160 Wien',
       unitHint: null,
     });
+    expect(splitStreetAndUnitHint('Hauptstraße 5/1290, 1140 Wien')).toEqual({
+      query: 'Hauptstraße 5, 1140 Wien',
+      unitHint: null,
+    });
+    expect(splitStreetAndUnitHint('Hauptstrasse 5/1290 Wien')).toEqual({
+      query: 'Hauptstrasse 5, 1290 Wien',
+      unitHint: null,
+    });
     expect(isNearlySameAddress(
       'Lavaterstraße 3/3/15, 1220 Wien',
       'Lavaterstraße 3, Stiege 3, Top 15, 1220 Wien',
@@ -140,6 +148,20 @@ describe('normalizeBuildingLabel slash units', () => {
     expect(normalizeBuildingLabel('Hippgasse 11/Stiege 5, Top 6, 1160 Wien'))
       .toBe('Hippgasse 11, Stiege 5, Top 6, 1160 Wien');
   });
+
+  test('strips Google subpremise that is really a mistyped PLZ', () => {
+    expect(normalizeBuildingLabel('Hauptstraße 5/1290, 1140 Wien, Austria'))
+      .toBe('Hauptstraße 5, 1140 Wien');
+    expect(normalizeBuildingLabel('Hauptstraße 5, Top 1290, 1140 Wien'))
+      .toBe('Hauptstraße 5, 1140 Wien');
+  });
+
+  test('keeps in-range slash and Top units', () => {
+    expect(normalizeBuildingLabel('Hippgasse 11/14, 1160 Wien'))
+      .toBe('Hippgasse 11/14, 1160 Wien');
+    expect(normalizeBuildingLabel('Hippgasse 11, Top 14, 1160 Wien'))
+      .toBe('Hippgasse 11, Top 14, 1160 Wien');
+  });
 });
 
 describe('formatConfirmAddressDisplay', () => {
@@ -158,6 +180,15 @@ describe('formatConfirmAddressDisplay', () => {
       building: 'Aspernstraße 6',
       unit: '',
       locality: '1220 Wien',
+    });
+  });
+
+  test('does not show wrong PLZ as Top on confirm screen', () => {
+    expect(formatConfirmAddressDisplay('Hauptstraße 5/1290, 1140 Wien')).toEqual({
+      label: 'Hauptstraße 5, 1140 Wien',
+      building: 'Hauptstraße 5',
+      unit: '',
+      locality: '1140 Wien',
     });
   });
 });

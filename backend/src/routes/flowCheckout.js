@@ -20,6 +20,7 @@ const {
   isHausSkip,
   formatConfirmAddressDisplay,
   normalizeBuildingLabel,
+  isNearlySameAddress,
 } = require('../bot/deliveryAddress');
 const {
   resolveTypedDeliveryAddress,
@@ -616,14 +617,31 @@ async function buildBlankReviewResponse({
  * The manage radio and the TextInputs are decoupled (no on-select data_exchange), so a
  * Speichern with untouched inputs means "keep this address", not "rewrite it".
  * Haus and empty apartment both mean building-only (no unit in the stored label).
+ * Prefill puts the full courier label in Straße (`fieldsForAddressChoice`) — treat that
+ * as unchanged when it matches the stored row.
  */
 function isUnchangedFromStoredLabel(label, streetValue, apartmentValue) {
   const street = normalizedAddress(streetValue);
   const apartment = normalizeApartmentForCompare(apartmentValue);
   if (!street && !apartment) return true;
+
   const stored = splitDeliveryAddressFields(label || '');
-  return street === normalizedAddress(stored.street)
-    && apartment === normalizeApartmentForCompare(stored.apartment);
+  if (
+    street === normalizedAddress(stored.street)
+    && apartment === normalizeApartmentForCompare(stored.apartment)
+  ) {
+    return true;
+  }
+
+  // Full label in Straße (optional matching Wohnung / Haus).
+  if (street === normalizedAddress(label) || isNearlySameAddress(streetValue, label)) {
+    if (!apartment) return true;
+    if (apartment === normalizeApartmentForCompare(stored.apartment)) return true;
+    if (!stored.apartment && isHausSkip(String(apartmentValue || '').trim().toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function normalizeApartmentForCompare(value) {
@@ -978,16 +996,18 @@ async function buildCheckoutDataExchangeResponse({
       lastDeliveryAddress: result.lastDeliveryAddress,
       customerName: result.customerName ?? profile.customerName ?? null,
     };
+    // Confirmed label wins for this order (may not be profile default yet).
+    const preferredLabel = label || result.lastDeliveryAddress || null;
+    const withAddress = await applyAddressFromManageReturn({
+      payload,
+      profile: nextProfile,
+      session,
+      ref,
+      lang,
+      preferredLabel,
+    });
     if (nextScreen === S.CHECKOUT_REVIEW_RETURN
       || nextScreen === S.CHECKOUT_REVIEW_DONE) {
-      const withAddress = await applyAddressFromManageReturn({
-        payload,
-        profile: nextProfile,
-        session,
-        ref,
-        lang,
-        preferredLabel: result.lastDeliveryAddress || label,
-      });
       return buildReviewReturnResponse({
         screen: nextScreen,
         profile: nextProfile,
@@ -998,7 +1018,16 @@ async function buildCheckoutDataExchangeResponse({
         phone,
       });
     }
-    return manageResponse({ screen: nextScreen, profile: nextProfile, lang, version });
+    return manageResponse({
+      screen: nextScreen,
+      profile: nextProfile,
+      lang,
+      version,
+      payload: {
+        [F.MANAGE_ADDRESS_CHOICE]: pending?.choice || payload[F.MANAGE_ADDRESS_CHOICE],
+      },
+      editVisible: true,
+    });
   }
 
   const isManageMutation = action === 'manage_save'
@@ -1007,6 +1036,7 @@ async function buildCheckoutDataExchangeResponse({
   if (isManageMutation && nextScreenAfterManageWrite(screen)) {
     let workingProfile = profile;
     let workingSession = session;
+    let savedLabel = null;
     if (action === 'manage_save') {
       const named = await applyNameFromManagePayload({
         phone, businessId, payload, profile, session, ref,
@@ -1036,7 +1066,7 @@ async function buildCheckoutDataExchangeResponse({
     let result;
 
     if (action === 'manage_save') {
-      let savedLabel = exactLabel;
+      savedLabel = exactLabel;
       const streetRaw = typeof payload[F.DELIVERY_ADDRESS] === 'string'
         ? payload[F.DELIVERY_ADDRESS].trim()
         : '';
@@ -1127,6 +1157,7 @@ async function buildCheckoutDataExchangeResponse({
       result = { ok: false, errorKey: 'confirmFlowErrorManageSelect' };
     } else if (action === 'manage_set_default') {
       // Legacy action from older published JSON; OptIn + manage_save is the current path.
+      savedLabel = exactLabel;
       result = await setDefaultCustomerAddress({
         phone,
         businessId,
@@ -1160,19 +1191,21 @@ async function buildCheckoutDataExchangeResponse({
       lastDeliveryAddress: result.lastDeliveryAddress,
       customerName: result.customerName ?? workingProfile.customerName ?? null,
     };
+    // Order address = selected/saved row. Do not prefer stale profile default over exactLabel
+    // (keep another saved row) or over a new address that is not yet lastDeliveryAddress.
+    const preferredLabel = action === 'manage_delete'
+      ? (result.lastDeliveryAddress || null)
+      : (savedLabel || exactLabel || result.lastDeliveryAddress || null);
+    const withAddress = await applyAddressFromManageReturn({
+      payload,
+      profile: nextProfile,
+      session: workingSession,
+      ref,
+      lang,
+      preferredLabel,
+    });
     if (nextScreen === S.CHECKOUT_REVIEW_RETURN
       || nextScreen === S.CHECKOUT_REVIEW_DONE) {
-      const preferredLabel = action === 'manage_delete'
-        ? (result.lastDeliveryAddress || null)
-        : (result.lastDeliveryAddress || exactLabel);
-      const withAddress = await applyAddressFromManageReturn({
-        payload,
-        profile: nextProfile,
-        session: workingSession,
-        ref,
-        lang,
-        preferredLabel,
-      });
       return buildReviewReturnResponse({
         screen: nextScreen,
         profile: nextProfile,
@@ -1183,11 +1216,32 @@ async function buildCheckoutDataExchangeResponse({
         phone,
       });
     }
+    const nextLabels = profileAddressLabels(
+      nextProfile,
+      preferredLabel || nextProfile.lastDeliveryAddress || nextProfile.savedAddresses?.[0] || '',
+      lang,
+    );
+    let choiceForUi = choice;
+    if (preferredLabel) {
+      const match = Object.entries(nextLabels).find(
+        ([id, lbl]) => id !== ADDRESS_CHOICE_NEW
+          && normalizedAddress(lbl) === normalizedAddress(preferredLabel),
+      );
+      if (match) choiceForUi = match[0];
+    }
     return manageResponse({
       screen: nextScreen,
       profile: nextProfile,
       lang,
       version,
+      payload: {
+        [F.MANAGE_ADDRESS_CHOICE]: choiceForUi,
+        ...(preferredLabel ? {
+          [F.DELIVERY_ADDRESS]: preferredLabel,
+          [F.DELIVERY_APARTMENT]: splitDeliveryAddressFields(preferredLabel).apartment || 'Haus',
+        } : {}),
+      },
+      editVisible: Boolean(choiceForUi),
     });
   }
 
