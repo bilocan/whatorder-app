@@ -4,7 +4,6 @@ const { orderTotals } = require('./orderTotals');
 const { isDeliveryOffered } = require('./checkoutSlots');
 const { isPaymentEnabled } = require('./paymentGate');
 const { checkoutReviewCopy } = require('./menuFlowCopy');
-const { checkoutDealLines } = require('./checkoutDeal');
 const {
   splitDeliveryAddressFields,
   parseDeliveryUnit,
@@ -20,6 +19,10 @@ function trimmed(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+/**
+ * Flow Prüfen receipt: basket + money lines only.
+ * Name / address / notes live in the form below (avoid double display).
+ */
 function buildReceiptText({
   session = {},
   basket = [],
@@ -31,31 +34,32 @@ function buildReceiptText({
   deal = null,
   totals = null,
 }) {
-  const name = trimmed(session.customerName);
-  const address = session.orderType === 'pickup'
-    ? null
-    : (trimmed(session.deliveryAddress) || null);
-  const notes = trimmed(session.specialRequests) || null;
-  const formattedTotal = Number(total || 0).toFixed(2);
-  const discountLine = checkoutDealLines(t, lang, {
+  const resolved = {
     ...(totals || {}),
     deal: deal || totals?.deal || null,
     discount: totals?.discount ?? deal?.discount ?? 0,
-  });
-  const summary = t(
-    'finalConfirmBody',
-    lang,
-    name,
-    formattedTotal,
-    session.pickupTime,
-    address,
-    notes,
-    paymentEnabled ? 'stripe' : null,
-    discountLine,
-  );
-  const items = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });
+    isDelivery: totals?.isDelivery ?? session.orderType === 'delivery',
+    deliveryFee: totals?.deliveryFee ?? 0,
+  };
+  const money = [];
+  if (resolved.discount > 0 && resolved.deal) {
+    money.push(t(
+      'checkoutDiscount',
+      lang,
+      resolved.deal.label,
+      Number(resolved.discount).toFixed(2),
+    ));
+  }
+  if (resolved.isDelivery && Number(resolved.deliveryFee) > 0) {
+    money.push(t('checkoutDeliveryFee', lang, Number(resolved.deliveryFee).toFixed(2)));
+  }
+  money.push(t('orderTotal', lang, Number(total || 0).toFixed(2)));
+  if (paymentEnabled) {
+    money.push(t('confirmFlowPaymentCard', lang));
+  }
 
-  return [trimmed(businessName), summary, items].filter(Boolean).join('\n\n');
+  const items = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });
+  return [trimmed(businessName), items, money.join('\n')].filter(Boolean).join('\n\n');
 }
 
 /**
@@ -135,14 +139,21 @@ function stripGeocodeNoise(text) {
     .trim();
 }
 
-function plzMetadata(text) {
-  const match = String(text || '').match(/\b(\d{4})\b/);
-  return match ? match[1] : '';
+/** Join unit + locality for radio description (PLZ stays here; metadata is for ★ default). */
+function joinAddressDescription(...parts) {
+  const cleaned = parts
+    .map((part) => stripGeocodeNoise(part))
+    .map((part) => trimmed(part))
+    .filter(Boolean);
+  if (cleaned.length === 0) return '';
+  if (cleaned.length === 1) return cleaned[0];
+  return `${cleaned[0]} · ${cleaned.slice(1).join(', ')}`;
 }
 
 /**
  * Short radio title + description for Meta Flow option limits (title ≤30, desc ≤300, metadata ≤20).
  * Prefer Austrian "Streetname Number" titles — never "41, Huttengasse".
+ * Metadata is left empty here; callers may set ★ for the default row.
  */
 function formatAddressOptionParts(address) {
   const full = trimmed(address);
@@ -150,25 +161,22 @@ function formatAddressOptionParts(address) {
 
   const { street, apartment } = splitDeliveryAddressFields(full);
   const streetParts = trimmed(street).split(',').map((p) => p.trim()).filter(Boolean);
-  const metadata = plzMetadata(full);
 
-  // Prefer building line without unit: "Hippgasse 11" + desc "Top 14, 1160 Wien"
+  // Prefer building line without unit: "Hippgasse 11" + desc "Top 14 · 1160 Wien"
   if (streetParts.length >= 1 && !isWeakAddressTitleSegment(streetParts[0])) {
     const locality = stripGeocodeNoise(streetParts.slice(1).join(', '));
-    const descBits = stripGeocodeNoise([apartment, locality].filter(Boolean).join(', '));
+    const descBits = joinAddressDescription(apartment, locality)
+      || stripGeocodeNoise(full.slice(streetParts[0].length).replace(/^,\s*/, ''));
     return {
       title: clipFlowOption(streetParts[0], FLOW_OPTION_TITLE_MAX),
-      description: clipFlowOption(
-        descBits || stripGeocodeNoise(full.slice(streetParts[0].length).replace(/^,\s*/, '')),
-        FLOW_OPTION_DESC_MAX,
-      ),
-      metadata,
+      description: clipFlowOption(descBits, FLOW_OPTION_DESC_MAX),
+      metadata: '',
     };
   }
 
   const parts = full.split(',').map((p) => p.trim()).filter(Boolean);
   if (parts.length === 0) {
-    return { title: clipFlowOption(full, FLOW_OPTION_TITLE_MAX), description: '', metadata };
+    return { title: clipFlowOption(full, FLOW_OPTION_TITLE_MAX), description: '', metadata: '' };
   }
 
   // Number-first labels ("41, Huttengasse, …") → title "Huttengasse 41"
@@ -179,13 +187,11 @@ function formatAddressOptionParts(address) {
     && !/^\d{4}\b/.test(parts[1])
   ) {
     const title = `${parts[1]} ${parts[0]}`.replace(/\s+/g, ' ').trim();
-    const description = stripGeocodeNoise(
-      [apartment, ...parts.slice(2)].filter(Boolean).join(', '),
-    );
+    const description = joinAddressDescription(apartment, parts.slice(2).join(', '));
     return {
       title: clipFlowOption(title, FLOW_OPTION_TITLE_MAX),
       description: clipFlowOption(description, FLOW_OPTION_DESC_MAX),
-      metadata,
+      metadata: '',
     };
   }
 
@@ -207,7 +213,7 @@ function formatAddressOptionParts(address) {
   return {
     title: clipFlowOption(title || full, FLOW_OPTION_TITLE_MAX),
     description: clipFlowOption(description, FLOW_OPTION_DESC_MAX),
-    metadata,
+    metadata: '',
   };
 }
 
@@ -259,13 +265,16 @@ function buildAddressChoiceState({
   }
 
   const saved = ordered.slice(0, MAX_SAVED_ADDRESS_OPTIONS);
+  const defaultKey = trimmed(defaultAddress).toLowerCase();
   const options = saved.map((label, index) => {
     const parts = formatAddressOptionParts(label);
+    const isDefault = Boolean(defaultKey) && label.toLowerCase() === defaultKey;
     return {
       id: `addr_${index}`,
       title: parts.title || `addr_${index}`,
       description: parts.description,
-      metadata: parts.metadata,
+      // Meta metadata ≤20; ★ marks the profile default without floating PLZ on the right.
+      metadata: isDefault ? '★' : '',
       _label: label,
     };
   });
@@ -316,6 +325,7 @@ function buildAddressChoiceState({
 /**
  * Street + apartment TextInput values for a radio choice.
  * Saved rows use the full courier label in street (same as review INIT); Neue Adresse clears both.
+ * Building-only labels (no Stiege/Top) refill Wohnung as Haus so Meta required input is not empty.
  */
 function fieldsForAddressChoice(choice, labelsByChoice = {}) {
   if (!choice || choice === ADDRESS_CHOICE_NEW) {
@@ -326,7 +336,7 @@ function fieldsForAddressChoice(choice, labelsByChoice = {}) {
   const fields = splitDeliveryAddressFields(label);
   return {
     street: label,
-    apartment: fields.apartment,
+    apartment: fields.apartment || 'Haus',
   };
 }
 
@@ -378,7 +388,7 @@ function mergeConfirmFlowDraft(payload = {}, previousDraft = null) {
   return Object.keys(next).length ? next : null;
 }
 
-function buildCheckoutReviewData({
+async function buildCheckoutReviewData({
   session = {},
   basket = [],
   info = {},
@@ -399,6 +409,9 @@ function buildCheckoutReviewData({
   const orderType = (requestedType === 'delivery' && !deliverySelectable) ? 'pickup' : requestedType;
 
   const customerName = draft.customerName ?? trimmed(session.customerName);
+  const customerNameDisplay = customerName.length >= 2
+    ? customerName
+    : t('confirmFlowNameEmpty', lang);
   const sessionFull = trimmed(session.deliveryAddress);
   const sessionFields = splitDeliveryAddressFields(sessionFull);
   // Keep the full courier label in the street field so older published Flows (no Wohnung
@@ -446,9 +459,9 @@ function buildCheckoutReviewData({
     options.push({ id: 'delivery', title: t('confirmFlowTypeDelivery', lang) });
   }
 
-  const displayAddress = trimmed(deliveryAddress)
-    || trimmed(reviewDeliveryAddress)
-    || '';
+  const displayAddress = normalizeBuildingLabel(
+    trimmed(deliveryAddress) || trimmed(reviewDeliveryAddress) || '',
+  );
   const addressDisplay = displayAddress || t('confirmFlowAddressEmpty', lang);
 
   return {
@@ -464,6 +477,7 @@ function buildCheckoutReviewData({
       totals,
     }),
     [F.CUSTOMER_NAME]: customerName,
+    [F.CUSTOMER_NAME_DISPLAY]: customerNameDisplay,
     [F.ORDER_TYPE]: orderType,
     [F.ORDER_TYPE_OPTIONS]: options,
     [F.ADDRESS_FIELDS_VISIBLE]: orderType === 'delivery',
@@ -477,7 +491,7 @@ function buildCheckoutReviewData({
   };
 }
 
-function buildReviewDataFromProfile({
+async function buildReviewDataFromProfile({
   session = {},
   basket = [],
   info = {},
@@ -505,8 +519,10 @@ function buildReviewDataFromProfile({
     delete draft.deliveryApartment;
   }
 
+  const profileName = trimmed(profile.customerName);
   const reviewSession = {
     ...session,
+    ...(profileName ? { customerName: profileName } : {}),
     deliveryAddress: preferredAddress,
     confirmFlowDraft: draft && Object.keys(draft).length ? draft : null,
   };
@@ -698,6 +714,7 @@ function checkoutFlowToken(phone, businessId) {
 
 module.exports = {
   ADDRESS_CHOICE_NEW,
+  MAX_SAVED_ADDRESS_OPTIONS,
   formatAddressOptionParts,
   fieldsForAddressChoice,
   buildReceiptText,

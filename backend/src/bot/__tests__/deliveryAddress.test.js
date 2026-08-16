@@ -4,6 +4,7 @@ const {
   normalizeBuildingLabel,
   composeDeliveryLabel,
   splitDeliveryAddressFields,
+  formatConfirmAddressDisplay,
 } = require('../deliveryAddress');
 
 describe('deliveryAddress helpers', () => {
@@ -130,6 +131,33 @@ describe('splitDeliveryAddressFields', () => {
     expect(splitDeliveryAddressFields('Naschmarkt 5, 1040 Wien')).toEqual({
       street: 'Naschmarkt 5, 1040 Wien',
       apartment: '',
+    });
+  });
+});
+
+describe('normalizeBuildingLabel slash units', () => {
+  test('rewrites Street N/Stiege to comma form', () => {
+    expect(normalizeBuildingLabel('Hippgasse 11/Stiege 5, Top 6, 1160 Wien'))
+      .toBe('Hippgasse 11, Stiege 5, Top 6, 1160 Wien');
+  });
+});
+
+describe('formatConfirmAddressDisplay', () => {
+  test('splits building, unit, and locality', () => {
+    expect(formatConfirmAddressDisplay('Hippgasse 11, Stiege 5, Top 6, 1160 Wien')).toEqual({
+      label: 'Hippgasse 11, Stiege 5, Top 6, 1160 Wien',
+      building: 'Hippgasse 11',
+      unit: 'Stiege 5, Top 6',
+      locality: '1160 Wien',
+    });
+  });
+
+  test('building-only Haus labels have empty unit', () => {
+    expect(formatConfirmAddressDisplay('Aspernstraße 6, 1220 Wien')).toEqual({
+      label: 'Aspernstraße 6, 1220 Wien',
+      building: 'Aspernstraße 6',
+      unit: '',
+      locality: '1220 Wien',
     });
   });
 });

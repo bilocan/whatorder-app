@@ -55,9 +55,12 @@ function hasDistinctLabel(savedAddresses, label) {
 async function loadCustomerDoc(phone, businessId) {
   const snap = await customersRef(businessId).doc(phone).get();
   const data = snap.exists ? (snap.data() || {}) : {};
+  // Prefer customerName; fall back to legacy `name` used by chat prefill.
+  const customerName = trimmed(data.customerName) || trimmed(data.name) || null;
   return {
     savedAddresses: Array.isArray(data.savedAddresses) ? data.savedAddresses : [],
     lastDeliveryAddress: data.lastDeliveryAddress ?? null,
+    customerName,
   };
 }
 
@@ -66,7 +69,30 @@ async function loadCustomerAddresses(phone, businessId) {
   return {
     savedAddresses: [...profile.savedAddresses],
     lastDeliveryAddress: profile.lastDeliveryAddress,
+    customerName: profile.customerName,
   };
+}
+
+function successPayload(profile) {
+  return {
+    ok: true,
+    savedAddresses: [...(profile.savedAddresses ?? [])],
+    lastDeliveryAddress: profile.lastDeliveryAddress ?? null,
+    customerName: profile.customerName ?? null,
+  };
+}
+
+async function saveCustomerName({ phone, businessId, name }) {
+  const customerName = trimmed(name);
+  if (customerName.length < 2) {
+    return { ok: false, errorKey: 'confirmFlowErrorName' };
+  }
+
+  return guarded(async () => {
+    // Write both keys so chat prefill (`name`) and Flow profile stay in sync.
+    await writeProfile(phone, businessId, { customerName, name: customerName });
+    return successPayload(await loadCustomerDoc(phone, businessId));
+  });
 }
 
 /**
@@ -85,14 +111,6 @@ async function guarded(run) {
     console.error('[customerAddresses] profile write failed', err);
     return { ok: false, errorKey: GENERIC_ERROR_KEY };
   }
-}
-
-function successPayload(profile) {
-  return {
-    ok: true,
-    savedAddresses: [...(profile.savedAddresses ?? [])],
-    lastDeliveryAddress: profile.lastDeliveryAddress ?? null,
-  };
 }
 
 /** In-place replace keeps radio order stable and lets the edit land in a single write. */
@@ -197,6 +215,7 @@ async function deleteCustomerAddress({ phone, businessId, label }) {
 module.exports = {
   loadCustomerAddresses,
   saveCustomerAddress,
+  saveCustomerName,
   setDefaultCustomerAddress,
   deleteCustomerAddress,
 };

@@ -331,6 +331,58 @@ async function clearCartIconBase64() {
   return b64;
 }
 
+/**
+ * Map-pin thumb for checkout ADDRESS_MANAGE saved rows (brand green on soft grey).
+ */
+async function addressHomeIconBase64() {
+  const key = 'icon:address-pin-v1';
+  const cached = cacheGet(key);
+  if (cached) return cached;
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${THUMB_SIZE}" height="${THUMB_SIZE}" viewBox="0 0 96 96">`
+    + '<rect width="96" height="96" rx="12" fill="#F3F4F6"/>'
+    + '<path fill="#22C55E" d="M48 16c-13.255 0-24 10.745-24 24 0 18 24 40 24 40s24-22 24-40c0-13.255-10.745-24-24-24zm0 34a10 10 0 1 1 0-20 10 10 0 0 1 0 20z"/>'
+    + '</svg>',
+  );
+  const buf = await sharp(svg).png({ compressionLevel: 9 }).toBuffer();
+  const b64 = buf.toString('base64');
+  cacheSet(key, b64);
+  return b64;
+}
+
+/**
+ * Plus thumb for ADDRESS_MANAGE "Neue Adresse" row.
+ */
+async function addressNewIconBase64() {
+  const key = 'icon:address-new-v1';
+  const cached = cacheGet(key);
+  if (cached) return cached;
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${THUMB_SIZE}" height="${THUMB_SIZE}" viewBox="0 0 96 96">`
+    + '<rect width="96" height="96" rx="12" fill="#F3F4F6"/>'
+    + '<circle cx="48" cy="48" r="22" fill="none" stroke="#22C55E" stroke-width="4"/>'
+    + '<path fill="#22C55E" d="M46 34h4v28h-4zM34 46h28v4H34z"/>'
+    + '</svg>',
+  );
+  const buf = await sharp(svg).png({ compressionLevel: 9 }).toBuffer();
+  const b64 = buf.toString('base64');
+  cacheSet(key, b64);
+  return b64;
+}
+
+/**
+ * Attach pin / plus icons to address radio options (no random color tiles).
+ * @param {Array<{id:string,title:string}>} options
+ * @param {string} newAddressId e.g. addr_new
+ */
+async function attachAddressListImages(options, newAddressId = 'addr_new') {
+  const [home, neu] = await Promise.all([addressHomeIconBase64(), addressNewIconBase64()]);
+  const flowListImageById = Object.fromEntries(
+    (options || []).map((opt) => [opt.id, opt.id === newAddressId ? neu : home]),
+  );
+  return attachListImages(options, { flowListImageById });
+}
+
 module.exports = {
   colorTileBase64,
   colorForSeed,
@@ -339,6 +391,9 @@ module.exports = {
   normalizeStoredFlowListImage,
   padFlowOrderItemImage,
   clearCartIconBase64,
+  addressHomeIconBase64,
+  addressNewIconBase64,
+  attachAddressListImages,
   attachListImages,
   attachCategoryImages,
   attachMenuItemImages,

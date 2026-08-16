@@ -10,6 +10,9 @@ const {
   flowListImageFromUrl,
   normalizeStoredFlowListImage,
   padFlowOrderItemImage,
+  addressHomeIconBase64,
+  addressNewIconBase64,
+  attachAddressListImages,
   attachListImages,
   attachCategoryImages,
   attachMenuItemImages,
@@ -79,6 +82,20 @@ describe('flowImages', () => {
     const a = await colorTileBase64('Kebap');
     const b = await colorTileBase64('Kebap');
     expect(b).toBe(a);
+  });
+
+  test('address pin / new icons are distinct cached base64 thumbs', async () => {
+    const home = await addressHomeIconBase64();
+    const neu = await addressNewIconBase64();
+    expect(home).not.toBe(neu);
+    expect(home.length).toBeGreaterThan(20);
+    expect(await addressHomeIconBase64()).toBe(home);
+    const rows = await attachAddressListImages([
+      { id: 'addr_0', title: 'Home' },
+      { id: 'addr_new', title: 'New' },
+    ]);
+    expect(rows[0].image).toBe(home);
+    expect(rows[1].image).toBe(neu);
   });
 
   test('padFlowOrderItemImage left-aligns square thumb on wide white canvas', async () => {

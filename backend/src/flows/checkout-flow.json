@@ -30,13 +30,25 @@
           "type": "string",
           "__example__": "Review order"
         },
+        "ui_review_intro": {
+          "type": "string",
+          "__example__": "Almost done!"
+        },
+        "ui_review_section_basket": {
+          "type": "string",
+          "__example__": "Your order"
+        },
         "ui_name_label": {
           "type": "string",
           "__example__": "Name"
         },
+        "ui_name_empty": {
+          "type": "string",
+          "__example__": "No name yet — tap Address & profile."
+        },
         "ui_type_label": {
           "type": "string",
-          "__example__": "Type"
+          "__example__": "How would you like to receive your order?"
         },
         "ui_address_choice_label": {
           "type": "string",
@@ -45,6 +57,10 @@
         "ui_address_label": {
           "type": "string",
           "__example__": "Street"
+        },
+        "ui_address_helper": {
+          "type": "string",
+          "__example__": "Street and house number (e.g. Lavaterstrasse 3)"
         },
         "ui_apartment_label": {
           "type": "string",
@@ -56,7 +72,7 @@
         },
         "ui_delivery_address_empty": {
           "type": "string",
-          "__example__": "No address — tap Manage addresses."
+          "__example__": "No address — tap Address & profile."
         },
         "ui_note_label": {
           "type": "string",
@@ -72,13 +88,17 @@
         },
         "ui_manage_addresses_link": {
           "type": "string",
-          "__example__": "Manage addresses"
+          "__example__": "Address & profile"
         },
         "receipt_text": {
           "type": "string",
           "__example__": "1x Chicken Dürüm  €8.50\n1x Falafel Box  €6.90\n\nTotal: €15.40"
         },
         "customer_name": {
+          "type": "string",
+          "__example__": "Alex Smith"
+        },
+        "customer_name_display": {
           "type": "string",
           "__example__": "Alex Smith"
         },
@@ -148,20 +168,29 @@
             "type": "Form",
             "name": "checkout_form",
             "init-values": {
-              "customer_name": "${data.customer_name}",
               "order_type": "${data.order_type}",
               "note": "${data.note}"
             },
             "children": [
               {
+                "type": "TextCaption",
+                "text": "${data.ui_review_intro}"
+              },
+              {
+                "type": "TextCaption",
+                "text": "${data.ui_review_section_basket}"
+              },
+              {
                 "type": "TextBody",
                 "text": "${data.receipt_text}"
               },
               {
-                "type": "TextInput",
-                "label": "${data.ui_name_label}",
-                "name": "customer_name",
-                "required": true
+                "type": "TextCaption",
+                "text": "${data.ui_name_label}"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.customer_name_display}"
               },
               {
                 "type": "RadioButtonsGroup",
@@ -173,7 +202,7 @@
                   "name": "data_exchange",
                   "payload": {
                     "checkout_action": "select_order_type",
-                    "customer_name": "${form.customer_name}",
+                    "customer_name": "${data.customer_name}",
                     "order_type": "${form.order_type}",
                     "address_choice": "${data.address_choice}",
                     "delivery_address": "${data.delivery_address}",
@@ -193,22 +222,6 @@
                   {
                     "type": "TextBody",
                     "text": "${data.delivery_address_display}"
-                  },
-                  {
-                    "type": "EmbeddedLink",
-                    "text": "${data.ui_manage_addresses_link}",
-                    "on-click-action": {
-                      "name": "data_exchange",
-                      "payload": {
-                        "checkout_action": "manage_addresses",
-                        "customer_name": "${form.customer_name}",
-                        "order_type": "${form.order_type}",
-                        "address_choice": "${data.address_choice}",
-                        "delivery_address": "${data.delivery_address}",
-                        "delivery_apartment": "${data.delivery_apartment}",
-                        "note": "${form.note}"
-                      }
-                    }
                   }
                 ]
               },
@@ -217,6 +230,22 @@
                 "label": "${data.ui_note_label}",
                 "name": "note",
                 "required": false
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_addresses_link}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_addresses",
+                    "customer_name": "${data.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${data.address_choice}",
+                    "delivery_address": "${data.delivery_address}",
+                    "delivery_apartment": "${data.delivery_apartment}",
+                    "note": "${form.note}"
+                  }
+                }
               },
               {
                 "type": "EmbeddedLink",
@@ -235,7 +264,7 @@
                   "name": "complete",
                   "payload": {
                     "checkout_action": "place_order",
-                    "customer_name": "${form.customer_name}",
+                    "customer_name": "${data.customer_name}",
                     "order_type": "${form.order_type}",
                     "address_choice": "${data.address_choice}",
                     "delivery_address": "${data.delivery_address}",
@@ -257,13 +286,25 @@
           "type": "string",
           "__example__": "Review order"
         },
+        "ui_review_intro": {
+          "type": "string",
+          "__example__": "Almost done!"
+        },
+        "ui_review_section_basket": {
+          "type": "string",
+          "__example__": "Your order"
+        },
         "ui_name_label": {
           "type": "string",
           "__example__": "Name"
         },
+        "ui_name_empty": {
+          "type": "string",
+          "__example__": "No name yet — tap Address & profile."
+        },
         "ui_type_label": {
           "type": "string",
-          "__example__": "Type"
+          "__example__": "How would you like to receive your order?"
         },
         "ui_address_choice_label": {
           "type": "string",
@@ -272,6 +313,10 @@
         "ui_address_label": {
           "type": "string",
           "__example__": "Street"
+        },
+        "ui_address_helper": {
+          "type": "string",
+          "__example__": "Street and house number (e.g. Lavaterstrasse 3)"
         },
         "ui_apartment_label": {
           "type": "string",
@@ -283,7 +328,7 @@
         },
         "ui_delivery_address_empty": {
           "type": "string",
-          "__example__": "No address — tap Manage addresses."
+          "__example__": "No address — tap Address & profile."
         },
         "ui_note_label": {
           "type": "string",
@@ -299,15 +344,27 @@
         },
         "ui_manage_addresses_link": {
           "type": "string",
-          "__example__": "Manage addresses"
+          "__example__": "Address & profile"
         },
         "ui_manage_screen_title": {
           "type": "string",
-          "__example__": "Addresses"
+          "__example__": "Profile"
         },
         "ui_manage_hint": {
           "type": "string",
-          "__example__": "Up to 5 saved addresses"
+          "__example__": "Saved addresses (2/5)"
+        },
+        "ui_manage_edit_caption": {
+          "type": "string",
+          "__example__": "Edit the selected address"
+        },
+        "ui_manage_select_hint": {
+          "type": "string",
+          "__example__": "Tap an address to edit"
+        },
+        "ui_manage_edit": {
+          "type": "string",
+          "__example__": "Edit"
         },
         "ui_manage_save": {
           "type": "string",
@@ -315,7 +372,7 @@
         },
         "ui_manage_set_default": {
           "type": "string",
-          "__example__": "Set as default"
+          "__example__": "Save as default address"
         },
         "ui_manage_delete": {
           "type": "string",
@@ -325,9 +382,37 @@
           "type": "string",
           "__example__": "Back to order"
         },
+        "ui_manage_confirm_yes": {
+          "type": "string",
+          "__example__": "Yes"
+        },
+        "ui_manage_confirm_edit": {
+          "type": "string",
+          "__example__": "Edit"
+        },
+        "ui_manage_confirm_typed": {
+          "type": "string",
+          "__example__": "You typed"
+        },
+        "ui_manage_confirm_found": {
+          "type": "string",
+          "__example__": "We found"
+        },
+        "ui_profile_name_label": {
+          "type": "string",
+          "__example__": "Your name"
+        },
+        "ui_profile_name_helper": {
+          "type": "string",
+          "__example__": "Used on your order"
+        },
+        "customer_name": {
+          "type": "string",
+          "__example__": "Alex"
+        },
         "manage_address_choice": {
           "type": "string",
-          "__example__": "addr_0"
+          "__example__": ""
         },
         "manage_address_options": {
           "type": "array",
@@ -345,6 +430,12 @@
               },
               "metadata": {
                 "type": "string"
+              },
+              "image": {
+                "type": "string"
+              },
+              "alt-text": {
+                "type": "string"
               }
             }
           },
@@ -352,17 +443,24 @@
             {
               "id": "addr_0",
               "title": "Hippgasse 11",
-              "description": "Top 14, 1160 Wien"
+              "description": "Top 14 · 1160 Wien",
+              "metadata": "★",
+              "image": "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",
+              "alt-text": "Hippgasse 11"
             },
             {
               "id": "addr_1",
               "title": "Naschmarkt 5",
-              "description": "1040 Wien"
+              "description": "1040 Wien",
+              "image": "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAACXBIWXMAAAsTAAALEwEAmpwYAAAGPklEQVR42u1dbW8UVRSeP+EHRYxRQQ1o1K9qTIzGgNAYY/wkIoUWSgFfYtRowRc00QbUpU0EMUCJoFYjolCKb6BJu5gW2pTtG223u3TbYnW73Zmd5YOQ6302tDZtd93euXvvzOyZ5KSb7ezOmefZOfecc8891zByHOl0+ibLsjebVrrRStk9/HXKSqUZSQ7JYGT3ZDCz7E0cw4XGfA/bthdYVnqPadlXCFRnwjG8yv/WJy5fvjkv8E3bfoIzaBF4ssU2k7ZdkhN8/sg8f40xAqxQT4Nlb8n6yyfw1ZAw60ngNv9GMjtqzRHH/IbppmcfgaLaW0rvnXI1ydvRYoquwPLg17+FANEWM1QaPGA4QWDoegrSxw0+IPQRGNoG4x6DvB+tBFgGgaBXiAAigAggIIiA3DI4cYl9FTvNqnr3s2c63mcPtbzM7jmzgS1uXpMRvMZ7+B/OqY/9lvkMEeBAYsm/2J7IcbaybSu7pelZISnhn/2Ufwe+iwjIU/oTw2xr7wG2JLhOGPiZsiRYxrb11rGBxAgRkE0SlsV2R45xsMqlAT+biHWseqCexU2TCJgu5+Nhtuzc6wUDfqYs59cKxQeJAMiR4aaC/uqzyVJ+zaPDzcVNwKGLP7NF3ItRDf6kLGp+ju2LNBYnAfujJ7UBP1PgKRUVATA7+PW5hQDo8r0mc6ScgK7xCLsruN414P/nIZWzDu4M+JqAcctU6u3M3zt6I+MO+5aAQPhb14I/KTWDR/1JAKJQRKRuJwCmKJwY9R8BSC+4HfxJeevCQX8RgGSYjNzO7c2lrKJzVybbieh5LJnICF7jvYrOQOYcGbkjVQk8JQTAz3YKSnnoI9YTv/i/1+oej7Iyfq7z2KDBPwQ4SSnDR68VGBgxmN7WtNpBKnubPwjAgHarAyBqHXglNeEjwteFzhEFkzoFJwC22YnZcXr9taEPha//Tex37xOAKULRATcfm59P5C06MGMSx/MEYJ5W5Obh7cjSYUMoIKTDKq675wl4sPUloZuH6ZKlw5dDp4V0wES/5wm4l1csiNx8JzcdMmfcRHS474+N3idA1P6OmePSdMB3iehwR7DU+wSIRsAyCbhkxoUjYs8TcH/LC0I3L3PSvEPQBD3Q8qL3CXj8XJX2QfiLoVNCOqxoq/I+AWtCOwTd0IA0HdaHPhbSAbp7noAd/fVCN4+azy4JnhCCOVFHYOfA194n4ORoq3AqoExCKqI0tFP4+tDd8wSMcm/GSVayRlMyDjqPSvTEtKajn2rf7giI2vB3QuA7IR46+2Y+YG+0wfEECbKa+YwJOMeJ2ZkU6OwbArBYQkYhFgZmJNaQ24Fvj2ANgtd4D97OYgmljtBV1QIPZZPyqwSzojpERRZUOQEnRlo8Q0CjAu9HOQFmymaPnH3N9eA/3PoKS3JdfVkZdyD6o+sJgI6+rg0VnaBRIUi+qV6+pLw6+vDQr64lALr5vjwd9nW5CyukH+Pjk0rbr3WBRqOD/JAfPB9XLFESTREXQhDcFd0aMVTM3a1hdeRcqyWxOLwoV0l+EvlBOwHQoWiXqWLQe7r9XW3gP9n2NpuwUsW9UBszVks1mCJUPHRJrD3ydKsCHRGy6ojX9c06KjtrlIEvo+radwSMJONK0hSoU4ol/yYC5pLgWHemHLBQ4OO7cQ3qF5Szgccvvrf7rm9Z9uaFOk8vPfU8AYgPVp+vlgY+FolMKG5B4PmmfahofvTsq1JmuDDAU9M+wSANiyREwUc7S7e0JvNs39BTf7azO4Nr5w0+PoPPUt9QCXJs+My8WpuhrgdNoahxq+SpzHwWfOOcuuhP1Lq4ELIrj2Jb1IRS7+gCynv9h7OCj/9R824F8sHA7EUf7/R9Tt3TVUr1NBK29x2i9vW6ngQI7R9AQgQQASREgEcJoI3c9ImdBAG9BIQ2ArppM8+U7s08LXsTgaGJANOuwIbOC2lDZy0bOv+T2dD52pbmnxEoadVbmu+e2lOeM7EAG80TMOq8n1Qqdb0x/eBvLCNTpMT0XE3a9kpjrgP7y+MEAqpw4HOMNxu5Ds5OCZmjwpgdbndWGPkcpmleZ6bSAYzUBJzzXz2Xg7Nsfj4H3CT+yFTygKEBURulLfLbJx5YIcjifv7GKVczy/Evctkv3+EyKOkAAAAASUVORK5CYII=",
+              "alt-text": "Naschmarkt 5"
             },
             {
               "id": "addr_new",
               "title": "New address",
-              "description": "Enter street and apartment below"
+              "description": "Enter below",
+              "image": "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",
+              "alt-text": "New address"
             }
           ]
         },
@@ -373,6 +471,38 @@
         "delivery_apartment": {
           "type": "string",
           "__example__": "Top 14"
+        },
+        "manage_ui_mode": {
+          "type": "string",
+          "__example__": "list"
+        },
+        "manage_confirm_pending": {
+          "type": "string",
+          "__example__": ""
+        },
+        "manage_confirm_typed": {
+          "type": "string",
+          "__example__": ""
+        },
+        "manage_confirm_building": {
+          "type": "string",
+          "__example__": "Hippgasse 11"
+        },
+        "manage_confirm_unit": {
+          "type": "string",
+          "__example__": "Top 14"
+        },
+        "manage_confirm_locality": {
+          "type": "string",
+          "__example__": "1160 Wien"
+        },
+        "manage_confirm_unit_visible": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "manage_confirm_pin_image": {
+          "type": "string",
+          "__example__": "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"
         },
         "error_message": {
           "type": "string",
@@ -390,6 +520,7 @@
             "type": "Form",
             "name": "manage_address_form",
             "init-values": {
+              "customer_name": "${data.customer_name}",
               "manage_address_choice": "${data.manage_address_choice}",
               "delivery_address": "${data.delivery_address}",
               "delivery_apartment": "${data.delivery_apartment}",
@@ -397,89 +528,206 @@
             },
             "children": [
               {
-                "type": "TextBody",
-                "text": "${data.ui_manage_hint}"
-              },
-              {
                 "type": "TextCaption",
                 "text": "${data.error_message}",
                 "visible": "${data.error_visible}"
               },
               {
-                "type": "RadioButtonsGroup",
-                "label": "${data.ui_address_choice_label}",
-                "name": "manage_address_choice",
-                "required": true,
-                "data-source": "${data.manage_address_options}",
-                "on-select-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "select_address",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
+                "type": "If",
+                "condition": "${data.manage_ui_mode} == 'confirm'",
+                "then": [
+                  {
+                    "type": "TextBody",
+                    "text": "${data.ui_manage_hint}"
+                  },
+                  {
+                    "type": "Image",
+                    "src": "${data.manage_confirm_pin_image}",
+                    "width": 64,
+                    "height": 64,
+                    "scale-type": "contain"
+                  },
+                  {
+                    "type": "TextCaption",
+                    "text": "${data.ui_manage_confirm_typed}"
+                  },
+                  {
+                    "type": "TextBody",
+                    "text": "${data.manage_confirm_typed}"
+                  },
+                  {
+                    "type": "TextCaption",
+                    "text": "${data.ui_manage_confirm_found}"
+                  },
+                  {
+                    "type": "TextHeading",
+                    "text": "${data.manage_confirm_building}"
+                  },
+                  {
+                    "type": "TextBody",
+                    "text": "${data.manage_confirm_unit}",
+                    "visible": "${data.manage_confirm_unit_visible}"
+                  },
+                  {
+                    "type": "TextCaption",
+                    "text": "${data.manage_confirm_locality}"
+                  },
+                  {
+                    "type": "EmbeddedLink",
+                    "text": "${data.ui_manage_confirm_edit}",
+                    "on-click-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "manage_confirm_reject",
+                        "customer_name": "${data.customer_name}",
+                        "manage_address_choice": "${form.manage_address_choice}",
+                        "delivery_address": "${form.delivery_address}",
+                        "delivery_apartment": "${form.delivery_apartment}"
+                      }
+                    }
+                  },
+                  {
+                    "type": "Footer",
+                    "label": "${data.ui_manage_confirm_yes}",
+                    "on-click-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "manage_confirm_accept",
+                        "customer_name": "${data.customer_name}",
+                        "manage_confirm_pending": "${data.manage_confirm_pending}",
+                        "manage_address_choice": "${form.manage_address_choice}",
+                        "manage_set_as_default": "${form.manage_set_as_default}"
+                      }
+                    }
                   }
-                }
-              },
-              {
-                "type": "TextInput",
-                "label": "${data.ui_address_label}",
-                "name": "delivery_address",
-                "required": true
-              },
-              {
-                "type": "TextInput",
-                "label": "${data.ui_apartment_label}",
-                "name": "delivery_apartment",
-                "required": true,
-                "helper-text": "${data.ui_apartment_helper}"
-              },
-              {
-                "type": "OptIn",
-                "label": "${data.ui_manage_set_default}",
-                "name": "manage_set_as_default",
-                "required": false
-              },
-              {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_manage_delete}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_delete",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
+                ],
+                "else": [
+                  {
+                    "type": "TextInput",
+                    "label": "${data.ui_profile_name_label}",
+                    "name": "customer_name",
+                    "required": true,
+                    "helper-text": "${data.ui_profile_name_helper}"
+                  },
+                  {
+                    "type": "RadioButtonsGroup",
+                    "label": "${data.ui_manage_hint}",
+                    "name": "manage_address_choice",
+                    "required": false,
+                    "data-source": "${data.manage_address_options}",
+                    "media-size": "regular",
+                    "on-select-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "select_address",
+                        "manage_address_choice": "${form.manage_address_choice}",
+                        "manage_set_as_default": "${form.manage_set_as_default}"
+                      }
+                    }
+                  },
+                  {
+                    "type": "If",
+                    "condition": "${data.manage_ui_mode} == 'edit'",
+                    "then": [
+                      {
+                        "type": "TextCaption",
+                        "text": "${data.ui_manage_edit_caption}"
+                      },
+                      {
+                        "type": "TextInput",
+                        "label": "${data.ui_address_label}",
+                        "name": "delivery_address",
+                        "required": true,
+                        "helper-text": "${data.ui_address_helper}"
+                      },
+                      {
+                        "type": "TextInput",
+                        "label": "${data.ui_apartment_label}",
+                        "name": "delivery_apartment",
+                        "required": true,
+                        "helper-text": "${data.ui_apartment_helper}"
+                      },
+                      {
+                        "type": "OptIn",
+                        "label": "${data.ui_manage_set_default}",
+                        "name": "manage_set_as_default",
+                        "required": false
+                      },
+                      {
+                        "type": "If",
+                        "condition": "${form.manage_address_choice} != 'addr_new'",
+                        "then": [
+                          {
+                            "type": "EmbeddedLink",
+                            "text": "${data.ui_manage_delete}",
+                            "on-click-action": {
+                              "name": "data_exchange",
+                              "payload": {
+                                "checkout_action": "manage_delete",
+                                "customer_name": "${form.customer_name}",
+                                "manage_address_choice": "${form.manage_address_choice}",
+                                "delivery_address": "${form.delivery_address}",
+                                "delivery_apartment": "${form.delivery_apartment}",
+                                "manage_set_as_default": "${form.manage_set_as_default}"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "EmbeddedLink",
+                        "text": "${data.ui_manage_back}",
+                        "on-click-action": {
+                          "name": "data_exchange",
+                          "payload": {
+                            "checkout_action": "manage_back",
+                            "customer_name": "${form.customer_name}",
+                            "manage_address_choice": "${form.manage_address_choice}",
+                            "delivery_address": "${form.delivery_address}",
+                            "delivery_apartment": "${form.delivery_apartment}",
+                            "manage_set_as_default": "${form.manage_set_as_default}"
+                          }
+                        }
+                      },
+                      {
+                        "type": "Footer",
+                        "label": "${data.ui_manage_save}",
+                        "on-click-action": {
+                          "name": "data_exchange",
+                          "payload": {
+                            "checkout_action": "manage_save",
+                            "customer_name": "${form.customer_name}",
+                            "manage_address_choice": "${form.manage_address_choice}",
+                            "delivery_address": "${form.delivery_address}",
+                            "delivery_apartment": "${form.delivery_apartment}",
+                            "manage_set_as_default": "${form.manage_set_as_default}"
+                          }
+                        }
+                      }
+                    ],
+                    "else": [
+                      {
+                        "type": "TextCaption",
+                        "text": "${data.ui_manage_select_hint}"
+                      },
+                      {
+                        "type": "Footer",
+                        "label": "${data.ui_manage_back}",
+                        "on-click-action": {
+                          "name": "data_exchange",
+                          "payload": {
+                            "checkout_action": "manage_back",
+                            "customer_name": "${form.customer_name}",
+                            "manage_address_choice": "${form.manage_address_choice}",
+                            "delivery_address": "${form.delivery_address}",
+                            "delivery_apartment": "${form.delivery_apartment}",
+                            "manage_set_as_default": "${form.manage_set_as_default}"
+                          }
+                        }
+                      }
+                    ]
                   }
-                }
-              },
-              {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_manage_back}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_back",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
-                  }
-                }
-              },
-              {
-                "type": "Footer",
-                "label": "${data.ui_manage_save}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_save",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
-                  }
-                }
+                ]
               }
             ]
           }
@@ -494,13 +742,25 @@
           "type": "string",
           "__example__": "Review order"
         },
+        "ui_review_intro": {
+          "type": "string",
+          "__example__": "Almost done!"
+        },
+        "ui_review_section_basket": {
+          "type": "string",
+          "__example__": "Your order"
+        },
         "ui_name_label": {
           "type": "string",
           "__example__": "Name"
         },
+        "ui_name_empty": {
+          "type": "string",
+          "__example__": "No name yet — tap Address & profile."
+        },
         "ui_type_label": {
           "type": "string",
-          "__example__": "Type"
+          "__example__": "How would you like to receive your order?"
         },
         "ui_address_choice_label": {
           "type": "string",
@@ -509,6 +769,10 @@
         "ui_address_label": {
           "type": "string",
           "__example__": "Street"
+        },
+        "ui_address_helper": {
+          "type": "string",
+          "__example__": "Street and house number (e.g. Lavaterstrasse 3)"
         },
         "ui_apartment_label": {
           "type": "string",
@@ -520,7 +784,7 @@
         },
         "ui_delivery_address_empty": {
           "type": "string",
-          "__example__": "No address — tap Manage addresses."
+          "__example__": "No address — tap Address & profile."
         },
         "ui_note_label": {
           "type": "string",
@@ -536,15 +800,27 @@
         },
         "ui_manage_addresses_link": {
           "type": "string",
-          "__example__": "Manage addresses"
+          "__example__": "Address & profile"
         },
         "ui_manage_screen_title": {
           "type": "string",
-          "__example__": "Addresses"
+          "__example__": "Profile"
         },
         "ui_manage_hint": {
           "type": "string",
-          "__example__": "Up to 5 saved addresses"
+          "__example__": "Saved addresses (2/5)"
+        },
+        "ui_manage_edit_caption": {
+          "type": "string",
+          "__example__": "Edit the selected address"
+        },
+        "ui_manage_select_hint": {
+          "type": "string",
+          "__example__": "Tap an address to edit"
+        },
+        "ui_manage_edit": {
+          "type": "string",
+          "__example__": "Edit"
         },
         "ui_manage_save": {
           "type": "string",
@@ -552,7 +828,7 @@
         },
         "ui_manage_set_default": {
           "type": "string",
-          "__example__": "Set as default"
+          "__example__": "Save as default address"
         },
         "ui_manage_delete": {
           "type": "string",
@@ -562,9 +838,37 @@
           "type": "string",
           "__example__": "Back to order"
         },
+        "ui_manage_confirm_yes": {
+          "type": "string",
+          "__example__": "Yes"
+        },
+        "ui_manage_confirm_edit": {
+          "type": "string",
+          "__example__": "Edit"
+        },
+        "ui_manage_confirm_typed": {
+          "type": "string",
+          "__example__": "You typed"
+        },
+        "ui_manage_confirm_found": {
+          "type": "string",
+          "__example__": "We found"
+        },
+        "ui_profile_name_label": {
+          "type": "string",
+          "__example__": "Your name"
+        },
+        "ui_profile_name_helper": {
+          "type": "string",
+          "__example__": "Used on your order"
+        },
+        "customer_name": {
+          "type": "string",
+          "__example__": "Alex"
+        },
         "manage_address_choice": {
           "type": "string",
-          "__example__": "addr_0"
+          "__example__": ""
         },
         "manage_address_options": {
           "type": "array",
@@ -582,6 +886,12 @@
               },
               "metadata": {
                 "type": "string"
+              },
+              "image": {
+                "type": "string"
+              },
+              "alt-text": {
+                "type": "string"
               }
             }
           },
@@ -589,17 +899,24 @@
             {
               "id": "addr_0",
               "title": "Hippgasse 11",
-              "description": "Top 14, 1160 Wien"
+              "description": "Top 14 · 1160 Wien",
+              "metadata": "★",
+              "image": "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",
+              "alt-text": "Hippgasse 11"
             },
             {
               "id": "addr_1",
               "title": "Naschmarkt 5",
-              "description": "1040 Wien"
+              "description": "1040 Wien",
+              "image": "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",
+              "alt-text": "Naschmarkt 5"
             },
             {
               "id": "addr_new",
               "title": "New address",
-              "description": "Enter street and apartment below"
+              "description": "Enter below",
+              "image": "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",
+              "alt-text": "New address"
             }
           ]
         },
@@ -610,6 +927,38 @@
         "delivery_apartment": {
           "type": "string",
           "__example__": "Top 14"
+        },
+        "manage_ui_mode": {
+          "type": "string",
+          "__example__": "list"
+        },
+        "manage_confirm_pending": {
+          "type": "string",
+          "__example__": ""
+        },
+        "manage_confirm_typed": {
+          "type": "string",
+          "__example__": ""
+        },
+        "manage_confirm_building": {
+          "type": "string",
+          "__example__": "Hippgasse 11"
+        },
+        "manage_confirm_unit": {
+          "type": "string",
+          "__example__": "Top 14"
+        },
+        "manage_confirm_locality": {
+          "type": "string",
+          "__example__": "1160 Wien"
+        },
+        "manage_confirm_unit_visible": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "manage_confirm_pin_image": {
+          "type": "string",
+          "__example__": "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"
         },
         "error_message": {
           "type": "string",
@@ -627,6 +976,7 @@
             "type": "Form",
             "name": "manage_address_form",
             "init-values": {
+              "customer_name": "${data.customer_name}",
               "manage_address_choice": "${data.manage_address_choice}",
               "delivery_address": "${data.delivery_address}",
               "delivery_apartment": "${data.delivery_apartment}",
@@ -634,89 +984,206 @@
             },
             "children": [
               {
-                "type": "TextBody",
-                "text": "${data.ui_manage_hint}"
-              },
-              {
                 "type": "TextCaption",
                 "text": "${data.error_message}",
                 "visible": "${data.error_visible}"
               },
               {
-                "type": "RadioButtonsGroup",
-                "label": "${data.ui_address_choice_label}",
-                "name": "manage_address_choice",
-                "required": true,
-                "data-source": "${data.manage_address_options}",
-                "on-select-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "select_address",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
+                "type": "If",
+                "condition": "${data.manage_ui_mode} == 'confirm'",
+                "then": [
+                  {
+                    "type": "TextBody",
+                    "text": "${data.ui_manage_hint}"
+                  },
+                  {
+                    "type": "Image",
+                    "src": "${data.manage_confirm_pin_image}",
+                    "width": 64,
+                    "height": 64,
+                    "scale-type": "contain"
+                  },
+                  {
+                    "type": "TextCaption",
+                    "text": "${data.ui_manage_confirm_typed}"
+                  },
+                  {
+                    "type": "TextBody",
+                    "text": "${data.manage_confirm_typed}"
+                  },
+                  {
+                    "type": "TextCaption",
+                    "text": "${data.ui_manage_confirm_found}"
+                  },
+                  {
+                    "type": "TextHeading",
+                    "text": "${data.manage_confirm_building}"
+                  },
+                  {
+                    "type": "TextBody",
+                    "text": "${data.manage_confirm_unit}",
+                    "visible": "${data.manage_confirm_unit_visible}"
+                  },
+                  {
+                    "type": "TextCaption",
+                    "text": "${data.manage_confirm_locality}"
+                  },
+                  {
+                    "type": "EmbeddedLink",
+                    "text": "${data.ui_manage_confirm_edit}",
+                    "on-click-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "manage_confirm_reject",
+                        "customer_name": "${data.customer_name}",
+                        "manage_address_choice": "${form.manage_address_choice}",
+                        "delivery_address": "${form.delivery_address}",
+                        "delivery_apartment": "${form.delivery_apartment}"
+                      }
+                    }
+                  },
+                  {
+                    "type": "Footer",
+                    "label": "${data.ui_manage_confirm_yes}",
+                    "on-click-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "manage_confirm_accept",
+                        "customer_name": "${data.customer_name}",
+                        "manage_confirm_pending": "${data.manage_confirm_pending}",
+                        "manage_address_choice": "${form.manage_address_choice}",
+                        "manage_set_as_default": "${form.manage_set_as_default}"
+                      }
+                    }
                   }
-                }
-              },
-              {
-                "type": "TextInput",
-                "label": "${data.ui_address_label}",
-                "name": "delivery_address",
-                "required": true
-              },
-              {
-                "type": "TextInput",
-                "label": "${data.ui_apartment_label}",
-                "name": "delivery_apartment",
-                "required": true,
-                "helper-text": "${data.ui_apartment_helper}"
-              },
-              {
-                "type": "OptIn",
-                "label": "${data.ui_manage_set_default}",
-                "name": "manage_set_as_default",
-                "required": false
-              },
-              {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_manage_delete}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_delete",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
+                ],
+                "else": [
+                  {
+                    "type": "TextInput",
+                    "label": "${data.ui_profile_name_label}",
+                    "name": "customer_name",
+                    "required": true,
+                    "helper-text": "${data.ui_profile_name_helper}"
+                  },
+                  {
+                    "type": "RadioButtonsGroup",
+                    "label": "${data.ui_manage_hint}",
+                    "name": "manage_address_choice",
+                    "required": false,
+                    "data-source": "${data.manage_address_options}",
+                    "media-size": "regular",
+                    "on-select-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "select_address",
+                        "manage_address_choice": "${form.manage_address_choice}",
+                        "manage_set_as_default": "${form.manage_set_as_default}"
+                      }
+                    }
+                  },
+                  {
+                    "type": "If",
+                    "condition": "${data.manage_ui_mode} == 'edit'",
+                    "then": [
+                      {
+                        "type": "TextCaption",
+                        "text": "${data.ui_manage_edit_caption}"
+                      },
+                      {
+                        "type": "TextInput",
+                        "label": "${data.ui_address_label}",
+                        "name": "delivery_address",
+                        "required": true,
+                        "helper-text": "${data.ui_address_helper}"
+                      },
+                      {
+                        "type": "TextInput",
+                        "label": "${data.ui_apartment_label}",
+                        "name": "delivery_apartment",
+                        "required": true,
+                        "helper-text": "${data.ui_apartment_helper}"
+                      },
+                      {
+                        "type": "OptIn",
+                        "label": "${data.ui_manage_set_default}",
+                        "name": "manage_set_as_default",
+                        "required": false
+                      },
+                      {
+                        "type": "If",
+                        "condition": "${form.manage_address_choice} != 'addr_new'",
+                        "then": [
+                          {
+                            "type": "EmbeddedLink",
+                            "text": "${data.ui_manage_delete}",
+                            "on-click-action": {
+                              "name": "data_exchange",
+                              "payload": {
+                                "checkout_action": "manage_delete",
+                                "customer_name": "${form.customer_name}",
+                                "manage_address_choice": "${form.manage_address_choice}",
+                                "delivery_address": "${form.delivery_address}",
+                                "delivery_apartment": "${form.delivery_apartment}",
+                                "manage_set_as_default": "${form.manage_set_as_default}"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "EmbeddedLink",
+                        "text": "${data.ui_manage_back}",
+                        "on-click-action": {
+                          "name": "data_exchange",
+                          "payload": {
+                            "checkout_action": "manage_back",
+                            "customer_name": "${form.customer_name}",
+                            "manage_address_choice": "${form.manage_address_choice}",
+                            "delivery_address": "${form.delivery_address}",
+                            "delivery_apartment": "${form.delivery_apartment}",
+                            "manage_set_as_default": "${form.manage_set_as_default}"
+                          }
+                        }
+                      },
+                      {
+                        "type": "Footer",
+                        "label": "${data.ui_manage_save}",
+                        "on-click-action": {
+                          "name": "data_exchange",
+                          "payload": {
+                            "checkout_action": "manage_save",
+                            "customer_name": "${form.customer_name}",
+                            "manage_address_choice": "${form.manage_address_choice}",
+                            "delivery_address": "${form.delivery_address}",
+                            "delivery_apartment": "${form.delivery_apartment}",
+                            "manage_set_as_default": "${form.manage_set_as_default}"
+                          }
+                        }
+                      }
+                    ],
+                    "else": [
+                      {
+                        "type": "TextCaption",
+                        "text": "${data.ui_manage_select_hint}"
+                      },
+                      {
+                        "type": "Footer",
+                        "label": "${data.ui_manage_back}",
+                        "on-click-action": {
+                          "name": "data_exchange",
+                          "payload": {
+                            "checkout_action": "manage_back",
+                            "customer_name": "${form.customer_name}",
+                            "manage_address_choice": "${form.manage_address_choice}",
+                            "delivery_address": "${form.delivery_address}",
+                            "delivery_apartment": "${form.delivery_apartment}",
+                            "manage_set_as_default": "${form.manage_set_as_default}"
+                          }
+                        }
+                      }
+                    ]
                   }
-                }
-              },
-              {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_manage_back}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_back",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
-                  }
-                }
-              },
-              {
-                "type": "Footer",
-                "label": "${data.ui_manage_save}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_save",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
-                  }
-                }
+                ]
               }
             ]
           }
@@ -732,13 +1199,25 @@
           "type": "string",
           "__example__": "Review order"
         },
+        "ui_review_intro": {
+          "type": "string",
+          "__example__": "Almost done!"
+        },
+        "ui_review_section_basket": {
+          "type": "string",
+          "__example__": "Your order"
+        },
         "ui_name_label": {
           "type": "string",
           "__example__": "Name"
         },
+        "ui_name_empty": {
+          "type": "string",
+          "__example__": "No name yet — tap Address & profile."
+        },
         "ui_type_label": {
           "type": "string",
-          "__example__": "Type"
+          "__example__": "How would you like to receive your order?"
         },
         "ui_address_choice_label": {
           "type": "string",
@@ -747,6 +1226,10 @@
         "ui_address_label": {
           "type": "string",
           "__example__": "Street"
+        },
+        "ui_address_helper": {
+          "type": "string",
+          "__example__": "Street and house number (e.g. Lavaterstrasse 3)"
         },
         "ui_apartment_label": {
           "type": "string",
@@ -758,7 +1241,7 @@
         },
         "ui_delivery_address_empty": {
           "type": "string",
-          "__example__": "No address — tap Manage addresses."
+          "__example__": "No address — tap Address & profile."
         },
         "ui_note_label": {
           "type": "string",
@@ -774,13 +1257,17 @@
         },
         "ui_manage_addresses_link": {
           "type": "string",
-          "__example__": "Manage addresses"
+          "__example__": "Address & profile"
         },
         "receipt_text": {
           "type": "string",
           "__example__": "1x Chicken Dürüm  €8.50\n1x Falafel Box  €6.90\n\nTotal: €15.40"
         },
         "customer_name": {
+          "type": "string",
+          "__example__": "Alex Smith"
+        },
+        "customer_name_display": {
           "type": "string",
           "__example__": "Alex Smith"
         },
@@ -850,20 +1337,29 @@
             "type": "Form",
             "name": "checkout_form",
             "init-values": {
-              "customer_name": "${data.customer_name}",
               "order_type": "${data.order_type}",
               "note": "${data.note}"
             },
             "children": [
               {
+                "type": "TextCaption",
+                "text": "${data.ui_review_intro}"
+              },
+              {
+                "type": "TextCaption",
+                "text": "${data.ui_review_section_basket}"
+              },
+              {
                 "type": "TextBody",
                 "text": "${data.receipt_text}"
               },
               {
-                "type": "TextInput",
-                "label": "${data.ui_name_label}",
-                "name": "customer_name",
-                "required": true
+                "type": "TextCaption",
+                "text": "${data.ui_name_label}"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.customer_name_display}"
               },
               {
                 "type": "RadioButtonsGroup",
@@ -875,7 +1371,7 @@
                   "name": "data_exchange",
                   "payload": {
                     "checkout_action": "select_order_type",
-                    "customer_name": "${form.customer_name}",
+                    "customer_name": "${data.customer_name}",
                     "order_type": "${form.order_type}",
                     "address_choice": "${data.address_choice}",
                     "delivery_address": "${data.delivery_address}",
@@ -895,22 +1391,6 @@
                   {
                     "type": "TextBody",
                     "text": "${data.delivery_address_display}"
-                  },
-                  {
-                    "type": "EmbeddedLink",
-                    "text": "${data.ui_manage_addresses_link}",
-                    "on-click-action": {
-                      "name": "data_exchange",
-                      "payload": {
-                        "checkout_action": "manage_addresses",
-                        "customer_name": "${form.customer_name}",
-                        "order_type": "${form.order_type}",
-                        "address_choice": "${data.address_choice}",
-                        "delivery_address": "${data.delivery_address}",
-                        "delivery_apartment": "${data.delivery_apartment}",
-                        "note": "${form.note}"
-                      }
-                    }
                   }
                 ]
               },
@@ -919,6 +1399,22 @@
                 "label": "${data.ui_note_label}",
                 "name": "note",
                 "required": false
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_manage_addresses_link}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_addresses",
+                    "customer_name": "${data.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${data.address_choice}",
+                    "delivery_address": "${data.delivery_address}",
+                    "delivery_apartment": "${data.delivery_apartment}",
+                    "note": "${form.note}"
+                  }
+                }
               },
               {
                 "type": "EmbeddedLink",
@@ -937,7 +1433,7 @@
                   "name": "complete",
                   "payload": {
                     "checkout_action": "place_order",
-                    "customer_name": "${form.customer_name}",
+                    "customer_name": "${data.customer_name}",
                     "order_type": "${form.order_type}",
                     "address_choice": "${data.address_choice}",
                     "delivery_address": "${data.delivery_address}",
@@ -959,13 +1455,25 @@
           "type": "string",
           "__example__": "Review order"
         },
+        "ui_review_intro": {
+          "type": "string",
+          "__example__": "Almost done!"
+        },
+        "ui_review_section_basket": {
+          "type": "string",
+          "__example__": "Your order"
+        },
         "ui_name_label": {
           "type": "string",
           "__example__": "Name"
         },
+        "ui_name_empty": {
+          "type": "string",
+          "__example__": "No name yet — tap Address & profile."
+        },
         "ui_type_label": {
           "type": "string",
-          "__example__": "Type"
+          "__example__": "How would you like to receive your order?"
         },
         "ui_address_choice_label": {
           "type": "string",
@@ -974,6 +1482,10 @@
         "ui_address_label": {
           "type": "string",
           "__example__": "Street"
+        },
+        "ui_address_helper": {
+          "type": "string",
+          "__example__": "Street and house number (e.g. Lavaterstrasse 3)"
         },
         "ui_apartment_label": {
           "type": "string",
@@ -985,7 +1497,7 @@
         },
         "ui_delivery_address_empty": {
           "type": "string",
-          "__example__": "No address — tap Manage addresses."
+          "__example__": "No address — tap Address & profile."
         },
         "ui_note_label": {
           "type": "string",
@@ -1001,15 +1513,27 @@
         },
         "ui_manage_addresses_link": {
           "type": "string",
-          "__example__": "Manage addresses"
+          "__example__": "Address & profile"
         },
         "ui_manage_screen_title": {
           "type": "string",
-          "__example__": "Addresses"
+          "__example__": "Profile"
         },
         "ui_manage_hint": {
           "type": "string",
-          "__example__": "Up to 5 saved addresses"
+          "__example__": "Saved addresses (2/5)"
+        },
+        "ui_manage_edit_caption": {
+          "type": "string",
+          "__example__": "Edit the selected address"
+        },
+        "ui_manage_select_hint": {
+          "type": "string",
+          "__example__": "Tap an address to edit"
+        },
+        "ui_manage_edit": {
+          "type": "string",
+          "__example__": "Edit"
         },
         "ui_manage_save": {
           "type": "string",
@@ -1017,7 +1541,7 @@
         },
         "ui_manage_set_default": {
           "type": "string",
-          "__example__": "Set as default"
+          "__example__": "Save as default address"
         },
         "ui_manage_delete": {
           "type": "string",
@@ -1027,9 +1551,37 @@
           "type": "string",
           "__example__": "Back to order"
         },
+        "ui_manage_confirm_yes": {
+          "type": "string",
+          "__example__": "Yes"
+        },
+        "ui_manage_confirm_edit": {
+          "type": "string",
+          "__example__": "Edit"
+        },
+        "ui_manage_confirm_typed": {
+          "type": "string",
+          "__example__": "You typed"
+        },
+        "ui_manage_confirm_found": {
+          "type": "string",
+          "__example__": "We found"
+        },
+        "ui_profile_name_label": {
+          "type": "string",
+          "__example__": "Your name"
+        },
+        "ui_profile_name_helper": {
+          "type": "string",
+          "__example__": "Used on your order"
+        },
+        "customer_name": {
+          "type": "string",
+          "__example__": "Alex"
+        },
         "manage_address_choice": {
           "type": "string",
-          "__example__": "addr_0"
+          "__example__": ""
         },
         "manage_address_options": {
           "type": "array",
@@ -1047,6 +1599,12 @@
               },
               "metadata": {
                 "type": "string"
+              },
+              "image": {
+                "type": "string"
+              },
+              "alt-text": {
+                "type": "string"
               }
             }
           },
@@ -1054,17 +1612,24 @@
             {
               "id": "addr_0",
               "title": "Hippgasse 11",
-              "description": "Top 14, 1160 Wien"
+              "description": "Top 14 · 1160 Wien",
+              "metadata": "★",
+              "image": "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",
+              "alt-text": "Hippgasse 11"
             },
             {
               "id": "addr_1",
               "title": "Naschmarkt 5",
-              "description": "1040 Wien"
+              "description": "1040 Wien",
+              "image": "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",
+              "alt-text": "Naschmarkt 5"
             },
             {
               "id": "addr_new",
               "title": "New address",
-              "description": "Enter street and apartment below"
+              "description": "Enter below",
+              "image": "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAACXBIWXMAAAsTAAALEwEAmpwYAAAGn0lEQVR42u2d33MTVRTH95/wQRHHEVFnig7IC/rgrzcQKv4BgjJY2kLbB388OIUCOv7gRQo6wy+B6vhjioAg/aE+OdqmtNhWS6FtmjbRpvgjpM1uNjwIc73ftXR27+5mQnazu9mcnTnTTJLezZ7P3XPPPefcvZKU58jlcvcpitogK7luJauO8ddZJZtjJHlE05E6pulMUXdwHS6V7vRQVXWJouQOy4p6k5TqTLgOb/G/7XM3btxfkPJlVd3ICSqkPLdFlTOqWp1X+fyWaVogRgor1d2gqI22PZ+U7w0E053Abf69ZHa8NUdc5/foTc9xUorX3lLu6KKrSd6OL6boJiwPen8jKcS3OcN2iU8YukgZft0FuQ6JDwhRUoZvg/GYRN6PrwAUiZTgrxAAAkAASBEEgACQEAACQEIACAAJASAAJATAKNPzf7L2mR9Z8/gJ9tJv77NnL73BVvbVsod7t2iC13gPn+0cP8lO8e/G+f8QAAfyx/zf7HC8g20Y2ske6NlUlFQP7WJH4p1sJvMPAShUYnOzWi+uimwtWvGiVEVeZS0TbbztawTATuYUhR2KX2ArIjWuKd4MYivbF2tn12WZAOhl5PoUWzv4lq3ilve+zF4c2sPem/yKfZPsYb+mJlkyk9KgQfB6OBXTPnt38ku2cXg3e7Bns2176/i5RtNxAgCB0ux6/ZMDTezA1FnNLBVjylqnzrAn+pss28Y5zyd7KxvAicR3Wu8WlbP6Yj07mfiepRXnpgJtfJLoZqv66izvLJynIgFA+VY9s+HKR9xrSbl+PnhC9aMHLc/pJwTJL7Mj9vyHel9hbYkfPAGPc4l3wrfJSGUAwIBbJdh8eCddswOe/YbO2X6Tm/toZBu74sPA7CkA2GPR20FvLEb5ohkpBoJ4Jzw/2Kx5VaEFAK9EVFyxZscpAMjxeLepnYPT58IJAG4hZqTigFtse24AgNSNHhDMYQ2b8nDG7BkAhBf0Fwq3EPEevwHAO3qcu736tvZMfBYuALhIcdBz6vq5BQByNNFpih2VwhX2DQCimvoLxOzU6STLTQCIDa3pbzS0dyzRFR4A64eajQMdDy84bdNNAJD9MaOD8MJwSzgAYEBbpguMIUg2OZcMHAA4CfrJIX6zF0mdkgNAJkuvKEQq3WjXbQAQJHD0bX4981P5A0AaUX9RCCkHFcA70S8Mbe4abyt/AMjT6i/qnEsh4FIAOJP82dDmppEPyh/AUwOvGS4KyZSgAhjkv03f5jMDr5c/gFW8YkF/UXb+danSkHZiVwig/w4maGUPAGUj+ouy8/+DAADzAf13HolsIQAEoIJN0OowmKCn+UCmvyhUL9AgTG5oQW7o5pF95Q9ADEOjbieoAN6Ofm5oE9V0ZQ/glCkU0RLgUISxDvV0MgShiMT8X6ZgXDQdvGDcRHrGUE2H3/y7g4RRoMLRYs9CbjhoAD6MnS5J0DAQAI6UYUIG1XQhS0kaE/KoSAgKALGDIDEfqpQkBB6FMSlfG5ikvFg3ujdsSfn/M07XTBVxqNX0G8C2y/tNVdPTHi5v8rQwC7lgtwpj3QAgVkNAPp4+H97KOJT9rbMoTUSZoNcAOmYv8hywsTQRxQPzYS5NhGBlygqL4txiIBQrUL5Yp/QY/01X04nKKE/HyhSxPB290QvXD/U+yy3L0/sqa4EGbL9VmLhutNWRd2QnmNXWXm41nQ8z3opboKGHYLVECS4qeqobqxnRBtYKrxTyErd7vheLQgK9SA/mCIsjrO4GzE5RsVZM7AixHYQX1vQ3WLYNm3/BJ7MTuGWqGJixOMIue4UgGYqmULdzli9vQuIEM1WEMyB4/UsqqsXzEVJG7CnfMlV4O34MuIFeqD2/sFDb7m5wa8U8Fmq7sfoytI8qQC0p6vPF2JEzxddo4YUgPsAjsA/rgFnBTBVVysvymBM7wf8gpIzBPOlRYC20j6tBUgeFsgjooVzwuUtvagG024+rwWu8h8/wHXzXi2QKPbCJHthEQgAIAAkBIAAkBIAAkBAAAkBCAAgAyR0CoI3c/BM1AwDjpAjfAFylzTyzfm/mqag7SBk+AZDVOmzovJQ2dPZlQ+d/tQ2dF7Y0P0ZKyXm9pfmhxT3lOYkl2GieFOOd95PNZu+W9Ad/Yy2ZIk9Mz62Mqm6QrA7sL48vkKJKp3yu4wYp38HpVJM5Ko3Z4XZnvVTIIcvyXXI214qRmhTnvNdz+dRk8ws54CbxW2Y7nzB0YtZGYYvC9omHrjDJ4n5+/aKraXP8B+Mrts5zarwOAAAAAElFTkSuQmCC",
+              "alt-text": "New address"
             }
           ]
         },
@@ -1075,6 +1640,38 @@
         "delivery_apartment": {
           "type": "string",
           "__example__": "Top 14"
+        },
+        "manage_ui_mode": {
+          "type": "string",
+          "__example__": "list"
+        },
+        "manage_confirm_pending": {
+          "type": "string",
+          "__example__": ""
+        },
+        "manage_confirm_typed": {
+          "type": "string",
+          "__example__": ""
+        },
+        "manage_confirm_building": {
+          "type": "string",
+          "__example__": "Hippgasse 11"
+        },
+        "manage_confirm_unit": {
+          "type": "string",
+          "__example__": "Top 14"
+        },
+        "manage_confirm_locality": {
+          "type": "string",
+          "__example__": "1160 Wien"
+        },
+        "manage_confirm_unit_visible": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "manage_confirm_pin_image": {
+          "type": "string",
+          "__example__": "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"
         },
         "error_message": {
           "type": "string",
@@ -1092,6 +1689,7 @@
             "type": "Form",
             "name": "manage_address_form",
             "init-values": {
+              "customer_name": "${data.customer_name}",
               "manage_address_choice": "${data.manage_address_choice}",
               "delivery_address": "${data.delivery_address}",
               "delivery_apartment": "${data.delivery_apartment}",
@@ -1099,89 +1697,206 @@
             },
             "children": [
               {
-                "type": "TextBody",
-                "text": "${data.ui_manage_hint}"
-              },
-              {
                 "type": "TextCaption",
                 "text": "${data.error_message}",
                 "visible": "${data.error_visible}"
               },
               {
-                "type": "RadioButtonsGroup",
-                "label": "${data.ui_address_choice_label}",
-                "name": "manage_address_choice",
-                "required": true,
-                "data-source": "${data.manage_address_options}",
-                "on-select-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "select_address",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
+                "type": "If",
+                "condition": "${data.manage_ui_mode} == 'confirm'",
+                "then": [
+                  {
+                    "type": "TextBody",
+                    "text": "${data.ui_manage_hint}"
+                  },
+                  {
+                    "type": "Image",
+                    "src": "${data.manage_confirm_pin_image}",
+                    "width": 64,
+                    "height": 64,
+                    "scale-type": "contain"
+                  },
+                  {
+                    "type": "TextCaption",
+                    "text": "${data.ui_manage_confirm_typed}"
+                  },
+                  {
+                    "type": "TextBody",
+                    "text": "${data.manage_confirm_typed}"
+                  },
+                  {
+                    "type": "TextCaption",
+                    "text": "${data.ui_manage_confirm_found}"
+                  },
+                  {
+                    "type": "TextHeading",
+                    "text": "${data.manage_confirm_building}"
+                  },
+                  {
+                    "type": "TextBody",
+                    "text": "${data.manage_confirm_unit}",
+                    "visible": "${data.manage_confirm_unit_visible}"
+                  },
+                  {
+                    "type": "TextCaption",
+                    "text": "${data.manage_confirm_locality}"
+                  },
+                  {
+                    "type": "EmbeddedLink",
+                    "text": "${data.ui_manage_confirm_edit}",
+                    "on-click-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "manage_confirm_reject",
+                        "customer_name": "${data.customer_name}",
+                        "manage_address_choice": "${form.manage_address_choice}",
+                        "delivery_address": "${form.delivery_address}",
+                        "delivery_apartment": "${form.delivery_apartment}"
+                      }
+                    }
+                  },
+                  {
+                    "type": "Footer",
+                    "label": "${data.ui_manage_confirm_yes}",
+                    "on-click-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "manage_confirm_accept",
+                        "customer_name": "${data.customer_name}",
+                        "manage_confirm_pending": "${data.manage_confirm_pending}",
+                        "manage_address_choice": "${form.manage_address_choice}",
+                        "manage_set_as_default": "${form.manage_set_as_default}"
+                      }
+                    }
                   }
-                }
-              },
-              {
-                "type": "TextInput",
-                "label": "${data.ui_address_label}",
-                "name": "delivery_address",
-                "required": true
-              },
-              {
-                "type": "TextInput",
-                "label": "${data.ui_apartment_label}",
-                "name": "delivery_apartment",
-                "required": true,
-                "helper-text": "${data.ui_apartment_helper}"
-              },
-              {
-                "type": "OptIn",
-                "label": "${data.ui_manage_set_default}",
-                "name": "manage_set_as_default",
-                "required": false
-              },
-              {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_manage_delete}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_delete",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
+                ],
+                "else": [
+                  {
+                    "type": "TextInput",
+                    "label": "${data.ui_profile_name_label}",
+                    "name": "customer_name",
+                    "required": true,
+                    "helper-text": "${data.ui_profile_name_helper}"
+                  },
+                  {
+                    "type": "RadioButtonsGroup",
+                    "label": "${data.ui_manage_hint}",
+                    "name": "manage_address_choice",
+                    "required": false,
+                    "data-source": "${data.manage_address_options}",
+                    "media-size": "regular",
+                    "on-select-action": {
+                      "name": "data_exchange",
+                      "payload": {
+                        "checkout_action": "select_address",
+                        "manage_address_choice": "${form.manage_address_choice}",
+                        "manage_set_as_default": "${form.manage_set_as_default}"
+                      }
+                    }
+                  },
+                  {
+                    "type": "If",
+                    "condition": "${data.manage_ui_mode} == 'edit'",
+                    "then": [
+                      {
+                        "type": "TextCaption",
+                        "text": "${data.ui_manage_edit_caption}"
+                      },
+                      {
+                        "type": "TextInput",
+                        "label": "${data.ui_address_label}",
+                        "name": "delivery_address",
+                        "required": true,
+                        "helper-text": "${data.ui_address_helper}"
+                      },
+                      {
+                        "type": "TextInput",
+                        "label": "${data.ui_apartment_label}",
+                        "name": "delivery_apartment",
+                        "required": true,
+                        "helper-text": "${data.ui_apartment_helper}"
+                      },
+                      {
+                        "type": "OptIn",
+                        "label": "${data.ui_manage_set_default}",
+                        "name": "manage_set_as_default",
+                        "required": false
+                      },
+                      {
+                        "type": "If",
+                        "condition": "${form.manage_address_choice} != 'addr_new'",
+                        "then": [
+                          {
+                            "type": "EmbeddedLink",
+                            "text": "${data.ui_manage_delete}",
+                            "on-click-action": {
+                              "name": "data_exchange",
+                              "payload": {
+                                "checkout_action": "manage_delete",
+                                "customer_name": "${form.customer_name}",
+                                "manage_address_choice": "${form.manage_address_choice}",
+                                "delivery_address": "${form.delivery_address}",
+                                "delivery_apartment": "${form.delivery_apartment}",
+                                "manage_set_as_default": "${form.manage_set_as_default}"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "EmbeddedLink",
+                        "text": "${data.ui_manage_back}",
+                        "on-click-action": {
+                          "name": "data_exchange",
+                          "payload": {
+                            "checkout_action": "manage_back",
+                            "customer_name": "${form.customer_name}",
+                            "manage_address_choice": "${form.manage_address_choice}",
+                            "delivery_address": "${form.delivery_address}",
+                            "delivery_apartment": "${form.delivery_apartment}",
+                            "manage_set_as_default": "${form.manage_set_as_default}"
+                          }
+                        }
+                      },
+                      {
+                        "type": "Footer",
+                        "label": "${data.ui_manage_save}",
+                        "on-click-action": {
+                          "name": "data_exchange",
+                          "payload": {
+                            "checkout_action": "manage_save",
+                            "customer_name": "${form.customer_name}",
+                            "manage_address_choice": "${form.manage_address_choice}",
+                            "delivery_address": "${form.delivery_address}",
+                            "delivery_apartment": "${form.delivery_apartment}",
+                            "manage_set_as_default": "${form.manage_set_as_default}"
+                          }
+                        }
+                      }
+                    ],
+                    "else": [
+                      {
+                        "type": "TextCaption",
+                        "text": "${data.ui_manage_select_hint}"
+                      },
+                      {
+                        "type": "Footer",
+                        "label": "${data.ui_manage_back}",
+                        "on-click-action": {
+                          "name": "data_exchange",
+                          "payload": {
+                            "checkout_action": "manage_back",
+                            "customer_name": "${form.customer_name}",
+                            "manage_address_choice": "${form.manage_address_choice}",
+                            "delivery_address": "${form.delivery_address}",
+                            "delivery_apartment": "${form.delivery_apartment}",
+                            "manage_set_as_default": "${form.manage_set_as_default}"
+                          }
+                        }
+                      }
+                    ]
                   }
-                }
-              },
-              {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_manage_back}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_back",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
-                  }
-                }
-              },
-              {
-                "type": "Footer",
-                "label": "${data.ui_manage_save}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "manage_save",
-                    "manage_address_choice": "${form.manage_address_choice}",
-                    "delivery_address": "${form.delivery_address}",
-                    "delivery_apartment": "${form.delivery_apartment}",
-                    "manage_set_as_default": "${form.manage_set_as_default}"
-                  }
-                }
+                ]
               }
             ]
           }
@@ -1197,13 +1912,25 @@
           "type": "string",
           "__example__": "Review order"
         },
+        "ui_review_intro": {
+          "type": "string",
+          "__example__": "Almost done!"
+        },
+        "ui_review_section_basket": {
+          "type": "string",
+          "__example__": "Your order"
+        },
         "ui_name_label": {
           "type": "string",
           "__example__": "Name"
         },
+        "ui_name_empty": {
+          "type": "string",
+          "__example__": "No name yet — tap Address & profile."
+        },
         "ui_type_label": {
           "type": "string",
-          "__example__": "Type"
+          "__example__": "How would you like to receive your order?"
         },
         "ui_address_choice_label": {
           "type": "string",
@@ -1212,6 +1939,10 @@
         "ui_address_label": {
           "type": "string",
           "__example__": "Street"
+        },
+        "ui_address_helper": {
+          "type": "string",
+          "__example__": "Street and house number (e.g. Lavaterstrasse 3)"
         },
         "ui_apartment_label": {
           "type": "string",
@@ -1223,7 +1954,7 @@
         },
         "ui_delivery_address_empty": {
           "type": "string",
-          "__example__": "No address — tap Manage addresses."
+          "__example__": "No address — tap Address & profile."
         },
         "ui_note_label": {
           "type": "string",
@@ -1237,11 +1968,19 @@
           "type": "string",
           "__example__": "Place order"
         },
+        "ui_manage_addresses_link": {
+          "type": "string",
+          "__example__": "Address & profile"
+        },
         "receipt_text": {
           "type": "string",
           "__example__": "1x Chicken Dürüm  €8.50\n1x Falafel Box  €6.90\n\nTotal: €15.40"
         },
         "customer_name": {
+          "type": "string",
+          "__example__": "Alex Smith"
+        },
+        "customer_name_display": {
           "type": "string",
           "__example__": "Alex Smith"
         },
@@ -1311,20 +2050,29 @@
             "type": "Form",
             "name": "checkout_form",
             "init-values": {
-              "customer_name": "${data.customer_name}",
               "order_type": "${data.order_type}",
               "note": "${data.note}"
             },
             "children": [
               {
+                "type": "TextCaption",
+                "text": "${data.ui_review_intro}"
+              },
+              {
+                "type": "TextCaption",
+                "text": "${data.ui_review_section_basket}"
+              },
+              {
                 "type": "TextBody",
                 "text": "${data.receipt_text}"
               },
               {
-                "type": "TextInput",
-                "label": "${data.ui_name_label}",
-                "name": "customer_name",
-                "required": true
+                "type": "TextCaption",
+                "text": "${data.ui_name_label}"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.customer_name_display}"
               },
               {
                 "type": "RadioButtonsGroup",
@@ -1336,7 +2084,7 @@
                   "name": "data_exchange",
                   "payload": {
                     "checkout_action": "select_order_type",
-                    "customer_name": "${form.customer_name}",
+                    "customer_name": "${data.customer_name}",
                     "order_type": "${form.order_type}",
                     "address_choice": "${data.address_choice}",
                     "delivery_address": "${data.delivery_address}",
@@ -1367,6 +2115,22 @@
               },
               {
                 "type": "EmbeddedLink",
+                "text": "${data.ui_manage_addresses_link}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "manage_addresses",
+                    "customer_name": "${data.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${data.address_choice}",
+                    "delivery_address": "${data.delivery_address}",
+                    "delivery_apartment": "${data.delivery_apartment}",
+                    "note": "${form.note}"
+                  }
+                }
+              },
+              {
+                "type": "EmbeddedLink",
                 "text": "${data.ui_back_to_cart}",
                 "on-click-action": {
                   "name": "data_exchange",
@@ -1382,7 +2146,7 @@
                   "name": "complete",
                   "payload": {
                     "checkout_action": "place_order",
-                    "customer_name": "${form.customer_name}",
+                    "customer_name": "${data.customer_name}",
                     "order_type": "${form.order_type}",
                     "address_choice": "${data.address_choice}",
                     "delivery_address": "${data.delivery_address}",
