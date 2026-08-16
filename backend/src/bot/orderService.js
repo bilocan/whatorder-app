@@ -5,7 +5,7 @@ const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('
 const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } = require('../lib/messageIdentity');
 const { formatBasketItemsText } = require('./botHelpers');
 const { t } = require('./templates');
-const { normalizeCustomerPhone, customerPhoneVariants } = require('../lib/phone');
+const { normalizeCustomerPhone } = require('../lib/phone');
 const { FEE_LINE_KIND } = require('../lib/receiptMath');
 const { patchSession } = require('./sessionStore');
 
@@ -51,35 +51,60 @@ const STATUS_TS_FIELD = {
 };
 
 const EXCLUDED_REORDER_STATUSES = new Set(['cancelled', 'rejected']);
+/** Newest docs to scan (skip cancelled / unpaid Stripe noise near the top). */
+const REORDER_CANDIDATE_LIMIT = 15;
 
+function isEligibleReorderOrder(order) {
+  if (!order?.items?.length) return false;
+  if (EXCLUDED_REORDER_STATUSES.has(order.status)) return false;
+  // Abandoned card checkouts must not become "last order".
+  if (
+    order.paymentMethod === 'stripe'
+    && (order.paymentStatus === 'pending' || order.paymentStatus === 'failed')
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Latest eligible order for reorder. Uses orderBy(createdAt desc) so we never miss
+ * the true latest among large histories. Stops at the first eligible hit.
+ */
 async function getLastOrderForCustomer(businessId, customerPhone) {
-  const variants = customerPhoneVariants(customerPhone);
-  if (!variants.length) return null;
+  const digits = normalizeCustomerPhone(customerPhone);
+  if (!digits) return null;
 
-  let orders = [];
-  for (const field of ['customerId', 'customerPhone']) {
-    const snap = await ordersRef(businessId)
-      .where(field, 'in', variants.slice(0, 10))
-      .limit(25)
-      .get();
-    if (!snap.empty) {
-      orders = snap.docs.map(doc => doc.data());
-      break;
+  // createOrder writes digits-only to both fields; +prefix is legacy only.
+  const variants = [`${digits}`, `+${digits}`];
+  // customerPhone+createdAt index is long-deployed; customerId+createdAt added with this fix.
+  const fields = ['customerPhone', 'customerId'];
+  const failedFields = new Set();
+
+  for (const variant of variants) {
+    for (const field of fields) {
+      let snap;
+      try {
+        snap = await ordersRef(businessId)
+          .where(field, '==', variant)
+          .orderBy('createdAt', 'desc')
+          .limit(REORDER_CANDIDATE_LIMIT)
+          .get();
+      } catch (err) {
+        if (!failedFields.has(field)) {
+          failedFields.add(field);
+          console.warn(`[orderService] getLastOrderForCustomer ${field} query failed:`, err.message);
+        }
+        continue;
+      }
+      for (const doc of snap.docs) {
+        const order = doc.data();
+        if (isEligibleReorderOrder(order)) return order;
+      }
     }
   }
-  if (!orders.length) return null;
 
-  orders = orders
-    .filter(o => !EXCLUDED_REORDER_STATUSES.has(o.status))
-    .sort((a, b) => {
-      const aMs = a.createdAt?.toMillis?.() ?? a.createdAt?.seconds * 1000 ?? 0;
-      const bMs = b.createdAt?.toMillis?.() ?? b.createdAt?.seconds * 1000 ?? 0;
-      return bMs - aMs;
-    });
-
-  const latest = orders[0];
-  if (!latest?.items?.length) return null;
-  return latest;
+  return null;
 }
 
 const STATUS_NOTIFY_KEY = {

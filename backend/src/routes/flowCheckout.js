@@ -120,7 +120,19 @@ function profileWithSessionName(profile, session) {
 /**
  * After Profil: selected saved row (or a new default) becomes the order delivery address
  * so Prüfen updates. Name-only return with no selection keeps the current address.
+ * Never flip Abholung → Lieferung here — Profil is always reachable; forcing delivery
+ * left sticky orderType=delivery and re-triggered Mindestbestellwert on the next menu
+ * "Siparişi ver" (regression after address-manage Profil work).
  */
+function resolveReviewOrderType(session = {}, payload = {}) {
+  const fromPayload = payload[F.ORDER_TYPE];
+  if (fromPayload === 'pickup' || fromPayload === 'delivery') return fromPayload;
+  const fromDraft = session.confirmFlowDraft?.orderType;
+  if (fromDraft === 'pickup' || fromDraft === 'delivery') return fromDraft;
+  if (session.orderType === 'pickup' || session.orderType === 'delivery') return session.orderType;
+  return 'pickup';
+}
+
 async function applyAddressFromManageReturn({
   payload = {},
   profile,
@@ -129,6 +141,10 @@ async function applyAddressFromManageReturn({
   lang,
   preferredLabel = null,
 }) {
+  if (resolveReviewOrderType(session, payload) !== 'delivery') {
+    return session;
+  }
+
   const labels = profileAddressLabels(
     profile,
     profile.lastDeliveryAddress || profile.savedAddresses?.[0] || '',

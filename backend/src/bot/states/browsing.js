@@ -660,9 +660,25 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
 
   // Text: fresh start or greeting with empty basket — offer reorder before order entry
   if (type === 'text' && text?.trim() && (isGreetingOnly(norm) || isFreshStartCommand(norm)) && !basket.length) {
+    // Drop sticky checkout type left by Profil / prior delivery gate.
+    await patchSession(from, {
+      orderType: undefined,
+      deliveryAddress: undefined,
+      pendingPaymentMethod: undefined,
+      confirmFlowDraft: undefined,
+      specialRequests: undefined,
+    }, session);
+    const cleared = {
+      ...session,
+      orderType: undefined,
+      deliveryAddress: undefined,
+      pendingPaymentMethod: undefined,
+      confirmFlowDraft: undefined,
+      specialRequests: undefined,
+    };
     const { name: businessName } = await getBusinessInfo(businessId);
-    if (await tryOfferReorder({ from, session, lang, businessId, basket, businessName })) return;
-    await sendOrderEntryPrompt({ from, session, lang, businessId, basket });
+    if (await tryOfferReorder({ from, session: cleared, lang, businessId, basket, businessName })) return;
+    await sendOrderEntryPrompt({ from, session: cleared, lang, businessId, basket });
     return;
   }
 

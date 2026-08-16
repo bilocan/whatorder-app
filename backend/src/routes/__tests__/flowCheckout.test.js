@@ -868,6 +868,28 @@ test('manage_back applies a new profile default when no row is selected', async 
   expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe(ADDRESS_2);
 });
 
+test('manage_back on Abholung does not force Lieferung or sticky delivery address', async () => {
+  const { ref } = mockSession({
+    orderType: 'pickup',
+    deliveryAddress: null,
+    confirmFlowDraft: { customerName: 'Alex', orderType: 'pickup' },
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_action: 'manage_back',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'pickup',
+  });
+
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
+  expect(response.data[F.ORDER_TYPE]).toBe('pickup');
+  expect(response.data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
+  expect(ref.set).not.toHaveBeenCalledWith(
+    expect.objectContaining({ orderType: 'delivery' }),
+    expect.anything(),
+  );
+});
+
 test('manage_back saves profile name and shows it on review', async () => {
   saveCustomerName.mockResolvedValue({
     ok: true,

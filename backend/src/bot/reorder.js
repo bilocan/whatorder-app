@@ -144,6 +144,8 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
 
   if (type === 'text' && isMenuRequest(norm)) {
     const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
+    // Empty-basket menu reopen is a fresh order: drop sticky Lieferung / address so
+    // Mindestbestellwert does not fire before Prüfen (Profil / prior gate leftover).
     await patchSession(from, {
       state: 'browsing',
       language: lang,
@@ -153,6 +155,10 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
       textMenuCategory,
       menuId,
       specialRequests: undefined,
+      orderType: undefined,
+      deliveryAddress: undefined,
+      pendingPaymentMethod: undefined,
+      confirmFlowDraft: undefined,
     });
     return;
   }
