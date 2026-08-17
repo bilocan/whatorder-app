@@ -286,6 +286,45 @@ describe('Multi-restaurant: awaiting_location state', () => {
     expect(rows[0].description).toMatch(/m |km/);
   });
 
+  describe('live window deal badge', () => {
+    beforeEach(() => {
+      jest.useFakeTimers({ now: new Date('2026-08-13T12:00:00.000Z') });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    test('location row description prepends live deal badge', async () => {
+      getBusinessInfo.mockImplementation(id =>
+        Promise.resolve(id === 'biz_a'
+          ? {
+              ...BIZ_A_WITH_COORDS,
+              deals: {
+                window: {
+                  dealId: 'w1',
+                  kind: 'window',
+                  discountType: 'percent',
+                  discountValue: 10,
+                  label: '10% Rabatt',
+                  active: true,
+                  startsAt: new Date('2026-08-01T00:00:00.000Z'),
+                  endsAt: new Date('2026-08-31T23:59:59.000Z'),
+                },
+              },
+            }
+          : BIZ_B_WITH_COORDS)
+      );
+      getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
+
+      await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.2093, longitude: 16.3621 }));
+
+      const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
+      expect(rows[0].description).toMatch(/🏷️ 10% Rabatt/);
+      expect(rows[0].description).toMatch(/📍/);
+    });
+  });
+
   test('non-location message skips to unsorted picker', async () => {
     getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
 
@@ -566,7 +605,9 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendLocationRequest).not.toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('2h idle + empty basket → does NOT show picker (within 8h TTL)', async () => {

@@ -194,14 +194,32 @@ async function sendLocationRequest(to, bodyText) {
 // flowId: the Flow ID from Meta Business Manager → WhatsApp → Flows
 // flowToken: unique string per session (e.g. phone + timestamp) — returned in the completion webhook
 // flowCta: button label that opens the flow (max 20 chars)
-// screen: ID of the first screen in the flow
-// data: optional initial data passed to the first screen
-async function sendFlowMessage(to, { flowId, flowToken, flowCta, screen, body, data = {} }) {
+// flowAction: 'navigate' (default) or 'data_exchange'
+//   - navigate: open screen with optional data in flow_action_payload (no INIT)
+//   - data_exchange: Meta calls endpoint INIT for first screen (omit flow_action_payload)
+// screen: ID of the first screen (navigate only)
+// data: optional initial data for navigate payload
+async function sendFlowMessage(to, { flowId, flowToken, flowCta, screen, body, data = {}, flowAction = 'navigate' }) {
   const normalized = normalizePhone(to);
   const { body: identifiedBody } = applyOutboundIdentity({ body, kind: 'text' });
   if (process.env.NODE_ENV === 'test') {
-    console.log(`\n[WA FLOW → ${normalized}]\nflowId=${flowId} screen=${screen}\n${identifiedBody}\n`);
+    console.log(`\n[WA FLOW → ${normalized}]\nflowId=${flowId} action=${flowAction} screen=${screen}\n${identifiedBody}\n`);
     return testId();
+  }
+  const parameters = {
+    flow_message_version: '3',
+    flow_token: flowToken,
+    flow_id: flowId,
+    flow_cta: clampWaButtonTitle(flowCta, 'Open'),
+    flow_action: flowAction,
+  };
+  // DRAFT Flows only open with mode=draft (Meta). Test menu Flow is DRAFT.
+  if (String(process.env.WHATSAPP_FLOW_DRAFT_MODE || '').toLowerCase() === 'true'
+    || process.env.WHATSAPP_FLOW_DRAFT_MODE === '1') {
+    parameters.mode = 'draft';
+  }
+  if (flowAction === 'navigate') {
+    parameters.flow_action_payload = Object.keys(data).length ? { screen, data } : { screen };
   }
   return send({
     messaging_product: 'whatsapp',
@@ -212,14 +230,7 @@ async function sendFlowMessage(to, { flowId, flowToken, flowCta, screen, body, d
       body: { text: identifiedBody },
       action: {
         name: 'flow',
-        parameters: {
-          flow_message_version: '3',
-          flow_token: flowToken,
-          flow_id: flowId,
-          flow_cta: clampWaButtonTitle(flowCta, 'Open'),
-          flow_action: 'navigate',
-          flow_action_payload: Object.keys(data).length ? { screen, data } : { screen },
-        },
+        parameters,
       },
     },
   });

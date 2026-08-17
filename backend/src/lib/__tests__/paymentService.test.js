@@ -51,6 +51,8 @@ const { issueCustomerBeleg } = require('../receiptService');
 const {
   createCheckoutSessionForOrder,
   handleCheckoutSessionCompleted,
+  refundOrderPayment,
+  handleChargeRefunded,
   processStripeWebhookEvent,
   paymentBaseUrl,
 } = require('../paymentService');
@@ -359,5 +361,168 @@ describe('processStripeWebhookEvent', () => {
 
     expect(result).toEqual({ duplicate: true });
     expect(mockOrderUpdate).not.toHaveBeenCalled();
+  });
+
+  test('handles charge.refunded', async () => {
+    const markSet = jest.fn().mockResolvedValue();
+    stripeEventRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({ exists: false }),
+      set: markSet,
+    });
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'paid',
+        paymentMethod: 'stripe',
+        customerPhone: '+431234',
+        language: 'de',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+
+    const result = await processStripeWebhookEvent({
+      id: 'evt_ref',
+      type: 'charge.refunded',
+      data: {
+        object: {
+          id: 'ch_1',
+          refunds: {
+            data: [{
+              id: 're_1',
+              metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+            }],
+          },
+        },
+      },
+    });
+
+    expect(result).toEqual({ duplicate: false });
+    expect(mockOrderUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      paymentStatus: 'refunded',
+      settlementStatus: 'refunded',
+      stripeRefundId: 're_1',
+    }));
+    expect(sendText).toHaveBeenCalledWith('+431234', 'paymentRefunded:ABC123', 'prod_phone_id');
+    expect(markSet).toHaveBeenCalled();
+  });
+});
+
+describe('refundOrderPayment', () => {
+  test('no-ops for cash / unpaid orders', async () => {
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ paymentMethod: 'cash', paymentStatus: 'cash' }),
+    });
+    const result = await refundOrderPayment('biz1', 'order_1');
+    expect(result).toEqual({ refunded: false, skipped: true, reason: 'not_paid_stripe' });
+    expect(getStripe).not.toHaveBeenCalled();
+  });
+
+  test('idempotent when already refunded', async () => {
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ paymentMethod: 'stripe', paymentStatus: 'refunded', stripeRefundId: 're_old' }),
+    });
+    const result = await refundOrderPayment('biz1', 'order_1');
+    expect(result).toEqual({
+      refunded: true,
+      skipped: true,
+      reason: 'already_refunded',
+      refundId: 're_old',
+    });
+  });
+
+  test('creates Stripe refund and updates order', async () => {
+    const create = jest.fn().mockResolvedValue({ id: 're_1' });
+    getStripe.mockReturnValue({ refunds: { create } });
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentMethod: 'stripe',
+        paymentStatus: 'paid',
+        stripePaymentIntentId: 'pi_1',
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+
+    const result = await refundOrderPayment('biz1', 'order_abc123', {
+      reason: 'owner_manual',
+      actor: 'owner',
+      notifyCustomer: true,
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payment_intent: 'pi_1',
+        metadata: expect.objectContaining({
+          business_id: 'biz1',
+          order_id: 'order_abc123',
+          reason: 'owner_manual',
+          actor: 'owner',
+        }),
+      }),
+      { idempotencyKey: 'wo_refund_order_abc123' },
+    );
+    expect(result).toEqual({ refunded: true, skipped: false, refundId: 're_1' });
+    expect(mockOrderUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      paymentStatus: 'refunded',
+      settlementStatus: 'refunded',
+      stripeRefundId: 're_1',
+    }));
+    expect(sendText).toHaveBeenCalledWith('+431234', 'paymentRefunded:ABC123', 'prod_phone_id');
+  });
+
+  test('skips customer notify when notifyCustomer is false', async () => {
+    const create = jest.fn().mockResolvedValue({ id: 're_2' });
+    getStripe.mockReturnValue({ refunds: { create } });
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentMethod: 'stripe',
+        paymentStatus: 'paid',
+        stripePaymentIntentId: 'pi_1',
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+
+    await refundOrderPayment('biz1', 'order_abc123', {
+      reason: 'customer_cancel',
+      actor: 'customer',
+      notifyCustomer: false,
+    });
+
+    expect(sendText).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleChargeRefunded', () => {
+  test('applies refund from charge metadata when refund list empty', async () => {
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'paid',
+        paymentMethod: 'stripe',
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+        refundNotifiedAt: 'TS',
+      }),
+    });
+
+    await handleChargeRefunded({
+      id: 'ch_1',
+      metadata: { business_id: 'biz1', order_id: 'order_1' },
+      refunds: { data: [] },
+    });
+
+    expect(mockOrderUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      paymentStatus: 'refunded',
+      settlementStatus: 'refunded',
+    }));
+    expect(sendText).not.toHaveBeenCalled();
   });
 });

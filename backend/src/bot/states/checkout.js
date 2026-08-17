@@ -9,20 +9,22 @@ const {
 } = require('../../lib/whatsapp');
 const { t } = require('../templates');
 const {
-  buildBasketText, sendCatalog, formatBasketItemsText, basketViewButtons, sendBasketView, parseBasketItemName,
+  buildBasketText, sendCatalog, sendMenu, formatBasketItemsText, basketViewButtons, sendBasketView, parseBasketItemName,
 } = require('../botHelpers');
 const { getBusinessInfo, getMenuContext } = require('../menuService');
 const { createOrder } = require('../orderService');
 const { customersRef, ordersRef, menuRef } = require('../../lib/collections');
-const { reverseGeocode, validateDeliveryAddress } = require('../../lib/geocode');
+const { reverseGeocode } = require('../../lib/geocode');
+const {
+  resolveTypedDeliveryAddress,
+  shouldConfirmDeliveryBuilding,
+} = require('../resolveTypedDeliveryAddress');
 const {
   hasUnitPattern,
   normalizeBuildingLabel,
   composeDeliveryLabel,
   isDeliverableBuildingLabel,
   parseDeliveryUnit,
-  splitStreetAndUnitHint,
-  isNearlySameAddress,
 } = require('../deliveryAddress');
 const { isStripeConfigured } = require('../../lib/stripe');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
@@ -38,6 +40,8 @@ const {
   applyCheckoutSubmitToSession,
   buildCheckoutReviewData,
   buildConfirmFlowDraft,
+  buildCheckoutSubmitPayloadFromSession,
+  labelsByAddressChoice,
 } = require('../checkoutConfirmFlow');
 const { isBasketUndoPhrase, detectBotCommandAsync, detectBotCommandRules, BOT_COMMAND } = require('../botCommands');
 const {
@@ -50,6 +54,7 @@ const { FIELDS: F } = require('../../flows/fields');
 const {
   applyProfilePrefill,
   getMissingCheckoutSlots,
+  isFilledName,
   isDeliveryOffered,
   isCheckoutOnlySegment,
   stripCheckoutSlotsFromOrderText,
@@ -58,6 +63,7 @@ const {
 } = require('../checkoutSlots');
 const { sendOrderEntryPrompt } = require('../orderEntry');
 const { basketSubtotal, orderTotals } = require('../orderTotals');
+const { loadCheckoutTotals, checkoutDealLines, chargedCustomerTotal } = require('../checkoutDeal');
 const { recordParseFailure, resetParseFailures } = require('../postOrder');
 
 // M2: bare `1` no longer confirms — use list row btn_place_order only (digit disambiguation).
@@ -153,7 +159,12 @@ async function attachMenuVatRates(businessId, basket) {
 
 async function placeOrderAndNotify({ from, session, lang, businessId, basket, isMulti, contactName, paymentMethod }) {
   const info = await getBusinessInfo(businessId);
-  const { subtotal, deliveryFee, total, isDelivery } = orderTotals(basket, session, info);
+  const totals = await loadCheckoutTotals({
+    businessId, info, customerPhone: from, basket, session,
+  });
+  const {
+    subtotal, deliveryFee, discount, total, isDelivery,
+  } = totals;
   const phoneNumberId = session.whatsappPhoneNumberId || null;
 
   // Card orders are blocked (order never created) when the Beleg / settlement data is not ready.
@@ -171,7 +182,11 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     }
     try {
       const lines = await attachMenuVatRates(businessId, basket);
-      taxSnapshot = buildOrderTaxSnapshot(lines, { strict: true, deliveryFeeGross: deliveryFee });
+      taxSnapshot = buildOrderTaxSnapshot(lines, {
+        strict: true,
+        deliveryFeeGross: deliveryFee,
+        discountGross: discount,
+      });
     } catch (err) {
       console.warn(`[checkout] card order blocked for ${businessId}: ${err.message}`);
       await sendText(from, t('paymentVatIncomplete', lang), phoneNumberId);
@@ -184,13 +199,21 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     customerName: session.customerName || contactName || null,
     restaurantName: info.name || null,
     items: basket,
-    total: subtotal,
+    total: subtotal - discount,
     language: lang,
     pickupTime: isDelivery ? null : (session.pickupTime || null),
     notes: session.specialRequests || null,
     orderType: session.orderType || 'pickup',
     deliveryAddress: session.deliveryAddress || null,
     deliveryFee,
+    discountSnapshot: totals.deal ? {
+      discount,
+      discountDealId: totals.deal.dealId,
+      discountKind: totals.deal.kind,
+      discountType: totals.deal.discountType,
+      discountValue: totals.deal.discountValue,
+      discountLabel: totals.deal.label,
+    } : { discount: 0 },
     paymentMethod,
     paymentStatus: paymentMethod === 'stripe' ? 'pending' : 'cash',
     whatsappPhoneNumberId: session.whatsappPhoneNumberId || null,
@@ -212,16 +235,17 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
   });
 
   if (paymentMethod === 'stripe') {
+    const chargedTotal = chargedCustomerTotal(taxSnapshot, total);
     try {
       const { url, sessionId } = await createCheckoutSessionForOrder(businessId, orderId, {
-        totalEuros: total,
+        totalEuros: chargedTotal,
         restaurantName: info.name,
         shortId,
         lang,
       });
       await ordersRef(businessId).doc(orderId).update({ paymentStripeSessionId: sessionId });
       await sendCtaUrlMessage(from, {
-        body: t('paymentLink', lang, shortId, itemLines, total.toFixed(2), info.name, info.alertPhone || null, info.address || null, isDelivery ? (session.deliveryAddress || null) : null),
+        body: t('paymentLink', lang, shortId, itemLines, chargedTotal.toFixed(2), info.name, info.alertPhone || null, info.address || null, isDelivery ? (session.deliveryAddress || null) : null, checkoutDealLines(t, lang, totals)),
         buttonLabel: t('payNowBtn', lang),
         url,
       }, phoneNumberId);
@@ -232,7 +256,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     return;
   }
 
-  await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, paymentMethod, info.alertPhone || null, info.address || null), phoneNumberId);
+  await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, paymentMethod, info.alertPhone || null, info.address || null, checkoutDealLines(t, lang, totals)), phoneNumberId);
   await sendButtonMessage(from, {
     body: t('postOrderOptions', lang, info.name),
     buttons: [
@@ -259,8 +283,9 @@ async function getCustomerProfile(phone, businessId) {
     const data = snap.data();
     if (!data) return null;
     return {
-      name: data.name ?? null,
+      name: data.customerName ?? data.name ?? null,
       lastDeliveryAddress: data.lastDeliveryAddress ?? null,
+      savedAddresses: Array.isArray(data.savedAddresses) ? data.savedAddresses : [],
     };
   } catch {
     return null;
@@ -273,9 +298,36 @@ async function resolveCustomerName(session, phone, businessId) {
   return getKnownName(phone, businessId);
 }
 
+function shouldSkipChatCheckoutSlots(info) {
+  return isCheckoutConfirmFlow(info) && Boolean(process.env.WHATSAPP_CHECKOUT_FLOW_ID);
+}
+
+async function skipToConfirmingWithPrefill({
+  from, session, lang, businessId, basket, businessInfo = null,
+}) {
+  const info = businessInfo ?? await getBusinessInfo(businessId);
+  let s = { ...session };
+  // Default Abholung. Lieferung + Mindestbestellwert only after the customer picks
+  // delivery on the confirm / prüfen screen (or via chat order-type edit).
+  if (!s.orderType) {
+    s = { ...s, orderType: 'pickup' };
+  }
+  const profile = await getCustomerProfile(from, businessId);
+  s = applyProfilePrefill(s, profile);
+  await transitionToConfirming(
+    from, s, lang, businessId, basket, s.customerName || '',
+  );
+}
+
 async function finishToConfirming(from, session, lang, businessId, basket) {
   const info = await getBusinessInfo(businessId);
   const cleared = { ...session, confirmingOrderTypeEdit: false, pendingDeliveryBuilding: null };
+  if (shouldSkipChatCheckoutSlots(info)) {
+    await skipToConfirmingWithPrefill({
+      from, session: cleared, lang, businessId, basket, businessInfo: info,
+    });
+    return;
+  }
   if (isConversationalBasket(info)) {
     await advanceCheckoutFromSlots({ from, session: cleared, lang, businessId, basket, info });
     return;
@@ -307,17 +359,11 @@ async function presentBuildingConfirm({ from, session, lang, building, lat, lng 
   });
 }
 
-/**
- * Confirm when building was corrected OR when customer omitted PLZ.
- * With PLZ present and label nearly identical, skip Yes/Edit (Wien optional).
- * Without PLZ always confirm — Wien alone is not enough (ambiguous Hauptstraße).
- */
 async function presentBuildingConfirmOrContinue({
   from, session, lang, businessId, basket, building, lat, lng, rawInput,
 }) {
   const label = normalizeBuildingLabel(building);
-  const inputHasPlz = /\b\d{4}\b/.test(String(rawInput || ''));
-  if (rawInput && inputHasPlz && isNearlySameAddress(rawInput, label)) {
+  if (!shouldConfirmDeliveryBuilding(rawInput, label)) {
     await continueAfterBuildingAccepted({
       from, session, lang, businessId, basket, building: label, lat, lng,
     });
@@ -353,50 +399,6 @@ async function continueAfterBuildingAccepted({ from, session, lang, businessId, 
 
 const EDIT_ADDRESS = new Set(['edit', 'ändern', 'andern', 'aendern', 'düzenle', 'duzenle', 'change', 'degistir', 'değiştir']);
 
-async function resolveTypedDeliveryAddress(rawText) {
-  const trimmed = rawText.trim();
-  const { query, unitHint } = splitStreetAndUnitHint(trimmed);
-
-  // Try building-only first; add Wien when locality missing (AT pilot default).
-  const hasLocality = /\b(wien|vienna|\d{4})\b/i.test(query);
-  const candidates = [];
-  const push = (c) => {
-    if (c && !candidates.includes(c)) candidates.push(c);
-  };
-  push(query);
-  if (!hasLocality) push(`${query}, Wien`);
-  if (query !== trimmed) push(trimmed);
-  if (query !== trimmed && !/\b(wien|vienna|\d{4})\b/i.test(trimmed)) {
-    push(`${query}, Wien`);
-  }
-
-  let validated = null;
-  for (const candidate of candidates) {
-    validated = await validateDeliveryAddress(candidate);
-    if (validated?.formattedAddress && isDeliverableBuildingLabel(validated.formattedAddress)) {
-      break;
-    }
-    validated = null;
-  }
-
-  if (!validated?.formattedAddress) {
-    // Never accept unverified raw text (fake Hausnummer like "1111111" must fail).
-    console.warn(`[checkout] delivery address unresolved: ${trimmed.slice(0, 80)}`);
-    return { ok: false };
-  }
-
-  let building = normalizeBuildingLabel(validated.formattedAddress);
-  if (unitHint) {
-    building = composeDeliveryLabel(building, unitHint);
-  }
-  return {
-    ok: true,
-    building,
-    lat: validated.lat ?? null,
-    lng: validated.lng ?? null,
-  };
-}
-
 async function sendOrderTypePrompt(from, lang, deliveryFee, body) {
   return sendButtonMessage(from, {
     body: body || t('askOrderType', lang, deliveryFee ?? 0),
@@ -407,12 +409,15 @@ async function sendOrderTypePrompt(from, lang, deliveryFee, body) {
   });
 }
 
-// Renders the basket with a below-minimum warning (Confirm button hidden) or, once the
+// Renders the basket with a below-minimum warning (only Mehr hinzufügen) or, once the
 // subtotal meets minimumOrderValue, the plain basket with Confirm available again.
 async function sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue }) {
   const subtotal = basketSubtotal(basket);
   const meets = !minimumOrderValue || subtotal >= minimumOrderValue;
-  const buttons = basketViewButtons(lang, { includeConfirm: meets });
+  // Below min: only Add more. Entfernen / Confirm belong on the normal basket view.
+  const buttons = meets
+    ? basketViewButtons(lang, { includeConfirm: true })
+    : [{ id: 'btn_add_more', title: t('addMoreBtn', lang) }];
   const body = meets
     ? buildBasketText(basket, lang)
     : `${t('belowMinimumOrderValue', lang, minimumOrderValue.toFixed(2))}\n\n${buildBasketText(basket, lang)}`;
@@ -433,8 +438,9 @@ async function proceedToDeliveryAddress({ from, session, lang, businessId }) {
 }
 
 /**
- * Default delivery path: deliveryOpen + minimumOrderValue gates, then address picker.
- * Pickup is offered on the address picker (not as a prior step).
+ * Explicit delivery path (customer chose Lieferung, or still gated from a prior pick):
+ * deliveryOpen + minimumOrderValue gates, then address picker / Flow confirm.
+ * Pickup escape stays on the address picker when chat slots are used.
  */
 async function beginDefaultDeliveryCheckout({ from, session, lang, businessId, basket }) {
   const info = await getBusinessInfo(businessId);
@@ -463,6 +469,13 @@ async function beginDefaultDeliveryCheckout({ from, session, lang, businessId, b
       state: 'browsing',
       confirmingOrderTypeEdit: false,
       pendingDeleteIds: msgId ? [msgId] : [],
+    });
+    return;
+  }
+
+  if (shouldSkipChatCheckoutSlots(info)) {
+    await skipToConfirmingWithPrefill({
+      from, session: delivSession, lang, businessId, basket, businessInfo: info,
     });
     return;
   }
@@ -516,6 +529,12 @@ async function applyPickupSelection({ from, session, lang, businessId, basket })
     return;
   }
   const info = await getBusinessInfo(businessId);
+  if (shouldSkipChatCheckoutSlots(info)) {
+    await skipToConfirmingWithPrefill({
+      from, session: newSession, lang, businessId, basket, businessInfo: info,
+    });
+    return;
+  }
   if (isConversationalBasket(info)) {
     await advanceCheckoutFromSlots({ from, session: newSession, lang, businessId, basket, info });
     return;
@@ -532,7 +551,7 @@ async function applyPickupSelection({ from, session, lang, businessId, basket })
 // Called whenever a delivery order's basket may have changed (add more / re-submit cart)
 // while still gated on minimumOrderValue (no deliveryAddress collected yet). Re-checks the
 // minimum: if still short, re-shows the gate. If now met, resumes straight into address
-// selection. Never re-asks pickup/delivery, since delivery is the default.
+// selection. Never re-asks pickup/delivery — orderType stays delivery from the prior pick.
 async function resumeDeliveryCheckout({ from, session, lang, businessId, basket }) {
   const info = await getBusinessInfo(businessId);
   const subtotal = basketSubtotal(basket);
@@ -541,11 +560,18 @@ async function resumeDeliveryCheckout({ from, session, lang, businessId, basket 
     await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
     return;
   }
+  if (shouldSkipChatCheckoutSlots(info)) {
+    await skipToConfirmingWithPrefill({
+      from, session, lang, businessId, basket, businessInfo: info,
+    });
+    return;
+  }
   await proceedToDeliveryAddress({ from, session, lang, businessId });
 }
 
 // Called right after a basket is confirmed (cart submit / "Confirm" tap). Defaults to
-// delivery when offered (address picker includes pickup). Notes stay optional on confirm.
+// Abholung (pickup). Lieferungs gates (including Mindestbestellwert) run only after the
+// customer explicitly chooses delivery. Notes stay optional on confirm.
 async function proceedFromConfirmedBasket({ from, session, lang, businessId, basket }) {
   const info = await getBusinessInfo(businessId);
   if (isConversationalBasket(info)) {
@@ -553,39 +579,46 @@ async function proceedFromConfirmedBasket({ from, session, lang, businessId, bas
     return;
   }
 
-  if (session.orderType === 'pickup') {
-    const knownName = await getKnownName(from, businessId);
-    if (knownName) {
-      await transitionToConfirming(from, session, lang, businessId, basket, knownName);
-    } else {
-      const askId = await sendText(from, t('askName', lang));
-      await setSession(from, { ...session, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
-    }
+  // Explicit delivery only (gated resume, prior selection, or conversational slot).
+  if (session.orderType === 'delivery') {
+    await beginDefaultDeliveryCheckout({ from, session, lang, businessId, basket });
     return;
   }
 
-  if (session.orderType === 'delivery' || info.deliveryEnabled) {
-    await beginDefaultDeliveryCheckout({ from, session, lang, businessId, basket });
+  const pickupSession = { ...session, orderType: 'pickup' };
+
+  if (shouldSkipChatCheckoutSlots(info)) {
+    await skipToConfirmingWithPrefill({
+      from, session: pickupSession, lang, businessId, basket, businessInfo: info,
+    });
     return;
   }
 
   const knownName = await getKnownName(from, businessId);
   if (knownName) {
-    await transitionToConfirming(from, session, lang, businessId, basket, knownName);
+    await transitionToConfirming(from, pickupSession, lang, businessId, basket, knownName);
   } else {
     const askId = await sendText(from, t('askName', lang));
-    await setSession(from, { ...session, state: 'awaiting_name', pendingDeleteIds: askId ? [askId] : [] });
+    await setSession(from, {
+      ...pickupSession,
+      state: 'awaiting_name',
+      pendingDeleteIds: askId ? [askId] : [],
+    });
   }
 }
 
 /** M3: ask only missing checkout slots; profile pre-fill for returning customers. */
 async function advanceCheckoutFromSlots({ from, session, lang, businessId, basket, info }) {
-  const profile = await getCustomerProfile(from, businessId);
-  let s = applyProfilePrefill(session, profile);
-
-  // Default: delivery when offered, else pickup. No separate pickup/delivery ask step.
+  let s = { ...session };
+  // Default Abholung. Delivery address prefill only applies once orderType is delivery
+  // (explicit slot / prüfen selection / gated resume).
   if (!s.orderType) {
-    s = { ...s, orderType: isDeliveryOffered(info) ? 'delivery' : 'pickup' };
+    s = { ...s, orderType: 'pickup' };
+  }
+  const profile = await getCustomerProfile(from, businessId);
+  s = applyProfilePrefill(s, profile);
+  if (!s.orderType) {
+    s = { ...s, orderType: 'pickup' };
   }
 
   const missing = getMissingCheckoutSlots(s, info);
@@ -613,10 +646,23 @@ async function advanceCheckoutFromSlots({ from, session, lang, businessId, baske
       });
       return;
     }
+    if (shouldSkipChatCheckoutSlots(info)) {
+      await transitionToConfirming(
+        from, s, lang, businessId, basket, s.customerName || '',
+      );
+      return;
+    }
     if (missing.includes('deliveryAddress')) {
       await proceedToDeliveryAddress({ from, session: s, lang, businessId });
       return;
     }
+  }
+
+  if (shouldSkipChatCheckoutSlots(info)) {
+    await transitionToConfirming(
+      from, s, lang, businessId, basket, s.customerName || '',
+    );
+    return;
   }
 
   if (missing.includes('customerName')) {
@@ -643,7 +689,7 @@ function shouldShowOrderTypeRow(session, info) {
 
 function buildConfirmListRows(session, name, lang, info) {
   const deliveryOffered = shouldShowOrderTypeRow(session, info);
-  const orderType = session.orderType || (deliveryOffered ? 'delivery' : null);
+  const orderType = session.orderType || (deliveryOffered ? 'pickup' : null);
 
   const rows = [
     { id: 'btn_place_order', title: t('confirmBtn', lang) },
@@ -674,16 +720,47 @@ function buildConfirmListRows(session, name, lang, info) {
 
 async function sendConfirmList(from, session, lang, businessId, basket, name) {
   const info = await getBusinessInfo(businessId);
-  const { total: displayTotal } = orderTotals(basket, session, info);
+  const totals = await loadCheckoutTotals({
+    businessId, info, customerPhone: from, basket, session,
+  });
   const rows = buildConfirmListRows(session, name, lang, info);
   if (process.env.NODE_ENV !== 'test') {
     console.log(`[checkout] confirm list ${businessId}: deliveryEnabled=${info.deliveryEnabled} orderType=${session.orderType ?? 'unset'} rows=${rows.map(r => r.id).join(',')}`);
   }
   return sendListMessage(from, {
     header: t('confirmListHeader', lang),
-    body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null, session.specialRequests || null, isPaymentEnabled(info) ? 'stripe' : null),
+    body: buildFinalConfirmBody(session, lang, name, info, totals),
     buttonLabel: t('confirmListBtn', lang),
     sections: [{ title: t('confirmListSection', lang), rows }],
+  });
+}
+
+function buildFinalConfirmBody(session, lang, name, info, totals) {
+  const discountLine = checkoutDealLines(t, lang, totals);
+  return t(
+    'finalConfirmBody',
+    lang,
+    name || session.customerName,
+    totals.total.toFixed(2),
+    session.pickupTime,
+    session.deliveryAddress ?? null,
+    session.specialRequests || null,
+    isPaymentEnabled(info) ? 'stripe' : null,
+    discountLine,
+  );
+}
+
+/** Chat gate before the Flow CTA (Add more / Continue). Meta cannot put extra buttons on a Flow message. */
+async function sendConfirmFlowGate(from, session, lang, businessId, basket, name, info) {
+  const totals = await loadCheckoutTotals({
+    businessId, info, customerPhone: from, basket, session,
+  });
+  return sendButtonMessage(from, {
+    body: buildFinalConfirmBody(session, lang, name, info, totals),
+    buttons: [
+      { id: 'btn_confirm_add_more', title: t('confirmGateAddMore', lang) },
+      { id: 'btn_confirm_continue', title: t('confirmGateContinue', lang) },
+    ],
   });
 }
 
@@ -691,44 +768,107 @@ async function sendConfirmList(from, session, lang, businessId, basket, name) {
 // the prefill ships inside flow_action_payload.data (see sendFlowMessage).
 async function sendCheckoutConfirmFlow(from, session, lang, businessId, basket, name, info) {
   const reviewSession = { ...session, customerName: name || session.customerName };
-  const { total: displayTotal } = orderTotals(basket, reviewSession, info);
+  const totals = await loadCheckoutTotals({
+    businessId, info, customerPhone: from, basket, session: reviewSession,
+  });
+  const profile = await getCustomerProfile(from, businessId);
   return sendFlowMessage(from, {
     flowId: process.env.WHATSAPP_CHECKOUT_FLOW_ID,
     flowToken: checkoutFlowToken(from, businessId),
     flowCta: t('confirmFlowCta', lang),
     screen: 'CHECKOUT_REVIEW',
-    body: t('finalConfirmBody', lang, name, displayTotal.toFixed(2), session.pickupTime, session.deliveryAddress ?? null, session.specialRequests || null, isPaymentEnabled(info) ? 'stripe' : null),
-    data: buildCheckoutReviewData({ session: reviewSession, basket, info, lang, t }),
+    body: buildFinalConfirmBody(session, lang, name, info, totals),
+    data: await buildCheckoutReviewData({
+      session: reviewSession,
+      basket,
+      info,
+      lang,
+      t,
+      savedAddresses: [
+        ...(profile?.savedAddresses || []),
+        profile?.lastDeliveryAddress,
+      ].filter(Boolean),
+      defaultAddress: profile?.lastDeliveryAddress || '',
+      deal: totals.deal,
+    }),
   });
 }
 
-async function sendConfirmUi(from, session, lang, businessId, basket, name, businessInfo = null) {
+/**
+ * @param {'gate'|'flow'} flowUiMode
+ *   flow = default (checkout Flow CTA). gate = legacy Add more / Continue (stale taps only).
+ */
+async function sendConfirmUi(
+  from, session, lang, businessId, basket, name, businessInfo = null, flowUiMode = 'flow',
+) {
   const info = businessInfo ?? await getBusinessInfo(businessId);
-  let confirmId = null;
-  if (isCheckoutConfirmFlow(info) && process.env.WHATSAPP_CHECKOUT_FLOW_ID) {
+  const wantFlow = shouldSkipChatCheckoutSlots(info);
+  let msgId = null;
+
+  if (wantFlow && flowUiMode === 'gate') {
+    msgId = await sendConfirmFlowGate(from, session, lang, businessId, basket, name, info);
+    // Gate message is the success path even when the WA id is falsy (same as list).
+    return { msgId, deferredChatLadder: false };
+  }
+
+  if (wantFlow && flowUiMode === 'flow') {
     try {
-      confirmId = await sendCheckoutConfirmFlow(from, session, lang, businessId, basket, name, info);
+      msgId = await sendCheckoutConfirmFlow(from, session, lang, businessId, basket, name, info);
     } catch (err) {
-      console.warn('[checkout] confirm Flow send failed, falling back to list', err.message);
+      console.warn('[checkout] confirm Flow send failed', err.message);
     }
   }
-  if (!confirmId) {
-    confirmId = await sendConfirmList(from, session, lang, businessId, basket, name);
+  if (msgId) {
+    return { msgId, deferredChatLadder: false };
   }
-  return confirmId;
+
+  // Flow-mode send failed (or gate somehow failed): never Optionen-place with empty delivery fields.
+  if (wantFlow && session.orderType === 'delivery' && !String(session.deliveryAddress || '').trim()) {
+    await proceedToDeliveryAddress({ from, session, lang, businessId });
+    return { msgId: null, deferredChatLadder: true };
+  }
+
+  if (wantFlow && !isFilledName(session.customerName || name)) {
+    const askId = await sendText(from, t('askName', lang));
+    await setSession(from, {
+      ...session,
+      customerName: name || session.customerName,
+      state: 'awaiting_name',
+      pendingDeleteIds: askId ? [askId] : [],
+    });
+    return { msgId: null, deferredChatLadder: true };
+  }
+
+  msgId = await sendConfirmList(from, session, lang, businessId, basket, name);
+  return { msgId, deferredChatLadder: false };
+}
+
+async function offerCheckoutConfirmFlow(from, session, lang, businessId, basket, name) {
+  const info = await getBusinessInfo(businessId);
+  const { msgId, deferredChatLadder } = await sendConfirmUi(
+    from, session, lang, businessId, basket, name, info, 'flow',
+  );
+  if (deferredChatLadder) return;
+  await patchSession(from, {
+    state: 'confirming',
+    customerName: name || session.customerName,
+    pendingDeleteIds: msgId ? [msgId] : [],
+  });
 }
 
 // `confirmFlowDraft` is not a persisted session field (see sessionStore whitelist), so it
 // survives exactly one re-offer and is dropped by the next session write — place, back to
 // cart, or any other transition all clear it without extra bookkeeping.
 async function reofferConfirming(from, session, lang, businessId, basket) {
-  const confirmId = await sendConfirmUi(
-    from, session, lang, businessId, basket, session.customerName,
+  // Re-offer the Flow CTA (not a chat gate). Checkout Flow already has Sepete dön / Zum Warenkorb.
+  const { msgId, deferredChatLadder } = await sendConfirmUi(
+    from, session, lang, businessId, basket, session.customerName, null, 'flow',
   );
+  if (deferredChatLadder) return;
   await patchSession(from, {
     state: 'confirming',
     ...(session.confirmFlowDraft ? { confirmFlowDraft: session.confirmFlowDraft } : {}),
-    pendingDeleteIds: confirmId ? [confirmId] : [],
+    pendingDeleteIds: msgId ? [msgId] : [],
   });
 }
 
@@ -747,11 +887,19 @@ async function transitionToConfirming(from, session, lang, businessId, basket, n
     return;
   }
 
-  const confirmId = await sendConfirmUi(from, session, lang, businessId, basket, name, info);
-  await setSession(from, { ...session, state: 'confirming', customerName: name, pendingDeleteIds: confirmId ? [confirmId] : [] });
+  const { msgId, deferredChatLadder } = await sendConfirmUi(
+    from, session, lang, businessId, basket, name, info, 'flow',
+  );
+  if (deferredChatLadder) return;
+  await setSession(from, {
+    ...session,
+    state: 'confirming',
+    customerName: name,
+    pendingDeleteIds: msgId ? [msgId] : [],
+  });
 }
 
-// Address picker rows. Always includes enter/share + pickup escape (delivery is the default path).
+// Address picker rows. Always includes enter/share + pickup escape (customer chose delivery).
 async function getDeliveryAddressRows(session, phone, businessId, lang) {
   const rows = [];
 
@@ -1303,14 +1451,41 @@ async function handleConfirming({
       return;
     }
 
-    const hasCheckoutFields = [F.CUSTOMER_NAME, F.ORDER_TYPE, F.DELIVERY_ADDRESS, F.CHECKOUT_NOTE]
-      .some(field => Object.prototype.hasOwnProperty.call(payload, field));
+    // Flow closed early: customer picked Lieferung while below Mindestbestellwert.
+    if (payload.checkout_action === 'delivery_below_minimum') {
+      const info = await getBusinessInfo(businessId);
+      const gatedSession = {
+        ...session,
+        orderType: 'delivery',
+        deliveryAddress: null,
+        confirmingOrderTypeEdit: false,
+        confirmFlowDraft: null,
+      };
+      if (await gateDeliverySubmit({ from, session: gatedSession, lang, basket, info })) {
+        return;
+      }
+      // Race: basket now meets min — reopen confirm as delivery.
+      await transitionToConfirming(from, gatedSession, lang, businessId, basket, session.customerName || '');
+      return;
+    }
+
+    const hasCheckoutFields = [
+      F.CUSTOMER_NAME, F.ORDER_TYPE, F.ADDRESS_CHOICE, F.DELIVERY_ADDRESS, F.DELIVERY_APARTMENT, F.CHECKOUT_NOTE,
+    ].some(field => Object.prototype.hasOwnProperty.call(payload, field));
     if (payload.checkout_action !== 'place_order' && !hasCheckoutFields) {
       await reofferConfirming(from, session, lang, businessId, basket);
       return;
     }
 
-    const validation = validateCheckoutSubmit(payload);
+    const profile = await getCustomerProfile(from, businessId);
+    const addressLabels = labelsByAddressChoice(
+      profile?.savedAddresses || [],
+      session.deliveryAddress || profile?.lastDeliveryAddress || '',
+      lang,
+      t,
+      profile?.lastDeliveryAddress || '',
+    );
+    const validation = validateCheckoutSubmit(payload, { addressLabels });
     if (!validation.ok) {
       await sendText(from, t(validation.errorKey, lang));
       await reofferConfirming(
@@ -1393,13 +1568,71 @@ async function handleConfirming({
     const msgId = await sendBasketView(from, lang, basket, session.specialRequests);
     await patchSession(from, {
       state: 'browsing',
+      confirmFlowDraft: null,
       pendingDeleteIds: msgId ? [msgId] : [],
     });
     return;
   }
 
+  // Confirm gate "Add more": open menu/catalog directly (do not bounce through basket view,
+  // which also has Mehr hinzufügen).
+  if (replyId === 'btn_confirm_add_more') {
+    const next = {
+      ...session,
+      state: 'browsing',
+      confirmFlowDraft: null,
+      pendingDeleteIds: [],
+    };
+    await setSession(from, next);
+    if (session.flow === 'list') {
+      const { menuId, textMenuIndex, textMenuCategory } = await sendMenu(from, lang, businessId);
+      await patchSession(from, { menuId, textMenuIndex, textMenuCategory }, next);
+    } else {
+      const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
+      await patchSession(from, { menuId, textMenuIndex, textMenuCategory }, next);
+    }
+    return;
+  }
+
+  if (replyId === 'btn_confirm_continue') {
+    await offerCheckoutConfirmFlow(
+      from, session, lang, businessId, basket, session.customerName,
+    );
+    return;
+  }
+
   if (isConfirm) {
     const info = await getBusinessInfo(businessId);
+    if (shouldSkipChatCheckoutSlots(info)) {
+      const payload = buildCheckoutSubmitPayloadFromSession(session);
+      const validation = validateCheckoutSubmit(payload);
+      if (!validation.ok) {
+        await sendText(from, t(validation.errorKey, lang));
+        await reofferConfirming(from, session, lang, businessId, basket);
+        return;
+      }
+      if (!Array.isArray(basket) || basket.length === 0) {
+        const nextSession = { ...session, state: 'browsing', basket: [] };
+        await sendOrderEntryPrompt({
+          from,
+          session: nextSession,
+          lang,
+          businessId,
+          bodyOverride: t('basketEmpty', lang),
+        });
+        await setSession(from, { ...nextSession, pendingDeleteIds: [] });
+        return;
+      }
+      const submittedSession = applyCheckoutSubmitToSession(session, validation.values);
+      if (submittedSession.orderType === 'delivery'
+        && await gateDeliverySubmit({ from, session: submittedSession, lang, basket, info })) {
+        return;
+      }
+      await placeConfirmedOrder({
+        from, session: submittedSession, lang, businessId, basket, isMulti, contactName, info,
+      });
+      return;
+    }
     await placeConfirmedOrder({ from, session, lang, businessId, basket, isMulti, contactName, info });
     return;
   }

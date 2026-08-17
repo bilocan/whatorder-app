@@ -21,7 +21,7 @@ async function run(session, opts = {}) {
   await session.ownerApprove(orderId, { etaMinutes: 20 });
   await session.waitForOrderStatus(orderId, 'approved');
   await session.waitForReply({
-    includes: /genehmigt|approved|angenommen|vorbereitet|eta|min/i,
+    includes: /genehmigt|approved|accepted|angenommen|vorbereitet|eta|min/i,
     timeoutMs: 60_000,
   }).catch((err) => {
     console.warn('[owner_status_path] approve reply soft-fail:', err.message);
@@ -31,7 +31,7 @@ async function run(session, opts = {}) {
   await session.ownerStartPreparation(orderId);
   await session.waitForOrderStatus(orderId, 'preparing');
   await session.waitForReply({
-    includes: /zubereitung|preparing|wird zubereitet|hazırlanıyor/i,
+    includes: /zubereitung|preparing|prepared|wird zubereitet|hazırlanıyor/i,
     timeoutMs: 60_000,
   }).catch((err) => {
     console.warn('[owner_status_path] preparing reply soft-fail:', err.message);

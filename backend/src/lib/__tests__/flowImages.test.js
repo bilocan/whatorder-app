@@ -8,14 +8,24 @@ const {
   colorForSeed,
   isAllowedPhotoFetchUrl,
   flowListImageFromUrl,
+  normalizeStoredFlowListImage,
+  padFlowOrderItemImage,
+  addressHomeIconBase64,
+  addressNewIconBase64,
+  attachAddressListImages,
   attachListImages,
   attachCategoryImages,
   attachMenuItemImages,
+  clearFlowImageCache,
   MAX_DOWNLOAD_BYTES,
+  MAX_LIST_IMAGE_BYTES,
+  ORDER_ITEM_PAD_W,
+  ORDER_ITEM_PAD_H,
 } = require('../flowImages');
 const { resolvePhotoUrl } = require('../../bot/menuService');
 
 const STORAGE_URL = 'https://firebasestorage.googleapis.com/v0/b/bucket/o/menu%2Fitem.jpg?alt=media';
+const STORED_THUMB = 'abc123storedthumbbase64';
 
 async function tinyJpegBuffer() {
   return sharp({
@@ -51,6 +61,7 @@ function mockOkBody(buf) {
 describe('flowImages', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearFlowImageCache();
     resolvePhotoUrl.mockImplementation((url) => url || null);
     global.fetch = jest.fn();
   });
@@ -65,6 +76,48 @@ describe('flowImages', () => {
     expect(typeof b64).toBe('string');
     expect(b64.length).toBeGreaterThan(20);
     expect(b64.startsWith('data:')).toBe(false);
+  });
+
+  test('colorTileBase64 caches by seed', async () => {
+    const a = await colorTileBase64('Kebap');
+    const b = await colorTileBase64('Kebap');
+    expect(b).toBe(a);
+  });
+
+  test('address pin / new icons are distinct cached base64 thumbs', async () => {
+    const home = await addressHomeIconBase64();
+    const neu = await addressNewIconBase64();
+    expect(home).not.toBe(neu);
+    expect(home.length).toBeGreaterThan(20);
+    expect(await addressHomeIconBase64()).toBe(home);
+    const rows = await attachAddressListImages([
+      { id: 'addr_0', title: 'Home' },
+      { id: 'addr_new', title: 'New' },
+    ]);
+    expect(rows[0].image).toBe(home);
+    expect(rows[1].image).toBe(neu);
+  });
+
+  test('padFlowOrderItemImage left-aligns square thumb on wide white canvas', async () => {
+    const square = await colorTileBase64('pad-test');
+    const padded = await padFlowOrderItemImage(square);
+    expect(padded).toBeTruthy();
+    expect(padded).not.toBe(square);
+    const meta = await sharp(Buffer.from(padded, 'base64')).metadata();
+    expect(meta.width).toBe(ORDER_ITEM_PAD_W);
+    expect(meta.height).toBe(ORDER_ITEM_PAD_H);
+  });
+
+  describe('normalizeStoredFlowListImage', () => {
+    test('strips data URL prefix', () => {
+      expect(normalizeStoredFlowListImage(`data:image/jpeg;base64,${STORED_THUMB}`)).toBe(STORED_THUMB);
+    });
+
+    test('rejects oversized and empty', () => {
+      expect(normalizeStoredFlowListImage('')).toBeNull();
+      expect(normalizeStoredFlowListImage(null)).toBeNull();
+      expect(normalizeStoredFlowListImage('x'.repeat(MAX_LIST_IMAGE_BYTES + 1))).toBeNull();
+    });
   });
 
   describe('isAllowedPhotoFetchUrl', () => {
@@ -143,27 +196,63 @@ describe('flowImages', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  test('attachListImages falls back to color tile without photo', async () => {
+  test('flowListImageFromUrl caches successful thumbs (second call skips fetch)', async () => {
+    const jpeg = await tinyJpegBuffer();
+    global.fetch.mockResolvedValue(mockOkBody(jpeg));
+    const first = await flowListImageFromUrl(STORAGE_URL);
+    const second = await flowListImageFromUrl(STORAGE_URL);
+    expect(first).toBeTruthy();
+    expect(second).toBe(first);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('attachListImages uses stored Base64 with zero fetch', async () => {
+    const out = await attachListImages(
+      [{ id: 'a', title: 'Ayran' }],
+      { flowListImageById: { a: STORED_THUMB } },
+    );
+    expect(out[0].image).toBe(STORED_THUMB);
+    expect(out[0]['alt-text']).toBe('Ayran');
+    expect(out[0]).not.toHaveProperty('color');
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('attachListImages falls back to color tile without stored thumb', async () => {
     const out = await attachListImages([{ id: 'a', title: 'Ayran' }]);
     expect(out).toHaveLength(1);
     expect(out[0].image).toBeTruthy();
-    expect(out[0]['alt-text']).toBe('Ayran');
-    // Meta forbids image + color on the same list option.
     expect(out[0]).not.toHaveProperty('color');
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  test('attachListImages omits color when photo image is present', async () => {
-    const jpeg = await tinyJpegBuffer();
-    global.fetch.mockResolvedValue(mockOkBody(jpeg));
-    const out = await attachListImages(
-      [{ id: 'a', title: 'Ayran' }],
-      { photoUrlById: { a: STORAGE_URL } },
+  test('attachListImages rejects data:-only garbage and oversized stored values', async () => {
+    const color = await colorTileBase64('a');
+    const bad = await attachListImages(
+      [{ id: 'a', title: 'A' }],
+      { flowListImageById: { a: 'data:image/jpeg;base64,' } },
     );
-    expect(out[0].image).toBeTruthy();
-    expect(out[0]).not.toHaveProperty('color');
+    expect(bad[0].image).toBe(color);
+
+    const huge = await attachListImages(
+      [{ id: 'b', title: 'B' }],
+      { flowListImageById: { b: 'y'.repeat(MAX_LIST_IMAGE_BYTES + 10) } },
+    );
+    expect(huge[0].image).toBe(await colorTileBase64('b'));
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  test('attachCategoryImages ignores non-allowlisted photoUrl', async () => {
+  test('attachCategoryImages uses first item flowListImage without fetch', async () => {
+    const categories = [{ id: 'Kebap', title: 'Kebap' }];
+    const menu = [
+      { id: 'i0', category: 'Kebap', photoUrl: STORAGE_URL },
+      { id: 'i1', category: 'Kebap', flowListImage: STORED_THUMB, photoUrl: STORAGE_URL },
+    ];
+    const out = await attachCategoryImages(categories, menu);
+    expect(out[0].image).toBe(STORED_THUMB);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('attachCategoryImages color-tiles when only non-allowlisted photoUrl exists', async () => {
     const categories = [{ id: 'Kebap', title: 'Kebap' }];
     const menu = [
       { id: 'i1', category: 'Kebap', photoUrl: 'https://cdn.example/kebap.jpg' },
@@ -173,11 +262,11 @@ describe('flowImages', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  test('attachMenuItemImages maps photoUrlById', async () => {
+  test('attachMenuItemImages maps flowListImage with zero fetch', async () => {
     const items = [{ id: 'i1', title: 'Dürüm', description: '€8.50' }];
-    const menuSlice = [{ id: 'i1', photoUrl: undefined }];
+    const menuSlice = [{ id: 'i1', flowListImage: STORED_THUMB, photoUrl: STORAGE_URL }];
     const out = await attachMenuItemImages(items, menuSlice);
-    expect(out[0].id).toBe('i1');
-    expect(out[0].image).toBeTruthy();
+    expect(out[0].image).toBe(STORED_THUMB);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

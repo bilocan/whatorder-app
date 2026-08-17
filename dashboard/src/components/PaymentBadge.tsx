@@ -1,5 +1,5 @@
 interface PaymentBadgeProps {
-  kind: 'cash' | 'paid' | 'unpaid' | 'failed';
+  kind: 'cash' | 'paid' | 'unpaid' | 'failed' | 'refunded';
   label: string;
 }
 

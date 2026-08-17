@@ -264,7 +264,7 @@ describe('DEV flow keyword (DEPLOY_ENV)', () => {
 
   test('DEPLOY_ENV=test sends Flow on keyword "flow"', async () => {
     process.env.DEPLOY_ENV = 'test';
-    process.env.WHATSAPP_FLOW_ID = 'flow_test_id';
+    process.env.WHATSAPP_MENU_FLOW_ID = 'flow_test_id';
     getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ });
 
     await handleMessage(ROUTING, msg({ text: 'flow' }));
@@ -272,7 +272,7 @@ describe('DEV flow keyword (DEPLOY_ENV)', () => {
     expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       flowId: 'flow_test_id',
       flowToken: `${FROM}|${BIZ}`,
-      screen: 'CATEGORY_SELECT',
+      flowAction: 'data_exchange',
     }));
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
@@ -288,7 +288,7 @@ describe('DEV flow keyword (DEPLOY_ENV)', () => {
 
   test('flow keyword ignores stale session.businessId not on routing', async () => {
     process.env.DEPLOY_ENV = 'test';
-    process.env.WHATSAPP_FLOW_ID = 'flow_test_id';
+    process.env.WHATSAPP_MENU_FLOW_ID = 'flow_test_id';
     getSession.mockResolvedValue({
       language: 'en',
       state: 'browsing',
@@ -312,11 +312,15 @@ describe('Edge cases', () => {
 
     await handleMessage(ROUTING, msg({ type: 'cart_submitted', items: [] }));
 
-    expect(sendListMessage).toHaveBeenCalled();
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ textMenuIndex: expect.any(Array) }));
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowAction: 'data_exchange',
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
-  test('no WHATSAPP_FLOW_ID falls back to order entry on first message', async () => {
+  test('no WHATSAPP_MENU_FLOW_ID falls back to order entry on first message', async () => {
+    delete process.env.WHATSAPP_MENU_FLOW_ID;
     delete process.env.WHATSAPP_FLOW_ID;
     getSession.mockResolvedValue({});
 

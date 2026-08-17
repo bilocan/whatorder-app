@@ -1,6 +1,8 @@
 const { patchSession } = require('./sessionStore');
 const { sendButtonMessage } = require('../lib/whatsapp');
 const { t } = require('./templates');
+const { getBusinessInfo } = require('./menuService');
+const { appendDealMarketingLine } = require('./dealMarketing');
 
 const MENU_KEYWORDS = new Set([
   'menu', 'menü', 'menue', 'menüyü', 'menüyü göster', 'show menu', 'browse',
@@ -24,9 +26,13 @@ async function buildOrderEntryButtons(lang, businessId) {
 }
 
 async function sendOrderEntryPrompt({ from, session, lang, businessId, basket = [], bodyOverride, fresh = false }) {
-  const buttons = await buildOrderEntryButtons(lang, businessId);
+  const [buttons, info] = await Promise.all([
+    buildOrderEntryButtons(lang, businessId),
+    Promise.resolve(getBusinessInfo(businessId)).catch(() => null),
+  ]);
+  const rawBody = bodyOverride ?? t('orderEntryBody', lang);
   const msgId = await sendButtonMessage(from, {
-    body: bodyOverride ?? t('orderEntryBody', lang),
+    body: appendDealMarketingLine(lang, rawBody, info),
     buttons,
   });
   await patchSession(from, {

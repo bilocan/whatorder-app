@@ -43,12 +43,15 @@ jest.mock('../../lib/paymentService', () => ({
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
   menuRef: jest.fn(),
-  ordersRef: jest.fn(() => ({
-    doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
-    limit: jest.fn(() => ({
-      get: jest.fn().mockResolvedValue({ docs: [] }),
-    })),
-  })),
+  ordersRef: jest.fn(() => {
+    const query = {
+      doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
+      get: jest.fn().mockResolvedValue({ empty: true, docs: [] }),
+    };
+    query.where = jest.fn(() => query);
+    query.limit = jest.fn(() => query);
+    return query;
+  }),
 }));
 
 const {
@@ -92,11 +95,27 @@ const {
   resetBotHandlerMocks,
   clearBotHandlerEnv,
 } = require('./helpers/botHandlerTestFixtures');
-const { menuRef } = require('../../lib/collections');
+const { menuRef, ordersRef } = require('../../lib/collections');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
+
+function mockCompletedOrderLookup(completed) {
+  ordersRef.mockImplementation(() => {
+    const query = {
+      doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
+      get: jest.fn().mockResolvedValue({
+        empty: !completed,
+        docs: completed ? [{}] : [],
+      }),
+    };
+    query.where = jest.fn(() => query);
+    query.limit = jest.fn(() => query);
+    return query;
+  });
+}
 
 beforeEach(() => {
   resetBotHandlerMocks();
+  mockCompletedOrderLookup(false);
   useMenuWithVat(menuRef);
   createCheckoutSessionForOrder.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/cs_1', sessionId: 'cs_1' });
 });
@@ -157,6 +176,7 @@ describe('Add note / Back to cart on the final confirmation screen', () => {
     }));
     expect(patchSession).toHaveBeenCalledWith(FROM, {
       state: 'browsing',
+      confirmFlowDraft: null,
       pendingDeleteIds: [],
     });
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
@@ -181,7 +201,8 @@ describe('Cancel flow', () => {
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -220,8 +241,143 @@ describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_cancel_order', title: 'Cancel ❌' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('Place-order promotional deals', () => {
+  const liveWindow = {
+    dealId: 'deal-window',
+    kind: 'window',
+    discountType: 'percent',
+    discountValue: 10,
+    label: '10% Willkommen',
+    active: true,
+    startsAt: new Date('2020-01-01T00:00:00.000Z'),
+    endsAt: new Date('2099-01-01T00:00:00.000Z'),
+  };
+
+  function placeSession(overrides = {}) {
+    getSession.mockResolvedValue({
+      language: 'en',
+      state: 'confirming',
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      customerName: 'John',
+      pickupTime: '14:30',
+      specialRequests: '',
+      businessId: BIZ,
+      orderType: 'delivery',
+      deliveryAddress: 'Main Street 12, Haus',
+      ...overrides,
+    });
+  }
+
+  test('live window reduces order snapshot and Stripe total while preserving delivery fee', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ,
+      deliveryEnabled: true,
+      deliveryFee: 2,
+      deals: { window: liveWindow },
+    });
+    placeSession();
+
+    await handleMessage(ROUTING, msg({
+      type: 'button_reply',
+      id: 'btn_place_order',
+      title: 'Confirm ✅',
+    }));
+
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({
+      total: 15.3,
+      deliveryFee: 2,
+      discountSnapshot: expect.objectContaining({
+        discount: 1.7,
+        discountKind: 'window',
+        discountLabel: '10% Willkommen',
+      }),
+    }));
+    expect(createCheckoutSessionForOrder).toHaveBeenCalledWith(
+      BIZ,
+      'order_abc123',
+      expect.objectContaining({ totalEuros: 17.3 }),
+    );
+    const charged = createCheckoutSessionForOrder.mock.calls[0][2].totalEuros;
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(
+      FROM,
+      expect.objectContaining({
+        body: expect.stringContaining(`Total: €${Number(charged).toFixed(2)}`),
+      }),
+      'test_phone_id',
+    );
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(
+      FROM,
+      expect.objectContaining({ body: expect.stringContaining('10% Willkommen') }),
+      'test_phone_id',
+    );
+  });
+
+  test('expired window places the full-price order without discount metadata', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ,
+      deals: {
+        window: {
+          ...liveWindow,
+          endsAt: new Date('2020-02-01T00:00:00.000Z'),
+        },
+      },
+    });
+    placeSession({ orderType: 'pickup', deliveryAddress: null });
+
+    await handleMessage(ROUTING, msg({
+      type: 'button_reply',
+      id: 'btn_place_order',
+      title: 'Confirm ✅',
+    }));
+
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({
+      total: 17,
+      discountSnapshot: { discount: 0 },
+    }));
+    expect(createCheckoutSessionForOrder).toHaveBeenCalledWith(
+      BIZ,
+      'order_abc123',
+      expect.objectContaining({ totalEuros: 17 }),
+    );
+  });
+
+  test('completed first order burns that slot and falls back to the live window', async () => {
+    mockCompletedOrderLookup(true);
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ,
+      deals: {
+        firstOrder: {
+          dealId: 'deal-first',
+          kind: 'first_order',
+          discountType: 'percent',
+          discountValue: 20,
+          label: '20% Erste Bestellung',
+          active: true,
+        },
+        window: liveWindow,
+      },
+    });
+    placeSession({ orderType: 'pickup', deliveryAddress: null });
+
+    await handleMessage(ROUTING, msg({
+      type: 'button_reply',
+      id: 'btn_place_order',
+      title: 'Confirm ✅',
+    }));
+
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({
+      total: 15.3,
+      discountSnapshot: expect.objectContaining({
+        discountKind: 'window',
+        discountDealId: 'deal-window',
+      }),
+    }));
   });
 });
 
@@ -520,7 +676,8 @@ describe('Confirming state: ambiguous input', () => {
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('text "Löschen" cancels — does not become specialRequests note', async () => {
@@ -543,7 +700,8 @@ describe('Confirming state: ambiguous input', () => {
     const noteWrite = setSession.mock.calls.find(([, data]) => data.specialRequests === 'Löschen');
     expect(noteWrite).toBeUndefined();
     // Single-restaurant cancel re-opens catalog with checkoutCancelled body (not a bare sendText).
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('text "abbrechen" cancels on confirming', async () => {
@@ -671,14 +829,41 @@ describe('Checkout confirm Flow', () => {
     delete process.env.WHATSAPP_CHECKOUT_FLOW_ID;
   });
 
-  test('flag on sends CHECKOUT_REVIEW Flow instead of the confirm list', async () => {
+  test('flag on sends checkout Flow CTA directly (no Add more / Continue gate)', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true });
     sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
 
-    // flow_action navigate never calls INIT — the screen only renders when the prefill
-    // travels with the message.
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'checkout_flow_test_id',
+      screen: 'CHECKOUT_REVIEW',
+      flowCta: expect.any(String),
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_confirm_continue' }),
+      ]),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      pendingDeleteIds: ['confirm_flow_msg_id'],
+    }));
+  });
+
+  test('stale Continue still sends CHECKOUT_REVIEW Flow with navigate prefill', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true });
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      orderType: 'pickup',
+      customerName: 'Ahmet',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm_continue', title: 'Continue' }));
+
     expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       flowId: 'checkout_flow_test_id',
       flowToken: `${FROM}|${BIZ}|checkout`,
@@ -690,10 +875,198 @@ describe('Checkout confirm Flow', () => {
         receipt_text: expect.stringContaining('Döner Palace'),
       }),
     }));
-    expect(sendListMessage).not.toHaveBeenCalled();
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
       pendingDeleteIds: ['confirm_flow_msg_id'],
+    }));
+  });
+
+  test('Continue resolves a live deal into the Flow receipt and confirm body', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      checkoutConfirmFlow: true,
+      deals: {
+        window: {
+          dealId: 'deal-window',
+          kind: 'window',
+          discountType: 'percent',
+          discountValue: 10,
+          label: '10% Willkommen',
+          active: true,
+          startsAt: new Date('2020-01-01T00:00:00.000Z'),
+          endsAt: new Date('2099-01-01T00:00:00.000Z'),
+        },
+      },
+    });
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      orderType: 'pickup',
+      customerName: 'Ahmet',
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'button_reply',
+      id: 'btn_confirm_continue',
+      title: 'Continue',
+    }));
+
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('10% Willkommen'),
+      data: expect.objectContaining({
+        receipt_text: expect.stringMatching(/10% Willkommen[\s\S]*15\.30|15\.30[\s\S]*10% Willkommen/),
+      }),
+    }));
+  });
+
+  test('stale Add more from old gate opens menu/catalog without basket intermediate', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true });
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      orderType: 'pickup',
+      customerName: 'Ahmet',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm_add_more', title: 'Add more' }));
+
+    // Must not show the basket view that also has Mehr hinzufügen / Entfernen / Bestätigen.
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_remove_item' }),
+      ]),
+    }));
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: BASE_SESSION.basket,
+    }));
+  });
+
+  test('defaults pickup on confirm Flow; does not prefill delivery address until Lieferung is chosen', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      checkoutConfirmFlow: true,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+    });
+    mockCustomerProfile({
+      name: 'Ahmet',
+      lastDeliveryAddress: 'Naschmarkt 5, Top 2, 1040 Wien',
+    });
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'browsing' });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
+
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      orderType: 'pickup',
+      customerName: 'Ahmet',
+    }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      orderType: 'delivery',
+      deliveryAddress: 'Naschmarkt 5, Top 2, 1040 Wien',
+    }));
+  });
+
+  test.each([
+    {
+      label: 'delivery address',
+      session: {
+        customerName: 'Ahmet',
+        orderType: 'delivery',
+        deliveryAddress: '',
+      },
+      error: 'Please enter a delivery address.',
+    },
+    {
+      label: 'customer name',
+      session: {
+        customerName: '',
+        orderType: 'pickup',
+      },
+      error: 'Please enter your name.',
+    },
+  ])('typed confirm with empty $label re-offers Flow without placing', async ({ session, error }) => {
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ,
+      checkoutConfirmFlow: true,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+    });
+    sendFlowMessage.mockResolvedValue('retry_flow_msg_id');
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      ...session,
+      state: 'confirming',
+      businessId: BIZ,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'ok' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, error);
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      screen: 'CHECKOUT_REVIEW',
+    }));
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      pendingDeleteIds: ['retry_flow_msg_id'],
+    }));
+  });
+
+  test('typed confirm with street-only delivery re-offers Flow (apartment required)', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ,
+      checkoutConfirmFlow: true,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+    });
+    sendFlowMessage.mockResolvedValue('retry_flow_msg_id');
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      businessId: BIZ,
+      customerName: 'Ahmet',
+      orderType: 'delivery',
+      deliveryAddress: 'Naschmarkt 5, 1040 Wien',
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'ok' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, 'Please enter apartment (or Haus).');
+    expect(sendFlowMessage).toHaveBeenCalled();
+  });
+
+  test('typed confirm applies confirmFlowDraft address and places', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...CARD_READY_BIZ,
+      checkoutConfirmFlow: true,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+    });
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      businessId: BIZ,
+      customerName: 'Ahmet',
+      orderType: 'delivery',
+      deliveryAddress: 'Old Street 1, Top 1, 1040 Wien',
+      confirmFlowDraft: {
+        deliveryAddress: 'Naschmarkt 9, 1040 Wien',
+        deliveryApartment: 'Top 4',
+      },
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'ok' }));
+
+    expect(createOrder).toHaveBeenCalledWith(BIZ, expect.objectContaining({
+      deliveryAddress: 'Naschmarkt 9, Top 4, 1040 Wien',
+      customerName: 'Ahmet',
     }));
   });
 
@@ -712,11 +1085,44 @@ describe('Checkout confirm Flow', () => {
     }));
   });
 
-  test('Flow send failure falls back to the confirm list', async () => {
-    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true });
-    sendFlowMessage.mockRejectedValue(new Error('Meta Flow unavailable'));
+  test('null Flow message id falls back to confirm list when address is complete', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      checkoutConfirmFlow: true,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+    });
+    sendFlowMessage.mockResolvedValue(null);
+    sendListMessage.mockResolvedValue('list_msg_id');
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'browsing',
+      customerName: 'Ahmet',
+      orderType: 'delivery',
+      deliveryAddress: 'Naschmarkt 5, Top 2, 1040 Wien',
+    });
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
+
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      pendingDeleteIds: ['list_msg_id'],
+    }));
+  });
+
+  test('Continue Flow send failure falls back to the confirm list when fields are complete', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true });
+    sendFlowMessage.mockRejectedValue(new Error('Meta Flow unavailable'));
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      orderType: 'pickup',
+      customerName: 'Ahmet',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm_continue', title: 'Continue' }));
 
     expect(sendFlowMessage).toHaveBeenCalled();
     expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
@@ -726,7 +1132,7 @@ describe('Checkout confirm Flow', () => {
         }),
       ]),
     }));
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+    expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'confirming',
       pendingDeleteIds: ['list_msg_id'],
     }));
@@ -778,6 +1184,7 @@ describe('Checkout confirm Flow', () => {
         customer_name: 'John',
         order_type: 'delivery',
         delivery_address: 'Naschmarkt 5, 1040 Wien',
+        delivery_apartment: 'Haus',
         note: '',
       },
     }));
@@ -785,10 +1192,41 @@ describe('Checkout confirm Flow', () => {
     expect(createOrder).not.toHaveBeenCalled();
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('minimum order value'),
+      buttons: [expect.objectContaining({ id: 'btn_add_more' })],
     }));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'browsing',
       orderType: 'delivery',
+    }));
+  });
+
+  test('delivery_below_minimum Flow completion shows the gate without placing', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO, checkoutConfirmFlow: true, deliveryEnabled: true, minimumOrderValue: 30,
+    });
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      businessId: BIZ,
+      customerName: 'John',
+      orderType: 'delivery',
+      deliveryAddress: null,
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'flow_completion',
+      data: { checkout_action: 'delivery_below_minimum' },
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('minimum order value'),
+      buttons: [expect.objectContaining({ id: 'btn_add_more' })],
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      orderType: 'delivery',
+      deliveryAddress: null,
     }));
   });
 
@@ -811,6 +1249,7 @@ describe('Checkout confirm Flow', () => {
         customer_name: 'John',
         order_type: 'delivery',
         delivery_address: 'Naschmarkt 5, 1040 Wien',
+        delivery_apartment: 'Haus',
         note: '',
       },
     }));
@@ -831,8 +1270,14 @@ describe('Checkout confirm Flow', () => {
       ...BIZ_INFO, checkoutConfirmFlow: true, deliveryEnabled: true, deliveryOpen: false,
     });
     sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      orderType: 'pickup',
+      customerName: 'Ahmet',
+    });
 
-    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm_continue', title: 'Continue' }));
 
     expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       data: expect.objectContaining({
@@ -861,6 +1306,7 @@ describe('Checkout confirm Flow', () => {
         customer_name: 'John',
         order_type: 'delivery',
         delivery_address: 'Naschmarkt 5, 1040 Wien',
+        delivery_apartment: 'Haus',
         note: '',
       },
     }));
@@ -936,6 +1382,52 @@ describe('Checkout confirm Flow', () => {
     });
   });
 
+  test('delivery Flow completion without apartment shows error and re-offers draft with street', async () => {
+    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true, deliveryEnabled: true });
+    sendFlowMessage.mockResolvedValue('retry_flow_msg_id');
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      businessId: BIZ,
+      customerName: 'John',
+      orderType: 'delivery',
+      deliveryAddress: 'Old Street 1',
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'flow_completion',
+      data: {
+        checkout_action: 'place_order',
+        customer_name: 'John',
+        order_type: 'delivery',
+        delivery_address: 'Hippgasse 11, 1160 Wien',
+        delivery_apartment: '',
+        note: '',
+      },
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, 'Please enter apartment (or Haus).');
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      screen: 'CHECKOUT_REVIEW',
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      pendingDeleteIds: ['retry_flow_msg_id'],
+    }));
+    expect(patchSession).toHaveBeenCalledWith(FROM, {
+      state: 'confirming',
+      confirmFlowDraft: {
+        customerName: 'John',
+        orderType: 'delivery',
+        deliveryAddress: 'Hippgasse 11, 1160 Wien',
+        deliveryApartment: '',
+        specialRequests: '',
+      },
+      pendingDeleteIds: ['retry_flow_msg_id'],
+    });
+  });
+
   test('delivery Flow completion without an address shows an error and re-sends the Flow', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true, deliveryEnabled: true });
     sendFlowMessage.mockResolvedValue('retry_flow_msg_id');
@@ -975,6 +1467,7 @@ describe('Checkout confirm Flow', () => {
         customerName: 'John',
         orderType: 'delivery',
         deliveryAddress: '',
+        deliveryApartment: '',
         specialRequests: '',
       },
       pendingDeleteIds: ['retry_flow_msg_id'],

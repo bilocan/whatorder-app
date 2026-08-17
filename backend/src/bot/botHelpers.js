@@ -1,10 +1,12 @@
 const { getMenu, getBusinessInfo, resolvePhotoUrl } = require('./menuService');
 const { sortByDistance, filterWithinDistanceKm, getMaxRestaurantDistanceKm } = require('../lib/distance');
-const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage } = require('../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendFlowMessage } = require('../lib/whatsapp');
 const { buildOpenMapCtaUrl } = require('../lib/mapsUrl');
 const { isOpenNow } = require('../lib/schedule');
 const { t, tCategory } = require('./templates');
 const { publishTextMenu } = require('./textMenu');
+const { appendDealMarketingLine } = require('./dealMarketing');
+const { marketingDealLabel } = require('../lib/dealResolve');
 
 // WhatsApp interactive list messages: max 10 rows total across all sections.
 const MAX_LIST_ROWS = 10;
@@ -101,7 +103,7 @@ function buildItemPageSections(menu, lang, { category, page = 0, multiCategory =
 async function sendCategoryPicker(to, lang, businessId, info, menu, bodyOverride) {
   return sendListMessage(to, {
     header: t('menuListHeader', lang, info.name),
-    body: bodyOverride ?? t('menuCategoryBody', lang),
+    body: appendDealMarketingLine(lang, bodyOverride ?? t('menuCategoryBody', lang), info),
     footer: t('menuListFooter', lang),
     buttonLabel: t('viewMenuBtn', lang),
     sections: buildCategorySections(menu, lang),
@@ -112,7 +114,7 @@ async function sendMenuPage(to, lang, businessId, info, menu, { category, page =
   const resolvedInfo = info ?? await getBusinessInfo(businessId);
   return sendListMessage(to, {
     header: t('menuListHeader', lang, resolvedInfo.name),
-    body: bodyOverride ?? t('menuListBody', lang),
+    body: appendDealMarketingLine(lang, bodyOverride ?? t('menuListBody', lang), resolvedInfo),
     footer: t('menuListFooter', lang),
     buttonLabel: t('viewMenuBtn', lang),
     sections: buildItemPageSections(menu, lang, { category, page, multiCategory }),
@@ -389,7 +391,7 @@ async function sendMenu(to, lang, businessId, bodyOverride) {
   }
   const menuId = await sendListMessage(to, {
     header: t('menuListHeader', lang, info.name),
-    body: bodyOverride ?? t('menuListBody', lang),
+    body: appendDealMarketingLine(lang, bodyOverride ?? t('menuListBody', lang), info),
     footer: t('menuListFooter', lang),
     buttonLabel: t('viewMenuBtn', lang),
     sections: buildFlatSections(menu, lang),
@@ -398,23 +400,35 @@ async function sendMenu(to, lang, businessId, bodyOverride) {
   return { menuId, textMenuIndex, textMenuCategory: null };
 }
 
-// TODO: re-enable Flow once rate-limit issues on real numbers are resolved.
-// const { sendFlowMessage } = require('../lib/whatsapp');
-// async function sendCatalog(to, lang, businessId, bodyOverride) {
-//   const flowId = process.env.WHATSAPP_FLOW_ID;
-//   if (flowId) {
-//     const [info, menu] = await Promise.all([getBusinessInfo(businessId), getMenu(businessId)]);
-//     if (!menu.length) { await sendText(to, t('menuEmpty', lang)); return null; }
-//     try {
-//       await sendFlowMessage(to, { flowId, flowToken: `${to}|${businessId}`, flowCta: t('viewMenuBtn', lang), screen: 'CATEGORY_SELECT', body: bodyOverride ?? t('catalogBody', lang, info.name), data: {} });
-//       return null;
-//     } catch (err) {
-//       if (err.response?.data?.error?.code === 131056) throw err;
-//     }
-//   }
-//   return sendMenu(to, lang, businessId, bodyOverride);
-// }
+const EMPTY_CATALOG_SESSION = { menuId: null, textMenuIndex: null, textMenuCategory: null };
+
+// Primary menu delivery: WhatsApp Flow when WHATSAPP_MENU_FLOW_ID is set.
+// Pair rate-limit (#131056) must not fall through to sendMenu (that double-hits the same pair).
 async function sendCatalog(to, lang, businessId, bodyOverride) {
+  // WHATSAPP_FLOW_ID kept as legacy alias until Cloud Run envs are fully migrated.
+  const flowId = process.env.WHATSAPP_MENU_FLOW_ID || process.env.WHATSAPP_FLOW_ID;
+  if (flowId) {
+    const [info, menu] = await Promise.all([getBusinessInfo(businessId), getMenu(businessId)]);
+    if (!menu.length) {
+      await sendText(to, t('menuEmpty', lang));
+      return { ...EMPTY_CATALOG_SESSION };
+    }
+    try {
+      // data_exchange → Meta calls /flow/exchange INIT (navigate + empty data leaves CATEGORY_SELECT blank)
+      await sendFlowMessage(to, {
+        flowId,
+        flowToken: `${to}|${businessId}`,
+        flowCta: t('viewMenuBtn', lang),
+        body: appendDealMarketingLine(lang, bodyOverride ?? t('catalogBody', lang, info.name), info),
+        flowAction: 'data_exchange',
+      });
+      return { ...EMPTY_CATALOG_SESSION };
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      if (code === 131056) throw err;
+      console.error('[sendCatalog] Flow failed, falling back to list menu:', err.response?.data ?? err.message);
+    }
+  }
   return sendMenu(to, lang, businessId, bodyOverride);
 }
 
@@ -422,7 +436,16 @@ async function getBusinessesInfo(businessIds) {
   return Promise.all(businessIds.map(async bid => {
     const info = await getBusinessInfo(bid);
     const tz = info.timezone || 'Europe/Vienna';
-    return { id: bid, name: info.name, tagline: info.tagline || info.cuisine || '', lat: info.lat ?? null, lng: info.lng ?? null, imageUrl: resolvePhotoUrl(info.imageUrl) ?? null, isOpen: isOpenNow(info.schedule, tz) };
+    return {
+      id: bid,
+      name: info.name,
+      tagline: info.tagline || info.cuisine || '',
+      lat: info.lat ?? null,
+      lng: info.lng ?? null,
+      imageUrl: resolvePhotoUrl(info.imageUrl) ?? null,
+      isOpen: isOpenNow(info.schedule, tz),
+      dealLabel: marketingDealLabel(info),
+    };
   }));
 }
 
@@ -487,6 +510,28 @@ async function sendRestaurantPickerWithMap(to, businesses, lang, customerLat, cu
   };
 }
 
+function buildRestaurantPickerDescription(b, lang) {
+  const distLabel = b.distanceKm != null
+    ? (() => {
+        const distPart = b.distanceKm < 1
+          ? `${Math.round(b.distanceKm * 1000)} m`
+          : `${b.distanceKm.toFixed(1)} km`;
+        const durPart = b.durationMin != null ? ` · ${b.durationMin} min` : '';
+        return `📍 ${distPart}${durPart}`;
+      })()
+    : null;
+  const statusSuffix = b.isOpen === false ? ` · ${t('closedLabel', lang)}` : '';
+  const dealPart = b.dealLabel ? `🏷️ ${b.dealLabel}` : null;
+  const tagPart = [dealPart, distLabel, b.tagline].filter(Boolean).join(' · ');
+  const tagBudget = Math.max(0, 72 - statusSuffix.length);
+  let clippedTag = tagPart.slice(0, tagBudget);
+  // Drop a trailing high surrogate so the 72-char cut does not split an emoji.
+  if (clippedTag.length && (clippedTag.charCodeAt(clippedTag.length - 1) & 0xFC00) === 0xD800) {
+    clippedTag = clippedTag.slice(0, -1);
+  }
+  return `${clippedTag}${statusSuffix}`;
+}
+
 async function sendRestaurantPicker(to, businesses, lang, { numbered = false } = {}) {
   return sendListMessage(to, {
     header: 'WhatOrder',
@@ -496,18 +541,7 @@ async function sendRestaurantPicker(to, businesses, lang, { numbered = false } =
     sections: [{
       title: 'Restaurants',
       rows: businesses.map((b, i) => {
-        const distLabel = b.distanceKm != null
-          ? (() => {
-              const distPart = b.distanceKm < 1
-                ? `${Math.round(b.distanceKm * 1000)} m`
-                : `${b.distanceKm.toFixed(1)} km`;
-              const durPart = b.durationMin != null ? ` · ${b.durationMin} min` : '';
-              return `📍 ${distPart}${durPart}`;
-            })()
-          : null;
-        const statusSuffix = b.isOpen === false ? ` · ${t('closedLabel', lang)}` : '';
-        const tagPart = distLabel ? `${distLabel} · ${b.tagline}` : b.tagline;
-        const description = `${tagPart}${statusSuffix}`.slice(0, 72);
+        const description = buildRestaurantPickerDescription(b, lang);
         const title = numbered
           ? `${i + 1}. ${b.name}`.slice(0, 24)
           : b.name.slice(0, 24);
@@ -548,6 +582,7 @@ module.exports = {
   sendCategoryPicker,
   sendCatalog,
   getBusinessesInfo,
+  buildRestaurantPickerDescription,
   sendRestaurantPicker,
   sendRestaurantPickerWithMap,
   presentRestaurantPickerForLocation,

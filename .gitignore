@@ -90,3 +90,5 @@ backend/.stripe-listen-secret
 backend/scripts/data/*
 !backend/scripts/data/template-batch.example.csv
 !backend/scripts/data/README.md
+backend/.env.local.enes
+backend/.env.local.bilal

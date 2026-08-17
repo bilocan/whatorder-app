@@ -158,7 +158,7 @@ function multiSession(overrides) {
 
 function resetBotHandlerMocks() {
   jest.clearAllMocks();
-  process.env.WHATSAPP_FLOW_ID = 'flow_test_id';
+  process.env.WHATSAPP_MENU_FLOW_ID = 'flow_test_id';
   getMenu.mockResolvedValue(MENU);
   getMenuContext.mockImplementation(async () => ({
     menu: await getMenu(),
@@ -183,6 +183,7 @@ function resetBotHandlerMocks() {
 }
 
 function clearBotHandlerEnv() {
+  delete process.env.WHATSAPP_MENU_FLOW_ID;
   delete process.env.WHATSAPP_FLOW_ID;
 }
 

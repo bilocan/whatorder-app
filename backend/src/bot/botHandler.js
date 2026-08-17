@@ -27,6 +27,7 @@ const {
   isHumanHandoffButton,
   handleHumanHandoffButton,
   handlePostOrderCancelButton,
+  detectCancelOrderRequest,
 } = require('./postOrder');
 
 // Restaurant switch only — "start"/"starten" are fresh-start at the current venue (see isFreshStartCommand).
@@ -138,12 +139,11 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
       ? session.businessId
       : (routing.defaultBusinessId || routing.businessIds[0]);
     await sendFlowMessage(from, {
-      flowId: process.env.WHATSAPP_FLOW_ID || '1465498598663384',
+      flowId: process.env.WHATSAPP_MENU_FLOW_ID || process.env.WHATSAPP_FLOW_ID || '1465498598663384',
       flowToken: `${from}|${bid}`,
       flowCta: 'Open Menu',
-      screen: 'CATEGORY_SELECT',
       body: 'Tap to browse the menu',
-      data: {},
+      flowAction: 'data_exchange',
     });
     return;
   }
@@ -168,9 +168,10 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
 
   // Post-order action buttons must work even in multi-restaurant mode where session.businessId
   // is null after order placement. Intercept before the restaurant-picker early return.
+  // Same for typed "Stornieren" / "iptal" (quote-reply or free text).
+  const postBid = session.pendingAmendBusinessId || session.businessId || routing.defaultBusinessId || routing.businessIds[0];
   if (type === 'button_reply' && (id === 'btn_post_cancel' || id === 'btn_post_reorder' || id === 'btn_post_restaurant')) {
     const postLang = session.language || 'de';
-    const postBid = session.pendingAmendBusinessId || session.businessId || routing.defaultBusinessId || routing.businessIds[0];
     if (id === 'btn_post_cancel') {
       await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid });
       return;
@@ -187,6 +188,20 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
     const postInfo = await getBusinessInfo(postBid);
     applyBusinessInfoIdentity(postInfo);
     await startRestaurantBrowsing({ from, session: { ...session, basket: [] }, lang: postLang, businessId: postBid, type, text, norm, businessName: postInfo.name });
+    return;
+  }
+
+  // Typed cancel after place must run before the multi restaurant-picker early return
+  // (session.businessId is null). Gate on pendingAmend* so browsing "iptal" (e.g. clear
+  // disambiguation) is not stolen by the post-order cancel path.
+  if (
+    type === 'text'
+    && text?.trim()
+    && detectCancelOrderRequest(text, norm)
+    && (session.pendingAmendOrderId || session.pendingAmendBusinessId)
+  ) {
+    const postLang = session.language || detectLanguage(text) || 'de';
+    await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid });
     return;
   }
 

@@ -57,14 +57,17 @@ module.exports = {
   confirmBtn: () => 'Bestätigen',
 
   orderTotal: (total) => `Gesamt: €${total}`,
+  checkoutDiscount: (label, amount) => `🏷️ ${label}: −€${amount}`,
+  dealMarketingLine: (label) => `🏷️ ${label}`,
+  checkoutDeliveryFee: (amount) => `🚚 Liefergebühr: €${amount}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Fertig in ~${prepMins} Min. (gegen ${pickupTime})\n\nWie lautet Ihr Name?`,
-  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod) => {
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod, discountLine) => {
     const detail = deliveryAddress
       ? `🚚 Lieferung an: ${deliveryAddress}`
       : `⏱️ Fertig gegen ${pickupTime}`;
     const notesLine = notes ? `\n📝 Notiz: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Zahlung: Karte' : '';
-    return `✅ Fast fertig!\n\n👤 ${name}\n💶 Gesamt: €${total}\n${detail}${paymentLine}${notesLine}\n\nUnten tippen zum Bestätigen oder Ändern.`;
+    return `✅ Fast fertig!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Gesamt: €${total}\n${detail}${paymentLine}${notesLine}\n\nUnten tippen zum Bestätigen oder Ändern.`;
   },
   confirmListHeader: () => 'Bestellung prüfen',
   confirmListBtn: () => 'Optionen',
@@ -76,16 +79,87 @@ module.exports = {
   confirmOrderTypeDelivery: () => 'Lieferung',
   confirmNoAddressYet: () => 'Noch keine Adresse',
   confirmFlowCta: () => 'Prüfen',
+  confirmGateAddMore: () => 'Mehr hinzufügen',
+  confirmGateContinue: () => 'Weiter',
   confirmFlowFooter: () => 'Bestellung aufgeben',
   confirmFlowBackToCart: () => 'Zum Warenkorb',
+  confirmFlowReviewIntro: () => 'Fast geschafft!',
+  confirmFlowReviewSectionBasket: () => 'Deine Bestellung',
+  confirmFlowReviewSectionDetails: () => 'Deine Angaben',
+  confirmFlowPaymentCard: () => '💳 Zahlung: Karte',
   confirmFlowNameLabel: () => 'Name',
-  confirmFlowTypeLabel: () => 'Art',
-  confirmFlowAddressLabel: () => 'Adresse',
+  confirmFlowNameEmpty: () => 'Noch kein Name — tippe Adresse & Profil.',
+  confirmFlowProfileLink: () => 'Adresse & Profil',
+  confirmFlowProfileNameLabel: () => 'Dein Name',
+  confirmFlowProfileNameHelper: () => 'Steht auf der Bestellung',
+  confirmFlowTypeLabel: () => 'Wie möchten Sie Ihre Bestellung erhalten?',
+  confirmFlowAddressChoiceLabel: () => 'Lieferadresse',
+  confirmFlowAddressNew: () => 'Neue Adresse',
+  confirmFlowAddressNewDesc: () => 'Unten eingeben',
+  confirmFlowAddressLabel: () => 'Straße',
+  confirmFlowAddressHelper: () => 'Straße und Hausnummer (z. B. Lavaterstrasse 3)',
+  confirmFlowAddressEmpty: () => 'Keine Adresse — tippe Adresse & Profil.',
+  confirmFlowApartmentLabel: () => 'Wohnung',
+  confirmFlowApartmentHelper: () => 'Stiege / Tür / Top, oder Haus',
   confirmFlowNoteLabel: () => 'Notiz',
   confirmFlowTypePickup: () => 'Abholung',
   confirmFlowTypeDelivery: () => 'Lieferung',
   confirmFlowErrorName: () => 'Bitte Namen eingeben.',
   confirmFlowErrorAddress: () => 'Bitte Lieferadresse eingeben.',
+  confirmFlowErrorApartment: () => 'Bitte Wohnung eingeben (oder Haus).',
+  confirmFlowManageAddressesLink: () => 'Adresse & Profil',
+  confirmFlowManageTitle: () => 'Profil',
+  confirmFlowManageHint: (n, max) => `Gespeicherte Adressen (${n}/${max})`,
+  confirmFlowManageEditCaption: () => 'Ausgewählte Adresse bearbeiten',
+  confirmFlowManageSelectHint: () => 'Adresse tippen zum Bearbeiten',
+  confirmFlowManageEdit: () => 'Bearbeiten',
+  confirmFlowManageAdd: () => 'Hinzufügen',
+  confirmFlowManageSave: () => 'Speichern',
+  confirmFlowManageSetDefault: () => 'Als Standardadresse speichern',
+  confirmFlowManageDelete: () => 'Löschen',
+  confirmFlowManageBack: () => 'Zurück zur Bestellung',
+  confirmFlowManageConfirmHint: () => 'Meintest du diese Adresse?',
+  confirmFlowManageConfirmTyped: () => 'Du hast eingegeben',
+  confirmFlowManageConfirmFound: () => 'Wir haben gefunden',
+  confirmFlowManageConfirmYes: () => 'Ja',
+  confirmFlowManageConfirmEdit: () => 'Ändern',
+  confirmFlowErrorAddressInvalid: () => 'Diese Adresse konnten wir nicht prüfen. Bitte Straße und Hausnummer prüfen.',
+  confirmFlowErrorManageSelect: () => 'Bitte zuerst eine gespeicherte Adresse wählen.',
+  confirmFlowErrorManageCap: () => 'Bitte zuerst eine Adresse entfernen (max. 5).',
+  confirmFlowErrorManageGeneric: () => 'Adressen konnten nicht aktualisiert werden. Bitte erneut versuchen.',
+  menuFlowScreenMenu: () => 'Speisekarte',
+  menuFlowCategoryPrompt: () => 'Was möchten Sie?',
+  menuFlowNext: () => 'Weiter',
+  menuFlowCustomise: () => 'Anpassen',
+  menuFlowQtyLabel: () => 'Menge',
+  menuFlowQtyHelper: () => '1–10',
+  menuFlowQtyError: () => 'Max. 10',
+  menuFlowNotesLabel: () => 'Besondere Wünsche',
+  menuFlowNotesHelper: () => 'Allergien, extra Soße usw.',
+  menuFlowAddToCart: () => 'In den Warenkorb',
+  menuFlowSave: () => 'Speichern',
+  menuFlowMultiSelectAll: () => 'Alle wählen',
+  menuFlowMultiClearAll: () => 'Alle abwählen',
+  menuFlowFooterLeftCaption: () => 'Stückpreis',
+  menuFlowCartTitle: () => 'Warenkorb',
+  menuFlowCartHint: () => 'Zum Entfernen markieren.',
+  menuFlowRemoveLabel: () => 'Artikel entfernen:',
+  menuFlowRemoveModeLabel: () => 'Wie entfernen?',
+  menuFlowRemoveOne: () => '1 Stück',
+  menuFlowRemoveLine: () => 'Ganze Zeile',
+  menuFlowRemoveAll: () => 'Alles leeren',
+  menuFlowRemoveEdit: () => 'Bearbeiten',
+  menuFlowRemoveSelected: () => 'Anwenden',
+  menuFlowEditNeedOne: () => 'Genau einen Artikel wählen.',
+  menuFlowEditUnavailable: () => 'Artikel nicht bearbeitbar.',
+  menuFlowAddMore: () => 'Mehr hinzufügen',
+  menuFlowPlaceOrder: () => 'Bestellung aufgeben',
+  menuFlowClearCart: () => 'Gesamten Warenkorb leeren',
+  menuFlowSubtotal: (amount) => `Zwischensumme: €${amount}`,
+  menuFlowDiscount: (label, amount) => `${label}: −€${amount}`,
+  menuFlowDiscountPercentLabel: (pct) => `${pct}% Rabatt`,
+  menuFlowDiscountFixedLabel: (amount) => `€${amount} Rabatt`,
+  menuFlowDeliveryFee: (amount) => `Liefergebühr: €${amount}`,
   askNameEdit: (current) => `Aktueller Name: ${current}\n\nNeuen Namen eingeben:`,
   askOrderTypeFromConfirm: () => 'Abholung oder Lieferung für diese Bestellung:',
   confirmOrderBtn: () => 'Bestätigen ✅',
@@ -95,11 +169,11 @@ module.exports = {
   confirmPrompt: () => 'YES zum Bestätigen, NO zum Abbrechen.',
   yesNoOnly: () => 'Bitte YES oder NO schreiben.',
   orderConfirmed: (shortId) => `✅ Bestellung erhalten! Bestellnr.: #${shortId}\n\nWir benachrichtigen Sie wenn sie fertig ist. Danke! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address) => {
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Lieferung an: ${deliveryAddress}` : `Fertig um: ${pickupTime}`;
-    return `✅ Bestellung #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nGesamt: €${total}\n${detail}\n\nDanke, ${customerName}! 🙏`;
+    return `✅ Bestellung #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\n${discountLine ? `${discountLine}\n` : ''}Gesamt: €${total}\n${detail}\n\nDanke, ${customerName}! 🙏`;
   },
   checkoutCancelled: () => 'Bestellung abgebrochen.',
   cancelOrderBtn: () => 'Abbrechen',
@@ -108,11 +182,11 @@ module.exports = {
   checkoutBasketUpdated: (basketText) => `✅ Warenkorb aktualisiert.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'Das klingt nach einer Bestellung. Bitte geben Sie Ihre Lieferadresse ein, oder fügen Sie Artikel über den Warenkorb hinzu.',
   payNowBtn: () => 'Jetzt zahlen 💳',
-  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress) => {
+  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Lieferung an: ${deliveryAddress}` : null;
-    return `Bestellung #${shortId} aufgegeben.\n\n${restaurantBlock}\n\n${itemLines}\n\nGesamt: €${total}${detail ? `\n${detail}` : ''}\n\nTippe unten auf den Button zum Bezahlen.`;
+    return `Bestellung #${shortId} aufgegeben.\n\n${restaurantBlock}\n\n${itemLines}\n\n${discountLine ? `${discountLine}\n` : ''}Gesamt: €${total}${detail ? `\n${detail}` : ''}\n\nTippe unten auf den Button zum Bezahlen.`;
   },
   paymentLinkFailed: (shortId) => `Bestellung #${shortId} wurde erstellt, aber der Zahlungslink ist fehlgeschlagen. Bitte kontaktiere das Restaurant.`,
   paymentLegalIncomplete: () => 'Kartenzahlung ist bei diesem Restaurant noch nicht freigeschaltet, deine Bestellung wurde nicht aufgegeben. Bitte kontaktiere das Restaurant direkt.',
@@ -143,7 +217,10 @@ module.exports = {
   orderDelivered: (shortId) => `✅ Bestellung #${shortId} zugestellt. Guten Appetit! 🙏`,
   orderCompletePrompt: () => 'Noch etwas bestellen?',
   orderRejected:  (shortId) => `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Bitte kontaktieren Sie uns.`,
+  orderRejectedRefunded: (shortId) => `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Die Kartenzahlung wird erstattet — meist in wenigen Werktagen wieder auf dem Konto.`,
   orderCancelled: (shortId) => `❌ Bestellung #${shortId} wurde storniert.`,
+  orderCancelledRefunded: (shortId) => `✅ Bestellung #${shortId} wurde storniert. Die Kartenzahlung wird erstattet — meist in wenigen Werktagen wieder auf dem Konto.`,
+  paymentRefunded: (shortId) => `💸 Zahlung für Bestellung #${shortId} wurde erstattet. Das Geld ist meist in wenigen Werktagen wieder auf dem Konto.`,
   orderStatusPending: (shortId) => `⏳ Bestellung #${shortId} ist eingegangen und wartet auf Bestätigung durch das Restaurant.`,
   postOrderCallRestaurant: (name, phone) => phone
     ? `Für Änderungen an Ihrer Bestellung rufen Sie bitte ${name} an: ${phone}`
@@ -158,6 +235,24 @@ module.exports = {
   postReorderBtn: () => 'Nochmal bestellen',
   postRestaurantBtn: () => 'Restaurant wählen',
   postCompleteRestaurantBtn: () => 'Andere Restaurant',
+  postOrderCancelTooLatePreparing: (name, phone) => phone
+    ? `Deine Bestellung wird bereits zubereitet. Für Änderungen ruf bitte ${name} an: ${phone}`
+    : `Deine Bestellung wird bereits zubereitet. Bitte kontaktiere ${name} direkt.`,
+  postOrderCancelTooLateReady: (name, phone) => phone
+    ? `Deine Bestellung ist bereits abholbereit. Für Änderungen ruf bitte ${name} an: ${phone}`
+    : `Deine Bestellung ist bereits abholbereit. Bitte kontaktiere ${name} direkt.`,
+  postOrderCancelTooLateOnTheWay: (name, phone) => phone
+    ? `Deine Bestellung ist bereits unterwegs. Für Änderungen ruf bitte ${name} an: ${phone}`
+    : `Deine Bestellung ist bereits unterwegs. Bitte kontaktiere ${name} direkt.`,
+  postOrderCancelTooLateDelivered: (name, phone) => phone
+    ? `Deine Bestellung wurde bereits zugestellt. Bei Fragen ruf bitte ${name} an: ${phone}`
+    : `Deine Bestellung wurde bereits zugestellt. Bitte kontaktiere ${name} direkt.`,
+  postOrderCancelTooLatePickedUp: (name, phone) => phone
+    ? `Deine Bestellung wurde bereits abgeholt. Bei Fragen ruf bitte ${name} an: ${phone}`
+    : `Deine Bestellung wurde bereits abgeholt. Bitte kontaktiere ${name} direkt.`,
+  postOrderCancelTooLateAlreadyClosed: (name, phone) => phone
+    ? `Diese Bestellung ist bereits beendet. Bei Fragen ruf bitte ${name} an: ${phone}`
+    : `Diese Bestellung ist bereits beendet. Bitte kontaktiere ${name} direkt.`,
   postOrderCancelTooLate: (name, phone) => phone
     ? `Deine Bestellung wird bereits zubereitet. Für Änderungen ruf bitte ${name} an: ${phone}`
     : `Deine Bestellung wird bereits zubereitet. Bitte kontaktiere ${name} direkt.`,

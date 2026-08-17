@@ -5,6 +5,7 @@ jest.mock('../menuService');
 jest.mock('../orderService');
 jest.mock('../featureFlags');
 jest.mock('../reorder');
+jest.mock('../../lib/paymentService');
 
 const { patchSession } = require('../sessionStore');
 const { sendText, sendButtonMessage } = require('../../lib/whatsapp');
@@ -17,6 +18,7 @@ const {
 } = require('../orderService');
 const { isConversationalBasket } = require('../featureFlags');
 const { startRestaurantBrowsing } = require('../reorder');
+const { refundOrderPayment } = require('../../lib/paymentService');
 const {
   canCustomerCancel,
   detectCancelOrderRequest,
@@ -44,6 +46,7 @@ beforeEach(() => {
   });
   isConversationalBasket.mockReturnValue(true);
   startRestaurantBrowsing.mockResolvedValue(undefined);
+  refundOrderPayment.mockResolvedValue({ refunded: false, skipped: true });
 });
 
 describe('canCustomerCancel', () => {
@@ -121,7 +124,8 @@ describe('handlePostOrderCancelButton', () => {
     });
 
     expect(handled).toBe(true);
-    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true });
+    expect(refundOrderPayment).not.toHaveBeenCalled();
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true, paymentRefunded: false });
     expect(patchSession).toHaveBeenCalled();
     expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({ from: FROM, businessId: BIZ }));
   });
@@ -135,7 +139,7 @@ describe('handlePostOrderCancelButton', () => {
     });
 
     expect(handled).toBe(true);
-    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true });
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true, paymentRefunded: false });
     expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({ from: FROM, businessId: BIZ }));
   });
 
@@ -148,22 +152,99 @@ describe('handlePostOrderCancelButton', () => {
 
     expect(handled).toBe(true);
     expect(cancelOrder).not.toHaveBeenCalled();
-    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLate', null);
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLatePreparing', null);
   });
 
-  test('routes stripe order to call-restaurant (no self-serve refund)', async () => {
-    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'pending', paymentMethod: 'stripe' });
+  test('routes stripe preparing order to too-late (no self-serve refund)', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'preparing', paymentMethod: 'stripe' });
 
     const handled = await handlePostOrderCancelButton({
       from: FROM, session: baseSession, lang: 'de', businessId: BIZ,
     });
 
     expect(handled).toBe(true);
+    expect(refundOrderPayment).not.toHaveBeenCalled();
     expect(cancelOrder).not.toHaveBeenCalled();
-    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCallRestaurant', null);
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLatePreparing', null);
   });
 
-  test('falls back gracefully when no pendingAmendOrderId', async () => {
+  test('too-late on the way uses delivery-specific copy', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'on_the_way', paymentMethod: 'stripe' });
+
+    const handled = await handlePostOrderCancelButton({
+      from: FROM, session: baseSession, lang: 'tr', businessId: BIZ,
+    });
+
+    expect(handled).toBe(true);
+    expect(refundOrderPayment).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLateOnTheWay', null);
+  });
+
+  test('too-late after delivered uses delivered-specific copy', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'delivered', paymentMethod: 'stripe' });
+
+    const handled = await handlePostOrderCancelButton({
+      from: FROM, session: baseSession, lang: 'tr', businessId: BIZ,
+    });
+
+    expect(handled).toBe(true);
+    expect(refundOrderPayment).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLateDelivered', null);
+  });
+
+  test('too-late after delivered uses delivered-specific copy', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'delivered', paymentMethod: 'stripe' });
+
+    const handled = await handlePostOrderCancelButton({
+      from: FROM, session: baseSession, lang: 'tr', businessId: BIZ,
+    });
+
+    expect(handled).toBe(true);
+    expect(refundOrderPayment).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLateDelivered', null);
+  });
+
+  test('refunds then cancels stripe order when pending', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'pending', paymentMethod: 'stripe', paymentStatus: 'paid' });
+    refundOrderPayment.mockResolvedValue({ refunded: true, skipped: false, refundId: 're_1' });
+    cancelOrder.mockResolvedValue(undefined);
+
+    const handled = await handlePostOrderCancelButton({
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ,
+    });
+
+    expect(handled).toBe(true);
+    expect(refundOrderPayment).toHaveBeenCalledWith(BIZ, ORDER_ID, expect.objectContaining({
+      reason: 'customer_cancel',
+      actor: 'customer',
+      notifyCustomer: false,
+    }));
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true, paymentRefunded: true });
+    expect(startRestaurantBrowsing).toHaveBeenCalled();
+  });
+
+  test('falls back to last order when pendingAmendOrderId is missing', async () => {
+    getLastOrderForCustomer.mockResolvedValue({
+      id: ORDER_ID,
+      status: 'pending',
+      paymentMethod: 'stripe',
+      paymentStatus: 'paid',
+    });
+    refundOrderPayment.mockResolvedValue({ refunded: true, skipped: false, refundId: 're_1' });
+    cancelOrder.mockResolvedValue(undefined);
+
+    const handled = await handlePostOrderCancelButton({
+      from: FROM, session: { whatsappPhoneNumberId: null }, lang: 'de', businessId: BIZ,
+    });
+
+    expect(handled).toBe(true);
+    expect(getLastOrderForCustomer).toHaveBeenCalledWith(BIZ, FROM);
+    expect(refundOrderPayment).toHaveBeenCalled();
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true, paymentRefunded: true });
+  });
+
+  test('falls back gracefully when no pendingAmendOrderId and no last order', async () => {
+    getLastOrderForCustomer.mockResolvedValue(null);
     const handled = await handlePostOrderCancelButton({
       from: FROM, session: { whatsappPhoneNumberId: null }, lang: 'de', businessId: BIZ,
     });
@@ -173,7 +254,6 @@ describe('handlePostOrderCancelButton', () => {
     expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCallRestaurant', null);
   });
 });
-
 describe('tryHandlePostOrderMessage', () => {
   const baseSession = {
     pendingAmendOrderId: ORDER_ID,
@@ -191,7 +271,7 @@ describe('tryHandlePostOrderMessage', () => {
     });
 
     expect(handled).toBe(true);
-    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true });
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true, paymentRefunded: false });
   });
 
   test('cancels cash approved order on iptal text', async () => {
@@ -204,7 +284,7 @@ describe('tryHandlePostOrderMessage', () => {
     });
 
     expect(handled).toBe(true);
-    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true });
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true, paymentRefunded: false });
   });
 
   test('order text after placement routes to call-restaurant (no add-on)', async () => {
@@ -248,12 +328,14 @@ describe('tryHandlePostOrderMessage', () => {
     expect(cancelOrder).not.toHaveBeenCalled();
   });
 
-  test('returns false when no pendingAmendOrderId', async () => {
+  test('cancel text without pendingAmend still handles via last-order fallback', async () => {
+    getLastOrderForCustomer.mockResolvedValue(null);
     const handled = await tryHandlePostOrderMessage({
       from: FROM, session: {}, lang: 'de', businessId: BIZ,
       text: 'stornieren', norm: 'stornieren',
     });
-    expect(handled).toBe(false);
+    expect(handled).toBe(true);
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCallRestaurant', null);
   });
 });
 

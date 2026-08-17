@@ -5,7 +5,7 @@ const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('
 const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } = require('../lib/messageIdentity');
 const { formatBasketItemsText } = require('./botHelpers');
 const { t } = require('./templates');
-const { normalizeCustomerPhone, customerPhoneVariants } = require('../lib/phone');
+const { normalizeCustomerPhone } = require('../lib/phone');
 const { FEE_LINE_KIND } = require('../lib/receiptMath');
 const { patchSession } = require('./sessionStore');
 
@@ -51,35 +51,60 @@ const STATUS_TS_FIELD = {
 };
 
 const EXCLUDED_REORDER_STATUSES = new Set(['cancelled', 'rejected']);
+/** Newest docs to scan (skip cancelled / unpaid Stripe noise near the top). */
+const REORDER_CANDIDATE_LIMIT = 15;
 
+function isEligibleReorderOrder(order) {
+  if (!order?.items?.length) return false;
+  if (EXCLUDED_REORDER_STATUSES.has(order.status)) return false;
+  // Abandoned card checkouts must not become "last order".
+  if (
+    order.paymentMethod === 'stripe'
+    && (order.paymentStatus === 'pending' || order.paymentStatus === 'failed')
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Latest eligible order for reorder. Uses orderBy(createdAt desc) so we never miss
+ * the true latest among large histories. Stops at the first eligible hit.
+ */
 async function getLastOrderForCustomer(businessId, customerPhone) {
-  const variants = customerPhoneVariants(customerPhone);
-  if (!variants.length) return null;
+  const digits = normalizeCustomerPhone(customerPhone);
+  if (!digits) return null;
 
-  let orders = [];
-  for (const field of ['customerId', 'customerPhone']) {
-    const snap = await ordersRef(businessId)
-      .where(field, 'in', variants.slice(0, 10))
-      .limit(25)
-      .get();
-    if (!snap.empty) {
-      orders = snap.docs.map(doc => doc.data());
-      break;
+  // createOrder writes digits-only to both fields; +prefix is legacy only.
+  const variants = [`${digits}`, `+${digits}`];
+  // customerPhone+createdAt index is long-deployed; customerId+createdAt added with this fix.
+  const fields = ['customerPhone', 'customerId'];
+  const failedFields = new Set();
+
+  for (const variant of variants) {
+    for (const field of fields) {
+      let snap;
+      try {
+        snap = await ordersRef(businessId)
+          .where(field, '==', variant)
+          .orderBy('createdAt', 'desc')
+          .limit(REORDER_CANDIDATE_LIMIT)
+          .get();
+      } catch (err) {
+        if (!failedFields.has(field)) {
+          failedFields.add(field);
+          console.warn(`[orderService] getLastOrderForCustomer ${field} query failed:`, err.message);
+        }
+        continue;
+      }
+      for (const doc of snap.docs) {
+        const order = doc.data();
+        if (isEligibleReorderOrder(order)) return order;
+      }
     }
   }
-  if (!orders.length) return null;
 
-  orders = orders
-    .filter(o => !EXCLUDED_REORDER_STATUSES.has(o.status))
-    .sort((a, b) => {
-      const aMs = a.createdAt?.toMillis?.() ?? a.createdAt?.seconds * 1000 ?? 0;
-      const bMs = b.createdAt?.toMillis?.() ?? b.createdAt?.seconds * 1000 ?? 0;
-      return bMs - aMs;
-    });
-
-  const latest = orders[0];
-  if (!latest?.items?.length) return null;
-  return latest;
+  return null;
 }
 
 const STATUS_NOTIFY_KEY = {
@@ -93,7 +118,7 @@ const STATUS_NOTIFY_KEY = {
   cancelled:  'orderCancelled',
 };
 
-async function createOrder(businessId, { customerPhone, customerName, restaurantName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus, whatsappPhoneNumberId, taxSnapshot }) {
+async function createOrder(businessId, { customerPhone, customerName, restaurantName, items, total, language, pickupTime, notes, orderType, deliveryAddress, deliveryFee, paymentMethod, paymentStatus, whatsappPhoneNumberId, taxSnapshot, discountSnapshot }) {
   const ref = ordersRef(businessId).doc();
   const resolvedName = customerName || 'WhatsApp Customer';
   const phone = normalizeCustomerPhone(customerPhone) || customerPhone;
@@ -104,6 +129,7 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
     customerName: resolvedName,
     restaurantName: restaurantName || null,
     items,
+    subtotal: total + (Number(discountSnapshot?.discount) || 0),
     total,
     language: language || 'en',
     status: 'pending',
@@ -115,6 +141,14 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
     paymentStatus: paymentStatus || (paymentMethod === 'stripe' ? 'pending' : 'cash'),
     settlementStatus: 'none',
   };
+  doc.discount = Number(discountSnapshot?.discount) || 0;
+  if (doc.discount > 0 && discountSnapshot) {
+    doc.discountDealId = discountSnapshot.discountDealId || null;
+    doc.discountKind = discountSnapshot.discountKind || null;
+    doc.discountType = discountSnapshot.discountType || null;
+    doc.discountValue = discountSnapshot.discountValue ?? null;
+    doc.discountLabel = discountSnapshot.discountLabel || null;
+  }
   if (whatsappPhoneNumberId) doc.whatsappPhoneNumberId = whatsappPhoneNumberId;
   if (notes) doc.notes = notes;
   if (orderType === 'delivery' && deliveryAddress) {
@@ -168,7 +202,10 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
       const itemLines = formatBasketItemsText(items, { numbered: false, mergeIdentical: true });
       const typeLabel = doc.orderType === 'delivery' ? '🚚 Delivery' : '🛍️ Pickup';
       const addressLine = doc.deliveryAddress ? `\nAddress: ${doc.deliveryAddress}` : '';
-      const ownerMsg = `🔔 New Order #${shortId} (${typeLabel})\n\n${itemLines}\n\nTotal: €${doc.total.toFixed(2)}${addressLine}\nCustomer: ${resolvedName} (${phone})`;
+      const discountLine = doc.discount > 0
+        ? `\nDiscount: ${doc.discountLabel || 'Rabatt'} −€${doc.discount.toFixed(2)}`
+        : '';
+      const ownerMsg = `🔔 New Order #${shortId} (${typeLabel})\n\n${itemLines}\n\nTotal: €${doc.total.toFixed(2)}${addressLine}${discountLine}\nCustomer: ${resolvedName} (${phone})`;
       await sendText(biz.alertPhone, ownerMsg, phoneNumberId);
     }
   } catch (err) {
@@ -216,9 +253,12 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
     const lang = order.language || 'en';
     const notifyArgs = toStatus === 'approved' ? [shortId, etaTime] : [shortId];
     const bizSnap = await businessRef(businessId).get();
+    let notifyKey = STATUS_NOTIFY_KEY[toStatus];
+    if (options.paymentRefunded && toStatus === 'rejected') notifyKey = 'orderRejectedRefunded';
+    if (options.paymentRefunded && toStatus === 'cancelled') notifyKey = 'orderCancelledRefunded';
     await runWithMessageIdentity(PLATFORM_IDENTITY, async () => {
       applyBusinessInfoIdentity(bizSnap.exists ? bizSnap.data() : { name: order.restaurantName });
-      const statusText = t(STATUS_NOTIFY_KEY[toStatus], lang, ...notifyArgs);
+      const statusText = t(notifyKey, lang, ...notifyArgs);
       // Self-serve cancel already restarts browsing — skip buttons to avoid double CTA.
       if (TERMINAL_REENTRY_STATUSES.has(toStatus) && !options.skipReentry) {
         // Re-open ordering after meal finished, reject, or owner cancel (no Cancel on this message).
@@ -238,6 +278,15 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
       } else {
         await sendText(order.customerPhone, statusText, phoneNumberId);
       }
+      if (options.paymentRefunded) {
+        try {
+          await ref.update({
+            refundNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } catch (stampErr) {
+          console.error('[orderService] refundNotifiedAt stamp failed:', stampErr.message);
+        }
+      }
     });
   } catch (err) {
     const msg = err.name === 'WhatsAppRoutingError'
@@ -248,7 +297,7 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
 }
 
 const approveOrder      = (bid, oid, etaMinutes) => transitionOrder(bid, oid, 'approved', { etaMinutes });
-const rejectOrder       = (bid, oid) => transitionOrder(bid, oid, 'rejected');
+const rejectOrder       = (bid, oid, options) => transitionOrder(bid, oid, 'rejected', options);
 const startPreparation  = (bid, oid) => transitionOrder(bid, oid, 'preparing');
 const markReady         = (bid, oid) => transitionOrder(bid, oid, 'ready');
 const markOnTheWay      = (bid, oid) => transitionOrder(bid, oid, 'on_the_way');
@@ -278,11 +327,13 @@ async function amendOrderAddItems(businessId, orderId, newItems) {
 
   const mergedItems = [...(order.items || []), ...newItems];
   const subtotal = mergedItems.reduce((s, i) => s + (i.price * i.qty), 0);
+  const discount = Math.min(Math.max(Number(order.discount) || 0, 0), subtotal);
   const deliveryFee = order.deliveryFee || 0;
-  const total = order.orderType === 'delivery' ? subtotal + deliveryFee : subtotal;
+  const total = subtotal - discount + (order.orderType === 'delivery' ? deliveryFee : 0);
 
   await ref.update({
     items: mergedItems,
+    subtotal,
     total,
     amendedAt: new Date().toISOString(),
   });

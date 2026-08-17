@@ -55,6 +55,8 @@ export interface Order {
   orderType?: 'pickup' | 'delivery';
   deliveryAddress?: string;
   deliveryFee?: number;
+  discount?: number;
+  discountLabel?: string | null;
   paymentStatus?: 'pending' | 'paid' | 'cash' | 'failed' | 'refunded';
   paymentMethod?: 'stripe' | 'cash';
   receiptId?: string;
@@ -118,6 +120,8 @@ export interface MenuItem {
   vatRate?: VatRate;
   category: 'mains' | 'sides' | 'drinks' | string;
   photoUrl?: string;
+  /** Raw Base64 96px JPEG for WhatsApp Flow list images (no data: prefix). */
+  flowListImage?: string;
   available: boolean;
   /** Reusable library group ids assigned to this item */
   optionGroupIds?: string[];

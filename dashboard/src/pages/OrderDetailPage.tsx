@@ -13,7 +13,9 @@ import {
   getActionButtons,
   isKitchenAdvanceAction,
   isKitchenPaymentBlocked,
+  canManualRefund,
   postOrderAction,
+  postOrderRefund,
   fetchOrderReceipt,
   resendOrderReceipt,
 } from '../lib/orderActions';
@@ -100,6 +102,7 @@ export default function OrderDetailPage() {
   const [etaMinutes, setEtaMinutes] = useState(DEFAULT_APPROVE_ETA_MINUTES);
   const [receiptBusy, setReceiptBusy] = useState<'download' | 'resend' | null>(null);
   const [receiptMessage, setReceiptMessage] = useState('');
+  const [refundBusy, setRefundBusy] = useState(false);
 
   useEffect(() => {
     if (!orderId || !businessId) return;
@@ -126,6 +129,27 @@ export default function OrderDetailPage() {
       setActionError(t('orderDetail.networkError'));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function doRefund() {
+    if (!orderId || !order || !businessId) return;
+    setRefundBusy(true);
+    setActionError('');
+    try {
+      const result = await postOrderRefund(businessId, orderId);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      setOrder((o) => (o
+        ? { ...o, paymentStatus: 'refunded', settlementStatus: 'refunded' }
+        : o));
+      setReceiptMessage(t('orderDetail.refund.done'));
+    } catch {
+      setActionError(t('orderDetail.networkError'));
+    } finally {
+      setRefundBusy(false);
     }
   }
 
@@ -224,6 +248,14 @@ export default function OrderDetailPage() {
         </tbody>
       </table>
 
+      {Number(order.discount) > 0 ? (
+        <p className="order-detail-fee">
+          {t('orderDetail.discount', {
+            label: order.discountLabel || t('orderDetail.discountFallback'),
+            amount: Number(order.discount).toFixed(2),
+          })}
+        </p>
+      ) : null}
       {order.orderType === 'delivery' && order.deliveryFee ? (
         <p className="order-detail-fee">
           {t('orderDetail.deliveryFee', { fee: order.deliveryFee.toFixed(2) })}
@@ -258,6 +290,24 @@ export default function OrderDetailPage() {
       </div>
 
       <SettlementInfo order={order} t={t} />
+
+      {canManualRefund(order) && (
+        <div className="order-detail-receipt">
+          <p className="order-detail-receipt-title">{t('orderDetail.refund.title')}</p>
+          <p className="order-detail-settlement-line quiet">{t('orderDetail.refund.hint')}</p>
+          <div className="order-detail-actions">
+            <button
+              type="button"
+              className="order-action-btn"
+              data-variant="danger"
+              onClick={() => void doRefund()}
+              disabled={refundBusy || loading}
+            >
+              {refundBusy ? t('orderDetail.refund.working') : t('orderDetail.action.refund')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {order.paymentStatus === 'paid' && order.paymentMethod === 'stripe' && (
         <div className="order-detail-receipt">

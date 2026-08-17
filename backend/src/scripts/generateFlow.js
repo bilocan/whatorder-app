@@ -3,6 +3,7 @@
 // Run: npm run generate:flow
 // After running, upload the JSON to Meta (Flow Builder or uploadFlow.js).
 //
+// UI chrome is localized via ${data.ui_*} filled by /flow/exchange from session.language.
 // __example__ data is taken from the Enes pilot menu fixture so Flow Builder /
 // Tester preview categories match a real catalog (not mains/sides/drinks).
 
@@ -10,6 +11,15 @@ const fs   = require('fs');
 const path = require('path');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 const { colorTileBase64 } = require('../lib/flowImages');
+const {
+  categorySelectCopy,
+  menuBrowseCopy,
+  orderItemCopy,
+  cartEditCopy,
+  cartDoneCopy,
+  cartRemoveModeOptions,
+} = require('../bot/menuFlowCopy');
+const { t } = require('../bot/templates');
 
 const OUT = path.join(__dirname, '../flows/menu-flow.json');
 const ENES_MENU = require('../../fixtures/intent-corpus/restaurants/enes/menu.json');
@@ -22,12 +32,29 @@ const LIST_OPTION_PROPS = {
   'alt-text': { type: 'string' },
 };
 
+const CART_OPTION_PROPS = {
+  ...LIST_OPTION_PROPS,
+  metadata: { type: 'string' },
+};
+
 const CATEGORY_OPTION_PROPS = {
   id: { type: 'string' },
   title: { type: 'string' },
   image: { type: 'string' },
   'alt-text': { type: 'string' },
 };
+
+const EXAMPLE_LANG = 'en';
+
+function strField(example) {
+  return { type: 'string', '__example__': example };
+}
+
+function uiSchema(copy) {
+  return Object.fromEntries(
+    Object.entries(copy).map(([key, value]) => [key, strField(value)]),
+  );
+}
 
 /** WhatsApp Flows RadioButtonsGroup title max length. */
 function flowTitle(text) {
@@ -80,10 +107,12 @@ async function buildExamples() {
 // ── Screen builders ────────────────────────────────────────────────────────────
 
 function categorySelectScreen(id, exampleCategories) {
+  const copy = categorySelectCopy(EXAMPLE_LANG);
   return {
     id,
-    title: 'Menu',
+    title: `\${data.${F.UI_SCREEN_TITLE}}`,
     data: {
+      ...uiSchema(copy),
       [F.CATEGORIES]: {
         type: 'array',
         items: { type: 'object', properties: CATEGORY_OPTION_PROPS },
@@ -98,7 +127,7 @@ function categorySelectScreen(id, exampleCategories) {
         children: [
           {
             type: 'RadioButtonsGroup',
-            label: 'What would you like?',
+            label: `\${data.${F.UI_CATEGORY_PROMPT}}`,
             name: F.CATEGORY_ID,
             required: true,
             'media-size': 'large',
@@ -106,7 +135,7 @@ function categorySelectScreen(id, exampleCategories) {
           },
           {
             type: 'Footer',
-            label: 'Next',
+            label: `\${data.${F.UI_NEXT}}`,
             'on-click-action': {
               name: 'data_exchange',
               payload: { [F.CATEGORY_ID]: `\${form.${F.CATEGORY_ID}}` },
@@ -119,10 +148,12 @@ function categorySelectScreen(id, exampleCategories) {
 }
 
 function menuBrowse(exampleCategory, exampleMenuItems) {
+  const copy = menuBrowseCopy(EXAMPLE_LANG);
   return {
     id: S.MENU_BROWSE,
-    title: 'Menu',
+    title: `\${data.${F.UI_SCREEN_TITLE}}`,
     data: {
+      ...uiSchema(copy),
       [F.CATEGORY_TITLE]: { type: 'string', '__example__': exampleCategory },
       [F.MENU_ITEMS]: {
         type: 'array',
@@ -146,7 +177,7 @@ function menuBrowse(exampleCategory, exampleMenuItems) {
           },
           {
             type: 'Footer',
-            label: 'Customise',
+            label: `\${data.${F.UI_CUSTOMISE}}`,
             'on-click-action': {
               name: 'data_exchange',
               payload: { [F.ITEM_ID]: `\${form.${F.ITEM_ID}}` },
@@ -171,16 +202,48 @@ function radioSlot(n) {
   };
 }
 
-function orderItem(exampleItem) {
+async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
+  const copy = orderItemCopy(EXAMPLE_LANG);
+  const exampleDesc = exampleItem.description || '';
+  const examplePrice = `€${Number(exampleItem.price).toFixed(2)}`;
   return {
-    id: S.ORDER_ITEM,
-    title: 'Customise',
+    id: screenId,
+    title: `\${data.${F.UI_SCREEN_TITLE}}`,
     data: {
+      ...uiSchema(copy),
       [F.ITEM_ID]:          { type: 'string', '__example__': exampleItem.id },
       [F.ITEM_NAME]:        { type: 'string', '__example__': exampleItem.name },
-      [F.ITEM_DESCRIPTION]: { type: 'string', '__example__': exampleItem.description || '' },
-      [F.ITEM_PRICE]:       { type: 'string', '__example__': `€${Number(exampleItem.price).toFixed(2)}` },
-      [F.QTY_OPTIONS]:      { ...OPTS_SCHEMA, '__example__': [{ id: '1', title: '1' }, { id: '2', title: '2' }, { id: '3', title: '3' }] },
+      [F.ITEM_DESCRIPTION]: { type: 'string', '__example__': exampleDesc },
+      [F.ITEM_DESCRIPTION_VISIBLE]: { type: 'boolean', '__example__': !!exampleDesc },
+      [F.ITEM_PRICE]:       { type: 'string', '__example__': examplePrice },
+      [F.UI_ORDER_FOOTER_ACTION]: { type: 'string', '__example__': 'add_item' },
+      [F.UI_MULTI_TOGGLE]: { type: 'string', '__example__': t('menuFlowMultiClearAll', EXAMPLE_LANG) },
+      [F.UI_MULTI_TOGGLE_VISIBLE]: { type: 'boolean', '__example__': true },
+      [F.FORM_INIT_VALUES]: {
+        type: 'object',
+        properties: {
+          [F.QTY]: { type: 'number' },
+          [F.NOTES]: { type: 'string' },
+          [F.MULTI_VALUE]: { type: 'array', items: { type: 'string' } },
+          [F.SLOT1_VALUE]: { type: 'string' },
+          [F.SLOT2_VALUE]: { type: 'string' },
+          [F.SLOT3_VALUE]: { type: 'string' },
+        },
+        // Explicit empties: Meta reuses Form state when reopening ORDER_ITEM.
+        '__example__': {
+          [F.QTY]: 1,
+          [F.NOTES]: '',
+          [F.MULTI_VALUE]: [],
+          [F.SLOT1_VALUE]: '',
+          [F.SLOT2_VALUE]: '',
+          [F.SLOT3_VALUE]: '',
+        },
+      },
+      [F.ERROR_MESSAGES]: {
+        type: 'object',
+        properties: { [F.QTY]: { type: 'string' } },
+        '__example__': {},
+      },
       // Slot 1 (single-select) — flat fields so visible/data-source binding works
       [F.SLOT1_VISIBLE]:  { type: 'boolean', '__example__': true  },
       [F.SLOT1_LABEL]:    { type: 'string',  '__example__': 'Sauce' },
@@ -206,15 +269,26 @@ function orderItem(exampleItem) {
       children: [{
         type: 'Form',
         name: 'order_form',
+        'init-values': `\${data.${F.FORM_INIT_VALUES}}`,
+        // Server can set field errors (e.g. qty > 10). Pattern also blocks client-side.
+        'error-messages': `\${data.${F.ERROR_MESSAGES}}`,
         children: [
           { type: 'TextHeading', text: `\${data.${F.ITEM_NAME}}` },
-          { type: 'TextBody',    text: `\${data.${F.ITEM_PRICE}}` },
           {
-            type: 'RadioButtonsGroup',
-            label: 'Quantity',
+            type: 'If',
+            condition: `\${data.${F.ITEM_DESCRIPTION_VISIBLE}}`,
+            then: [{ type: 'TextCaption', text: `\${data.${F.ITEM_DESCRIPTION}}` }],
+          },
+          {
+            type: 'TextInput',
+            label: `\${data.${F.UI_QTY_LABEL}}`,
             name: F.QTY,
             required: true,
-            'data-source': `\${data.${F.QTY_OPTIONS}}`,
+            'input-type': 'number',
+            'max-chars': 2,
+            // Anchored: unanchored (10|[1-9]) wrongly accepts "11".
+            pattern: '^(10|[1-9])$',
+            'helper-text': `\${data.${F.UI_QTY_HELPER}}`,
           },
           radioSlot(1),
           radioSlot(2),
@@ -228,18 +302,42 @@ function orderItem(exampleItem) {
             'data-source': `\${data.${F.MULTI_OPTIONS}}`,
           },
           {
-            type: 'TextArea',
-            label: 'Special requests',
-            name: F.NOTES,
-            required: false,
-            'helper-text': 'Allergies, extra sauce, etc.',
-          },
-          {
-            type: 'Footer',
-            label: 'Add to cart',
+            type: 'EmbeddedLink',
+            text: `\${data.${F.UI_MULTI_TOGGLE}}`,
+            visible: `\${data.${F.UI_MULTI_TOGGLE_VISIBLE}}`,
             'on-click-action': {
               name: 'data_exchange',
               payload: {
+                multi_action: 'toggle',
+                [F.UI_ORDER_FOOTER_ACTION]: `\${data.${F.UI_ORDER_FOOTER_ACTION}}`,
+                [F.ITEM_ID]:     `\${data.${F.ITEM_ID}}`,
+                [F.QTY]:         `\${form.${F.QTY}}`,
+                [F.SLOT1_VALUE]: `\${form.${F.SLOT1_VALUE}}`,
+                [F.SLOT2_VALUE]: `\${form.${F.SLOT2_VALUE}}`,
+                [F.SLOT3_VALUE]: `\${form.${F.SLOT3_VALUE}}`,
+                [F.MULTI_VALUE]: `\${form.${F.MULTI_VALUE}}`,
+                [F.NOTES]:       `\${form.${F.NOTES}}`,
+              },
+            },
+          },
+          {
+            type: 'TextArea',
+            label: `\${data.${F.UI_NOTES_LABEL}}`,
+            name: F.NOTES,
+            required: false,
+            'helper-text': `\${data.${F.UI_NOTES_HELPER}}`,
+          },
+          {
+            type: 'Footer',
+            label: `\${data.${F.UI_ADD_TO_CART}}`,
+            // Meta requires left-caption whenever right-caption is set.
+            'left-caption': `\${data.${F.UI_FOOTER_LEFT_CAPTION}}`,
+            'right-caption': `\${data.${F.ITEM_PRICE}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: {
+                // add_item | back_to_cart — set by exchange (menu vs system back).
+                cart_action: `\${data.${F.UI_ORDER_FOOTER_ACTION}}`,
                 [F.ITEM_ID]:    `\${data.${F.ITEM_ID}}`,
                 [F.QTY]:        `\${form.${F.QTY}}`,
                 [F.SLOT1_VALUE]: `\${form.${F.SLOT1_VALUE}}`,
@@ -258,52 +356,129 @@ function orderItem(exampleItem) {
 
 function cartReview() { return cartEditScreen(S.CART_REVIEW); }
 
-function cartEditScreen(id) {
+async function cartEditScreen(id) {
+  const copy = cartEditCopy(EXAMPLE_LANG);
+  const exampleRows = await Promise.all([
+    withTileImage({
+      id: '0',
+      title: '1x Dürüm Huhn',
+      description: 'Tomaten, Salat, Sauce',
+      metadata: '€8.50',
+    }),
+    withTileImage({
+      id: '1',
+      title: '1x Falafel Box',
+      description: '',
+      metadata: '€6.90',
+    }),
+  ]);
+  const discountLabel = t('menuFlowDiscountPercentLabel', EXAMPLE_LANG, 12);
   return {
     id,
-    title: 'Your cart',
+    title: `\${data.${F.UI_SCREEN_TITLE}}`,
     terminal: true,
+    // System back → endpoint BACK; ORDER_ITEM Footer becomes Zum Warenkorb.
+    refresh_on_back: true,
     data: {
-      [F.BASKET_TEXT]:  { type: 'string', '__example__': '1x Dürüm Huhn  €8.50\n1x Falafel Box  €6.90' },
-      [F.TOTAL_LABEL]:  { type: 'string', '__example__': 'Total: €15.40' },
+      ...uiSchema(copy),
+      [F.SUBTOTAL_LABEL]: { type: 'string', '__example__': t('menuFlowSubtotal', EXAMPLE_LANG, '15.40') },
+      [F.DISCOUNT_LABEL]: {
+        type: 'string',
+        '__example__': t('menuFlowDiscount', EXAMPLE_LANG, discountLabel, '1.85'),
+      },
+      [F.DISCOUNT_VISIBLE]: { type: 'boolean', '__example__': true },
+      [F.DELIVERY_LABEL]: {
+        type: 'string',
+        '__example__': t('menuFlowDeliveryFee', EXAMPLE_LANG, '0.00'),
+      },
+      [F.DELIVERY_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.TOTAL_LABEL]:  { type: 'string', '__example__': t('orderTotal', EXAMPLE_LANG, '13.55') },
       [F.BASKET_ITEMS]: {
         type: 'array',
-        items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } } },
-        '__example__': [{ id: '0', title: '1x Dürüm Huhn' }, { id: '1', title: '1x Falafel Box' }, { id: 'clear', title: 'Clear entire cart' }],
+        items: { type: 'object', properties: CART_OPTION_PROPS },
+        '__example__': exampleRows,
       },
+      [F.REMOVE_MODE_OPTIONS]: {
+        type: 'array',
+        items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } } },
+        '__example__': cartRemoveModeOptions(EXAMPLE_LANG),
+      },
+      [F.FORM_INIT_VALUES]: {
+        type: 'object',
+        properties: {
+          [F.REMOVE_MODE]: { type: 'string' },
+        },
+        '__example__': { [F.REMOVE_MODE]: 'one' },
+      },
+      [F.ERROR_MESSAGE]: { type: 'string', '__example__': '' },
+      [F.ERROR_VISIBLE]: { type: 'boolean', '__example__': false },
     },
     layout: {
       type: 'SingleColumnLayout',
       children: [{
         type: 'Form',
         name: 'cart_form',
+        'init-values': `\${data.${F.FORM_INIT_VALUES}}`,
         children: [
-          { type: 'TextBody',       text: `\${data.${F.BASKET_TEXT}}` },
-          { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
-          { type: 'TextCaption',    text: 'Check items to remove, then tap Remove. Or go straight to Place order.' },
+          { type: 'TextCaption', text: `\${data.${F.UI_CART_HINT}}` },
+          {
+            type: 'TextBody',
+            text: `\${data.${F.ERROR_MESSAGE}}`,
+            visible: `\${data.${F.ERROR_VISIBLE}}`,
+          },
           {
             type: 'CheckboxGroup',
-            label: 'Remove items:',
+            // required:false keeps Place order enabled with nothing checked.
+            // Meta appends a localized "(optional)" suffix to the label (client UI language).
+            label: `\${data.${F.UI_REMOVE_LABEL}}`,
             name: F.REMOVE_ITEMS,
             required: false,
+            'media-size': 'large',
             'data-source': `\${data.${F.BASKET_ITEMS}}`,
+          },
+          { type: 'TextBody', text: `\${data.${F.SUBTOTAL_LABEL}}` },
+          {
+            type: 'If',
+            condition: `\${data.${F.DISCOUNT_VISIBLE}}`,
+            then: [
+              { type: 'TextBody', text: `\${data.${F.DISCOUNT_LABEL}}` },
+            ],
+          },
+          {
+            type: 'If',
+            condition: `\${data.${F.DELIVERY_VISIBLE}}`,
+            then: [
+              { type: 'TextBody', text: `\${data.${F.DELIVERY_LABEL}}` },
+            ],
+          },
+          { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
+          {
+            type: 'RadioButtonsGroup',
+            label: `\${data.${F.UI_REMOVE_MODE_LABEL}}`,
+            name: F.REMOVE_MODE,
+            required: true,
+            'data-source': `\${data.${F.REMOVE_MODE_OPTIONS}}`,
           },
           {
             type: 'EmbeddedLink',
-            text: 'Remove selected items',
+            text: `\${data.${F.UI_REMOVE_SELECTED}}`,
             'on-click-action': {
               name: 'data_exchange',
-              payload: { cart_action: 'remove_items', [F.REMOVE_ITEMS]: `\${form.${F.REMOVE_ITEMS}}` },
+              payload: {
+                cart_action: 'remove_items',
+                [F.REMOVE_ITEMS]: `\${form.${F.REMOVE_ITEMS}}`,
+                [F.REMOVE_MODE]: `\${form.${F.REMOVE_MODE}}`,
+              },
             },
           },
           {
             type: 'EmbeddedLink',
-            text: 'Add more items',
+            text: `\${data.${F.UI_ADD_MORE}}`,
             'on-click-action': { name: 'data_exchange', payload: { cart_action: 'add_more' } },
           },
           {
             type: 'Footer',
-            label: 'Place order',
+            label: `\${data.${F.UI_PLACE_ORDER}}`,
             'on-click-action': { name: 'complete', payload: {} },
           },
         ],
@@ -316,13 +491,15 @@ function cartUpdated() { return cartEditScreen(S.CART_UPDATED); }
 
 // Final cart — no remove UI.
 function cartDone() {
+  const copy = cartDoneCopy(EXAMPLE_LANG);
   return {
     id: S.CART_DONE,
-    title: 'Your cart',
+    title: `\${data.${F.UI_SCREEN_TITLE}}`,
     terminal: true,
     data: {
+      ...uiSchema(copy),
       [F.BASKET_TEXT]: { type: 'string', '__example__': '1x Dürüm Huhn  €8.50' },
-      [F.TOTAL_LABEL]: { type: 'string', '__example__': 'Total: €8.50' },
+      [F.TOTAL_LABEL]: { type: 'string', '__example__': t('orderTotal', EXAMPLE_LANG, '8.50') },
     },
     layout: {
       type: 'SingleColumnLayout',
@@ -334,12 +511,12 @@ function cartDone() {
           { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
           {
             type: 'EmbeddedLink',
-            text: 'Add more items',
+            text: `\${data.${F.UI_ADD_MORE}}`,
             'on-click-action': { name: 'data_exchange', payload: { cart_action: 'add_more' } },
           },
           {
             type: 'Footer',
-            label: 'Place order',
+            label: `\${data.${F.UI_PLACE_ORDER}}`,
             'on-click-action': { name: 'complete', payload: {} },
           },
         ],
@@ -366,17 +543,26 @@ async function main() {
       [S.CATEGORY_SELECT_RETURN]: [S.MENU_BROWSE],
       [S.MENU_BROWSE]:            [S.ORDER_ITEM],
       [S.ORDER_ITEM]:             [S.CART_REVIEW],
-      [S.CART_REVIEW]:  [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED],
-      [S.CART_UPDATED]: [S.CATEGORY_SELECT_RETURN, S.CART_DONE],
-      [S.CART_DONE]:    [S.CATEGORY_SELECT_RETURN],
+      // Forward-only edit chain (Meta rejects CART ↔ ORDER_ITEM cycles).
+      [S.CART_REVIEW]:            [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED, S.ORDER_ITEM_EDIT],
+      [S.ORDER_ITEM_EDIT]:        [S.CART_EDITED],
+      [S.CART_EDITED]:            [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED, S.ORDER_ITEM_EDIT_AGAIN],
+      [S.ORDER_ITEM_EDIT_AGAIN]:  [S.CART_EDITED_AGAIN],
+      [S.CART_EDITED_AGAIN]:      [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED],
+      [S.CART_UPDATED]:           [S.CATEGORY_SELECT_RETURN, S.CART_DONE],
+      [S.CART_DONE]:              [S.CATEGORY_SELECT_RETURN],
     },
     screens: [
       categorySelectScreen(S.CATEGORY_SELECT, EXAMPLE_CATEGORIES),
       categorySelectScreen(S.CATEGORY_SELECT_RETURN, EXAMPLE_CATEGORIES),
       menuBrowse(EXAMPLE_CATEGORY, EXAMPLE_MENU_ITEMS),
-      orderItem(EXAMPLE_ITEM),
-      cartReview(),
-      cartUpdated(),
+      await orderItem(EXAMPLE_ITEM),
+      await orderItem(EXAMPLE_ITEM, S.ORDER_ITEM_EDIT),
+      await orderItem(EXAMPLE_ITEM, S.ORDER_ITEM_EDIT_AGAIN),
+      await cartEditScreen(S.CART_REVIEW),
+      await cartEditScreen(S.CART_EDITED),
+      await cartEditScreen(S.CART_EDITED_AGAIN),
+      await cartEditScreen(S.CART_UPDATED),
       cartDone(),
     ],
   };

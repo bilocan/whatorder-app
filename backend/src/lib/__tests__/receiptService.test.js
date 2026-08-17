@@ -49,6 +49,41 @@ describe('buildBelegLines', () => {
       gross: 2.5,
     });
   });
+
+  test('inserts a discount row between items and Liefergebühr', () => {
+    const lines = buildBelegLines({
+      items: [{ name: 'Döner', qty: 1, vatRate: 10, net: 9.09, vat: 0.91, gross: 10 }],
+      discount: 2,
+      discountLabel: '10% Willkommen',
+      deliveryFee: 2.5,
+    });
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toMatchObject({
+      name: '10% Willkommen',
+      kind: 'discount',
+      gross: -2,
+    });
+    expect(lines[2].kind).toBe('fee');
+  });
+
+  test('omits discount row when discount is 0 or missing', () => {
+    expect(buildBelegLines({
+      items: [{ name: 'Döner', qty: 1, gross: 10 }],
+      discount: 0,
+    }).some((l) => l.kind === 'discount')).toBe(false);
+    expect(buildBelegLines({
+      items: [{ name: 'Döner', qty: 1, gross: 10 }],
+    }).some((l) => l.kind === 'discount')).toBe(false);
+  });
+
+  test('falls back to Rabatt when label is empty', () => {
+    const lines = buildBelegLines({
+      items: [{ name: 'Döner', qty: 1, gross: 10 }],
+      discount: 1.5,
+      discountLabel: '',
+    });
+    expect(lines[1]).toMatchObject({ name: 'Rabatt', kind: 'discount', gross: -1.5 });
+  });
 });
 
 describe('sellerSnapshotFromLegal', () => {
@@ -213,5 +248,35 @@ describe('renderCustomerBelegPdf', () => {
     expect(text).toContain('Artikel 28');
     expect(text).toContain('Summe USt 10%');
     expect(text).toContain('WhatOrder');
+  });
+
+  test('prints Rabatt line with negative amount and keeps item gross + Gesamtbetrag', async () => {
+    const buf = await renderCustomerBelegPdf({
+      belegNumber: 'WO-2026-000010',
+      issuedAt: new Date('2026-08-13T12:00:00Z'),
+      orderId: 'ordDeal1',
+      sellerSnapshot: {
+        legalName: 'Enes Kebap',
+        street: 'Wattgasse 71',
+        zip: '1170',
+        city: 'Wien',
+        uid: 'ATU12345678',
+      },
+      buyerSnapshot: { name: 'Ali' },
+      lines: [
+        { name: 'Döner', qty: 1, vatRate: 10, net: 9.09, vat: 0.91, gross: 10 },
+        { name: '10% Willkommen', qty: 1, gross: -1, kind: 'discount' },
+        { name: 'Liefergebühr', qty: 1, vatRate: 10, net: 1.82, vat: 0.18, gross: 2, kind: 'fee' },
+      ],
+      totalsByVat: { '10': { net: 10, vat: 1, gross: 11 } },
+      totalGross: 11,
+      paymentRef: 'cs_test_deal',
+    });
+    const text = pdfExtractText(buf);
+    expect(text).toContain('10% Willkommen');
+    expect(text).toMatch(/[\u2212-].*1,00/);
+    expect(text).toContain('11,00');
+    expect(text).toContain('Liefergeb');
+    expect(text).not.toMatch(/10% Willkommen\s+×/);
   });
 });

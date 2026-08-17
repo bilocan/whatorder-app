@@ -57,14 +57,17 @@ module.exports = {
   confirmBtn: () => 'Onayla',
 
   orderTotal: (total) => `Toplam: €${total}`,
+  checkoutDiscount: (label, amount) => `🏷️ ${label}: −€${amount}`,
+  dealMarketingLine: (label) => `🏷️ ${label}`,
+  checkoutDeliveryFee: (amount) => `🚚 Teslimat ücreti: €${amount}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Tahmini hazırlık: ~${prepMins} dk (saat ${pickupTime} civarı)\n\nAdınızı yazar mısınız?`,
-  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod) => {
+  finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod, discountLine) => {
     const detail = deliveryAddress
       ? `🚚 Teslimat adresi: ${deliveryAddress}`
       : `⏱️ Hazır saat: ~${pickupTime}`;
     const notesLine = notes ? `\n📝 Not: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Ödeme: Kart' : '';
-    return `✅ Neredeyse bitti!\n\n👤 ${name}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nOnaylamak veya düzenlemek için aşağıya dokunun.`;
+    return `✅ Neredeyse bitti!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nOnaylamak veya düzenlemek için aşağıya dokunun.`;
   },
   confirmListHeader: () => 'Siparişi kontrol et',
   confirmListBtn: () => 'Onayla / düzenle',
@@ -76,16 +79,87 @@ module.exports = {
   confirmOrderTypeDelivery: () => 'Teslimat',
   confirmNoAddressYet: () => 'Henüz adres yok',
   confirmFlowCta: () => 'Kontrol',
+  confirmGateAddMore: () => 'Daha ekle',
+  confirmGateContinue: () => 'Devam',
   confirmFlowFooter: () => 'Siparişi ver',
   confirmFlowBackToCart: () => 'Sepete dön',
+  confirmFlowReviewIntro: () => 'Neredeyse bitti!',
+  confirmFlowReviewSectionBasket: () => 'Siparişin',
+  confirmFlowReviewSectionDetails: () => 'Bilgilerin',
+  confirmFlowPaymentCard: () => '💳 Ödeme: Kart',
   confirmFlowNameLabel: () => 'Ad',
-  confirmFlowTypeLabel: () => 'Tür',
-  confirmFlowAddressLabel: () => 'Adres',
+  confirmFlowNameEmpty: () => 'Henüz ad yok — Adres ve profil’e dokun.',
+  confirmFlowProfileLink: () => 'Adres ve profil',
+  confirmFlowProfileNameLabel: () => 'Adın',
+  confirmFlowProfileNameHelper: () => 'Siparişte böyle görünür',
+  confirmFlowTypeLabel: () => 'Siparişinizi nasıl almak istersiniz?',
+  confirmFlowAddressChoiceLabel: () => 'Teslimat adresi',
+  confirmFlowAddressNew: () => 'Yeni adres',
+  confirmFlowAddressNewDesc: () => 'Aşağıya yazın',
+  confirmFlowAddressLabel: () => 'Sokak',
+  confirmFlowAddressHelper: () => 'Sokak ve kapı no (örn. Lavaterstrasse 3)',
+  confirmFlowAddressEmpty: () => 'Adres yok — Adres ve profil’e dokun.',
+  confirmFlowApartmentLabel: () => 'Daire',
+  confirmFlowApartmentHelper: () => 'Stiege / Tür / Top, yoksa Haus',
   confirmFlowNoteLabel: () => 'Not',
   confirmFlowTypePickup: () => 'Gel-al',
   confirmFlowTypeDelivery: () => 'Teslimat',
   confirmFlowErrorName: () => 'Lütfen adınızı yazın.',
   confirmFlowErrorAddress: () => 'Lütfen teslimat adresinizi yazın.',
+  confirmFlowErrorApartment: () => 'Lütfen daire yazın (veya Haus).',
+  confirmFlowManageAddressesLink: () => 'Adres ve profil',
+  confirmFlowManageTitle: () => 'Profil',
+  confirmFlowManageHint: (n, max) => `Kayıtlı adresler (${n}/${max})`,
+  confirmFlowManageEditCaption: () => 'Seçili adresi düzenle',
+  confirmFlowManageSelectHint: () => 'Düzenlemek için bir adrese dokun',
+  confirmFlowManageEdit: () => 'Düzenle',
+  confirmFlowManageAdd: () => 'Ekle',
+  confirmFlowManageSave: () => 'Kaydet',
+  confirmFlowManageSetDefault: () => 'Varsayılan adres olarak kaydet',
+  confirmFlowManageDelete: () => 'Sil',
+  confirmFlowManageBack: () => 'Siparişe dön',
+  confirmFlowManageConfirmHint: () => 'Bu adresi mi demek istedin?',
+  confirmFlowManageConfirmTyped: () => 'Sen yazdın',
+  confirmFlowManageConfirmFound: () => 'Biz bulduk',
+  confirmFlowManageConfirmYes: () => 'Evet',
+  confirmFlowManageConfirmEdit: () => 'Düzenle',
+  confirmFlowErrorAddressInvalid: () => 'Bu adresi doğrulayamadık. Lütfen sokak ve kapı numarasını kontrol edin.',
+  confirmFlowErrorManageSelect: () => 'Önce kayıtlı bir adres seçin.',
+  confirmFlowErrorManageCap: () => 'Yeni adres kaydetmeden önce bir adres silin (en fazla 5).',
+  confirmFlowErrorManageGeneric: () => 'Adresler güncellenemedi. Lütfen tekrar deneyin.',
+  menuFlowScreenMenu: () => 'Menü',
+  menuFlowCategoryPrompt: () => 'Ne istersiniz?',
+  menuFlowNext: () => 'İleri',
+  menuFlowCustomise: () => 'Özelleştir',
+  menuFlowQtyLabel: () => 'Adet',
+  menuFlowQtyHelper: () => '1–10',
+  menuFlowQtyError: () => 'En fazla 10',
+  menuFlowNotesLabel: () => 'Özel istek',
+  menuFlowNotesHelper: () => 'Alerji, ekstra sos vb.',
+  menuFlowAddToCart: () => 'Sepete ekle',
+  menuFlowSave: () => 'Kaydet',
+  menuFlowMultiSelectAll: () => 'Tümünü seç',
+  menuFlowMultiClearAll: () => 'Tümünü kaldır',
+  menuFlowFooterLeftCaption: () => '1 adet fiyatı',
+  menuFlowCartTitle: () => 'Sepetiniz',
+  menuFlowCartHint: () => 'Çıkarmak için işaretleyin.',
+  menuFlowRemoveLabel: () => 'Ürünleri çıkar:',
+  menuFlowRemoveModeLabel: () => 'Nasıl çıkarılsın?',
+  menuFlowRemoveOne: () => '1 adet',
+  menuFlowRemoveLine: () => 'Tüm satır',
+  menuFlowRemoveAll: () => 'Sepeti boşalt',
+  menuFlowRemoveEdit: () => 'Düzenle',
+  menuFlowRemoveSelected: () => 'Uygula',
+  menuFlowEditNeedOne: () => 'Tam olarak bir ürün seçin.',
+  menuFlowEditUnavailable: () => 'Ürün düzenlenemez.',
+  menuFlowAddMore: () => 'Daha fazla ekle',
+  menuFlowPlaceOrder: () => 'Siparişi ver',
+  menuFlowClearCart: () => 'Sepeti tamamen boşalt',
+  menuFlowSubtotal: (amount) => `Ara toplam: €${amount}`,
+  menuFlowDiscount: (label, amount) => `${label}: −€${amount}`,
+  menuFlowDiscountPercentLabel: (pct) => `${pct}% indirim`,
+  menuFlowDiscountFixedLabel: (amount) => `€${amount} indirim`,
+  menuFlowDeliveryFee: (amount) => `Teslimat ücreti: €${amount}`,
   askNameEdit: (current) => `Mevcut ad: ${current}\n\nYeni adınızı yazın:`,
   askOrderTypeFromConfirm: () => 'Bu sipariş için gel-al veya teslimat seçin:',
   confirmOrderBtn: () => 'Onayla ✅',
@@ -95,11 +169,11 @@ module.exports = {
   confirmPrompt: () => 'Onaylamak için YES, iptal için NO yazın.',
   yesNoOnly: () => 'Lütfen YES veya NO yazın.',
   orderConfirmed: (shortId) => `✅ Siparişiniz alındı! Sipariş no: #${shortId}\n\nHazır olduğunda size bildireceğiz. Teşekkürler! 🙏`,
-  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address) => {
+  orderReceipt: (shortId, restaurantName, itemLines, total, pickupTime, customerName, deliveryAddress, paymentMethod, alertPhone, address, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Teslimat: ${deliveryAddress}` : `Hazır: ${pickupTime}`;
-    return `✅ Sipariş #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}\n${detail}\n\nTeşekkürler, ${customerName}! 🙏`;
+    return `✅ Sipariş #${shortId}\n\n${restaurantBlock}\n\n${itemLines}\n\n${discountLine ? `${discountLine}\n` : ''}Toplam: €${total}\n${detail}\n\nTeşekkürler, ${customerName}! 🙏`;
   },
   checkoutCancelled: () => 'Sipariş iptal edildi.',
   cancelOrderBtn: () => 'İptal',
@@ -108,11 +182,11 @@ module.exports = {
   checkoutBasketUpdated: (basketText) => `✅ Sepet güncellendi.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'Bu bir sipariş gibi görünüyor. Lütfen teslimat adresinizi girin veya önce sepete ürün ekleyin.',
   payNowBtn: () => 'Ödeme yap 💳',
-  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress) => {
+  paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
     const detail = deliveryAddress ? `Teslimat: ${deliveryAddress}` : null;
-    return `Sipariş #${shortId} alındı.\n\n${restaurantBlock}\n\n${itemLines}\n\nToplam: €${total}${detail ? `\n${detail}` : ''}\n\nÖdemek için aşağıdaki düğmeye dokunun.`;
+    return `Sipariş #${shortId} alındı.\n\n${restaurantBlock}\n\n${itemLines}\n\n${discountLine ? `${discountLine}\n` : ''}Toplam: €${total}${detail ? `\n${detail}` : ''}\n\nÖdemek için aşağıdaki düğmeye dokunun.`;
   },
   paymentLinkFailed: (shortId) => `Sipariş #${shortId} oluşturuldu ancak ödeme bağlantısı başarısız oldu. Lütfen restoranla iletişime geçin.`,
   paymentLegalIncomplete: () => 'Bu restoranda kartla ödeme henüz aktif değil, siparişiniz oluşturulmadı. Lütfen doğrudan restoranla iletişime geçin.',
@@ -143,7 +217,10 @@ module.exports = {
   orderDelivered: (shortId) => `✅ Sipariş #${shortId} teslim edildi. Afiyet olsun! 🙏`,
   orderCompletePrompt: () => 'Başka bir şey sipariş etmek ister misin?',
   orderRejected:  (shortId) => `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Lütfen bize ulaşın.`,
+  orderRejectedRefunded: (shortId) => `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Kart ödemeniz iade edilecek — genellikle birkaç iş günü içinde hesabınıza döner.`,
   orderCancelled: (shortId) => `❌ Sipariş #${shortId} iptal edildi.`,
+  orderCancelledRefunded: (shortId) => `✅ Sipariş #${shortId} iptal edildi. Kart ödemeniz iade edilecek — genellikle birkaç iş günü içinde hesabınıza döner.`,
+  paymentRefunded: (shortId) => `💸 #${shortId} sipariş ödemesi iade edildi. Para genellikle birkaç iş günü içinde hesabınıza döner.`,
   orderStatusPending: (shortId) => `⏳ Sipariş #${shortId} alındı, restoran onayı bekleniyor.`,
   postOrderCallRestaurant: (name, phone) => phone
     ? `Siparişinizde değişiklik için lütfen ${name} arayın: ${phone}`
@@ -158,9 +235,27 @@ module.exports = {
   postReorderBtn: () => 'Tekrar sipariş',
   postRestaurantBtn: () => 'Restoran seç',
   postCompleteRestaurantBtn: () => 'Başka restoran',
+  postOrderCancelTooLatePreparing: (name, phone) => phone
+    ? `Siparişiniz hazırlanmaya başladı. Değişiklik için lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz hazırlanmaya başladı. Lütfen ${name} ile iletişime geçin.`,
+  postOrderCancelTooLateReady: (name, phone) => phone
+    ? `Siparişiniz teslim almaya hazır. Değişiklik için lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz teslim almaya hazır. Lütfen ${name} ile iletişime geçin.`,
+  postOrderCancelTooLateOnTheWay: (name, phone) => phone
+    ? `Siparişiniz zaten yolda. Değişiklik için lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz zaten yolda. Lütfen ${name} ile iletişime geçin.`,
+  postOrderCancelTooLateDelivered: (name, phone) => phone
+    ? `Siparişiniz zaten teslim edildi. Sorunuz varsa lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz zaten teslim edildi. Lütfen ${name} ile iletişime geçin.`,
+  postOrderCancelTooLatePickedUp: (name, phone) => phone
+    ? `Siparişiniz zaten teslim alındı. Sorunuz varsa lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz zaten teslim alındı. Lütfen ${name} ile iletişime geçin.`,
+  postOrderCancelTooLateAlreadyClosed: (name, phone) => phone
+    ? `Bu sipariş zaten kapandı. Sorunuz varsa lütfen ${name} arayın: ${phone}`
+    : `Bu sipariş zaten kapandı. Lütfen ${name} ile iletişime geçin.`,
   postOrderCancelTooLate: (name, phone) => phone
-    ? `Siparişiniz hazırlanmaya başlandı. Değişiklik için lütfen ${name} arayın: ${phone}`
-    : `Siparişiniz hazırlanmaya başlandı. Lütfen ${name} ile iletişime geçin.`,
+    ? `Siparişiniz hazırlanmaya başladı. Değişiklik için lütfen ${name} arayın: ${phone}`
+    : `Siparişiniz hazırlanmaya başladı. Lütfen ${name} ile iletişime geçin.`,
 
   askOrderType: (fee) => `Siparişinizi nasıl almak istersiniz?\n\nTeslimat ücreti: €${Number(fee).toFixed(2)}`,
   pickupBtn: () => 'Gel Al',

@@ -1,15 +1,14 @@
 id: happy_delivery_address_prompt
 pack: c
 priority: p1
-manual: "M2 row 50"
-timeout_ms: 120000
+manual: "M2 row 50 superseded: checkout Flow skip-chat address (no awaiting_delivery_address_* )"
+timeout_ms: 90000
 steps:
   - macro: open_restaurant
   - macro: clear_last_delivery_address
   - macro: add_doner_ayran_delivery_no_address
   - macro: start_checkout
-  - gate: { name: state, in: [awaiting_delivery_address_choice, awaiting_delivery_address, awaiting_delivery_address_confirm, awaiting_delivery_address_unit] }
-  - macro: complete_delivery_address_ask
-  - macro: ensure_confirming
-  - macro: confirm_order
-  - gate: { name: order_stripe_delivery, address_includes: "Hauptstraße" }
+  # Flow-on: basket confirm opens CHECKOUT_REVIEW. WA Web cannot fill the Flow, so
+  # we hard-assert skip-chat (confirming, no order) instead of the old address ladder.
+  - gate: { name: state, in: [confirming] }
+  - gate: { name: no_order }

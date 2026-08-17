@@ -15,6 +15,7 @@
     "customers": "Müşteriler",
     "income": "Gelir",
     "menu": "Menü",
+    "deals": "Kampanyalar",
     "optionGroups": "Özelleştirmeler",
     "learnedPhrases": "İfadeler",
     "intentPlayground": "Botu eğit",
@@ -85,7 +86,8 @@
       "cash": "Nakit",
       "paid": "Ödendi",
       "pending": "Ödenmedi",
-      "failed": "Başarısız"
+      "failed": "Başarısız",
+      "refunded": "İade edildi"
     },
     "delivery": "Teslimat",
     "deliveryFee": "+ €{{fee}} teslimat ücreti",
@@ -113,6 +115,8 @@
       "price": "Fiyat"
     },
     "deliveryFee": "Teslimat ücreti: €{{fee}}",
+    "discount": "İndirim ({{label}}): −€{{amount}}",
+    "discountFallback": "İndirim",
     "total": "Toplam: €{{total}}",
     "note": "Not: {{note}}",
     "orderedAt": "Sipariş zamanı: {{time}}",
@@ -151,7 +155,14 @@
       "onTheWay": "Yola çıktı",
       "markReady": "Hazır olarak işaretle",
       "pickedUp": "Teslim alındı olarak işaretle",
-      "delivered": "Teslim edildi olarak işaretle"
+      "delivered": "Teslim edildi olarak işaretle",
+      "refund": "İade et"
+    },
+    "refund": {
+      "title": "Kart iadesi",
+      "hint": "Misafire tam iade. Sipariş durumu değişmez.",
+      "working": "İade yapılıyor…",
+      "done": "Ödeme iade edildi. Misafir WhatsApp ile bilgilendirildi."
     },
     "settlement": {
       "pendingPayout": "Sonraki ödeme döngüsünde",
@@ -433,6 +444,38 @@
     "extendsCycleError": "Geçersiz genişletme zinciri (döngü oluşur).",
     "deleteConfirmExtendedBy": "{{count}} grup bunu genişletiyor. Yine de silinsin mi?",
     "deleteConfirmInUseAndExtended": "{{count}} menü öğesine atanmış ve {{extendedBy}} grup tarafından genişletiliyor. Yine de silinsin mi?"
+  },
+  "deals": {
+    "title": "Kampanyalar",
+    "subtitle": "İndirim sadece yemeklere geçer, teslimat ücretine değil. İndirimi sen karşılarsın.",
+    "belegNote": "Müşteri fişinde indirim ayrı satır. Gesamtbetrag, misafirin ödediği tutar.",
+    "firstOrder": "İlk sipariş",
+    "window": "Tarih aralığı",
+    "discountType": "Tür",
+    "percent": "Yüzde",
+    "fixed": "Tutar (€)",
+    "value": "Değer",
+    "label": "Müşteri metni",
+    "labelHint": "Boş bırakırsan varsayılan yazılır, örn. 10% Rabatt",
+    "startsAt": "Başlangıç",
+    "endsAt": "Bitiş",
+    "active": "Aktif",
+    "paused": "Duraklatıldı",
+    "ended": "Bitti",
+    "save": "Kaydet",
+    "pause": "Duraklat",
+    "resume": "Devam et",
+    "end": "Bitir",
+    "history": "Geçmiş",
+    "empty": "Henüz kampanya yok.",
+    "error": {
+      "percent": "Yüzde 1–100 olmalı (en fazla bir ondalık).",
+      "fixed": "Tutar 0'dan büyük olmalı.",
+      "window": "Tarih aralığında başlangıç ve bitiş gerekli, bitiş sonra olmalı.",
+      "load": "Kampanyalar yüklenemedi.",
+      "save": "Kaydetme başarısız."
+    },
+    "confirmEnd": "Bu kampanyayı bitsin mi? Checkout artık uygulamaz."
   },
   "income": {
     "titleToday": "Gelir — Bugün",

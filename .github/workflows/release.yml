@@ -121,6 +121,9 @@ jobs:
           region: europe-west3
           image: europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cloud-run-source-deploy/whatorder-backend:${{ github.sha }}
           flags: --min-instances=1 --allow-unauthenticated --service-account=87472938058-compute@developer.gserviceaccount.com
+          # Plain Flow id: WHATSAPP_MENU_FLOW_ID (renamed from WHATSAPP_FLOW_ID).
+          # After first deploy, remove stale WHATSAPP_FLOW_ID on the Cloud Run service.
+          # WHATSAPP_CHECKOUT_FLOW_ID: add here when a checkout Flow is published on this WABA.
           env_vars: |
             DEPLOY_ENV=production
             GIT_SHA=${{ github.sha }}
@@ -131,10 +134,10 @@ jobs:
             FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
             BACKEND_URL=https://whatorder-backend-87472938058.europe-west3.run.app
             MAP_PUBLIC_URL=https://whatorder.at
-            WHATSAPP_BUSINESS_ACCOUNT_ID=2622868251461145
-            WHATSAPP_PHONE_NUMBER_ID=1276715415516230
-            WHATSAPP_FLOW_ID=2216684979118924
-            WHATSAPP_RETURN_PHONE=+436602347578
+            WHATSAPP_BUSINESS_ACCOUNT_ID=2111136853086660
+            WHATSAPP_PHONE_NUMBER_ID=1230087620193335
+            WHATSAPP_MENU_FLOW_ID=2216684979118924
+            WHATSAPP_RETURN_PHONE=+436602647870
             AI_INTENT_ENABLED=true
             LLM_PROVIDER=google
             LLM_MODEL=gemini-2.5-flash-lite
@@ -148,6 +151,7 @@ jobs:
             STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest
             STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest
             GOOGLE_MAPS_API_KEY=GOOGLE_MAPS_API_KEY:latest
+            GOOGLE_MAPS_JS_API_KEY=GOOGLE_MAPS_JS_API_KEY:latest
 
       # Alias the promoted image with the release tag so Artifact Registry
       # shows which SHA shipped as which release.

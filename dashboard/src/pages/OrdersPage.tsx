@@ -538,6 +538,14 @@ export default function OrdersPage() {
                 ))}
               </tbody>
             </table>
+            {Number(openOrder.discount) > 0 ? (
+              <p className="order-detail-fee">
+                {t('orderDetail.discount', {
+                  label: openOrder.discountLabel || t('orderDetail.discountFallback'),
+                  amount: Number(openOrder.discount).toFixed(2),
+                })}
+              </p>
+            ) : null}
             {openOrder.orderType === 'delivery' && openOrder.deliveryFee ? (
               <p className="order-detail-fee">
                 {t('orderDetail.deliveryFee', { fee: openOrder.deliveryFee.toFixed(2) })}

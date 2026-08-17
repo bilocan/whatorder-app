@@ -26,6 +26,7 @@ const {
   removeBasketAtIndices,
   getBusinessesInfo,
   resolveRestaurantsForPicker,
+  buildRestaurantPickerDescription,
 } = require('../botHelpers');
 const { getBusinessInfo } = require('../menuService');
 
@@ -320,6 +321,30 @@ describe('restaurant picker imageUrl enforcement', () => {
     getBusinessInfo.mockResolvedValue({ name: 'Döner Palace', lat: 48.2, lng: 16.37, imageUrl: 'gs://bucket/cover.jpg' });
     const [info] = await getBusinessesInfo(['biz_a']);
     expect(info.imageUrl).toBe('resolved:gs://bucket/cover.jpg');
+    expect(info.dealLabel).toBeNull();
+  });
+
+  test('getBusinessesInfo includes marketing dealLabel', async () => {
+    getBusinessInfo.mockResolvedValue({
+      name: 'Döner Palace',
+      lat: 48.2,
+      lng: 16.37,
+      imageUrl: 'gs://bucket/cover.jpg',
+      deals: {
+        window: {
+          dealId: 'w1',
+          kind: 'window',
+          discountType: 'percent',
+          discountValue: 10,
+          label: '10% Rabatt',
+          active: true,
+          startsAt: new Date('2020-01-01T00:00:00.000Z'),
+          endsAt: new Date('2099-01-01T00:00:00.000Z'),
+        },
+      },
+    });
+    const [info] = await getBusinessesInfo(['biz_a']);
+    expect(info.dealLabel).toBe('10% Rabatt');
   });
 
   test('resolveRestaurantsForPicker excludes businesses without imageUrl', async () => {
@@ -335,5 +360,43 @@ describe('restaurant picker imageUrl enforcement', () => {
 
     expect(pickList.map(b => b.id)).toEqual(['biz_with_image']);
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('biz_no_image'));
+  });
+});
+
+describe('buildRestaurantPickerDescription', () => {
+  test('picker description prepends deal label and stays within 72 chars', () => {
+    const description = buildRestaurantPickerDescription({
+      dealLabel: '10% Rabatt',
+      distanceKm: 1.2,
+      durationMin: 8,
+      tagline: 'Best döner in town with a very long extra tagline',
+      isOpen: true,
+    }, 'de');
+    expect(description.startsWith('🏷️ 10% Rabatt')).toBe(true);
+    expect(description.length).toBeLessThanOrEqual(72);
+  });
+
+  test('picker description omits deal when dealLabel is null', () => {
+    const description = buildRestaurantPickerDescription({
+      dealLabel: null,
+      tagline: 'Best döner in town',
+      isOpen: true,
+    }, 'en');
+    expect(description).toBe('Best döner in town');
+    expect(description).not.toMatch(/🏷️/);
+  });
+
+  test('closed marker survives 72-char slice with deal badge, distance, and long tagline', () => {
+    const description = buildRestaurantPickerDescription({
+      dealLabel: '10% Rabatt',
+      distanceKm: 1.2,
+      durationMin: 8,
+      tagline: 'Best döner in town with a very long extra tagline that would overflow',
+      isOpen: false,
+    }, 'de');
+    expect(description.length).toBeLessThanOrEqual(72);
+    expect(description).toMatch(/🔒/);
+    expect(description).toContain('Geschlossen');
+    expect(description.startsWith('🏷️ 10% Rabatt')).toBe(true);
   });
 });

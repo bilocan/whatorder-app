@@ -15,6 +15,7 @@
     "customers": "Kunden",
     "income": "Einnahmen",
     "menu": "Speisekarte",
+    "deals": "Aktionen",
     "optionGroups": "Anpassungen",
     "learnedPhrases": "Phrasen",
     "intentPlayground": "Bot trainieren",
@@ -85,7 +86,8 @@
       "cash": "Bar",
       "paid": "Bezahlt",
       "pending": "Offen",
-      "failed": "Fehlgeschlagen"
+      "failed": "Fehlgeschlagen",
+      "refunded": "Erstattet"
     },
     "delivery": "Lieferung",
     "deliveryFee": "+ €{{fee}} Liefergebühr",
@@ -113,6 +115,8 @@
       "price": "Preis"
     },
     "deliveryFee": "Liefergebühr: €{{fee}}",
+    "discount": "Rabatt ({{label}}): −€{{amount}}",
+    "discountFallback": "Rabatt",
     "total": "Gesamt: €{{total}}",
     "note": "Hinweis: {{note}}",
     "orderedAt": "Bestellt um {{time}}",
@@ -151,7 +155,14 @@
       "onTheWay": "Unterwegs",
       "markReady": "Abholbereit markieren",
       "pickedUp": "Als abgeholt markieren",
-      "delivered": "Als geliefert markieren"
+      "delivered": "Als geliefert markieren",
+      "refund": "Erstatten"
+    },
+    "refund": {
+      "title": "Kartenerstattung",
+      "hint": "Volle Rückzahlung an den Gast. Bestellstatus bleibt unverändert.",
+      "working": "Erstattung läuft…",
+      "done": "Zahlung erstattet. Der Gast wurde per WhatsApp informiert."
     },
     "settlement": {
       "pendingPayout": "Nächste Auszahlung ausstehend",
@@ -433,6 +444,38 @@
     "extendsCycleError": "Ungültige Vererbungskette (Zyklus).",
     "deleteConfirmExtendedBy": "{{count}} andere Gruppe(n) erweitern diese. Trotzdem löschen?",
     "deleteConfirmInUseAndExtended": "{{count}} Artikel zugewiesen und von {{extendedBy}} Gruppe(n) erweitert. Trotzdem löschen?"
+  },
+  "deals": {
+    "title": "Aktionen",
+    "subtitle": "Rabatt gilt nur für Speisen, nicht für die Liefergebühr. Den Rabatt trägst du.",
+    "belegNote": "Auf dem Kundenbeleg steht der Rabatt als eigene Zeile. Gesamtbetrag ist, was der Gast zahlt.",
+    "firstOrder": "Erste Bestellung",
+    "window": "Zeitraum",
+    "discountType": "Art",
+    "percent": "Prozent",
+    "fixed": "Betrag in €",
+    "value": "Wert",
+    "label": "Text für den Kunden",
+    "labelHint": "Leer lassen für Standard, z. B. 10% Rabatt",
+    "startsAt": "Start",
+    "endsAt": "Ende",
+    "active": "Aktiv",
+    "paused": "Pausiert",
+    "ended": "Beendet",
+    "save": "Speichern",
+    "pause": "Pausieren",
+    "resume": "Fortsetzen",
+    "end": "Beenden",
+    "history": "Verlauf",
+    "empty": "Noch keine Aktion.",
+    "error": {
+      "percent": "Prozent muss zwischen 1 und 100 liegen (max. eine Nachkommastelle).",
+      "fixed": "Betrag muss größer als 0 sein.",
+      "window": "Zeitraum braucht Start und Ende, Ende nach Start.",
+      "load": "Aktionen konnten nicht geladen werden.",
+      "save": "Speichern fehlgeschlagen."
+    },
+    "confirmEnd": "Diese Aktion beenden? Checkout nutzt sie dann nicht mehr."
   },
   "income": {
     "titleToday": "Einnahmen — Heute",

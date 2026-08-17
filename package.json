@@ -29,9 +29,15 @@
     "test:release-lib": "node --test scripts/lib/__tests__/releaseLib.test.js",
     "test:firestore-deploy-lib": "node --test scripts/lib/__tests__/firestoreDeployLib.test.js"
   },
+  "dependencies": {
+    "@firebase/util": "1.15.1"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "dotenv-cli": "^11.0.0",
     "jest": "^30.4.2"
+  },
+  "overrides": {
+    "@firebase/util": "1.15.1"
   }
 }

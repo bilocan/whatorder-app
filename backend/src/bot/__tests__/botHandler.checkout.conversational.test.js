@@ -565,6 +565,37 @@ describe('Checkout state: M3 slot-filling checkout', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringMatching(/Name/i));
   });
 
+  test('flag on — unset order type defaults to pickup (no address picker / no delivery prefill)', async () => {
+    mockCustomerProfile({ name: 'Hamza', lastDeliveryAddress: 'Hauptstraße 5, Top 2' });
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      conversationalBasket: true,
+      checkoutConfirmFlow: false,
+      deliveryEnabled: true,
+      deliveryFee: 2.5,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: BIZ,
+      basket: [{ name: 'Döner', qty: 2, price: 8.50 }],
+      pickupTime: '14:30',
+      prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      orderType: 'pickup',
+      customerName: 'Hamza',
+    }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address_choice',
+    }));
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      deliveryAddress: 'Hauptstraße 5, Top 2',
+    }));
+  });
+
   test('btn_place_order in confirming has no payment method step; blocks when card gate fails', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,

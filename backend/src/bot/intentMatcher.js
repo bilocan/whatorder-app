@@ -322,6 +322,12 @@ function mergeIntoBasket(basket, items) {
       result = result.map(i => (basketMergeKey(i) === key ? { ...i, qty: i.qty + item.qty } : i));
     } else {
       const line = { name: item.name, qty: item.qty, price: item.price };
+      const menuId = item.menuItemId || item.itemId;
+      if (menuId) {
+        line.menuItemId = menuId;
+        line.itemId = menuId;
+      }
+      if (item.baseName) line.baseName = item.baseName;
       const note = (item.note ?? '').trim();
       if (note) line.note = note;
       result.push(line);

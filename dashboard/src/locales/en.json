@@ -15,6 +15,7 @@
     "customers": "Customers",
     "income": "Income",
     "menu": "Menu",
+    "deals": "Deals",
     "optionGroups": "Customizations",
     "learnedPhrases": "Phrases",
     "intentPlayground": "Teach bot",
@@ -85,7 +86,8 @@
       "cash": "Cash",
       "paid": "Paid",
       "pending": "Unpaid",
-      "failed": "Failed"
+      "failed": "Failed",
+      "refunded": "Refunded"
     },
     "delivery": "Delivery",
     "deliveryFee": "+ €{{fee}} delivery fee",
@@ -113,6 +115,8 @@
       "price": "Price"
     },
     "deliveryFee": "Delivery fee: €{{fee}}",
+    "discount": "Discount ({{label}}): −€{{amount}}",
+    "discountFallback": "Discount",
     "total": "Total: €{{total}}",
     "note": "Note: {{note}}",
     "orderedAt": "Ordered at {{time}}",
@@ -151,7 +155,14 @@
       "onTheWay": "Out for Delivery",
       "markReady": "Mark Ready",
       "pickedUp": "Mark Picked Up",
-      "delivered": "Mark Delivered"
+      "delivered": "Mark Delivered",
+      "refund": "Refund"
+    },
+    "refund": {
+      "title": "Card refund",
+      "hint": "Full refund to the guest. Order status stays the same.",
+      "working": "Refunding…",
+      "done": "Payment refunded. The guest was notified on WhatsApp."
     },
     "settlement": {
       "pendingPayout": "Payout in next cycle",
@@ -433,6 +444,38 @@
     "extendsCycleError": "Invalid extends chain (would create a cycle).",
     "deleteConfirmExtendedBy": "Other groups extend this one ({{count}}). Delete anyway?",
     "deleteConfirmInUseAndExtended": "Assigned to {{count}} menu item(s) and extended by {{extendedBy}} other group(s). Delete anyway?"
+  },
+  "deals": {
+    "title": "Deals",
+    "subtitle": "Discount applies to food only, not delivery. You fund it.",
+    "belegNote": "The customer receipt shows the discount as its own line. Gesamtbetrag is what the guest paid.",
+    "firstOrder": "First order",
+    "window": "Date window",
+    "discountType": "Type",
+    "percent": "Percent",
+    "fixed": "Amount in €",
+    "value": "Value",
+    "label": "Customer text",
+    "labelHint": "Leave empty for the default, e.g. 10% Rabatt",
+    "startsAt": "Start",
+    "endsAt": "End",
+    "active": "Active",
+    "paused": "Paused",
+    "ended": "Ended",
+    "save": "Save",
+    "pause": "Pause",
+    "resume": "Resume",
+    "end": "End",
+    "history": "History",
+    "empty": "No deal yet.",
+    "error": {
+      "percent": "Percent must be 1–100 (at most one decimal).",
+      "fixed": "Amount must be greater than 0.",
+      "window": "Window needs start and end, with end after start.",
+      "load": "Could not load deals.",
+      "save": "Save failed."
+    },
+    "confirmEnd": "End this deal? Checkout will stop applying it."
   },
   "income": {
     "titleToday": "Income — Today",

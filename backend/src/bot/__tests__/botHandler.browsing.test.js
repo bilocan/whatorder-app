@@ -177,8 +177,11 @@ describe('Browsing state: list_reply item selection', () => {
 
     await handleMessage(ROUTING, msg({ type: 'list_reply', id: 'item_unknown_999' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ textMenuIndex: expect.any(Array) }));
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowAction: 'data_exchange',
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('item selection shows qty buttons without sending product image', async () => {
@@ -203,7 +206,11 @@ describe('Browsing state: button actions', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_add_more', title: 'Add more' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowAction: 'data_exchange',
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('btn_add_more shows list menu when flow is list', async () => {
@@ -214,6 +221,31 @@ describe('Browsing state: button actions', () => {
 
     expect(sendListMessage).toHaveBeenCalled();
     expect(sendFlowMessage).not.toHaveBeenCalled();
+  });
+
+  test('btn_add_more uses list when WHATSAPP_MENU_FLOW_ID is unset', async () => {
+    delete process.env.WHATSAPP_MENU_FLOW_ID;
+    delete process.env.WHATSAPP_FLOW_ID;
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_add_more', title: 'Add more' }));
+
+    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).not.toHaveBeenCalled();
+  });
+
+  test('btn_add_more does not fall back to list on pair rate-limit 131056', async () => {
+    const err = new Error('rate limited');
+    err.response = { data: { error: { code: 131056 } } };
+    sendFlowMessage.mockRejectedValue(err);
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await expect(
+      handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_add_more', title: 'Add more' })),
+    ).rejects.toMatchObject({ response: { data: { error: { code: 131056 } } } });
+
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('btn_view_basket with items shows basket text and action buttons', async () => {
@@ -238,7 +270,8 @@ describe('Browsing state: button actions', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_view_basket', title: 'View basket' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
@@ -251,7 +284,8 @@ describe('Browsing state: button actions', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_clear_basket', title: 'Clear' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ basket: [] }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('btn_clear_basket drops orderType/deliveryAddress so a re-added basket is not still delivery-gated', async () => {
@@ -288,8 +322,8 @@ describe('Browsing state: button actions', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_done', title: 'Done' }));
 
-    expect(sendListMessage).toHaveBeenCalled();
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ textMenuIndex: expect.any(Array) }));
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('btn_confirm with items skips notes and transitions to awaiting_name', async () => {
@@ -314,7 +348,8 @@ describe('Browsing state: button actions', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_cancel_order', title: 'Cancel' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing', basket: [] }));
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -394,7 +429,7 @@ describe('Browsing state: confirm-checkout text commands', () => {
 
       expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
         state: 'browsing',
-        basket: [{ name: 'Ayran', qty: 1, price: 2.00 }],
+        basket: [expect.objectContaining({ name: 'Ayran', qty: 1, price: 2.00 })],
       }));
       expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
         state: 'awaiting_name',

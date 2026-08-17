@@ -276,6 +276,9 @@ async function waitForSession(customerDisplay, predicate, opts = {}) {
       businessId: last?.businessId,
       basket: last?.basket?.length,
       pending: last?.pendingIntentItems?.length,
+      orderType: last?.orderType || null,
+      customerName: last?.customerName || null,
+      deliveryAddress: last?.deliveryAddress || null,
     })})`,
   );
 }
