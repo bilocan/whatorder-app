@@ -7,7 +7,7 @@ const TEST_BUSINESS_PHONE_NUMBER_ID = '1227165440469679';
 const TEST_BENAT_PHONE_NUMBER_ID = '1056173694256337';
 
 /** Production Meta line — never the default e2e target. */
-const PROD_BUSINESS_PHONE_NUMBER_ID = '1276715415516230';
+const PROD_BUSINESS_PHONE_NUMBER_ID = '1230087620193335';
 
 /** Test GCP / Firebase project (Admin SDK). */
 const TEST_FIREBASE_PROJECT_ID = 'whatorder-fire';
@@ -44,7 +44,7 @@ const TARGETS = {
   /** Preprod smoke — same Meta id as prod; webhook must point at pre backend only. */
   preprod: {
     label: 'preprod',
-    businessDisplay: '+436602347578',
+    businessDisplay: '+436602647870',
     businessPhoneNumberId: PROD_BUSINESS_PHONE_NUMBER_ID,
     businessId: 'biz_enes_kebap_9450w',
     allowProdTwin: true,
@@ -52,7 +52,7 @@ const TARGETS = {
   /** Explicit prod — blocked unless E2E_WA_ALLOW_PROD=1. */
   prod: {
     label: 'production',
-    businessDisplay: '+436602347578',
+    businessDisplay: '+436602647870',
     businessPhoneNumberId: PROD_BUSINESS_PHONE_NUMBER_ID,
     businessId: 'biz_enes_kebap_9450w',
     requiresAllowProd: true,
