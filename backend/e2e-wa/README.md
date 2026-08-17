@@ -145,7 +145,7 @@ xvfb-run -a env \
   npm run e2e:wa -- --target test --all-pack-b
 ```
 
-**Hard rule:** default test bot Meta id is `1227165440469679` (`+43 681 20575797`). Runner aborts on prod id unless allowed.
+**Hard rule:** default test bot Meta id is `1329391920253229` (`+43 681 20575797`). Runner aborts on prod id unless allowed.
 
 ## Nightly / on-demand (GitHub Actions)
 

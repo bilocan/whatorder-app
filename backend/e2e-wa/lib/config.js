@@ -1,7 +1,7 @@
 'use strict';
 
-/** Operator test bot (+43 681 20575797 / Whatorderat). Cloud Run Test WHATSAPP_PHONE_NUMBER_ID. */
-const TEST_BUSINESS_PHONE_NUMBER_ID = '1227165440469679';
+/** Operator test bot (+43 681 20575797 / WhatOrder WABA). Cloud Run Test WHATSAPP_PHONE_NUMBER_ID. */
+const TEST_BUSINESS_PHONE_NUMBER_ID = '1329391920253229';
 
 /** Legacy Meta sandbox / BenAT row id from older Test docs — not the e2e default bot. */
 const TEST_BENAT_PHONE_NUMBER_ID = '1056173694256337';
