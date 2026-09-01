@@ -4,7 +4,7 @@
 // axios so the real API call code is also exercised.
 jest.mock('axios');
 
-const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, deleteMessage, clampWaButtonTitle } = require('../whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendTemplate, deleteMessage, clampWaButtonTitle } = require('../whatsapp');
 const { runWithMessageIdentity } = require('../messageIdentity');
 
 let consoleSpy;
@@ -142,6 +142,27 @@ describe('sendButtonMessage', () => {
       buttons: [{ id: 'btn_empty', title: '   ' }],
     });
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('…'));
+  });
+});
+
+describe('sendTemplate', () => {
+  const payload = {
+    name: 'order_confirmation',
+    language: 'de_AT',
+    bodyTexts: ['Alex', 'A1B2C3', 'Demo Restaurant', '18.50'],
+  };
+
+  test('resolves without calling API and returns stub wamid', async () => {
+    await expect(sendTemplate('+43123456789', payload)).resolves.toMatch(/^test-wamid-/);
+  });
+
+  test('strips leading + and logs template name plus body params', async () => {
+    await sendTemplate('+43123456789', payload);
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('43123456789'));
+    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('+43123456789'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('order_confirmation'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('de_AT'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('A1B2C3'));
   });
 });
 
@@ -323,6 +344,41 @@ describe('production paths (NODE_ENV overridden)', () => {
       parameters: { display_text: 'Pay now 💳', url: 'https://checkout.stripe.com/c/pay/cs_test' },
     });
     expect(payload.interactive.body.text).not.toContain('checkout.stripe.com');
+  });
+
+  test('sendTemplate POSTs a template payload with de_AT and four body params', async () => {
+    axios.post.mockResolvedValue({ data: { messages: [{ id: 'wamid.template1' }] } });
+
+    await sendTemplate('+43123456789', {
+      name: 'order_confirmation',
+      language: 'de_AT',
+      bodyTexts: ['Alex', 'A1B2C3', 'Demo Restaurant', '18.50'],
+    }, 'PROD_PHONE_ID');
+
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('PROD_PHONE_ID/messages'),
+      {
+        messaging_product: 'whatsapp',
+        to: '43123456789',
+        type: 'template',
+        template: {
+          name: 'order_confirmation',
+          language: { code: 'de_AT' },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: 'Alex' },
+                { type: 'text', text: 'A1B2C3' },
+                { type: 'text', text: 'Demo Restaurant' },
+                { type: 'text', text: '18.50' },
+              ],
+            },
+          ],
+        },
+      },
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer TOKEN' }) }),
+    );
   });
 
   test('sendText does not retry with env phoneNumberId on Meta permission error', async () => {

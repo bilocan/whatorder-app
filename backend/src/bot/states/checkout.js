@@ -7,6 +7,7 @@ const {
   sendLocationRequest,
   sendCtaUrlMessage,
 } = require('../../lib/whatsapp');
+const { sendOrderConfirmationTemplate } = require('../orderConfirmationTemplate');
 const { t } = require('../templates');
 const {
   buildBasketText, sendCatalog, sendMenu, formatBasketItemsText, basketViewButtons, sendBasketView, parseBasketItemName,
@@ -232,6 +233,16 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
     pendingAmendBusinessId: businessId,
     pendingAmendPlacedAt: Date.now(),
     consecutiveParseFailures: 0,
+  });
+
+  await sendOrderConfirmationTemplate({
+    from,
+    lang,
+    customerName: session.customerName || contactName,
+    shortId,
+    restaurantName: info.name,
+    total,
+    phoneNumberId,
   });
 
   if (paymentMethod === 'stripe') {

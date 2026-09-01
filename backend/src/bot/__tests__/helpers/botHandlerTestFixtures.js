@@ -2,7 +2,7 @@ const { handleMessage } = require('../../botHandler');
 const { getSession, setSession, patchSession } = require('../../sessionStore');
 const { getMenu, getMenuContext, getBusinessInfo, resolvePhotoUrl } = require('../../menuService');
 const { createOrder, getLastOrderForCustomer, getOrder, amendOrderAddItems, cancelOrder } = require('../../orderService');
-const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage, sendCtaUrlMessage } = require('../../../lib/whatsapp');
+const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage, sendCtaUrlMessage, sendTemplate } = require('../../../lib/whatsapp');
 const { reverseGeocode } = require('../../../lib/geocode');
 const { customersRef } = require('../../../lib/collections');
 
@@ -174,6 +174,8 @@ function resetBotHandlerMocks() {
   sendText.mockResolvedValue();
   sendListMessage.mockResolvedValue('list_msg_id');
   sendButtonMessage.mockResolvedValue();
+  sendCtaUrlMessage.mockResolvedValue('cta_msg_id');
+  sendTemplate.mockResolvedValue('wamid.template');
   sendFlowMessage.mockResolvedValue(null);
   sendLocationRequest.mockResolvedValue();
   sendImage.mockResolvedValue('map_msg_id');
@@ -221,6 +223,7 @@ module.exports = {
   sendLocationRequest,
   sendImage,
   sendCtaUrlMessage,
+  sendTemplate,
   reverseGeocode,
   customersRef,
   BIZ,

@@ -72,6 +72,7 @@ const {
   sendLocationRequest,
   sendImage,
   sendCtaUrlMessage,
+  sendTemplate,
   reverseGeocode,
   customersRef,
   BIZ,
@@ -227,6 +228,59 @@ describe('Single-restaurant: order complete/cancel behavior unchanged', () => {
     expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       url: 'https://checkout.stripe.com/pay/cs_1',
     }), 'test_phone_id');
+    expect(sendTemplate).not.toHaveBeenCalled();
+  });
+
+  test('DE order confirmed → utility template then Stripe pay link', async () => {
+    getBusinessInfo.mockResolvedValue(CARD_READY_BIZ);
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'confirming',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'Ali',
+      pickupTime: '14:30',
+      specialRequests: '',
+      businessId: BIZ,
+    });
+    createOrder.mockResolvedValue('order_abc123');
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Bestätigen ✅' }));
+
+    expect(sendTemplate).toHaveBeenCalledWith(
+      FROM,
+      {
+        name: 'order_confirmation',
+        language: 'de_AT',
+        bodyTexts: ['Ali', 'ABC123', 'Döner Palace', '8.50'],
+      },
+      'test_phone_id',
+    );
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: 'https://checkout.stripe.com/pay/cs_1',
+    }), 'test_phone_id');
+  });
+
+  test('DE order confirmed still sends pay link when template send fails', async () => {
+    sendTemplate.mockRejectedValue(new Error('Graph down'));
+    getBusinessInfo.mockResolvedValue(CARD_READY_BIZ);
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'confirming',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'Ali',
+      pickupTime: '14:30',
+      specialRequests: '',
+      businessId: BIZ,
+    });
+    createOrder.mockResolvedValue('order_abc123');
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_place_order', title: 'Bestätigen ✅' }));
+
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: 'https://checkout.stripe.com/pay/cs_1',
+    }), 'test_phone_id');
+    errSpy.mockRestore();
   });
 
   test('order cancelled → browsing state + catalog (no button message)', async () => {

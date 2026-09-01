@@ -50,7 +50,7 @@ const { getMenu, getMenuContext, getBusinessInfo, resolvePhotoUrl } = require('.
 const { createOrder, getLastOrderForCustomer, getOrder, cancelOrder, amendOrderAddItems } = require('../orderService');
 const {
   sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage,
-  sendFlowMessage, sendLocationRequest, sendImage,
+  sendFlowMessage, sendLocationRequest, sendImage, sendTemplate,
 } = require('../../lib/whatsapp');
 const { reverseGeocode } = require('../../lib/geocode');
 const { customersRef, menuRef } = require('../../lib/collections');
@@ -147,6 +147,7 @@ beforeEach(() => {
   sendListMessage.mockResolvedValue('list_msg_id');
   sendButtonMessage.mockResolvedValue();
   sendCtaUrlMessage.mockResolvedValue('cta_msg_id');
+  sendTemplate.mockResolvedValue('wamid.template');
   sendFlowMessage.mockResolvedValue(null);
   sendLocationRequest.mockResolvedValue();
   sendImage.mockResolvedValue('map_msg_id');
@@ -182,6 +183,7 @@ describe('Stripe checkout gates on legal profile and VAT', () => {
     expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       url: 'https://checkout.stripe.com/pay/cs_1',
     }), 'test_phone_id');
+    expect(sendTemplate).not.toHaveBeenCalled();
   });
 
   test('includes the delivery fee in the snapshot at 10%', async () => {
@@ -289,6 +291,23 @@ describe('Stripe checkout gates on legal profile and VAT', () => {
     expect(createCheckoutSessionForOrder).not.toHaveBeenCalled();
     expect(sendCtaUrlMessage).not.toHaveBeenCalled();
     expect(sendText).toHaveBeenCalledWith(FROM, t('paymentLegalIncomplete', 'en'), 'test_phone_id');
+  });
+
+  test('DE card order sends utility confirmation template then pay CTA', async () => {
+    getSession.mockResolvedValue(confirmingSession({ language: 'de', customerName: 'Ali' }));
+
+    await handleMessage(ROUTING, placeOrderMsg);
+
+    expect(sendTemplate).toHaveBeenCalledWith(
+      FROM,
+      {
+        name: 'order_confirmation',
+        language: 'de_AT',
+        bodyTexts: ['Ali', 'ABC123', 'Döner Palace', '19.00'],
+      },
+      'test_phone_id',
+    );
+    expect(sendCtaUrlMessage).toHaveBeenCalled();
   });
 });
 

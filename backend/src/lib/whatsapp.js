@@ -127,6 +127,31 @@ async function sendButtonMessage(to, { body, footer, header, buttons }, phoneNum
 }
 
 // Opens url in the device browser — use instead of pasting long URLs in message body.
+// Spec §9 Example 1: type template, language.code, body parameters as text.
+async function sendTemplate(to, { name, language, bodyTexts }, phoneNumberId) {
+  const normalized = normalizePhone(to);
+  const texts = (bodyTexts ?? []).map((text) => String(text));
+  if (process.env.NODE_ENV === 'test') {
+    console.log(`\n[WA TEMPLATE → ${normalized}] name=${name} lang=${language} params=${JSON.stringify(texts)}\n`);
+    return testId();
+  }
+  return send({
+    messaging_product: 'whatsapp',
+    to: normalized,
+    type: 'template',
+    template: {
+      name,
+      language: { code: language },
+      components: [
+        {
+          type: 'body',
+          parameters: texts.map((text) => ({ type: 'text', text })),
+        },
+      ],
+    },
+  }, phoneNumberId);
+}
+
 async function sendCtaUrlMessage(to, { body, footer, header, buttonLabel, url }, phoneNumberId) {
   const normalized = normalizePhone(to);
   const identified = applyOutboundIdentity({ body, header: header ?? null, kind: 'interactive' });
@@ -326,7 +351,7 @@ async function deleteMessage(messageId) {
 }
 
 module.exports = {
-  sendText, sendListMessage, sendButtonMessage, sendCtaUrlMessage, sendCatalogMessage, sendFlowMessage,
+  sendText, sendListMessage, sendButtonMessage, sendTemplate, sendCtaUrlMessage, sendCatalogMessage, sendFlowMessage,
   sendLocationRequest, sendImage, uploadMedia, sendDocument, deleteMessage,
   clampWaButtonTitle, clampWaListRowTitle, sanitizeListSections, WA_BUTTON_TITLE_MAX, WA_LIST_ROW_TITLE_MAX,
 };
