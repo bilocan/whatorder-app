@@ -884,6 +884,7 @@
         "coordinates": "Koordinatlar",
         "image": "Kapak görseli",
         "imageHint": "Herkese açık HTTPS veya gs:// URL. Müşteriler bu restoranı görebilmeden önce gerekli.",
+        "embeddedImageHint": "Gömülü kapak görseli kayıtlı. Değiştirmek için HTTPS veya gs:// URL yapıştır.",
         "edit": "Düzenle",
         "statusActive": "Aktif",
         "statusPaused": "Duraklatıldı",

@@ -884,6 +884,7 @@
         "coordinates": "Koordinaten",
         "image": "Titelbild",
         "imageHint": "Öffentliche HTTPS- oder gs://-URL. Erforderlich, bevor Kunden dieses Restaurant sehen können.",
+        "embeddedImageHint": "Eingebettetes Titelbild gespeichert. Zum Ersetzen eine HTTPS- oder gs://-URL einfügen.",
         "edit": "Bearbeiten",
         "statusActive": "Aktiv",
         "statusPaused": "Pausiert",

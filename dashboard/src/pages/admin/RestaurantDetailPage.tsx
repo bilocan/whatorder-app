@@ -526,7 +526,11 @@ const EMPTY_MENU: MenuFormState = {
                   placeholder="https://firebasestorage.googleapis.com/..."
                   style={inputStyle}
                 />
-                <div style={{ fontSize: '0.78rem', color: '#999', marginTop: '0.25rem' }}>{t('admin.restaurantDetail.details.imageHint')}</div>
+                <div style={{ fontSize: '0.78rem', color: '#999', marginTop: '0.25rem' }}>
+                  {t(isEmbeddedImageUrl(editImageUrl)
+                    ? 'admin.restaurantDetail.details.embeddedImageHint'
+                    : 'admin.restaurantDetail.details.imageHint')}
+                </div>
                 {editImageUrl && (
                   <img src={editImageUrl} alt={editName} style={{ ...coverImgStyle, marginTop: '0.5rem' }} />
                 )}
@@ -850,7 +854,7 @@ const coverImgStyle: React.CSSProperties = {
 };
 
 function isEmbeddedImageUrl(url: string): boolean {
-  return url.startsWith('data:');
+  return url.trim().toLowerCase().startsWith('data:');
 }
 
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
