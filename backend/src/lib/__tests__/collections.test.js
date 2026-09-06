@@ -12,9 +12,9 @@ const { db } = require('../firebase');
 const {
   businessRef, businessesCollectionRef, menuRef, optionGroupsRef, ordersRef, customersRef, phoneRoutingRef,
   receiptsRef, receiptRef, receiptCounterRef, dealsRef, dealRef,
-  ownerRef, adminRef, processedMessageRef, stripeEventRef, configRef,
-  settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, commandLearningRef,
-  seededIntentRef, seedOverridesRef,
+  ownerRef, ownersCollectionRef, adminRef, processedMessageRef, stripeEventRef, configRef,
+  settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, intentLearningsRef, commandLearningRef,
+  seededIntentRef, seededIntentsRef, seedOverridesRef,
 } = require('../collections');
 
 beforeEach(() => {
@@ -196,6 +196,15 @@ describe('payoutRef', () => {
   });
 });
 
+describe('intentLearningsRef', () => {
+  test('builds path: businesses/{id}/intentLearnings', () => {
+    intentLearningsRef('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
+    expect(db.doc).toHaveBeenCalledWith('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(2, 'intentLearnings');
+  });
+});
+
 describe('intentLearningRef', () => {
   test('builds path: businesses/{id}/intentLearnings/{keyHash}', () => {
     intentLearningRef('biz_test', 'abc123');
@@ -206,6 +215,15 @@ describe('intentLearningRef', () => {
   });
 });
 
+describe('seededIntentsRef', () => {
+  test('builds path: businesses/{id}/seededIntents', () => {
+    seededIntentsRef('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
+    expect(db.doc).toHaveBeenCalledWith('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(2, 'seededIntents');
+  });
+});
+
 describe('seededIntentRef', () => {
   test('builds path: businesses/{id}/seededIntents/{keyHash}', () => {
     seededIntentRef('biz_test', 'abc123');
@@ -213,6 +231,13 @@ describe('seededIntentRef', () => {
     expect(db.doc).toHaveBeenCalledWith('biz_test');
     expect(db.collection).toHaveBeenNthCalledWith(2, 'seededIntents');
     expect(db.doc).toHaveBeenCalledWith('abc123');
+  });
+});
+
+describe('ownersCollectionRef', () => {
+  test('builds path: owners', () => {
+    ownersCollectionRef();
+    expect(db.collection).toHaveBeenCalledWith('owners');
   });
 });
 

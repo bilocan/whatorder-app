@@ -17,6 +17,7 @@ const TrashIcon = () => (
 );
 
 import { API_URL } from '../../lib/apiUrl';
+import RestaurantBundleImport from './RestaurantBundleImport';
 
 function generateId(name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 20);
@@ -147,6 +148,8 @@ export default function RestaurantsPage() {
       {activePhoneNumberId && (
         <p style={{ margin: '0 0 1rem', fontSize: '0.78rem', color: '#666' }}>{t('admin.restaurants.phoneLineScope')}</p>
       )}
+
+      <RestaurantBundleImport />
 
       {showForm && (
         <form onSubmit={createRestaurant} style={{ background: '#f9fafb', padding: '1rem', borderRadius: 10, marginBottom: '1.5rem' }}>

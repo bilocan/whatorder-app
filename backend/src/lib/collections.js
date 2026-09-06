@@ -43,8 +43,10 @@ const phoneRoutingByBusinessQuery = (businessId) =>
   db.collection('phoneRouting').where('businessIds', 'array-contains', businessId).limit(10);
 
 // owners/{uid} → { businessId }  (which business this Firebase Auth user owns)
+const ownersCollectionRef = () => db.collection('owners');
+
 const ownerRef = (uid) =>
-  db.collection('owners').doc(uid);
+  ownersCollectionRef().doc(uid);
 
 // admins/{uid} → {} (flag doc — existence means the user is a super-admin)
 const adminRef = (uid) =>
@@ -78,12 +80,18 @@ const payoutRef = (payoutId) =>
   payoutsRef().doc(payoutId);
 
 // businesses/{businessId}/intentLearnings/{keyHash} — Tier B → Tier A validated parses
+const intentLearningsRef = (businessId) =>
+  businessRef(businessId).collection('intentLearnings');
+
 const intentLearningRef = (businessId, keyHash) =>
-  businessRef(businessId).collection('intentLearnings').doc(keyHash);
+  intentLearningsRef(businessId).doc(keyHash);
 
 // businesses/{businessId}/seededIntents/{keyHash} — archive of learnings shipped in the app seed
+const seededIntentsRef = (businessId) =>
+  businessRef(businessId).collection('seededIntents');
+
 const seededIntentRef = (businessId, keyHash) =>
-  businessRef(businessId).collection('seededIntents').doc(keyHash);
+  seededIntentsRef(businessId).doc(keyHash);
 
 // businesses/{businessId}/config/seedOverrides → { textKeys: [] } — corrections that shadow the baked seed
 const seedOverridesRef = (businessId) =>
@@ -98,7 +106,7 @@ module.exports = {
   businessRef, menuRef, optionGroupsRef, ordersRef, dealsRef, dealRef, customersRef,
   receiptsRef, receiptRef, receiptCounterRef,
   phoneRoutingRef, phoneRoutingByBusinessQuery,
-  ownerRef, adminRef,
+  ownerRef, ownersCollectionRef, adminRef,
   sessionRef,
   processedMessageRef,
   stripeEventRef,
@@ -107,7 +115,9 @@ module.exports = {
   payoutsRef,
   payoutRef,
   intentLearningRef,
+  intentLearningsRef,
   seededIntentRef,
+  seededIntentsRef,
   seedOverridesRef,
   commandLearningRef,
 };

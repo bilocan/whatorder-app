@@ -7,8 +7,10 @@ const path = require('path');
 const {
   suggestNextTag,
   extractUserVisibleNotes,
+  extractProductionTasks,
   buildReleasedMarkdown,
   buildFreshUnreleasedTemplate,
+  buildFreshProductionTasksTemplate,
   branchSyncState,
   assessReleaseBranches,
   normalizeTag,
@@ -41,6 +43,10 @@ test('extractUserVisibleNotes collects all user-visible sections', () => {
 
 - hidden
 
+## Production tasks
+
+- **Before Preprod:** apply CORS
+
 ## User-visible
 
 - **Dashboard:** second item
@@ -49,6 +55,45 @@ test('extractUserVisibleNotes collects all user-visible sections', () => {
   assert.match(notes, /first item/);
   assert.match(notes, /second item/);
   assert.doesNotMatch(notes, /hidden/);
+  assert.doesNotMatch(notes, /apply CORS/);
+});
+
+test('extractProductionTasks reads dedicated file bullets', () => {
+  const md = `---
+type: release-ops
+status: unreleased
+---
+# Production tasks
+
+> [!info] When to log
+> Human env steps.
+
+- **Before Preprod/Prod import:** apply GCS CORS on gs://whatorder-fire-prod-backups.
+`;
+  const tasks = extractProductionTasks(md);
+  assert.match(tasks, /apply GCS CORS/);
+  assert.doesNotMatch(tasks, /When to log/);
+});
+
+test('extractProductionTasks ignores changelog sections', () => {
+  const md = `# Unreleased
+
+## User-visible
+
+- **Bot:** first item
+
+## Internal
+
+- hidden
+
+## Production tasks
+
+- **Before Preprod/Prod import:** apply GCS CORS on gs://whatorder-fire-prod-backups.
+`;
+  const tasks = extractProductionTasks(md);
+  assert.match(tasks, /apply GCS CORS/);
+  assert.doesNotMatch(tasks, /first item/);
+  assert.doesNotMatch(tasks, /hidden/);
 });
 
 test('buildReleasedMarkdown updates frontmatter', () => {
@@ -70,7 +115,37 @@ tags: [whatorder, releases]
   assert.match(out, /release: v2026.07.0/);
   assert.match(out, /date: 2026-07-11/);
   assert.match(out, /# v2026.07.0/);
+  assert.match(out, /## Production tasks/);
   assert.match(out, /shipped thing/);
+});
+
+test('buildReleasedMarkdown archives production-tasks.md and strips leftover section', () => {
+  const source = `---
+type: release-log
+status: unreleased
+---
+# Unreleased
+
+## User-visible
+
+- shipped thing
+
+## Production tasks
+
+- leftover from old unreleased section
+`;
+  const tasksFile = `# Production tasks
+
+- **Before Prod:** apply CORS
+`;
+  const out = buildReleasedMarkdown(source, 'v2026.07.0', '2026-07-11', tasksFile);
+  assert.match(out, /\*\*Before Prod:\*\* apply CORS/);
+  assert.match(out, /leftover from old unreleased section/);
+  const tasksIdx = out.indexOf('## Production tasks');
+  const userIdx = out.indexOf('## User-visible');
+  assert.ok(tasksIdx >= 0 && tasksIdx < userIdx);
+  const afterUser = out.slice(userIdx);
+  assert.doesNotMatch(afterUser, /## Production tasks/);
 });
 
 test('buildFreshUnreleasedTemplate seeds empty sections', () => {
@@ -78,6 +153,14 @@ test('buildFreshUnreleasedTemplate seeds empty sections', () => {
   assert.match(fresh, /status: unreleased/);
   assert.match(fresh, /## User-visible/);
   assert.match(fresh, /## Internal/);
+  assert.doesNotMatch(fresh, /## Production tasks/);
+});
+
+test('buildFreshProductionTasksTemplate seeds empty ops file', () => {
+  const fresh = buildFreshProductionTasksTemplate();
+  assert.match(fresh, /type: release-ops/);
+  assert.match(fresh, /# Production tasks/);
+  assert.doesNotMatch(fresh, /apply CORS/);
 });
 
 test('branchSyncState', () => {
@@ -119,7 +202,7 @@ test('assessReleaseBranches blocks unpromoted dev work', () => {
   assert.equal(result.reason, 'needs-promote');
 });
 
-test('rotateVaultRelease writes release file and resets unreleased', () => {
+test('rotateVaultRelease writes release file and resets unreleased plus production-tasks', () => {
   const tmpVault = fs.mkdtempSync(path.join(os.tmpdir(), 'wo-vault-'));
   const releasesDir = vaultReleasesDir(tmpVault);
   fs.mkdirSync(releasesDir, { recursive: true });
@@ -128,11 +211,23 @@ test('rotateVaultRelease writes release file and resets unreleased', () => {
     `${buildFreshUnreleasedTemplate()}## User-visible\n\n- **Test:** item one\n`,
     'utf8',
   );
+  fs.writeFileSync(
+    path.join(releasesDir, 'production-tasks.md'),
+    `${buildFreshProductionTasksTemplate()}- **Before Prod:** apply CORS\n`,
+    'utf8',
+  );
 
   const result = rotateVaultRelease(tmpVault, 'v2026.07.0');
   assert.match(result.releaseNotes, /item one/);
-  assert.ok(fs.existsSync(path.join(releasesDir, 'v2026.07.0.md')));
+  assert.match(result.productionTasks, /apply CORS/);
+  const archived = fs.readFileSync(path.join(releasesDir, 'v2026.07.0.md'), 'utf8');
+  assert.match(archived, /## Production tasks/);
+  assert.match(archived, /apply CORS/);
+  assert.match(archived, /item one/);
   const unreleased = fs.readFileSync(path.join(releasesDir, 'unreleased.md'), 'utf8');
   assert.match(unreleased, /status: unreleased/);
   assert.doesNotMatch(unreleased, /item one/);
+  const tasks = fs.readFileSync(path.join(releasesDir, 'production-tasks.md'), 'utf8');
+  assert.match(tasks, /status: unreleased/);
+  assert.doesNotMatch(tasks, /apply CORS/);
 });

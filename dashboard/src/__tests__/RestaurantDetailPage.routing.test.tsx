@@ -38,7 +38,10 @@ vi.mock('../contexts/AdminPhoneLineContext', () => ({
   }),
 }));
 
-vi.mock('../lib/firebase', () => ({ db: {} }));
+vi.mock('../lib/firebase', () => ({
+  db: {},
+  auth: { currentUser: { getIdToken: vi.fn().mockResolvedValue('test-token') } },
+}));
 vi.mock('../lib/geocode', () => ({ geocodeAddress: vi.fn() }));
 vi.mock('../hooks/useOptionGroupLibrary', () => ({
   useOptionGroupLibrary: () => stableOptionGroups,
@@ -347,5 +350,24 @@ describe('RestaurantDetailPage — Legal & billing card', () => {
         { legal: expect.objectContaining({ complete: false }) },
       );
     });
+  });
+});
+
+describe('RestaurantDetailPage — restaurant bundle export', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('open', vi.fn());
+  });
+
+  it('shows export controls and a PII warning for the Full profile', async () => {
+    setupMocks();
+    renderPage();
+    await waitForLoad();
+
+    expect(screen.getByRole('heading', { name: 'Export restaurant' })).toBeInTheDocument();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full \(includes orders and receipts\)/i }));
+    expect(screen.getByRole('note')).toHaveTextContent(/customer data/i);
   });
 });

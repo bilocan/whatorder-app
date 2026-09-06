@@ -30,6 +30,9 @@ const {
   planVaultRelease,
   applyVaultRelease,
   extractUserVisibleNotes,
+  extractProductionTasks,
+  unreleasedPath,
+  productionTasksPath,
   printHelp,
   printReleaseOverview,
   printNextSteps,
@@ -237,7 +240,7 @@ async function ensureBranchesReady(appRootDir, flags) {
     if (!flags.dryRun) {
       printNextSteps('Pass 2 — ship to production (this run will)', [
         'Check preprod /version SHA matches master (unless --skip-preprod-check)',
-        'Rotate vault `releases/unreleased.md` → `releases/<tag>.md` and push vault `master`',
+        'Rotate vault `releases/unreleased.md` + `production-tasks.md` → `releases/<tag>.md` and push vault `master`',
         'Publish GitHub Release on `master` (promotes preprod image to live prod)',
         'Watch **Release to Production** + check prod `/health`',
         'Open a **master → dev** sync PR afterward if needed',
@@ -289,9 +292,10 @@ async function commitAndPushVault(vaultRootDir, rotation, tag, { dryRun, skipVau
   logStep('Vault changelog');
   console.log(`  Release file: ${rotation.releasedFile}`);
   console.log(`  Reset: ${rotation.unreleasedFile}`);
+  console.log(`  Reset: ${rotation.productionTasksFile}`);
 
   if (dryRun) {
-    console.log(`  Would write ${path.basename(rotation.releasedFile)} and reset unreleased.md`);
+    console.log(`  Would write ${path.basename(rotation.releasedFile)} and reset unreleased.md + production-tasks.md`);
     console.log(`  Would commit vault: chore(release): rotate changelog for ${tag}`);
     console.log('  Would push vault: origin master');
     return;
@@ -317,6 +321,12 @@ async function commitAndPushVault(vaultRootDir, rotation, tag, { dryRun, skipVau
     const unreleasedNow = fs.readFileSync(rotation.unreleasedFile, 'utf8');
     if (extractUserVisibleNotes(unreleasedNow)) {
       fs.writeFileSync(rotation.unreleasedFile, rotation.freshMarkdown, 'utf8');
+    }
+    const tasksNow = fs.existsSync(rotation.productionTasksFile)
+      ? fs.readFileSync(rotation.productionTasksFile, 'utf8')
+      : '';
+    if (extractProductionTasks(tasksNow)) {
+      fs.writeFileSync(rotation.productionTasksFile, rotation.freshProductionTasks, 'utf8');
     }
   } else {
     applyVaultRelease(rotation);
@@ -481,6 +491,24 @@ function latestReleaseTag(appRootDir) {
   return result.status === 0 ? result.stdout.trim() : null;
 }
 
+function productionTasksReminder(vaultRootDir) {
+  logStep('Production tasks (this tag, not CI)');
+  const filePath = productionTasksPath(vaultRootDir);
+  const fromFile = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
+  const fromUnreleased = fs.existsSync(unreleasedPath(vaultRootDir))
+    ? fs.readFileSync(unreleasedPath(vaultRootDir), 'utf8')
+    : '';
+  const tasks = extractProductionTasks(fromFile) || extractProductionTasks(fromUnreleased);
+  if (!tasks) {
+    console.log('  None listed. Add at task done in vault releases/production-tasks.md if this tag needs a human env step.');
+    return;
+  }
+  for (const line of tasks.split('\n')) {
+    console.log(`  ${line}`);
+  }
+  console.log('  Complete these before the named gate. Pass 2 archives them into releases/<tag>.md and clears production-tasks.md.');
+}
+
 const SEED_MAX_AGE_DAYS = 14;
 
 // The Docker image bakes backend/src/data/intentLearnings.seed.json at the
@@ -561,6 +589,7 @@ async function main() {
   ensureVaultRepo(vault);
 
   intentSeedReminder(root);
+  productionTasksReminder(vault);
 
   const branchGate = await ensureBranchesReady(root, flags);
   if (branchGate.alreadyPromoted) {
@@ -597,6 +626,19 @@ async function main() {
   await verifyPreprodSha(root, flags);
 
   const rotation = planVaultRelease(vault, tag);
+
+  if (rotation.productionTasks && !flags.dryRun && !flags.yes && branchGate.shippingPass) {
+    logStep('Production tasks required for this tag');
+    for (const line of rotation.productionTasks.split('\n')) {
+      console.log(`  ${line}`);
+    }
+    const ok = awaitConfirm(
+      'Production tasks for this tag done (or N/A)? They archive into the tag file and production-tasks.md clears.',
+    );
+    if (!ok) {
+      throw new Error('Release cancelled — finish vault releases/production-tasks.md, then re-run npm run release.');
+    }
+  }
 
   await commitAndPushVault(vault, rotation, tag, flags);
 
