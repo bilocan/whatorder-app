@@ -849,14 +849,34 @@
       "botOff": "Inactive",
       "delete": "Delete",
       "deleteConfirm": "Delete restaurant \"{{name}}\"?",
-      "form": {
-        "name": "Restaurant name",
-        "ownerPhone": "Owner phone",
-        "create": "Create",
-        "creating": "Creating...",
-        "cancel": "Cancel"
-      }
-    },
+        "form": {
+          "name": "Restaurant name",
+          "ownerPhone": "Owner phone",
+          "create": "Create",
+          "creating": "Creating...",
+          "cancel": "Cancel"
+        }
+      },
+      "bundle": {
+        "exportTitle": "Export restaurant",
+        "exportHint": "Download one file with this restaurant's setup (menu, hours, photos, learned phrases). Use Full only for a same-env backup.",
+        "exportButton": "Export",
+        "exporting": "Exporting…",
+        "downloadAgain": "Download again",
+        "profileSetup": "Setup (move to another env)",
+        "profileFull": "Full (includes orders and receipts)",
+        "piiWarning": "This file can contain owner phones, IBAN, and customer data. Treat it like a backup, not a chat attachment.",
+        "importTitle": "Import restaurant",
+        "importHint": "Upload a restaurant file from this computer. Do not paste a cloud path from another environment.",
+        "previewButton": "Preview file",
+        "working": "Working…",
+        "keepId": "Keep the same restaurant ID",
+        "overwrite": "Overwrite if this ID already exists",
+        "attachLine": "Add to the WhatsApp line selected in the sidebar",
+        "confirmName": "Type the restaurant name to confirm",
+        "importButton": "Import",
+        "imported": "Imported {{id}}"
+      },
     "restaurantDetail": {
       "loading": "Loading...",
       "back": "← Restaurants",

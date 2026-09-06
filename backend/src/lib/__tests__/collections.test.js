@@ -5,6 +5,7 @@ jest.mock('../firebase', () => {
   const chain = {};
   chain.collection = jest.fn(() => chain);
   chain.doc = jest.fn(() => chain);
+  chain.where = jest.fn(() => chain);
   return { db: chain, admin: {} };
 });
 
@@ -12,14 +13,15 @@ const { db } = require('../firebase');
 const {
   businessRef, businessesCollectionRef, menuRef, optionGroupsRef, ordersRef, customersRef, phoneRoutingRef,
   receiptsRef, receiptRef, receiptCounterRef, dealsRef, dealRef,
-  ownerRef, adminRef, processedMessageRef, stripeEventRef, configRef,
-  settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, commandLearningRef,
-  seededIntentRef, seedOverridesRef,
+  ownerRef, ownersCollectionRef, ownersByBusinessIdsQuery, ownersByLegacyBusinessIdQuery, adminRef, processedMessageRef, stripeEventRef, configRef,
+  settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, intentLearningsRef, commandLearningRef,
+  seededIntentRef, seededIntentsRef, seedOverridesRef,
 } = require('../collections');
 
 beforeEach(() => {
   db.collection.mockClear();
   db.doc.mockClear();
+  db.where.mockClear();
 });
 
 describe('businessesCollectionRef', () => {
@@ -196,6 +198,15 @@ describe('payoutRef', () => {
   });
 });
 
+describe('intentLearningsRef', () => {
+  test('builds path: businesses/{id}/intentLearnings', () => {
+    intentLearningsRef('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
+    expect(db.doc).toHaveBeenCalledWith('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(2, 'intentLearnings');
+  });
+});
+
 describe('intentLearningRef', () => {
   test('builds path: businesses/{id}/intentLearnings/{keyHash}', () => {
     intentLearningRef('biz_test', 'abc123');
@@ -206,6 +217,15 @@ describe('intentLearningRef', () => {
   });
 });
 
+describe('seededIntentsRef', () => {
+  test('builds path: businesses/{id}/seededIntents', () => {
+    seededIntentsRef('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(1, 'businesses');
+    expect(db.doc).toHaveBeenCalledWith('biz_test');
+    expect(db.collection).toHaveBeenNthCalledWith(2, 'seededIntents');
+  });
+});
+
 describe('seededIntentRef', () => {
   test('builds path: businesses/{id}/seededIntents/{keyHash}', () => {
     seededIntentRef('biz_test', 'abc123');
@@ -213,6 +233,29 @@ describe('seededIntentRef', () => {
     expect(db.doc).toHaveBeenCalledWith('biz_test');
     expect(db.collection).toHaveBeenNthCalledWith(2, 'seededIntents');
     expect(db.doc).toHaveBeenCalledWith('abc123');
+  });
+});
+
+describe('ownersCollectionRef', () => {
+  test('builds path: owners', () => {
+    ownersCollectionRef();
+    expect(db.collection).toHaveBeenCalledWith('owners');
+  });
+});
+
+describe('ownersByBusinessIdsQuery', () => {
+  test('queries owners by businessIds array-contains', () => {
+    ownersByBusinessIdsQuery('biz_test');
+    expect(db.collection).toHaveBeenCalledWith('owners');
+    expect(db.where).toHaveBeenCalledWith('businessIds', 'array-contains', 'biz_test');
+  });
+});
+
+describe('ownersByLegacyBusinessIdQuery', () => {
+  test('queries owners by legacy businessId', () => {
+    ownersByLegacyBusinessIdQuery('biz_test');
+    expect(db.collection).toHaveBeenCalledWith('owners');
+    expect(db.where).toHaveBeenCalledWith('businessId', '==', 'biz_test');
   });
 });
 

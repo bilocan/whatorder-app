@@ -37,6 +37,7 @@ const TrashIcon = () => (
 );
 
 import { API_URL } from '../../lib/apiUrl';
+import RestaurantBundleExport from './RestaurantBundleExport';
 
 type Tab = 'details' | 'menu' | 'owners';
 
@@ -563,6 +564,7 @@ const EMPTY_MENU: MenuFormState = {
             {legalSaveStatus === 'error' && <span className="settings-status-err">{t('settings.legal.error')}</span>}
           </div>
         </section>
+        <RestaurantBundleExport businessId={business.id} />
         </>
       )}
 

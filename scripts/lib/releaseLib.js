@@ -26,6 +26,10 @@ function unreleasedPath(vaultRootDir) {
   return path.join(vaultReleasesDir(vaultRootDir), 'unreleased.md');
 }
 
+function productionTasksPath(vaultRootDir) {
+  return path.join(vaultReleasesDir(vaultRootDir), 'production-tasks.md');
+}
+
 function releasedPath(vaultRootDir, tag) {
   return path.join(vaultReleasesDir(vaultRootDir), `${tag}.md`);
 }
@@ -122,14 +126,15 @@ function stringifyFrontmatter(frontmatter) {
   return `---\n${lines.join('\n')}\n---\n`;
 }
 
-function extractUserVisibleNotes(markdown) {
+function extractMarkdownSections(markdown, heading) {
+  const headingRe = new RegExp(`^## ${heading}\\s*$`, 'i');
   const lines = markdown.split(/\r?\n/);
   const chunks = [];
   let collecting = false;
   let current = [];
 
   for (const line of lines) {
-    if (/^## User-visible\s*$/i.test(line)) {
+    if (headingRe.test(line)) {
       if (collecting && current.length > 0) chunks.push(current.join('\n').trim());
       collecting = true;
       current = [];
@@ -150,7 +155,43 @@ function extractUserVisibleNotes(markdown) {
   return chunks.join('\n\n').trim();
 }
 
-function buildReleasedMarkdown(sourceMarkdown, tag, releaseDate = formatReleaseDate()) {
+function extractUserVisibleNotes(markdown) {
+  return extractMarkdownSections(markdown, 'User-visible');
+}
+
+function extractProductionTasks(markdown) {
+  const fromHeading = extractMarkdownSections(markdown, 'Production tasks');
+  if (fromHeading) return fromHeading;
+  const { body } = parseFrontmatter(markdown);
+  const bullets = [];
+  for (const line of body.split(/\r?\n/)) {
+    if (/^\s*[-*]\s+/.test(line)) bullets.push(line);
+  }
+  return bullets.join('\n').trim();
+}
+
+function stripMarkdownSection(markdown, heading) {
+  const headingRe = new RegExp(`^## ${heading}\\s*$`, 'i');
+  const lines = markdown.split(/\r?\n/);
+  const out = [];
+  let skipping = false;
+  for (const line of lines) {
+    if (headingRe.test(line)) {
+      skipping = true;
+      continue;
+    }
+    if (skipping && /^## /.test(line)) skipping = false;
+    if (!skipping) out.push(line);
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function buildReleasedMarkdown(
+  sourceMarkdown,
+  tag,
+  releaseDate = formatReleaseDate(),
+  productionTasksMarkdown = '',
+) {
   const { frontmatter, body } = parseFrontmatter(sourceMarkdown);
   const nextFrontmatter = {
     ...frontmatter,
@@ -162,8 +203,13 @@ function buildReleasedMarkdown(sourceMarkdown, tag, releaseDate = formatReleaseD
     tags: frontmatter.tags || '[whatorder, releases]',
   };
 
+  const leftoverTasks = extractMarkdownSections(body, 'Production tasks');
+  const fileTasks = extractProductionTasks(productionTasksMarkdown);
+  const tasks = [fileTasks, leftoverTasks].filter(Boolean).join('\n\n');
+  const changelogBody = stripMarkdownSection(body, 'Production tasks');
+  const tasksBlock = `## Production tasks\n\n${tasks ? `${tasks}\n` : ''}`;
   const title = `# ${tag}`;
-  return `${stringifyFrontmatter(nextFrontmatter)}${title}\n\n${body.trim()}\n`;
+  return `${stringifyFrontmatter(nextFrontmatter)}${title}\n\n${tasksBlock}\n${changelogBody}\n`;
 }
 
 function buildFreshUnreleasedTemplate() {
@@ -180,6 +226,20 @@ function buildFreshUnreleasedTemplate() {
 ## User-visible
 
 ## Internal
+
+`;
+}
+
+function buildFreshProductionTasksTemplate() {
+  return `${stringifyFrontmatter({
+    type: 'release-ops',
+    project: 'WhatOrder',
+    status: 'unreleased',
+    tags: '[whatorder, releases, production-tasks]',
+  })}# Production tasks
+
+> [!info] When to log
+> Human env steps CI will not run for **this tag**. Append at **task done**. Empty is fine. Pass 2 of \`npm run release\` copies this into \`releases/<tag>.md\` and clears this file. Rules: [[releases/README#Production tasks]].
 
 `;
 }
@@ -249,20 +309,38 @@ function readUnreleasedOrThrow(vaultRootDir) {
   return content;
 }
 
+function readProductionTasksMarkdown(vaultRootDir) {
+  const filePath = productionTasksPath(vaultRootDir);
+  if (!fs.existsSync(filePath)) return '';
+  return fs.readFileSync(filePath, 'utf8');
+}
+
 function planVaultRelease(vaultRootDir, tag) {
   const source = readUnreleasedOrThrow(vaultRootDir);
+  const productionTasksSource = readProductionTasksMarkdown(vaultRootDir);
   const releaseDate = formatReleaseDate();
-  const releasedMarkdown = buildReleasedMarkdown(source, tag, releaseDate);
+  const releasedMarkdown = buildReleasedMarkdown(
+    source,
+    tag,
+    releaseDate,
+    productionTasksSource,
+  );
   const freshMarkdown = buildFreshUnreleasedTemplate();
+  const freshProductionTasks = buildFreshProductionTasksTemplate();
   const releasedFile = releasedPath(vaultRootDir, tag);
   const unreleasedFile = unreleasedPath(vaultRootDir);
+  const productionTasksFile = productionTasksPath(vaultRootDir);
 
   return {
     releasedFile,
     unreleasedFile,
+    productionTasksFile,
     releasedMarkdown,
     freshMarkdown,
+    freshProductionTasks,
     releaseNotes: extractUserVisibleNotes(source),
+    productionTasks: extractProductionTasks(productionTasksSource)
+      || extractMarkdownSections(source, 'Production tasks'),
     releaseDate,
   };
 }
@@ -274,6 +352,7 @@ function applyVaultRelease(plan) {
 
   fs.writeFileSync(plan.releasedFile, plan.releasedMarkdown, 'utf8');
   fs.writeFileSync(plan.unreleasedFile, plan.freshMarkdown, 'utf8');
+  fs.writeFileSync(plan.productionTasksFile, plan.freshProductionTasks, 'utf8');
 }
 
 /** @deprecated Use planVaultRelease + applyVaultRelease; kept for tests */
@@ -296,7 +375,7 @@ function printNextSteps(title, steps) {
 const RELEASE_OVERVIEW_ROWS = [
   ['CI', 'Merge feature PR to `dev` → Test auto-deploys'],
   ['You', `Smoke Test — dashboard ${TEST_DASHBOARD_URL} + \`curl ${TEST_BACKEND_VERSION_URL}\` (badge Test, matching gitSha)`],
-  ['You', 'task done → append vault releases/unreleased.md (see vault releases/README)'],
+  ['You', 'task done → append vault releases/unreleased.md and production-tasks.md'],
   ['Script', '`npm run release:promote` — pass 1: opens **dev → master** PR if needed; **never ships**'],
   ['GitHub', 'Merge the promote PR when CI is green'],
   ['CI', '**Deploy to Preproduction** runs on `master` push (automatic)'],
@@ -332,6 +411,7 @@ function nextStepsForPromoteRequired({ prUrl, dryRun } = {}) {
     steps.push('Merge the **dev → master** promote PR when CI is green');
   }
   steps.push('Wait for **Deploy to Preproduction** workflow to finish on `master`');
+  steps.push('Do any bullets in vault `releases/production-tasks.md` before the named gate');
   steps.push(`Smoke-test Preprod: ${PREPROD_DASHBOARD_URL} (guide: vault notes/deploy-test-to-prod.md)`);
   steps.push('Re-run: `npm run release`');
   steps.push('(Optional preview first: `npm run release:dry-run`)');
@@ -371,7 +451,7 @@ function nextStepsForDiverged() {
 function nextStepsForPromoteOnlyAlreadyDone() {
   printNextSteps('Already promoted — next steps', [
     `Smoke Preprod: ${PREPROD_DASHBOARD_URL} (Phase 3 checklist in deploy guide)`,
-    'Fill vault `releases/unreleased.md` if not done at task done',
+    'Fill vault `releases/unreleased.md` and `production-tasks.md` if not done at task done',
     'Ship: `npm run release` (pass 2 — vault + GitHub Release)',
     'Preview ship: `npm run release:dry-run`',
   ]);
@@ -425,6 +505,7 @@ module.exports = {
   vaultRoot,
   vaultReleasesDir,
   unreleasedPath,
+  productionTasksPath,
   releasedPath,
   parseReleaseArgs,
   formatReleaseDate,
@@ -432,9 +513,13 @@ module.exports = {
   normalizeTag,
   parseFrontmatter,
   stringifyFrontmatter,
+  extractMarkdownSections,
   extractUserVisibleNotes,
+  extractProductionTasks,
+  stripMarkdownSection,
   buildReleasedMarkdown,
   buildFreshUnreleasedTemplate,
+  buildFreshProductionTasksTemplate,
   branchSyncState,
   assessReleaseBranches,
   readUnreleasedOrThrow,

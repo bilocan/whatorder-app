@@ -27,5 +27,10 @@ service firebase.storage {
     match /businesses/{businessId}/settlement/{allPaths=**} {
       allow read, write: if false;
     }
+
+    // Restaurant export/import ZIPs — Admin SDK + signed URLs only.
+    match /restaurant-bundles/{allPaths=**} {
+      allow read, write: if false;
+    }
   }
 }
