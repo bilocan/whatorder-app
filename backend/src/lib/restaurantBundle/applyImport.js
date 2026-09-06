@@ -1,7 +1,7 @@
 const { storesForProfile } = require('./stores');
 const { sanitizeBusinessDoc, sanitizeOrder, isSameEnv } = require('./sanitize');
 const { assertNameConfirm } = require('./confirm');
-const { coverStorageRef, isDataUri, rewriteStorageHost, rewriteDocUrls } = require('./urls');
+const { coverStorageRef, isDataUri, rewriteStorageHost, rewriteDocUrls, rewriteBusinessIdInPath, parseGsUrl } = require('./urls');
 
 const SETUP_SUBCOLS = [
   'menu', 'optionGroups', 'deals', 'intentLearnings', 'seededIntents',
@@ -32,9 +32,17 @@ function cloneMap(obj) {
   return out;
 }
 
-function applyUrlRewrite(doc, { sourceHost, targetHost }) {
-  if (!sourceHost || !targetHost) return { ...doc };
-  return rewriteDocUrls(doc, (url) => rewriteStorageHost(url, { sourceHost, targetHost }));
+function applyUrlRewrite(doc, { sourceHost, targetHost, sourceId, targetId }) {
+  if (!doc) return doc;
+  let next = { ...doc };
+  if (sourceHost && targetHost) {
+    next = rewriteDocUrls(next, (url) => rewriteStorageHost(url, { sourceHost, targetHost }));
+  }
+  if (sourceId && targetId && sourceId !== targetId) {
+    next = rewriteDocUrls(next, (url) => rewriteBusinessIdInPath(url, sourceId, targetId));
+    if (next.gcsPath) next.gcsPath = rewriteBusinessIdInPath(next.gcsPath, sourceId, targetId);
+  }
+  return next;
 }
 
 function applyImport({ bundle, existing = emptyTenant(), options = {}, targetEnv }) {
@@ -95,6 +103,12 @@ function applyImport({ bundle, existing = emptyTenant(), options = {}, targetEnv
 
   const sourceHost = source.storageBucket || '';
   const targetHost = targetEnv?.storageBucket || '';
+  const rewriteOpts = {
+    sourceHost,
+    targetHost,
+    sourceId,
+    targetId,
+  };
 
   if (options.overwrite) {
     for (const col of SETUP_SUBCOLS) {
@@ -115,7 +129,7 @@ function applyImport({ bundle, existing = emptyTenant(), options = {}, targetEnv
     { ...incomingBusiness, id: targetId },
     { profile, source, target: targetEnv },
   );
-  business = applyUrlRewrite(business, { sourceHost, targetHost });
+  business = applyUrlRewrite(business, rewriteOpts);
 
   const coverUrl = incomingBusiness.imageUrl;
   if (isDataUri(coverUrl)) {
@@ -135,7 +149,7 @@ function applyImport({ bundle, existing = emptyTenant(), options = {}, targetEnv
     for (const [id, doc] of Object.entries(incoming)) {
       let data = { ...doc };
       if (sanitizeDoc) data = sanitizeDoc(data);
-      next[name][id] = applyUrlRewrite(data, { sourceHost, targetHost });
+      next[name][id] = applyUrlRewrite(data, rewriteOpts);
     }
   };
 
@@ -146,6 +160,11 @@ function applyImport({ bundle, existing = emptyTenant(), options = {}, targetEnv
   copyCol('seededIntents');
   if (bundle.firestore?.seedOverrides) {
     next.seedOverrides = { ...bundle.firestore.seedOverrides };
+  }
+
+  for (const doc of Object.values(bundle.firestore?.menu || {})) {
+    const ref = parseGsUrl(doc.photoUrl);
+    if (ref) next.storageDownloads.push({ kind: 'menu', ...ref, originalUrl: doc.photoUrl });
   }
 
   if (profile === 'full') {

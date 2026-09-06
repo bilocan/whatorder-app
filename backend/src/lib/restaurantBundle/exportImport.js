@@ -3,13 +3,18 @@ const { loadTenant } = require('./loadTenant');
 const { persistImport } = require('./persistImport');
 const { applyImport } = require('./applyImport');
 const { currentEnv, isProductionTarget } = require('./bundleKey');
-const { rejectRawGcsPath } = require('./importToken');
+const { rejectRawGcsPath, createImportToken, assertPreviewChecksum, sha256Buffer } = require('./importToken');
 const {
   packBundleToStream,
   unpackBundleFromBuffer,
   countsFromFirestore,
   checksumJson,
 } = require('./zipBundle');
+const {
+  collectStorageRefs,
+  listMenuPhotoRefs,
+  downloadAssets,
+} = require('./assets');
 const {
   createExportUpload,
   createImportUpload,
@@ -26,6 +31,11 @@ async function exportRestaurantBundle({ businessId, profile, adminUid }) {
   }
   const firestore = await loadTenant(businessId, profile);
   const env = currentEnv();
+  const listed = await listMenuPhotoRefs(businessId);
+  const { assets, skipped } = await downloadAssets([
+    ...collectStorageRefs(firestore, { profile }),
+    ...listed,
+  ]);
   const bundle = {
     manifest: {
       schemaVersion: 1,
@@ -34,8 +44,10 @@ async function exportRestaurantBundle({ businessId, profile, adminUid }) {
       businessName: firestore.business?.name || businessId,
       exportedAt: new Date().toISOString(),
       source: env,
+      skippedAssets: skipped,
     },
     firestore,
+    assets,
   };
   const bundleId = `${businessId}-${profile}-${Date.now()}`;
   const { objectKey, file } = await createExportUpload({ adminUid, bundleId });
@@ -53,7 +65,10 @@ async function exportRestaurantBundle({ businessId, profile, adminUid }) {
     url,
     objectKey,
     checksum: checksumJson(bundle.manifest),
-    counts: countsFromFirestore(firestore, profile),
+    counts: {
+      ...countsFromFirestore(firestore, profile),
+      assets: assets.length,
+    },
   };
 }
 
@@ -75,25 +90,42 @@ function previewWarnings(bundle, { exists, targetEnv }) {
   if (bundle.manifest.profile === 'full') {
     warnings.push('Full profile includes customer phones, addresses, and Belege (personal data).');
   }
+  const hasPhotos = Boolean(bundle.firestore?.business?.imageUrl)
+    || Object.values(bundle.firestore?.menu || {}).some((d) => d.photoUrl);
+  if (hasPhotos && !(bundle.assets || []).length) {
+    warnings.push('ZIP has no photo files; rewritten image URLs may 404 on the target bucket.');
+  }
   return warnings;
 }
 
 async function previewImportBundle({ importToken, adminUid, body }) {
   rejectRawGcsPath(body || {});
-  const { buffer } = await openImportObject({ importToken, adminUid });
+  const { buffer, objectKey, tokenPayload } = await openImportObject({ importToken, adminUid });
   const bundle = await unpackBundleFromBuffer(buffer);
   const env = currentEnv();
   const { businessRef } = require('../collections');
   const existing = await businessRef(bundle.manifest.businessId).get();
+  const contentSha256 = sha256Buffer(buffer);
+  const commitToken = createImportToken({
+    adminUid,
+    objectKey,
+    firestoreDatabaseId: tokenPayload.firestoreDatabaseId,
+    contentSha256,
+  });
   return {
     businessId: bundle.manifest.businessId,
     businessName: bundle.manifest.businessName || bundle.firestore.business?.name,
     profile: bundle.manifest.profile,
     source: bundle.manifest.source,
-    counts: countsFromFirestore(bundle.firestore, bundle.manifest.profile),
+    counts: {
+      ...countsFromFirestore(bundle.firestore, bundle.manifest.profile),
+      assets: (bundle.assets || []).length,
+    },
     exists: existing.exists,
     warnings: previewWarnings(bundle, { exists: existing.exists, targetEnv: env }),
     pii: bundle.manifest.profile === 'full' || Boolean(bundle.firestore.business?.legal?.iban),
+    importToken: commitToken,
+    contentSha256,
   };
 }
 
@@ -109,7 +141,13 @@ async function runImportBundle({
     confirmName,
     newBusinessId,
   } = body;
-  const { buffer, objectKey } = await openImportObject({ importToken, adminUid });
+  if (attachToPhoneLine && !targetPhoneNumberId) {
+    const err = new Error('attachToPhoneLine requires targetPhoneNumberId');
+    err.status = 400;
+    throw err;
+  }
+  const { buffer, objectKey, tokenPayload } = await openImportObject({ importToken, adminUid });
+  assertPreviewChecksum(tokenPayload, buffer);
   const bundle = await unpackBundleFromBuffer(buffer);
   const env = currentEnv();
   const { businessRef } = require('../collections');
@@ -147,6 +185,8 @@ async function runImportBundle({
     overwrite,
     attachToPhoneLine,
     targetPhoneNumberId,
+    assets: bundle.assets || [],
+    sourceBusinessId: bundle.manifest.businessId,
   });
   await deleteObject(objectKey).catch(() => {});
   return {

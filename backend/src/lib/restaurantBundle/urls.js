@@ -44,7 +44,21 @@ function rewriteDocUrls(doc, rewrite) {
   if (next.imageUrl) next.imageUrl = rewrite(next.imageUrl);
   if (next.photoUrl) next.photoUrl = rewrite(next.photoUrl);
   if (next.gcsPath) next.gcsPath = rewrite(next.gcsPath);
+  if (next.pdfUrl) next.pdfUrl = rewrite(next.pdfUrl);
   return next;
+}
+
+function rewriteBusinessIdInPath(value, sourceId, targetId) {
+  if (!value || typeof value !== 'string' || !sourceId || !targetId || sourceId === targetId) {
+    return value;
+  }
+  return value
+    .split(`menu-photos/${sourceId}/`).join(`menu-photos/${targetId}/`)
+    .split(`businesses/${sourceId}/`).join(`businesses/${targetId}/`)
+    .split(encodeURIComponent(`menu-photos/${sourceId}/`))
+    .join(encodeURIComponent(`menu-photos/${targetId}/`))
+    .split(encodeURIComponent(`businesses/${sourceId}/`))
+    .join(encodeURIComponent(`businesses/${targetId}/`));
 }
 
 module.exports = {
@@ -53,4 +67,5 @@ module.exports = {
   coverStorageRef,
   rewriteStorageHost,
   rewriteDocUrls,
+  rewriteBusinessIdInPath,
 };

@@ -1,7 +1,7 @@
 const { applyImport } = require('../applyImport');
 const { sanitizeBusinessDoc, sanitizeOrder } = require('../sanitize');
 const { bundleObjectKey, assertKeyMatchesCurrentEnv } = require('../bundleKey');
-const { createImportToken, verifyImportToken, rejectRawGcsPath } = require('../importToken');
+const { createImportToken, verifyImportToken, rejectRawGcsPath, assertPreviewChecksum, sha256Buffer } = require('../importToken');
 const { coverStorageRef } = require('../urls');
 const { assertNameConfirm } = require('../confirm');
 
@@ -236,6 +236,34 @@ describe('B5 stolen gcsPath / unbound import', () => {
       firestoreDatabaseId: 'preprod',
     })).toThrow(/invalid import token/i);
   });
+
+  test('import without preview checksum is rejected', () => {
+    const token = createImportToken({
+      adminUid: 'admin-a',
+      objectKey: 'restaurant-bundles/preprod/admin-a/b1.zip',
+      firestoreDatabaseId: 'preprod',
+    });
+    const payload = verifyImportToken(token, {
+      adminUid: 'admin-a',
+      firestoreDatabaseId: 'preprod',
+    });
+    expect(() => assertPreviewChecksum(payload, Buffer.from('zip'))).toThrow(/preview/i);
+  });
+
+  test('import checksum mismatch is rejected', () => {
+    const buf = Buffer.from('benign-zip');
+    const token = createImportToken({
+      adminUid: 'admin-a',
+      objectKey: 'restaurant-bundles/preprod/admin-a/b1.zip',
+      firestoreDatabaseId: 'preprod',
+      contentSha256: sha256Buffer(buf),
+    });
+    const payload = verifyImportToken(token, {
+      adminUid: 'admin-a',
+      firestoreDatabaseId: 'preprod',
+    });
+    expect(() => assertPreviewChecksum(payload, Buffer.from('malicious-zip'))).toThrow(/changed after preview/i);
+  });
 });
 
 describe('B6 cover is imageUrl not cover.jpg', () => {
@@ -255,6 +283,7 @@ describe('B6 cover is imageUrl not cover.jpg', () => {
       targetEnv: PREPROD_ENV,
     });
     expect(next.storageDownloads[0].objectPath).toBe('misc/hero.png');
+    expect(next.storageDownloads.map((d) => d.kind)).toEqual(expect.arrayContaining(['cover', 'menu']));
     expect(next.business.imageUrl).toContain('whatorder-fire-prod.firebasestorage.app');
     expect(next.business.imageUrl).not.toContain('whatorder-fire.appspot.com');
     expect(next.menu['item-1'].photoUrl).toContain('whatorder-fire-prod.firebasestorage.app');
@@ -335,6 +364,15 @@ describe('B11 source phoneRouting is not copied', () => {
     ]);
     expect(next.routingWrites[0].phoneNumberId).not.toBe('111111');
   });
+
+  test('attach without targetPhoneNumberId writes nothing', () => {
+    const next = applyImport({
+      bundle: setupBundle(),
+      options: { overwrite: true, attachToPhoneLine: true, targetPhoneNumberId: null },
+      targetEnv: PREPROD_ENV,
+    });
+    expect(next.routingWrites).toEqual([]);
+  });
 });
 
 describe('B12 prod / Enes name confirm', () => {
@@ -382,5 +420,18 @@ describe('collision without overwrite', () => {
       options: { overwrite: false },
       targetEnv: PREPROD_ENV,
     })).toThrow(/already exists/i);
+  });
+});
+
+describe('new business id rewrites photo paths', () => {
+  test('menu photo url path uses the target restaurant id', () => {
+    const next = applyImport({
+      bundle: setupBundle(),
+      options: { overwrite: true, keepBusinessId: false, newBusinessId: 'biz_copy' },
+      targetEnv: PREPROD_ENV,
+    });
+    expect(next.targetBusinessId).toBe('biz_copy');
+    expect(next.menu['item-1'].photoUrl).toContain('menu-photos%2Fbiz_copy%2F');
+    expect(next.menu['item-1'].photoUrl).not.toContain('menu-photos%2Fbiz_doner%2F');
   });
 });

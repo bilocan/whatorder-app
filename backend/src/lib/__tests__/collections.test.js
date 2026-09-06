@@ -5,6 +5,7 @@ jest.mock('../firebase', () => {
   const chain = {};
   chain.collection = jest.fn(() => chain);
   chain.doc = jest.fn(() => chain);
+  chain.where = jest.fn(() => chain);
   return { db: chain, admin: {} };
 });
 
@@ -12,7 +13,7 @@ const { db } = require('../firebase');
 const {
   businessRef, businessesCollectionRef, menuRef, optionGroupsRef, ordersRef, customersRef, phoneRoutingRef,
   receiptsRef, receiptRef, receiptCounterRef, dealsRef, dealRef,
-  ownerRef, ownersCollectionRef, adminRef, processedMessageRef, stripeEventRef, configRef,
+  ownerRef, ownersCollectionRef, ownersByBusinessIdsQuery, ownersByLegacyBusinessIdQuery, adminRef, processedMessageRef, stripeEventRef, configRef,
   settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, intentLearningsRef, commandLearningRef,
   seededIntentRef, seededIntentsRef, seedOverridesRef,
 } = require('../collections');
@@ -20,6 +21,7 @@ const {
 beforeEach(() => {
   db.collection.mockClear();
   db.doc.mockClear();
+  db.where.mockClear();
 });
 
 describe('businessesCollectionRef', () => {
@@ -238,6 +240,22 @@ describe('ownersCollectionRef', () => {
   test('builds path: owners', () => {
     ownersCollectionRef();
     expect(db.collection).toHaveBeenCalledWith('owners');
+  });
+});
+
+describe('ownersByBusinessIdsQuery', () => {
+  test('queries owners by businessIds array-contains', () => {
+    ownersByBusinessIdsQuery('biz_test');
+    expect(db.collection).toHaveBeenCalledWith('owners');
+    expect(db.where).toHaveBeenCalledWith('businessIds', 'array-contains', 'biz_test');
+  });
+});
+
+describe('ownersByLegacyBusinessIdQuery', () => {
+  test('queries owners by legacy businessId', () => {
+    ownersByLegacyBusinessIdQuery('biz_test');
+    expect(db.collection).toHaveBeenCalledWith('owners');
+    expect(db.where).toHaveBeenCalledWith('businessId', '==', 'biz_test');
   });
 });
 

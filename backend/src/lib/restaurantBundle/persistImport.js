@@ -1,4 +1,6 @@
 const { admin, db } = require('../firebase');
+const { deserializeValue } = require('./serialize');
+const { uploadAssets } = require('./assets');
 const {
   businessRef, menuRef, optionGroupsRef, dealsRef, intentLearningsRef,
   seededIntentsRef, seedOverridesRef, ordersRef, customersRef, receiptsRef,
@@ -29,12 +31,16 @@ async function deleteAll(colRef) {
   }
 }
 
+function prepared(data) {
+  return deserializeValue(data, admin.firestore.Timestamp);
+}
+
 async function writeMap(colRef, docs) {
   const entries = Object.entries(docs || {});
   for (let i = 0; i < entries.length; i += BATCH_SIZE) {
     const batch = db.batch();
     for (const [id, data] of entries.slice(i, i + BATCH_SIZE)) {
-      batch.set(colRef.doc(id), data);
+      batch.set(colRef.doc(id), prepared(data));
     }
     await batch.commit();
   }
@@ -65,7 +71,10 @@ async function linkOwner(phone, businessId) {
   );
 }
 
-async function persistImport(result, { profile, overwrite, attachToPhoneLine, targetPhoneNumberId }) {
+async function persistImport(result, {
+  profile, overwrite, attachToPhoneLine, targetPhoneNumberId,
+  assets = [], sourceBusinessId,
+}) {
   const businessId = result.targetBusinessId;
   if (overwrite) {
     for (const name of ['menu', 'optionGroups', 'deals', 'intentLearnings', 'seededIntents']) {
@@ -79,7 +88,12 @@ async function persistImport(result, { profile, overwrite, attachToPhoneLine, ta
     }
   }
 
-  await businessRef(businessId).set(result.business, { merge: false });
+  await uploadAssets(assets, {
+    sourceBusinessId: sourceBusinessId || result.business?.id,
+    targetBusinessId: businessId,
+  });
+
+  await businessRef(businessId).set(prepared(result.business), { merge: false });
 
   await writeMap(menuRef(businessId), result.menu);
   await writeMap(optionGroupsRef(businessId), result.optionGroups);
@@ -87,7 +101,7 @@ async function persistImport(result, { profile, overwrite, attachToPhoneLine, ta
   await writeMap(intentLearningsRef(businessId), result.intentLearnings);
   await writeMap(seededIntentsRef(businessId), result.seededIntents);
   if (result.seedOverrides) {
-    await seedOverridesRef(businessId).set(result.seedOverrides);
+    await seedOverridesRef(businessId).set(prepared(result.seedOverrides));
   }
 
   if (profile === 'full') {
@@ -95,7 +109,7 @@ async function persistImport(result, { profile, overwrite, attachToPhoneLine, ta
     await writeMap(customersRef(businessId), result.customers);
     await writeMap(receiptsRef(businessId), result.receipts);
     if (result.receiptCounter) {
-      await receiptCounterRef(businessId).set(result.receiptCounter);
+      await receiptCounterRef(businessId).set(prepared(result.receiptCounter));
     }
   }
 

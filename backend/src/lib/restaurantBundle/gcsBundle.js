@@ -95,7 +95,7 @@ async function openImportObject({ importToken, adminUid }) {
     throw err;
   }
   const [buf] = await file.download();
-  return { file, objectKey: payload.objectKey, buffer: buf };
+  return { file, objectKey: payload.objectKey, buffer: buf, tokenPayload: payload };
 }
 
 async function deleteObject(objectKey) {

@@ -1,6 +1,6 @@
-const { packBundleToBuffer, unpackBundleFromBuffer } = require('../zipBundle');
+const { packBundleToBuffer, unpackBundleFromBuffer, assertZipLimits, MAX_ENTRY_BYTES } = require('../zipBundle');
 
-test('zip round-trip preserves manifest and menu docs', async () => {
+test('zip round-trip preserves manifest, menu docs, and assets', async () => {
   const bundle = {
     manifest: {
       schemaVersion: 1,
@@ -14,6 +14,9 @@ test('zip round-trip preserves manifest and menu docs', async () => {
       menu: { i1: { name: 'Döner' } },
       owners: [{ phone: '+43111' }],
     },
+    assets: [
+      { name: 'assets/menu-photos/biz_1/a.jpg', objectPath: 'menu-photos/biz_1/a.jpg', buffer: Buffer.from('jpeg-bytes') },
+    ],
   };
   const buf = await packBundleToBuffer(bundle);
   expect(Buffer.isBuffer(buf)).toBe(true);
@@ -22,4 +25,13 @@ test('zip round-trip preserves manifest and menu docs', async () => {
   expect(unpacked.manifest.businessId).toBe('biz_1');
   expect(unpacked.firestore.menu.i1).toEqual({ name: 'Döner' });
   expect(unpacked.firestore.owners).toEqual([{ phone: '+43111' }]);
+  expect(unpacked.assets).toHaveLength(1);
+  expect(unpacked.assets[0].objectPath).toBe('menu-photos/biz_1/a.jpg');
+  expect(unpacked.assets[0].buffer.toString()).toBe('jpeg-bytes');
+});
+
+test('assertZipLimits rejects an oversized entry', () => {
+  expect(() => assertZipLimits(Buffer.from('x'), {
+    files: [{ path: 'assets/huge.bin', uncompressedSize: MAX_ENTRY_BYTES + 1 }],
+  })).toThrow(/too large/i);
 });

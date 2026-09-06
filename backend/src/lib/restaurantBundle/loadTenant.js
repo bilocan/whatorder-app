@@ -2,7 +2,7 @@ const { serializeValue } = require('./serialize');
 const {
   businessRef, menuRef, optionGroupsRef, dealsRef, intentLearningsRef,
   seededIntentsRef, seedOverridesRef, ordersRef, customersRef, receiptsRef,
-  receiptCounterRef, ownersCollectionRef,
+  receiptCounterRef, ownersByBusinessIdsQuery, ownersByLegacyBusinessIdQuery,
 } = require('../collections');
 
 const SETUP_COLS = [
@@ -29,14 +29,20 @@ async function listDocs(colRef) {
 }
 
 async function loadOwners(businessId) {
-  const snap = await ownersCollectionRef()
-    .where('businessIds', 'array-contains', businessId)
-    .get();
+  const [byArray, byLegacy] = await Promise.all([
+    ownersByBusinessIdsQuery(businessId).get(),
+    ownersByLegacyBusinessIdQuery(businessId).get(),
+  ]);
+  const seen = new Set();
   const owners = [];
-  snap.forEach((doc) => {
-    const data = doc.data() || {};
-    if (data.phone) owners.push({ phone: data.phone, name: data.name || null });
-  });
+  for (const snap of [byArray, byLegacy]) {
+    snap.forEach((doc) => {
+      const data = doc.data() || {};
+      if (!data.phone || seen.has(data.phone)) return;
+      seen.add(data.phone);
+      owners.push({ phone: data.phone, name: data.name || null });
+    });
+  }
   return owners;
 }
 
@@ -71,4 +77,4 @@ async function loadTenant(businessId, profile) {
   return firestore;
 }
 
-module.exports = { loadTenant, SETUP_COLS, FULL_COLS };
+module.exports = { loadTenant, loadOwners, SETUP_COLS, FULL_COLS };

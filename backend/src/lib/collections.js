@@ -48,6 +48,12 @@ const ownersCollectionRef = () => db.collection('owners');
 const ownerRef = (uid) =>
   ownersCollectionRef().doc(uid);
 
+const ownersByBusinessIdsQuery = (businessId) =>
+  ownersCollectionRef().where('businessIds', 'array-contains', businessId);
+
+const ownersByLegacyBusinessIdQuery = (businessId) =>
+  ownersCollectionRef().where('businessId', '==', businessId);
+
 // admins/{uid} → {} (flag doc — existence means the user is a super-admin)
 const adminRef = (uid) =>
   db.collection('admins').doc(uid);
@@ -106,7 +112,7 @@ module.exports = {
   businessRef, menuRef, optionGroupsRef, ordersRef, dealsRef, dealRef, customersRef,
   receiptsRef, receiptRef, receiptCounterRef,
   phoneRoutingRef, phoneRoutingByBusinessQuery,
-  ownerRef, ownersCollectionRef, adminRef,
+  ownerRef, ownersCollectionRef, ownersByBusinessIdsQuery, ownersByLegacyBusinessIdQuery, adminRef,
   sessionRef,
   processedMessageRef,
   stripeEventRef,

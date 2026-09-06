@@ -49,6 +49,7 @@ describe('RestaurantBundleImport', () => {
       warnings: [],
       counts: { menu: 3 },
       pii: false,
+      importToken: 'tok-commit',
     });
   });
 
@@ -66,5 +67,23 @@ describe('RestaurantBundleImport', () => {
     });
     expect(JSON.stringify(mockPreview.mock.calls)).not.toContain('gcsPath');
     expect(screen.getByText(/Döner Palace/)).toBeInTheDocument();
+  });
+
+  it('imports with the preview commit token, not the upload token', async () => {
+    mockRun.mockResolvedValue({ businessId: 'biz_doner', counts: { menu: 3 }, warnings: [] });
+    render(<RestaurantBundleImport />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['zip'], 'biz_doner-setup.woz.zip', { type: 'application/zip' });
+    fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview file' }));
+    await screen.findByText(/Döner Palace/);
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await waitFor(() => {
+      expect(mockRun).toHaveBeenCalledWith(expect.objectContaining({
+        importToken: 'tok-commit',
+        attachToPhoneLine: true,
+        targetPhoneNumberId: 'phone_456',
+      }));
+    });
   });
 });

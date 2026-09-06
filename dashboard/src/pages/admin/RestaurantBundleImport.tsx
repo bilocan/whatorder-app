@@ -36,8 +36,8 @@ export default function RestaurantBundleImport() {
     try {
       const upload = await requestImportUpload();
       await uploadBundleFile(upload.uploadUrl, file);
-      setImportToken(upload.importToken);
       const next = await previewImportBundle(upload.importToken);
+      setImportToken(next.importToken || upload.importToken);
       setPreview(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Preview failed');
@@ -46,17 +46,20 @@ export default function RestaurantBundleImport() {
     }
   }
 
+  const canAttach = Boolean(phoneNumberId);
+
   async function onImport() {
     if (!importToken || !preview) return;
     setError('');
     setBusy(true);
     try {
+      const attach = attachLine && canAttach;
       const result = await runImportBundle({
         importToken,
         overwrite,
         keepBusinessId: keepId,
-        attachToPhoneLine: attachLine,
-        targetPhoneNumberId: attachLine ? phoneNumberId : null,
+        attachToPhoneLine: attach,
+        targetPhoneNumberId: attach ? phoneNumberId : null,
         confirmName: confirmRequired ? confirmName : undefined,
       });
       setDoneId(result.businessId);
@@ -118,7 +121,12 @@ export default function RestaurantBundleImport() {
             {t('admin.bundle.overwrite')}
           </label>
           <label style={{ display: 'block' }}>
-            <input type="checkbox" checked={attachLine} onChange={(e) => setAttachLine(e.target.checked)} />{' '}
+            <input
+              type="checkbox"
+              checked={attachLine && canAttach}
+              disabled={!canAttach}
+              onChange={(e) => setAttachLine(e.target.checked)}
+            />{' '}
             {t('admin.bundle.attachLine')}
           </label>
           {confirmRequired && (

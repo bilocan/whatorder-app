@@ -15,6 +15,8 @@ export type BundlePreview = {
   exists: boolean;
   warnings: string[];
   pii?: boolean;
+  importToken?: string;
+  contentSha256?: string;
 };
 
 async function authHeaders(): Promise<HeadersInit> {
