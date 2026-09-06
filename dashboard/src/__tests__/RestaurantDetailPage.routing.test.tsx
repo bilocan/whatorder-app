@@ -244,6 +244,43 @@ describe('RestaurantDetailPage — bot toggle', () => {
   });
 });
 
+describe('RestaurantDetailPage — cover image', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows the cover photo without dumping a data-URI as text', async () => {
+    const dataUri = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/fake';
+    mockOnSnapshot
+      .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
+        cb({ exists: () => true, id: BUSINESS_ID, data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', alertPhone: '+43660123456', status: 'active', imageUrl: dataUri }) });
+        return vi.fn();
+      })
+      .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
+        cb({ docs: [] });
+        return vi.fn();
+      })
+      .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
+        cb({ exists: () => true, data: () => ({ businessIds: ['other_biz'] }) });
+        return vi.fn();
+      })
+      .mockImplementation((_ref: unknown, cb: (s: unknown) => void) => {
+        cb({ docs: [] });
+        return vi.fn();
+      });
+
+    renderPage();
+    await waitForLoad();
+
+    expect(screen.queryByText(/data:image/)).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Döner Palace' })).toHaveAttribute('src', dataUri);
+
+    fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    expect(screen.getByPlaceholderText(/firebasestorage/)).toHaveValue('');
+    expect(screen.queryByDisplayValue(/data:image/)).not.toBeInTheDocument();
+  });
+});
+
 describe('RestaurantDetailPage — Legal & billing card', () => {
   beforeEach(() => {
     vi.clearAllMocks();
