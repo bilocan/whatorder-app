@@ -884,6 +884,7 @@
         "coordinates": "Coordinates",
         "image": "Cover image",
         "imageHint": "Public HTTPS or gs:// URL. Required before customers can see this restaurant.",
+        "embeddedImageHint": "Embedded cover is stored. Paste an HTTPS or gs:// URL to replace it.",
         "edit": "Edit",
         "statusActive": "Active",
         "statusPaused": "Paused",
