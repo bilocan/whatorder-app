@@ -857,6 +857,26 @@
         "cancel": "İptal"
       }
     },
+    "bundle": {
+      "exportTitle": "Restoranı dışa aktar",
+      "exportHint": "Menü, saatler, fotoğraflar ve öğrenilen ifadeler tek dosyada. Full yalnızca aynı ortam yedeği için.",
+      "exportButton": "Dışa aktar",
+      "exporting": "Aktarılıyor…",
+      "downloadAgain": "Tekrar indir",
+      "profileSetup": "Kurulum (başka ortama taşı)",
+      "profileFull": "Tam (sipariş ve fişler dahil)",
+      "piiWarning": "Dosyada sahip telefonları, IBAN ve müşteri verisi olabilir. Sohbet eki değil, yedek gibi sakla.",
+      "importTitle": "Restoran içe aktar",
+      "importHint": "Dosyayı bu bilgisayardan yükle. Başka ortamdan bulut yolu yapıştırma.",
+      "previewButton": "Dosyayı incele",
+      "working": "Çalışıyor…",
+      "keepId": "Aynı restoran kimliğini koru",
+      "overwrite": "Bu kimlik varsa üzerine yaz",
+      "attachLine": "Kenar çubuğundaki WhatsApp hattına ekle",
+      "confirmName": "Onay için restoran adını yaz",
+      "importButton": "İçe aktar",
+      "imported": "{{id}} içe aktarıldı"
+    },
     "restaurantDetail": {
       "loading": "Yükleniyor...",
       "back": "← Restoranlar",
@@ -884,6 +904,7 @@
         "coordinates": "Koordinatlar",
         "image": "Kapak görseli",
         "imageHint": "Herkese açık HTTPS veya gs:// URL. Müşteriler bu restoranı görebilmeden önce gerekli.",
+        "embeddedImageHint": "Gömülü kapak görseli kayıtlı. Değiştirmek için HTTPS veya gs:// URL yapıştır.",
         "edit": "Düzenle",
         "statusActive": "Aktif",
         "statusPaused": "Duraklatıldı",

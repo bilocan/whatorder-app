@@ -53,6 +53,7 @@ app.get('/version', (req, res) => {
 app.use(chatRouter);
 app.use('/admin', adminRouter);
 app.use('/admin', payoutsRouter);
+app.use('/admin', require('./routes/adminRestaurantBundle'));
 app.use('/', flowRouter);
 app.use('/', ordersRouter);
 app.use('/api', ordersRouter);

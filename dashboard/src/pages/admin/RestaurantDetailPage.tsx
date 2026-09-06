@@ -37,6 +37,7 @@ const TrashIcon = () => (
 );
 
 import { API_URL } from '../../lib/apiUrl';
+import RestaurantBundleExport from './RestaurantBundleExport';
 
 type Tab = 'details' | 'menu' | 'owners';
 
@@ -459,10 +460,16 @@ const EMPTY_MENU: MenuFormState = {
               <Field label={t('admin.restaurantDetail.details.businessId')} value={business.id} mono />
               <Field label={t('admin.restaurantDetail.details.address')} value={business.address ?? '—'} />
               <Field label={t('admin.restaurantDetail.details.coordinates')} value={business.lat != null && business.lng != null ? `${business.lat}, ${business.lng}` : '—'} mono />
-              <Field label={t('admin.restaurantDetail.details.image')} value={business.imageUrl ?? '—'} mono />
-              {business.imageUrl && (
-                <img src={business.imageUrl} alt="" style={{ maxWidth: 240, borderRadius: 8, marginBottom: '0.75rem', display: 'block' }} />
-              )}
+              <div style={{ marginBottom: '0.75rem' }}>
+                <div style={{ fontSize: '0.78rem', color: '#999', marginBottom: '0.1rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  {t('admin.restaurantDetail.details.image')}
+                </div>
+                {business.imageUrl ? (
+                  <img src={business.imageUrl} alt={business.name} style={coverImgStyle} />
+                ) : (
+                  <div>—</div>
+                )}
+              </div>
               <button onClick={() => setEditing(true)} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                 <PencilIcon />{t('admin.restaurantDetail.details.edit')}
               </button>
@@ -515,14 +522,18 @@ const EMPTY_MENU: MenuFormState = {
               <div style={{ marginBottom: '0.75rem' }}>
                 <label style={labelStyle}>{t('admin.restaurantDetail.details.image')}</label>
                 <input
-                  value={editImageUrl}
+                  value={isEmbeddedImageUrl(editImageUrl) ? '' : editImageUrl}
                   onChange={(e) => setEditImageUrl(e.target.value)}
                   placeholder="https://firebasestorage.googleapis.com/..."
                   style={inputStyle}
                 />
-                <div style={{ fontSize: '0.78rem', color: '#999', marginTop: '0.25rem' }}>{t('admin.restaurantDetail.details.imageHint')}</div>
+                <div style={{ fontSize: '0.78rem', color: '#999', marginTop: '0.25rem' }}>
+                  {t(isEmbeddedImageUrl(editImageUrl)
+                    ? 'admin.restaurantDetail.details.embeddedImageHint'
+                    : 'admin.restaurantDetail.details.imageHint')}
+                </div>
                 {editImageUrl && (
-                  <img src={editImageUrl} alt="" style={{ maxWidth: 240, borderRadius: 8, marginTop: '0.5rem', display: 'block' }} />
+                  <img src={editImageUrl} alt={editName} style={{ ...coverImgStyle, marginTop: '0.5rem' }} />
                 )}
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -553,6 +564,7 @@ const EMPTY_MENU: MenuFormState = {
             {legalSaveStatus === 'error' && <span className="settings-status-err">{t('settings.legal.error')}</span>}
           </div>
         </section>
+        <RestaurantBundleExport businessId={business.id} />
         </>
       )}
 
@@ -834,6 +846,18 @@ const labelStyle: React.CSSProperties = {
   fontWeight: 600,
   marginBottom: '0.3rem',
 };
+
+const coverImgStyle: React.CSSProperties = {
+  maxWidth: 240,
+  width: '100%',
+  borderRadius: 8,
+  marginBottom: '0.75rem',
+  display: 'block',
+};
+
+function isEmbeddedImageUrl(url: string): boolean {
+  return url.trim().toLowerCase().startsWith('data:');
+}
 
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (

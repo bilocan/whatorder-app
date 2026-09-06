@@ -61,6 +61,7 @@ Thumbs.db
 !backend/fixtures/intent-corpus/**/*.json
 !backend/src/data/intentLearnings.seed.json
 !backend/src/flows/checkout-flow.json
+!backend/scripts/gcs-restaurant-bundle-cors.json
 
 # Firebase
 .firebase/

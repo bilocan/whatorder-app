@@ -38,7 +38,10 @@ vi.mock('../contexts/AdminPhoneLineContext', () => ({
   }),
 }));
 
-vi.mock('../lib/firebase', () => ({ db: {} }));
+vi.mock('../lib/firebase', () => ({
+  db: {},
+  auth: { currentUser: { getIdToken: vi.fn().mockResolvedValue('test-token') } },
+}));
 vi.mock('../lib/geocode', () => ({ geocodeAddress: vi.fn() }));
 vi.mock('../hooks/useOptionGroupLibrary', () => ({
   useOptionGroupLibrary: () => stableOptionGroups,
@@ -49,11 +52,24 @@ vi.mock('../hooks/useOptionGroupLibrary', () => ({
 const BUSINESS_ID = 'biz_123';
 const PHONE_NUMBER_ID = 'phone_456';
 
-function setupMocks({ botActive = false }: { botActive?: boolean } = {}) {
+function setupMocks({
+  botActive = false,
+  imageUrl = 'https://example.com/cover.jpg',
+}: { botActive?: boolean; imageUrl?: string | null } = {}) {
   // onSnapshot call order: 1=business, 2=menu, 3=phoneRouting (bot), 4=owners
   mockOnSnapshot
     .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
-      cb({ exists: () => true, id: BUSINESS_ID, data: () => ({ id: BUSINESS_ID, name: 'Döner Palace', alertPhone: '+43660123456', status: 'active', imageUrl: 'https://example.com/cover.jpg' }) });
+      cb({
+        exists: () => true,
+        id: BUSINESS_ID,
+        data: () => ({
+          id: BUSINESS_ID,
+          name: 'Döner Palace',
+          alertPhone: '+43660123456',
+          status: 'active',
+          ...(imageUrl != null ? { imageUrl } : {}),
+        }),
+      });
       return vi.fn();
     })
     .mockImplementationOnce((_ref: unknown, cb: (s: unknown) => void) => {
@@ -244,6 +260,47 @@ describe('RestaurantDetailPage — bot toggle', () => {
   });
 });
 
+describe('RestaurantDetailPage — cover image', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows the cover photo without dumping a data-URI as text', async () => {
+    const dataUri = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/fake';
+    setupMocks({ imageUrl: dataUri });
+
+    renderPage();
+    await waitForLoad();
+
+    expect(screen.queryByText(/data:image/)).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Döner Palace' })).toHaveAttribute('src', dataUri);
+
+    fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    expect(screen.getByPlaceholderText(/firebasestorage/)).toHaveValue('');
+    expect(screen.queryByDisplayValue(/data:image/)).not.toBeInTheDocument();
+    expect(screen.getByText(/embedded cover is stored/i)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Döner Palace' })).toHaveAttribute('src', dataUri);
+  });
+
+  it('keeps an embedded cover on save when the image field is left untouched', async () => {
+    const dataUri = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/fake';
+    setupMocks({ imageUrl: dataUri });
+
+    renderPage();
+    await waitForLoad();
+
+    fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: `businesses/${BUSINESS_ID}` }),
+        expect.objectContaining({ imageUrl: dataUri }),
+      );
+    });
+  });
+});
+
 describe('RestaurantDetailPage — Legal & billing card', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -293,5 +350,24 @@ describe('RestaurantDetailPage — Legal & billing card', () => {
         { legal: expect.objectContaining({ complete: false }) },
       );
     });
+  });
+});
+
+describe('RestaurantDetailPage — restaurant bundle export', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('open', vi.fn());
+  });
+
+  it('shows export controls and a PII warning for the Full profile', async () => {
+    setupMocks();
+    renderPage();
+    await waitForLoad();
+
+    expect(screen.getByRole('heading', { name: 'Export restaurant' })).toBeInTheDocument();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: /Full \(includes orders and receipts\)/i }));
+    expect(screen.getByRole('note')).toHaveTextContent(/customer data/i);
   });
 });

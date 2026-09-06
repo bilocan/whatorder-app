@@ -10,7 +10,7 @@ alwaysApply: false
 
 **Critical:**
 - All backend Firestore access via `collections.js` only (no raw `db.collection()`)
-- New/changed collection → update `collections.js` + `specs/technical-architecture.md` schema section
+- New/changed collection → update `collections.js` + `specs/technical-architecture.md` schema section + `restaurantBundle/stores.js` if restaurant-scoped
 - Admin SDK bypasses rules: every write scoped by trusted `businessId`
 - Update `collections.test.js` when helper shape changes
 
