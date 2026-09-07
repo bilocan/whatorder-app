@@ -668,7 +668,7 @@ Options:
   --dry-run            Print plan only; no writes; exit 1 if any ship blocker
                        (npm: use \`npm run release:dry-run\` or \`npm run release -- --dry-run\`)
   --yes, -y            Skip confirmation prompts
-  --skip-promote       Do not require/create dev → master promote PR
+  --skip-promote       Drop the needs-promote ship blocker only (escape hatch; does not open a PR)
   --skip-sync          Do not create master → dev sync PR after release
   --skip-vault-push    Rotate vault files locally but do not commit/push vault
   --skip-watch         Do not block on \`gh run watch\` after publishing (or Ctrl+C during watch)

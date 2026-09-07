@@ -721,7 +721,11 @@ async function main() {
 
   if (!flags.yes) {
     logStep('Preprod smoke required');
-    console.log('  master already contains dev\'s work — this is pass 2 (ship to prod).');
+    if (flags.skipPromote) {
+      console.log('  --skip-promote: master may not contain origin/dev. Confirm preprod smoke for the commit you are tagging.');
+    } else {
+      console.log('  master already contains dev\'s work — this is pass 2 (ship to prod).');
+    }
     const ok = awaitConfirm('Preprod smoke done for this commit? Continue with production release?');
     if (!ok) {
       throw new Error('Release cancelled — complete Phase 3 preprod smoke, then re-run npm run release.');

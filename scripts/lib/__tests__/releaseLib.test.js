@@ -44,6 +44,8 @@ test('printHelp mentions status and no auto-promote', () => {
   assert.match(text, /--status/);
   assert.match(text, /never opens a promote PR/);
   assert.match(text, /exit 1 if any ship blocker/);
+  assert.match(text, /Drop the needs-promote ship blocker only/);
+  assert.doesNotMatch(text, /require\/create/);
 });
 
 test('suggestNextTag increments patch within month', () => {
