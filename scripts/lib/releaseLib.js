@@ -9,6 +9,7 @@ const PREPROD_DASHBOARD_URL = 'https://pre.whatorder.at';
 const PROD_DASHBOARD_URL = 'https://dashboard.whatorder.at';
 const PREPROD_WORKFLOW_NAME = 'Deploy to Preproduction';
 const RELEASE_WORKFLOW_NAME = 'Release to Production';
+const GITHUB_APP_REPO = 'https://github.com/bilocan/whatorder-app';
 
 function appRoot(startDir = __dirname) {
   return path.resolve(startDir, '..', '..');
@@ -46,6 +47,7 @@ function parseReleaseArgs(argv) {
     skipPreprodCheck: false,
     promoteOnly: false,
     help: false,
+    status: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -58,11 +60,195 @@ function parseReleaseArgs(argv) {
     else if (arg === '--skip-watch') flags.skipWatch = true;
     else if (arg === '--skip-preprod-check') flags.skipPreprodCheck = true;
     else if (arg === '--promote-only') flags.promoteOnly = true;
+    else if (arg === '--status') flags.status = true;
     else if (arg === '--tag' && argv[i + 1]) flags.tag = argv[++i];
     else if (arg === '--help' || arg === '-h') flags.help = true;
   }
 
   return flags;
+}
+
+function parsePrNumberFromSubject(subject) {
+  const text = String(subject || '');
+  const paren = text.match(/\(#(\d+)\)/);
+  if (paren) return Number.parseInt(paren[1], 10);
+  const merge = text.match(/Merge pull request #(\d+)/i);
+  if (merge) return Number.parseInt(merge[1], 10);
+  return null;
+}
+
+function parseFirstParentLog(stdout) {
+  return String(stdout || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const tab = line.indexOf('\t');
+      const sha = tab === -1 ? line : line.slice(0, tab);
+      const subject = tab === -1 ? '' : line.slice(tab + 1);
+      return { sha, subject, prNumber: parsePrNumberFromSubject(subject) };
+    });
+}
+
+function prUrl(prNumber) {
+  if (!prNumber) return null;
+  return `${GITHUB_APP_REPO}/pull/${prNumber}`;
+}
+
+function classifyReleasePhase({ diverged, needsPromote, masterSha, lastTagSha }) {
+  if (diverged) return 'diverged';
+  if (needsPromote) return 'needs-promote';
+  if (lastTagSha && masterSha && masterSha === lastTagSha) return 'nothing-to-ship';
+  return 'ready-to-ship';
+}
+
+function shortGitSha(sha) {
+  return String(sha || '').trim().slice(0, 7);
+}
+
+const SHIP_BLOCKER = {
+  NEEDS_PROMOTE: 'needs-promote',
+  DIVERGED: 'diverged',
+  NOTHING_TO_SHIP: 'nothing-to-ship',
+  USER_VISIBLE_EMPTY: 'user-visible-empty',
+  TAG_EXISTS: 'tag-exists',
+  VAULT_DIRTY: 'vault-dirty',
+  VAULT_NOT_MASTER: 'vault-not-master',
+  PREPROD_SHA_MISMATCH: 'preprod-sha-mismatch',
+};
+
+const SHIP_WARNING = {
+  INTERNAL_EMPTY: 'internal-empty',
+  INTENT_SEED_STALE: 'intent-seed-stale',
+  FIRESTORE_RULES_CHANGED: 'firestore-rules-changed',
+  PRODUCTION_TASKS_PRESENT: 'production-tasks-present',
+  NO_PREVIOUS_TAG: 'no-previous-tag',
+};
+
+function countMarkdownBullets(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .filter((line) => /^\s*[-*]\s+/.test(line)).length;
+}
+
+function collectShipBlockers(input) {
+  const blockers = [];
+  const warnings = [];
+  const addB = (code, message) => { blockers.push({ code, message }); };
+  const addW = (code, message) => { warnings.push({ code, message }); };
+
+  if (input.phase === 'needs-promote' && !input.skipPromote) {
+    addB(SHIP_BLOCKER.NEEDS_PROMOTE, 'Run: npm run release:promote');
+  }
+  if (input.phase === 'diverged') {
+    addB(SHIP_BLOCKER.DIVERGED, 'dev and master have diverged. Resolve manually.');
+  }
+  if (input.phase === 'nothing-to-ship') {
+    addB(SHIP_BLOCKER.NOTHING_TO_SHIP, 'origin/master HEAD is already the latest production tag');
+  }
+  if (!input.userVisible && (input.phase === 'ready-to-ship' || input.phase === 'needs-promote')) {
+    addB(SHIP_BLOCKER.USER_VISIBLE_EMPTY, 'Vault unreleased.md has no User-visible entries');
+  }
+  if (input.tagExists) {
+    addB(SHIP_BLOCKER.TAG_EXISTS, 'Release tag already exists');
+  }
+  if (input.vaultDirty && !input.skipVaultPush) {
+    addB(SHIP_BLOCKER.VAULT_DIRTY, 'Vault working tree is dirty');
+  }
+  if (input.vaultBranch && input.vaultBranch !== 'master') {
+    addB(SHIP_BLOCKER.VAULT_NOT_MASTER, `Vault HEAD is ${input.vaultBranch}, not master`);
+  }
+  if (input.preprodMatch === false && !input.skipPreprodCheck) {
+    addB(SHIP_BLOCKER.PREPROD_SHA_MISMATCH, 'Preprod /version gitSha does not match origin/master');
+  }
+
+  if (input.userVisible && !input.internal) {
+    addW(SHIP_WARNING.INTERNAL_EMPTY, 'unreleased.md Internal section is empty');
+  }
+  if (input.intentSeedStale) {
+    addW(SHIP_WARNING.INTENT_SEED_STALE, 'Intent seed is empty or older than 14 days');
+  }
+  if (input.firestoreRulesChanged) {
+    addW(SHIP_WARNING.FIRESTORE_RULES_CHANGED, 'firestore.rules or firestore.indexes.json changed since last tag');
+  }
+  if (input.productionTasks) {
+    addW(SHIP_WARNING.PRODUCTION_TASKS_PRESENT, 'production-tasks.md has bullets for this tag');
+  }
+  if (!input.lastTagSha) {
+    addW(SHIP_WARNING.NO_PREVIOUS_TAG, 'No previous production tag. Waiting-to-ship lists origin/master first-parent.');
+  }
+
+  return { blockers, warnings };
+}
+
+function formatMergeLines(entries) {
+  if (!entries || entries.length === 0) return ['  (none)'];
+  return entries.map(({ sha, subject, prNumber }) => {
+    const url = prUrl(prNumber);
+    const suffix = url ? ` (${url})` : '';
+    return `  ${sha} ${subject}${suffix}`;
+  });
+}
+
+function formatNumberedCodeMessages(items) {
+  if (!items || items.length === 0) return ['  (none)'];
+  return items.map((item, index) => `  ${index + 1}. ${item.code}: ${item.message}`);
+}
+
+function formatOpenPrLines(openPromotePr, openSyncPr) {
+  const lines = [];
+  if (openPromotePr) {
+    lines.push(`  promote: #${openPromotePr.number} ${openPromotePr.url} (${openPromotePr.title})`);
+  }
+  if (openSyncPr) {
+    lines.push(`  sync: #${openSyncPr.number} ${openSyncPr.url} (${openSyncPr.title})`);
+  }
+  if (lines.length === 0) return ['  (none)'];
+  return lines;
+}
+
+function formatReleaseStatus(report) {
+  const lines = [];
+  const vault = report.vault || {};
+  const preprod = report.preprod || {};
+
+  lines.push('==> Release status');
+  lines.push(`  phase: ${report.phase}`);
+  lines.push(`  last tag: ${report.lastTag ?? '(none)'}`);
+  lines.push(`  next tag: ${report.nextTag}`);
+
+  lines.push('==> Waiting to promote (origin/dev not in origin/master)');
+  lines.push(...formatMergeLines(report.waitingToPromote));
+
+  const shipSince = report.lastTag || 'no previous tag';
+  lines.push(`==> Waiting to ship (origin/master since ${shipSince})`);
+  lines.push(...formatMergeLines(report.waitingToShip));
+
+  lines.push('==> Open PRs');
+  lines.push(...formatOpenPrLines(report.openPromotePr, report.openSyncPr));
+
+  lines.push('==> Vault');
+  lines.push(`  User-visible: ${vault.userVisibleCount}`);
+  lines.push(`  Internal: ${vault.internalCount}`);
+  lines.push(`  production-tasks: ${vault.productionTasksCount}`);
+  const cleanDirty = vault.dirty ? 'dirty' : 'clean';
+  lines.push(`  git: ${vault.branch}, ${cleanDirty}, ahead ${vault.ahead} / behind ${vault.behind}`);
+
+  lines.push('==> Preprod');
+  lines.push(`  expected: ${preprod.expected}`);
+  lines.push(`  actual: ${preprod.actual ?? '(skipped)'}`);
+  const preprodMatch = preprod.match === null
+    ? 'skipped'
+    : (preprod.match ? 'yes' : 'no');
+  lines.push(`  match: ${preprodMatch}`);
+
+  lines.push('==> Blockers');
+  lines.push(...formatNumberedCodeMessages(report.blockers));
+
+  lines.push('==> Warnings');
+  lines.push(...formatNumberedCodeMessages(report.warnings));
+
+  return lines.join('\n');
 }
 
 function formatReleaseDate(date = new Date()) {
@@ -376,12 +562,13 @@ const RELEASE_OVERVIEW_ROWS = [
   ['CI', 'Merge feature PR to `dev` → Test auto-deploys'],
   ['You', `Smoke Test — dashboard ${TEST_DASHBOARD_URL} + \`curl ${TEST_BACKEND_VERSION_URL}\` (badge Test, matching gitSha)`],
   ['You', 'task done → append vault releases/unreleased.md and production-tasks.md'],
-  ['Script', '`npm run release:promote` — pass 1: opens **dev → master** PR if needed; **never ships**'],
+  ['Script', '`npm run release:status` - read-only: phase, merge lists, blockers (exit 0)'],
+  ['Script', '`npm run release:promote` - pass 1: opens **dev → master** PR if needed; **never ships**'],
   ['GitHub', 'Merge the promote PR when CI is green'],
   ['CI', '**Deploy to Preproduction** runs on `master` push (automatic)'],
   ['You', `Smoke Preprod — ${PREPROD_DASHBOARD_URL} + preprod /version (sandbox WhatsApp + Stripe only)`],
-  ['Script', '`npm run release:dry-run` — optional preview (no writes)'],
-  ['Script', '`npm run release` — pass 2: preprod SHA check, vault changelog, GitHub Release'],
+  ['Script', '`npm run release:dry-run` - preview ship; **exit 1** if any ship blocker (no writes)'],
+  ['Script', '`npm run release` - pass 2 only: vault changelog + GitHub Release; **never opens a promote PR**'],
   ['CI', '**Release to Production** — promotes same backend image; dashboard rebuilds for prod'],
   ['You', `Verify prod — \`curl ${PROD_HEALTH_URL}\` + ${PROD_DASHBOARD_URL}`],
   ['GitHub', 'Merge **master → dev** sync PR if the script opened one'],
@@ -477,10 +664,11 @@ changelog, and opening PRs to keep dev and master aligned.
 
 Options:
   --tag <vYYYY.MM.N>   Release tag (default: next tag for current month)
-  --dry-run            Print plan only; no file writes, PRs, or release
+  --status             Print release state and merge lists; no writes (npm run release:status)
+  --dry-run            Print plan only; no writes; exit 1 if any ship blocker
                        (npm: use \`npm run release:dry-run\` or \`npm run release -- --dry-run\`)
   --yes, -y            Skip confirmation prompts
-  --skip-promote       Do not require/create dev → master promote PR
+  --skip-promote       Drop the needs-promote ship blocker only (escape hatch; does not open a PR)
   --skip-sync          Do not create master → dev sync PR after release
   --skip-vault-push    Rotate vault files locally but do not commit/push vault
   --skip-watch         Do not block on \`gh run watch\` after publishing (or Ctrl+C during watch)
@@ -501,6 +689,7 @@ module.exports = {
   PROD_DASHBOARD_URL,
   PREPROD_WORKFLOW_NAME,
   RELEASE_WORKFLOW_NAME,
+  GITHUB_APP_REPO,
   appRoot,
   vaultRoot,
   vaultReleasesDir,
@@ -508,6 +697,16 @@ module.exports = {
   productionTasksPath,
   releasedPath,
   parseReleaseArgs,
+  parsePrNumberFromSubject,
+  parseFirstParentLog,
+  prUrl,
+  classifyReleasePhase,
+  shortGitSha,
+  SHIP_BLOCKER,
+  SHIP_WARNING,
+  countMarkdownBullets,
+  collectShipBlockers,
+  formatReleaseStatus,
   formatReleaseDate,
   suggestNextTag,
   normalizeTag,
