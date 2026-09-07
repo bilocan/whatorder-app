@@ -18,7 +18,6 @@ const readline = require('readline');
 const {
   PROD_HEALTH_URL,
   PREPROD_VERSION_URL,
-  PREPROD_WORKFLOW_NAME,
   RELEASE_WORKFLOW_NAME,
   appRoot,
   vaultRoot,
@@ -29,8 +28,15 @@ const {
   branchSyncState,
   planVaultRelease,
   applyVaultRelease,
+  extractMarkdownSections,
   extractUserVisibleNotes,
   extractProductionTasks,
+  parseFirstParentLog,
+  classifyReleasePhase,
+  shortGitSha,
+  countMarkdownBullets,
+  collectShipBlockers,
+  formatReleaseStatus,
   unreleasedPath,
   productionTasksPath,
   printHelp,
@@ -159,7 +165,7 @@ function createPromotePr(appRootDir, { dryRun }) {
 
   const title = 'release: promote dev to master';
   const body = [
-    'Automated promote PR from `npm run release`.',
+    'Automated promote PR from `npm run release:promote`.',
     '',
     'Merge when CI is green. Then re-run `npm run release` to ship prod.',
   ].join('\n');
@@ -210,67 +216,6 @@ function createSyncPr(appRootDir, tag, { dryRun }) {
   const url = result.stdout.trim();
   console.log(`  Created sync PR: ${url}`);
   return { url };
-}
-
-async function ensureBranchesReady(appRootDir, flags) {
-  gitFetch(appRootDir);
-  const branch = inspectBranches(appRootDir);
-  const { counts, assessment } = branch;
-
-  logStep('Branch sync check');
-  console.log(
-    `  origin/dev vs origin/master: dev +${counts.devAhead}, master +${counts.masterAhead} (${branch.syncLabel})`,
-  );
-  console.log(`  content synced: ${branch.contentSynced ? 'yes' : 'no'} | release gate: ${assessment.reason}`);
-
-  if (counts.masterAhead > 0 && assessment.ready) {
-    console.log('  Note: master ahead of dev is normal after a promote merge — not blocking release.');
-  }
-
-  if (assessment.ready) {
-    if (flags.promoteOnly) {
-      logStep('Promote check');
-      console.log('  Nothing to promote — origin/master already has dev\'s work.');
-      nextStepsForPromoteOnlyAlreadyDone();
-      return { ready: false, assessment, promotePrUrl: null, alreadyPromoted: true };
-    }
-    if (flags.skipPromote || flags.skipSync) {
-      console.log('  Warning: branch checks relaxed via --skip-promote / --skip-sync');
-    }
-    if (!flags.dryRun) {
-      printNextSteps('Pass 2 — ship to production (this run will)', [
-        'Check preprod /version SHA matches master (unless --skip-preprod-check)',
-        'Rotate vault `releases/unreleased.md` + `production-tasks.md` → `releases/<tag>.md` and push vault `master`',
-        'Publish GitHub Release on `master` (promotes preprod image to live prod)',
-        'Watch **Release to Production** + check prod `/health`',
-        'Open a **master → dev** sync PR afterward if needed',
-      ]);
-    }
-    return { ready: true, assessment, promotePrUrl: null, shippingPass: true };
-  }
-
-  if (assessment.reason === 'diverged') {
-    nextStepsForDiverged();
-    throw new Error('dev and master have diverged — resolve manually, then re-run release.');
-  }
-
-  if (assessment.needsPromote && !flags.skipPromote) {
-    logStep('Dev has unpromoted work — promote required before release');
-    const pr = createPromotePr(appRootDir, flags);
-    const prUrl = pr?.url || null;
-    nextStepsForPromoteRequired({ prUrl, dryRun: flags.dryRun });
-    if (!flags.dryRun) {
-      throw new Error('Stopped — complete the steps above, then re-run npm run release.');
-    }
-    return { ready: false, assessment, promotePrUrl: prUrl, needsPromote: true };
-  }
-
-  if (flags.skipPromote) {
-    console.log('  Warning: releasing with unpromoted dev work (--skip-promote)');
-    return { ready: true, assessment, promotePrUrl: null };
-  }
-
-  return { ready: false, assessment, promotePrUrl: null };
 }
 
 function ensureVaultRepo(vaultRootDir) {
@@ -418,40 +363,6 @@ function watchReleaseWorkflow(appRootDir, flags) {
   runInDir(appRootDir, 'gh', ['run', 'watch', String(runs[0].databaseId)], { inherit: true });
 }
 
-async function verifyPreprodSha(appRootDir, flags) {
-  if (flags.skipPreprodCheck) {
-    console.log('  Skipping preprod check (--skip-preprod-check)');
-    return;
-  }
-
-  logStep('Preprod SHA check');
-  const masterResult = runInDir(appRootDir, 'git', ['rev-parse', 'origin/master']);
-  const expected = masterResult.stdout.trim().slice(0, 7);
-  console.log(`  Expected master HEAD: ${expected}`);
-
-  if (flags.dryRun) {
-    console.log(`  Would GET ${PREPROD_VERSION_URL}`);
-    return;
-  }
-
-  if (typeof fetch !== 'function') {
-    console.log(`  Manual check: ${PREPROD_VERSION_URL} → gitSha should be ${expected}`);
-    return;
-  }
-
-  const res = await fetch(PREPROD_VERSION_URL);
-  if (!res.ok) throw new Error(`Preprod /version HTTP ${res.status}`);
-  const body = await res.json().catch(() => ({}));
-  const actual = body.gitSha || '';
-  if (actual !== expected) {
-    throw new Error(
-      `Preprod serves ${actual || '(none)'} but master is ${expected}. `
-      + `Wait for **${PREPROD_WORKFLOW_NAME}** on master, or re-run it.`,
-    );
-  }
-  console.log(`  OK: preprod serves ${actual}`);
-}
-
 function verifyProdHealth({ dryRun }) {
   logStep('Prod health check');
   if (dryRun) {
@@ -570,6 +481,179 @@ function firestoreRulesReminder(appRootDir, previousTag) {
   }
 }
 
+function inspectIntentSeed(appRootDir) {
+  const seedPath = path.join(appRootDir, 'backend', 'src', 'data', 'intentLearnings.seed.json');
+  if (!fs.existsSync(seedPath)) return { stale: true };
+  try {
+    const seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+    const count = Object.values(seed.businesses ?? {})
+      .reduce((n, entries) => n + Object.keys(entries ?? {}).length, 0);
+    const generatedAt = Date.parse(seed.generatedAt);
+    const ageDays = Number.isNaN(generatedAt)
+      ? null
+      : Math.floor((Date.now() - generatedAt) / 86400000);
+    return { stale: !count || ageDays === null || ageDays > SEED_MAX_AGE_DAYS };
+  } catch {
+    return { stale: true };
+  }
+}
+
+function firestoreRulesChanged(appRootDir, previousTag) {
+  const range = previousTag ? `${previousTag}..origin/master` : 'origin/master';
+  const result = runInDir(
+    appRootDir,
+    'git',
+    ['log', '-1', '--format=%H', range, '--', 'firestore.rules', 'firestore.indexes.json'],
+    { allowFailure: true },
+  );
+  return Boolean(result.stdout.trim());
+}
+
+function firstParentLog(appRootDir, range) {
+  const args = ['log', '--first-parent', '--format=%h%x09%s', '--max-count=50'];
+  if (range) args.push(range);
+  return parseFirstParentLog(runInDir(appRootDir, 'git', args).stdout);
+}
+
+async function inspectPreprod(masterSha, flags) {
+  const expected = shortGitSha(masterSha);
+  if (flags.skipPreprodCheck) {
+    return { expected, actual: null, match: null };
+  }
+  if (typeof fetch !== 'function') {
+    return { expected, actual: null, match: null };
+  }
+  try {
+    const res = await fetch(PREPROD_VERSION_URL);
+    if (!res.ok) {
+      return { expected, actual: `HTTP ${res.status}`, match: false };
+    }
+    const body = await res.json().catch(() => null);
+    if (body === null) {
+      return { expected, actual: 'invalid JSON response', match: false };
+    }
+    const actual = body.gitSha || '';
+    return { expected, actual, match: expected === actual };
+  } catch (err) {
+    return {
+      expected,
+      actual: `fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      match: false,
+    };
+  }
+}
+
+async function buildReleaseReport(appRootDir, vaultRootDir, flags) {
+  gitFetch(appRootDir);
+  runInDir(vaultRootDir, 'git', ['fetch', 'origin', 'master'], { allowFailure: true });
+
+  const branch = inspectBranches(appRootDir);
+  const { assessment } = branch;
+  const masterSha = runInDir(
+    appRootDir,
+    'git',
+    ['rev-parse', 'origin/master'],
+  ).stdout.trim();
+  const lastTag = latestReleaseTag(appRootDir);
+  const lastTagSha = lastTag
+    ? runInDir(appRootDir, 'git', ['rev-list', '-n', '1', lastTag]).stdout.trim()
+    : null;
+  const phase = classifyReleasePhase({
+    diverged: assessment.reason === 'diverged',
+    needsPromote: assessment.needsPromote,
+    masterSha,
+    lastTagSha,
+  });
+
+  const waitingToPromote = firstParentLog(appRootDir, 'origin/master..origin/dev');
+  const waitingToShip = firstParentLog(
+    appRootDir,
+    lastTag ? `${lastTag}..origin/master` : 'origin/master',
+  );
+  const openPromotePr = findOpenPr(appRootDir, 'master', 'dev')[0] || null;
+  const openSyncPr = findOpenPr(appRootDir, 'dev', 'master')[0] || null;
+
+  const unreleasedFile = unreleasedPath(vaultRootDir);
+  const tasksFile = productionTasksPath(vaultRootDir);
+  const unreleased = fs.existsSync(unreleasedFile) ? fs.readFileSync(unreleasedFile, 'utf8') : '';
+  const productionTasksSource = fs.existsSync(tasksFile) ? fs.readFileSync(tasksFile, 'utf8') : '';
+  const userVisible = extractUserVisibleNotes(unreleased);
+  const internal = extractMarkdownSections(unreleased, 'Internal');
+  const productionTasks = extractProductionTasks(productionTasksSource)
+    || extractMarkdownSections(unreleased, 'Production tasks');
+  const vaultDirty = Boolean(vaultGitStatus(vaultRootDir));
+  const vaultBranch = runInDir(
+    vaultRootDir,
+    'git',
+    ['rev-parse', '--abbrev-ref', 'HEAD'],
+  ).stdout.trim();
+  const vaultCountsResult = runInDir(
+    vaultRootDir,
+    'git',
+    ['rev-list', '--left-right', '--count', 'origin/master...HEAD'],
+    { allowFailure: true },
+  );
+  const [behindRaw = '0', aheadRaw = '0'] = vaultCountsResult.stdout.trim().split(/\s+/);
+  const tags = listReleaseTags(appRootDir);
+  const nextTag = normalizeTag(flags.tag) || suggestNextTag(tags);
+  const preprod = await inspectPreprod(masterSha, flags);
+  const seed = inspectIntentSeed(appRootDir);
+  const rulesChanged = firestoreRulesChanged(appRootDir, lastTag);
+  const result = collectShipBlockers({
+    phase,
+    userVisible,
+    internal,
+    productionTasks,
+    tagExists: tagExists(appRootDir, nextTag),
+    vaultDirty,
+    vaultBranch,
+    preprodMatch: preprod.match,
+    lastTagSha,
+    skipPromote: flags.skipPromote,
+    skipPreprodCheck: flags.skipPreprodCheck,
+    skipVaultPush: flags.skipVaultPush,
+    intentSeedStale: seed.stale,
+    firestoreRulesChanged: rulesChanged,
+  });
+  if (waitingToPromote.length === 50) {
+    result.warnings.push({
+      code: 'promote-list-truncated',
+      message: 'Waiting-to-promote list reached 50 entries; older merges are omitted.',
+    });
+  }
+  if (waitingToShip.length === 50) {
+    result.warnings.push({
+      code: 'ship-list-truncated',
+      message: 'Waiting-to-ship list reached 50 entries; older merges are omitted.',
+    });
+  }
+
+  return {
+    phase,
+    assessment,
+    lastTag,
+    lastTagSha,
+    masterSha,
+    nextTag,
+    waitingToPromote,
+    waitingToShip,
+    openPromotePr,
+    openSyncPr,
+    vault: {
+      userVisibleCount: countMarkdownBullets(userVisible),
+      internalCount: countMarkdownBullets(internal),
+      productionTasksCount: countMarkdownBullets(productionTasks),
+      branch: vaultBranch,
+      dirty: vaultDirty,
+      ahead: Number.parseInt(aheadRaw, 10) || 0,
+      behind: Number.parseInt(behindRaw, 10) || 0,
+    },
+    preprod,
+    blockers: result.blockers,
+    warnings: result.warnings,
+  };
+}
+
 async function main() {
   const flags = parseReleaseArgs(process.argv.slice(2));
   if (flags.help) {
@@ -578,34 +662,64 @@ async function main() {
   }
 
   ensureGh();
-  printReleaseOverview();
-
-  if (flags.dryRun) {
-    console.log('\n*** DRY RUN — no vault writes, PRs, tags, or GitHub Release ***\n');
-  }
-
   const root = appRoot();
   const vault = vaultRoot(root);
   ensureVaultRepo(vault);
 
-  intentSeedReminder(root);
-  productionTasksReminder(vault);
-
-  const branchGate = await ensureBranchesReady(root, flags);
-  if (branchGate.alreadyPromoted) {
+  if (flags.status) {
+    const report = await buildReleaseReport(root, vault, flags);
+    console.log(formatReleaseStatus(report));
     return;
   }
-  if (!branchGate.ready && flags.dryRun) {
-    if (!branchGate.needsPromote) {
-      nextStepsForPromoteRequired({ dryRun: true });
+
+  printReleaseOverview();
+
+  if (flags.promoteOnly) {
+    gitFetch(root);
+    const branch = inspectBranches(root);
+    if (branch.assessment.ready) {
+      nextStepsForPromoteOnlyAlreadyDone();
+      return;
     }
-    return;
-  }
-  if (!branchGate.ready) {
+    if (branch.assessment.reason === 'diverged') {
+      nextStepsForDiverged();
+      throw new Error('dev and master have diverged. Resolve manually, then re-run release.');
+    }
+    intentSeedReminder(root);
+    productionTasksReminder(vault);
+    const pr = createPromotePr(root, flags);
+    nextStepsForPromoteRequired({ prUrl: pr?.url || null, dryRun: flags.dryRun });
     return;
   }
 
-  if (!flags.dryRun && !flags.yes && branchGate.shippingPass) {
+  if (flags.dryRun) {
+    console.log('\n*** DRY RUN: no vault writes, PRs, tags, or GitHub Release ***\n');
+    const report = await buildReleaseReport(root, vault, flags);
+    console.log(formatReleaseStatus(report));
+    if (report.blockers.length === 0) {
+      console.log(`\n  Would rotate vault changelog for ${report.nextTag}`);
+      console.log(`  Would run: gh release create ${report.nextTag} --target master`);
+      nextStepsForDryRunComplete({ wouldPromote: false, tag: report.nextTag });
+      return;
+    }
+    console.log('\nnot ready to ship');
+    process.exit(1);
+  }
+
+  const report = await buildReleaseReport(root, vault, flags);
+  if (report.blockers.length > 0) {
+    console.log(formatReleaseStatus(report));
+    if (report.phase === 'needs-promote') {
+      console.log('\nRun: npm run release:promote');
+    }
+    process.exit(1);
+  }
+
+  if (flags.skipPromote) {
+    console.log('  Warning: releasing with unpromoted dev work (--skip-promote)');
+  }
+
+  if (!flags.yes) {
     logStep('Preprod smoke required');
     console.log('  master already contains dev\'s work — this is pass 2 (ship to prod).');
     const ok = awaitConfirm('Preprod smoke done for this commit? Continue with production release?');
@@ -614,20 +728,13 @@ async function main() {
     }
   }
 
-  const tags = listReleaseTags(root);
-  const tag = normalizeTag(flags.tag) || suggestNextTag(tags);
-  const previousTag = latestReleaseTag(root);
+  const tag = report.nextTag;
+  const previousTag = report.lastTag;
   logStep(`Release tag: ${tag}`);
-
-  if (!flags.dryRun && tagExists(root, tag)) {
-    throw new Error(`Tag ${tag} already exists locally. Pick another tag or delete the old release.`);
-  }
-
-  await verifyPreprodSha(root, flags);
 
   const rotation = planVaultRelease(vault, tag);
 
-  if (rotation.productionTasks && !flags.dryRun && !flags.yes && branchGate.shippingPass) {
+  if (rotation.productionTasks && !flags.yes) {
     logStep('Production tasks required for this tag');
     for (const line of rotation.productionTasks.split('\n')) {
       console.log(`  ${line}`);
@@ -649,7 +756,7 @@ async function main() {
 
   let syncPrUrl = null;
   let needsPostReleaseSync = false;
-  if (!flags.skipSync && !flags.dryRun) {
+  if (!flags.skipSync) {
     gitFetch(root);
     const post = inspectBranches(root);
     needsPostReleaseSync = post.assessment.needsPostReleaseSync;
@@ -658,12 +765,6 @@ async function main() {
       const pr = createSyncPr(root, tag, flags);
       syncPrUrl = pr?.url || null;
     }
-  }
-
-  if (flags.dryRun) {
-    nextStepsForDryRunComplete({ wouldPromote: false, tag });
-    console.log('\nDry run only — no vault writes, PRs, or release published.');
-    return;
   }
 
   nextStepsForReleaseComplete({ tag, syncPrUrl, needsPostReleaseSync, skipWatch: flags.skipWatch });
