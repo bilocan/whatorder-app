@@ -874,10 +874,13 @@
       "working": "Çalışıyor…",
       "keepId": "Aynı restoran kimliğini koru",
       "overwrite": "Bu kimlik varsa üzerine yaz",
-      "attachLine": "Kenar çubuğundaki WhatsApp hattına ekle",
+      "attachLine": "Bot listesi için WhatsApp hattı",
+      "attachLinePlaceholder": "WhatsApp hattı seç",
+      "attachLineHint": "Müşterilerin yazacağı numarayı seç. Bot yalnızca o hatta bağlı restoranları listeler. Dosyadaki yönlendirme kopyalanmaz.",
+      "attachLineMissing": "İçe aktarmadan önce bir WhatsApp hattı seç.",
       "confirmName": "Onay için restoran adını yaz",
       "importButton": "İçe aktar",
-      "imported": "{{id}} içe aktarıldı"
+      "imported": "{{id}} içe aktarıldı. Bot listesi: {{line}}."
     },
     "restaurantDetail": {
       "loading": "Yükleniyor...",

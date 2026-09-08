@@ -14,6 +14,13 @@ export function formatPhoneLineLabel(line: PhoneLine): string {
   return line.displayNumber?.trim() || '';
 }
 
+/** Select / success label: display number plus Meta-id tail so two lines with the same number stay distinct. */
+export function formatAttachLineOption(line: PhoneLine, unlabeled: string): string {
+  const display = formatPhoneLineLabel(line);
+  const suffix = phoneLineMetaSuffix(line.id);
+  return display ? `${display} (${suffix})` : `${unlabeled} (${suffix})`;
+}
+
 export function comparePhoneLines(a: PhoneLine, b: PhoneLine): number {
   const aHas = hasPhoneLineDisplayNumber(a);
   const bHas = hasPhoneLineDisplayNumber(b);

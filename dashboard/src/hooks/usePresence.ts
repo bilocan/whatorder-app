@@ -10,6 +10,7 @@ import {
   type DocumentReference,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { needsPresenceMapSeed } from '../lib/presenceClaim';
 
 export interface PresenceData {
   isOnline: boolean;
@@ -56,12 +57,23 @@ async function claimPresence(
   bizRef: DocumentReference,
   tabId: string,
   deliveryOpen: boolean,
+  existingSessions: unknown,
 ): Promise<void> {
+  const stamp = serverTimestamp();
+  if (needsPresenceMapSeed(existingSessions)) {
+    await updateDoc(bizRef, {
+      presenceSessions: { [tabId]: stamp },
+      isOnline: true,
+      deliveryOpen,
+      lastSeenAt: stamp,
+    });
+    return;
+  }
   await updateDoc(bizRef, {
-    [`presenceSessions.${tabId}`]: serverTimestamp(),
+    [`presenceSessions.${tabId}`]: stamp,
     isOnline: true,
     deliveryOpen,
-    lastSeenAt: serverTimestamp(),
+    lastSeenAt: stamp,
   });
 }
 
@@ -104,7 +116,7 @@ export function usePresence(businessId: string | null): PresenceData | null {
         ? isOrderingOpenNow(bizData.schedule, tz)
         : false;
 
-      await claimPresence(bizRef, tabId, deliveryOpen);
+      await claimPresence(bizRef, tabId, deliveryOpen, bizData.presenceSessions);
 
       if (!mounted) return;
 
