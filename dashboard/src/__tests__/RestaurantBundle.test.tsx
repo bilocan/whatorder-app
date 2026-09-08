@@ -43,12 +43,13 @@ vi.mock('../contexts/AdminPhoneLineContext', () => ({
 }));
 
 async function previewFile() {
-  render(<RestaurantBundleImport />);
+  const view = render(<RestaurantBundleImport />);
   const input = document.querySelector('input[type="file"]') as HTMLInputElement;
   const file = new File(['zip'], 'biz_doner-setup.woz.zip', { type: 'application/zip' });
   fireEvent.change(input, { target: { files: [file] } });
   fireEvent.click(screen.getByRole('button', { name: 'Preview file' }));
   await screen.findByText(/Döner Palace/);
+  return view;
 }
 
 describe('RestaurantBundleImport', () => {
@@ -99,6 +100,27 @@ describe('RestaurantBundleImport', () => {
       }));
     });
     expect(await screen.findByText('Imported biz_doner. Bot list: +1 (555) 196-1529 (…759163).')).toBeInTheDocument();
+  });
+
+  it('attaches to the line picked in the form, not the sidebar default', async () => {
+    mockRun.mockResolvedValue({ businessId: 'biz_doner', counts: { menu: 3 }, warnings: [] });
+    mockSetPhoneNumberId.mockImplementation((id: string) => {
+      phoneLineState.phoneNumberId = id || undefined;
+    });
+    const { rerender } = await previewFile();
+    fireEvent.change(screen.getByLabelText('WhatsApp line for the bot list'), {
+      target: { value: '1056173694256337' },
+    });
+    expect(mockSetPhoneNumberId).toHaveBeenCalledWith('1056173694256337');
+    rerender(<RestaurantBundleImport />);
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await waitFor(() => {
+      expect(mockRun).toHaveBeenCalledWith(expect.objectContaining({
+        importToken: 'tok-commit',
+        attachToPhoneLine: true,
+        targetPhoneNumberId: '1056173694256337',
+      }));
+    });
   });
 
   it('blocks import when no WhatsApp line is selected', async () => {

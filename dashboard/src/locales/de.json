@@ -872,13 +872,13 @@
       "working": "Bitte warten…",
       "keepId": "Dieselbe Restaurant-ID behalten",
       "overwrite": "Überschreiben, falls diese ID schon existiert",
-        "attachLine": "WhatsApp-Leitung für die Bot-Liste",
-        "attachLinePlaceholder": "WhatsApp-Leitung wählen",
-        "attachLineHint": "Wähl die Nummer, der Kunden schreiben. Der Bot listet nur Restaurants dieser Leitung. Routing aus der Datei wird nie übernommen.",
-        "attachLineMissing": "Wähl vor dem Import eine WhatsApp-Leitung.",
-        "confirmName": "Tippe den Restaurantnamen zur Bestätigung",
-        "importButton": "Importieren",
-        "imported": "{{id}} importiert. Bot-Liste: {{line}}."
+      "attachLine": "WhatsApp-Leitung für die Bot-Liste",
+      "attachLinePlaceholder": "WhatsApp-Leitung wählen",
+      "attachLineHint": "Wähl die Nummer, an die Kunden schreiben. Der Bot listet nur Restaurants dieser Leitung. Routing aus der Datei wird nie übernommen.",
+      "attachLineMissing": "Wähl vor dem Import eine WhatsApp-Leitung.",
+      "confirmName": "Tippe den Restaurantnamen zur Bestätigung",
+      "importButton": "Importieren",
+      "imported": "{{id}} importiert. Bot-Liste: {{line}}."
     },
     "restaurantDetail": {
       "loading": "Lade...",
