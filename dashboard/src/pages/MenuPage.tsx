@@ -123,6 +123,9 @@ function MenuForm({
 
   return (
     <form id={anchorId} className="menu-form" onSubmit={onSubmit}>
+      {photoError && (
+        <p className="menu-form-error menu-form-error-banner" role="alert">{photoError}</p>
+      )}
       <div className="menu-form-field menu-form-field-grow">
         <label className="menu-form-label">{t('menu.form.name')}</label>
         <input
@@ -203,7 +206,6 @@ function MenuForm({
             </button>
           )}
         </div>
-        {photoError && <span className="menu-form-error">{photoError}</span>}
       </div>
       <div className="menu-form-avail">
         <input
@@ -314,6 +316,18 @@ export default function MenuPage() {
     return t('menu.form.photoInvalidType');
   }
 
+  function isStorageError(err: unknown): boolean {
+    if (typeof err !== 'object' || err === null || !('code' in err)) return false;
+    const code = (err as { code: unknown }).code;
+    return typeof code === 'string' && code.startsWith('storage/');
+  }
+
+  function saveErrorMessage(err: unknown): string {
+    if (err instanceof MenuPhotoError) return photoErrorMessage(err);
+    if (isStorageError(err)) return t('menu.form.photoUploadFailed');
+    return t('menu.form.saveFailed');
+  }
+
   async function resolvePhotoForSave(bizId: string, values: FormValues): Promise<{
     photoUrl: string | null;
     flowListImage?: string;
@@ -344,8 +358,8 @@ export default function MenuPage() {
       setNewItem(EMPTY);
       setShowAddForm(false);
     } catch (err) {
-      if (err instanceof MenuPhotoError) setPhotoError(photoErrorMessage(err));
-      else throw err;
+      console.error('[menu] add failed', err);
+      setPhotoError(saveErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -380,8 +394,8 @@ export default function MenuPage() {
       setEditingId(null);
       clearEditParam();
     } catch (err) {
-      if (err instanceof MenuPhotoError) setPhotoError(photoErrorMessage(err));
-      else throw err;
+      console.error('[menu] save failed', err);
+      setPhotoError(saveErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -410,7 +424,7 @@ export default function MenuPage() {
         <button
           type="button"
           className="menu-add-btn"
-          onClick={() => { setShowAddForm(true); setEditingId(null); clearEditParam(); }}
+          onClick={() => { setShowAddForm(true); setEditingId(null); setPhotoError(null); clearEditParam(); }}
         >
           {t('menu.addItem')}
         </button>

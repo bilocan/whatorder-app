@@ -4,10 +4,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import MenuPage from '../pages/MenuPage'
 import { ConfirmDialogProvider } from '../components/ConfirmDialog'
 
-const { mockUseAuth, mockOnSnapshot, mockAddDoc, mockUploadBytes, mockGetDownloadURL, stableOptionGroups } = vi.hoisted(() => ({
+const { mockUseAuth, mockOnSnapshot, mockAddDoc, mockUpdateDoc, mockUploadBytes, mockGetDownloadURL, stableOptionGroups } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
   mockOnSnapshot: vi.fn(),
   mockAddDoc: vi.fn(),
+  mockUpdateDoc: vi.fn(),
   mockUploadBytes: vi.fn(),
   mockGetDownloadURL: vi.fn(),
   stableOptionGroups: { groups: [], byId: {}, loading: false },
@@ -22,7 +23,7 @@ vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
   onSnapshot: mockOnSnapshot,
   addDoc: mockAddDoc,
-  updateDoc: vi.fn(),
+  updateDoc: mockUpdateDoc,
   deleteDoc: vi.fn(),
   doc: vi.fn(),
   deleteField: vi.fn(() => 'DELETE_FIELD'),
@@ -258,6 +259,79 @@ describe('MenuPage', () => {
       photoUrl: 'https://cdn.example.com/doner.jpg',
       flowListImage: 'flowThumbRaw',
     })
+  })
+
+  it('shows a save error when photo upload is denied and does not persist the item', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:preview')
+    URL.revokeObjectURL = vi.fn()
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: [] })
+      return vi.fn()
+    })
+    mockUploadBytes.mockRejectedValue(Object.assign(new Error('permission'), { code: 'storage/unauthorized' }))
+
+    const { container } = renderPage()
+    fireEvent.click(screen.getByText('+ Add item'))
+
+    const nameInput = container.querySelector('input[required]') as HTMLInputElement
+    fireEvent.change(nameInput, { target: { value: 'Cordon Bleu' } })
+    const priceInput = container.querySelector('input[type="number"]') as HTMLInputElement
+    fireEvent.change(priceInput, { target: { value: '12' } })
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
+    const file = new File([new Uint8Array(10)], '02_cordon_bleu.jpg', { type: 'image/jpeg' })
+    fireEvent.change(fileInput, { target: { files: [file] } })
+
+    fireEvent.click(screen.getByText('Add'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Photo could not be uploaded. The item was not saved.',
+    )
+    expect(mockAddDoc).not.toHaveBeenCalled()
+    expect(screen.getByDisplayValue('Cordon Bleu')).toBeInTheDocument()
+  })
+
+  it('keeps the edit form open with an error when photo replace fails', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:preview')
+    URL.revokeObjectURL = vi.fn()
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    mockUploadBytes.mockRejectedValue(Object.assign(new Error('permission'), { code: 'storage/unauthorized' }))
+
+    const { container } = renderPage('/menu?edit=m1')
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    })
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
+    const file = new File([new Uint8Array(10)], 'doner.jpg', { type: 'image/jpeg' })
+    fireEvent.change(fileInput, { target: { files: [file] } })
+    fireEvent.click(screen.getByText('Save'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Photo could not be uploaded. The item was not saved.',
+    )
+    expect(mockUpdateDoc).not.toHaveBeenCalled()
+    expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+  })
+
+  it('shows a save error when Firestore write fails without a photo change', async () => {
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: [] })
+      return vi.fn()
+    })
+    mockAddDoc.mockRejectedValue(new Error('permission-denied'))
+
+    const { container } = renderPage()
+    fireEvent.click(screen.getByText('+ Add item'))
+    fireEvent.change(container.querySelector('input[required]') as HTMLInputElement, { target: { value: 'Cola' } })
+    fireEvent.change(container.querySelector('input[type="number"]') as HTMLInputElement, { target: { value: '2.5' } })
+    fireEvent.click(screen.getByText('Add'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save. Try again.')
+    expect(screen.getByDisplayValue('Cola')).toBeInTheDocument()
   })
 
   describe('VAT rate', () => {
