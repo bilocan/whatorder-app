@@ -117,6 +117,7 @@ async function persistImport(result, {
     await linkOwner(owner.phone, businessId);
   }
 
+  // Dashboard import always attaches. API may skip (tests). Skipping means the bot picker never lists the restaurant.
   if (attachToPhoneLine && targetPhoneNumberId) {
     await phoneRoutingRef(targetPhoneNumberId).set(
       { businessIds: admin.firestore.FieldValue.arrayUnion(businessId) },

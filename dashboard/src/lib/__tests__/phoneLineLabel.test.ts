@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   comparePhoneLines,
+  formatAttachLineOption,
   formatPhoneLineLabel,
   normalizeDisplayNumber,
   phoneLineMetaSuffix,
@@ -18,6 +19,17 @@ describe('phoneLineLabel', () => {
 
   it('shows the last six digits of the Meta id as suffix', () => {
     expect(phoneLineMetaSuffix('1227165440469679')).toBe('…469679');
+  });
+
+  it('pairs display number with Meta-id tail for attach options', () => {
+    expect(formatAttachLineOption(
+      { id: '1147794621759163', displayNumber: '+1 (555) 196-1529' },
+      'Phone number not set',
+    )).toBe('+1 (555) 196-1529 (…759163)');
+    expect(formatAttachLineOption(
+      { id: '1147794621759163' },
+      'Phone number not set',
+    )).toBe('Phone number not set (…759163)');
   });
 
   it('sorts labeled lines before unlabeled', () => {

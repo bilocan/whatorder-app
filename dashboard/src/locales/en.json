@@ -379,7 +379,9 @@
       "photoRemove": "Remove photo",
       "photoUploading": "Uploading…",
       "photoTooLarge": "Image must be 5MB or smaller.",
-      "photoInvalidType": "Selected file is not an image."
+      "photoInvalidType": "Selected file is not an image.",
+      "photoUploadFailed": "Photo could not be uploaded. The item was not saved.",
+      "saveFailed": "Could not save. Try again."
     },
     "category": {
       "mains": "Mains",
@@ -872,10 +874,13 @@
         "working": "Working…",
         "keepId": "Keep the same restaurant ID",
         "overwrite": "Overwrite if this ID already exists",
-        "attachLine": "Add to the WhatsApp line selected in the sidebar",
+        "attachLine": "WhatsApp line for the bot list",
+        "attachLinePlaceholder": "Pick a WhatsApp line",
+        "attachLineHint": "Pick the number customers will message. The bot only lists restaurants on that line. Routing from the file is never copied.",
+        "attachLineMissing": "Pick a WhatsApp line before import.",
         "confirmName": "Type the restaurant name to confirm",
         "importButton": "Import",
-        "imported": "Imported {{id}}"
+        "imported": "Imported {{id}}. Bot list: {{line}}."
       },
     "restaurantDetail": {
       "loading": "Loading...",

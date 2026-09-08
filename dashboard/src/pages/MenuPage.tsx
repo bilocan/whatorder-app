@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
@@ -123,6 +123,9 @@ function MenuForm({
 
   return (
     <form id={anchorId} className="menu-form" onSubmit={onSubmit}>
+      {photoError && (
+        <p className="menu-form-error menu-form-error-banner" role="alert">{photoError}</p>
+      )}
       <div className="menu-form-field menu-form-field-grow">
         <label className="menu-form-label">{t('menu.form.name')}</label>
         <input
@@ -203,7 +206,6 @@ function MenuForm({
             </button>
           )}
         </div>
-        {photoError && <span className="menu-form-error">{photoError}</span>}
       </div>
       <div className="menu-form-avail">
         <input
@@ -246,8 +248,25 @@ export default function MenuPage() {
   const [editItem, setEditItem] = useState<FormValues>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const saveGenRef = useRef(0);
   /** Categories in this set are collapsed; default empty = all expanded. */
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(() => new Set());
+
+  function beginSave(): number {
+    setPhotoError(null);
+    setSaving(true);
+    return ++saveGenRef.current;
+  }
+
+  function isCurrentSave(gen: number): boolean {
+    return gen === saveGenRef.current;
+  }
+
+  function abandonSave() {
+    saveGenRef.current += 1;
+    setSaving(false);
+    setPhotoError(null);
+  }
 
   useEffect(() => {
     if (!businessId) return;
@@ -268,8 +287,8 @@ export default function MenuPage() {
       next.delete(cat);
       return next;
     });
+    abandonSave();
     setEditingId(editId);
-    setPhotoError(null);
     setEditItem(menuItemToFormValues(item));
     setShowAddForm(false);
     requestAnimationFrame(() => {
@@ -314,6 +333,18 @@ export default function MenuPage() {
     return t('menu.form.photoInvalidType');
   }
 
+  function isStorageError(err: unknown): boolean {
+    if (typeof err !== 'object' || err === null || !('code' in err)) return false;
+    const code = (err as { code: unknown }).code;
+    return typeof code === 'string' && code.startsWith('storage/');
+  }
+
+  function saveErrorMessage(err: unknown): string {
+    if (err instanceof MenuPhotoError) return photoErrorMessage(err);
+    if (isStorageError(err)) return t('menu.form.photoUploadFailed');
+    return t('menu.form.saveFailed');
+  }
+
   async function resolvePhotoForSave(bizId: string, values: FormValues): Promise<{
     photoUrl: string | null;
     flowListImage?: string;
@@ -331,8 +362,7 @@ export default function MenuPage() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!businessId) return;
-    setPhotoError(null);
-    setSaving(true);
+    const gen = beginSave();
     try {
       const { photoUrl, flowListImage } = await resolvePhotoForSave(businessId, newItem);
       const targetCat = newItem.category || 'other';
@@ -340,21 +370,23 @@ export default function MenuPage() {
         collection(db, 'businesses', businessId, 'menu'),
         buildMenuPayload({ ...newItem, photoUrl, flowListImage }),
       );
+      if (!isCurrentSave(gen)) return;
       expandCategory(targetCat);
       setNewItem(EMPTY);
       setShowAddForm(false);
     } catch (err) {
-      if (err instanceof MenuPhotoError) setPhotoError(photoErrorMessage(err));
-      else throw err;
+      console.error('[menu] add failed', err);
+      if (!isCurrentSave(gen)) return;
+      setPhotoError(saveErrorMessage(err));
     } finally {
-      setSaving(false);
+      if (isCurrentSave(gen)) setSaving(false);
     }
   }
 
   function startEdit(item: MenuItem) {
     expandCategory(item.category || 'other');
+    abandonSave();
     setEditingId(item.id);
-    setPhotoError(null);
     setEditItem(menuItemToFormValues(item));
     setShowAddForm(false);
     setSearchParams({ edit: item.id }, { replace: true });
@@ -363,8 +395,7 @@ export default function MenuPage() {
   async function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!businessId || !editingId) return;
-    setPhotoError(null);
-    setSaving(true);
+    const gen = beginSave();
     try {
       const original = items.find((i) => i.id === editingId);
       const { photoUrl, flowListImage } = await resolvePhotoForSave(businessId, editItem);
@@ -376,14 +407,16 @@ export default function MenuPage() {
       if (original?.photoUrl && original.photoUrl !== photoUrl) {
         await deleteMenuPhotoBestEffort(original.photoUrl);
       }
+      if (!isCurrentSave(gen)) return;
       expandCategory(targetCat);
       setEditingId(null);
       clearEditParam();
     } catch (err) {
-      if (err instanceof MenuPhotoError) setPhotoError(photoErrorMessage(err));
-      else throw err;
+      console.error('[menu] save failed', err);
+      if (!isCurrentSave(gen)) return;
+      setPhotoError(saveErrorMessage(err));
     } finally {
-      setSaving(false);
+      if (isCurrentSave(gen)) setSaving(false);
     }
   }
 
@@ -410,7 +443,7 @@ export default function MenuPage() {
         <button
           type="button"
           className="menu-add-btn"
-          onClick={() => { setShowAddForm(true); setEditingId(null); clearEditParam(); }}
+          onClick={() => { abandonSave(); setShowAddForm(true); setEditingId(null); clearEditParam(); }}
         >
           {t('menu.addItem')}
         </button>
@@ -421,7 +454,7 @@ export default function MenuPage() {
           values={newItem}
           onChange={setNewItem}
           onSubmit={handleAdd}
-          onCancel={() => { setShowAddForm(false); setNewItem(EMPTY); setPhotoError(null); }}
+          onCancel={() => { abandonSave(); setShowAddForm(false); setNewItem(EMPTY); }}
           submitting={saving}
           submitLabel={t('menu.add')}
           photoError={photoError}
@@ -466,7 +499,7 @@ export default function MenuPage() {
                         values={editItem}
                         onChange={setEditItem}
                         onSubmit={handleSaveEdit}
-                        onCancel={() => { setEditingId(null); setPhotoError(null); clearEditParam(); }}
+                        onCancel={() => { abandonSave(); setEditingId(null); clearEditParam(); }}
                         submitting={saving}
                         submitLabel={t('menu.save')}
                         photoError={photoError}

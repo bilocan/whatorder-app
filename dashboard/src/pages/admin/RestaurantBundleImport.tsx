@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAdminPhoneLine } from '../../contexts/AdminPhoneLineContext';
+import { formatAttachLineOption } from '../../lib/phoneLineLabel';
 import {
   requestImportUpload,
   uploadBundleFile,
@@ -13,25 +14,32 @@ import {
 
 export default function RestaurantBundleImport() {
   const { t } = useTranslation();
-  const { phoneNumberId } = useAdminPhoneLine();
+  const { phoneNumberId, phoneLines, setPhoneNumberId, loading: linesLoading } = useAdminPhoneLine();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<BundlePreview | null>(null);
   const [importToken, setImportToken] = useState('');
   const [overwrite, setOverwrite] = useState(false);
   const [keepId, setKeepId] = useState(true);
-  const [attachLine, setAttachLine] = useState(true);
   const [confirmName, setConfirmName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [doneId, setDoneId] = useState('');
+  const [doneLine, setDoneLine] = useState('');
 
   const production = isProductionDashboard();
   const confirmRequired = needsNameConfirm(preview?.businessId, production);
+  const unlabeled = t('admin.phoneLine.unlabeled');
+  const selectedLine = phoneLines.find((line) => line.id === phoneNumberId);
+  const selectedLineLabel = selectedLine
+    ? formatAttachLineOption(selectedLine, unlabeled)
+    : '';
+  const canAttach = Boolean(phoneNumberId) && !linesLoading;
 
   async function onPreview() {
     if (!file) return;
     setError('');
     setDoneId('');
+    setDoneLine('');
     setBusy(true);
     try {
       const upload = await requestImportUpload();
@@ -46,23 +54,25 @@ export default function RestaurantBundleImport() {
     }
   }
 
-  const canAttach = Boolean(phoneNumberId);
-
   async function onImport() {
     if (!importToken || !preview) return;
+    if (!phoneNumberId) {
+      setError(t('admin.bundle.attachLineMissing'));
+      return;
+    }
     setError('');
     setBusy(true);
     try {
-      const attach = attachLine && canAttach;
       const result = await runImportBundle({
         importToken,
         overwrite,
         keepBusinessId: keepId,
-        attachToPhoneLine: attach,
-        targetPhoneNumberId: attach ? phoneNumberId : null,
+        attachToPhoneLine: true,
+        targetPhoneNumberId: phoneNumberId,
         confirmName: confirmRequired ? confirmName : undefined,
       });
       setDoneId(result.businessId);
+      setDoneLine(selectedLineLabel);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed');
     } finally {
@@ -120,15 +130,40 @@ export default function RestaurantBundleImport() {
             <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} />{' '}
             {t('admin.bundle.overwrite')}
           </label>
-          <label style={{ display: 'block' }}>
-            <input
-              type="checkbox"
-              checked={attachLine && canAttach}
-              disabled={!canAttach}
-              onChange={(e) => setAttachLine(e.target.checked)}
-            />{' '}
+          <label style={{ display: 'block', marginTop: '0.75rem' }}>
             {t('admin.bundle.attachLine')}
+            <select
+              aria-label={t('admin.bundle.attachLine')}
+              value={phoneNumberId || ''}
+              onChange={(e) => setPhoneNumberId(e.target.value)}
+              required
+              style={{
+                display: 'block',
+                marginTop: 4,
+                padding: '0.4rem 0.6rem',
+                borderRadius: 8,
+                border: '1px solid #ddd',
+                width: '100%',
+                maxWidth: 360,
+                background: '#fff',
+              }}
+            >
+              <option value="">{t('admin.bundle.attachLinePlaceholder')}</option>
+              {phoneLines.map((line) => (
+                <option key={line.id} value={line.id}>
+                  {formatAttachLineOption(line, unlabeled)}
+                </option>
+              ))}
+            </select>
           </label>
+          <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: '#666', maxWidth: 420 }}>
+            {t('admin.bundle.attachLineHint')}
+          </p>
+          {!canAttach && (
+            <p role="alert" style={{ margin: '0.35rem 0 0', color: '#92400e' }}>
+              {t('admin.bundle.attachLineMissing')}
+            </p>
+          )}
           {confirmRequired && (
             <label style={{ display: 'block', marginTop: '0.5rem' }}>
               {t('admin.bundle.confirmName')}
@@ -141,7 +176,7 @@ export default function RestaurantBundleImport() {
           )}
           <button
             type="button"
-            disabled={busy || (preview.exists && !overwrite)}
+            disabled={busy || !canAttach || (preview.exists && !overwrite)}
             onClick={onImport}
             style={{
               marginTop: '0.75rem',
@@ -151,7 +186,7 @@ export default function RestaurantBundleImport() {
               border: 'none',
               borderRadius: 8,
               fontWeight: 600,
-              cursor: busy ? 'not-allowed' : 'pointer',
+              cursor: busy || !canAttach ? 'not-allowed' : 'pointer',
             }}
           >
             {t('admin.bundle.importButton')}
@@ -159,7 +194,11 @@ export default function RestaurantBundleImport() {
         </div>
       )}
       {error && <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: '#ef4444' }}>{error}</p>}
-      {doneId && <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: '#047857' }}>{t('admin.bundle.imported', { id: doneId })}</p>}
+      {doneId && (
+        <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: '#047857' }}>
+          {t('admin.bundle.imported', { id: doneId, line: doneLine })}
+        </p>
+      )}
     </section>
   );
 }

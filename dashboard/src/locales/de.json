@@ -379,7 +379,9 @@
       "photoRemove": "Foto entfernen",
       "photoUploading": "Wird hochgeladen…",
       "photoTooLarge": "Bild darf maximal 5MB groß sein.",
-      "photoInvalidType": "Die ausgewählte Datei ist kein Bild."
+      "photoInvalidType": "Die ausgewählte Datei ist kein Bild.",
+      "photoUploadFailed": "Foto konnte nicht hochgeladen werden. Der Artikel wurde nicht gespeichert.",
+      "saveFailed": "Speichern fehlgeschlagen. Versuch es nochmal."
     },
     "category": {
       "mains": "Hauptgerichte",
@@ -872,10 +874,13 @@
       "working": "Bitte warten…",
       "keepId": "Dieselbe Restaurant-ID behalten",
       "overwrite": "Überschreiben, falls diese ID schon existiert",
-      "attachLine": "Zur WhatsApp-Leitung in der Seitenleiste hinzufügen",
+      "attachLine": "WhatsApp-Leitung für die Bot-Liste",
+      "attachLinePlaceholder": "WhatsApp-Leitung wählen",
+      "attachLineHint": "Wähl die Nummer, an die Kunden schreiben. Der Bot listet nur Restaurants dieser Leitung. Routing aus der Datei wird nie übernommen.",
+      "attachLineMissing": "Wähl vor dem Import eine WhatsApp-Leitung.",
       "confirmName": "Tippe den Restaurantnamen zur Bestätigung",
       "importButton": "Importieren",
-      "imported": "{{id}} importiert"
+      "imported": "{{id}} importiert. Bot-Liste: {{line}}."
     },
     "restaurantDetail": {
       "loading": "Lade...",

@@ -27,9 +27,9 @@ function stripStripeKeys(business) {
 
 function freezePresence(business) {
   const next = { ...business };
-  delete next.isOnline;
   delete next.lastSeenAt;
-  delete next.presenceSessions;
+  next.isOnline = false;
+  next.presenceSessions = {};
   next.ordersOpen = false;
   next.deliveryOpen = false;
   return next;
