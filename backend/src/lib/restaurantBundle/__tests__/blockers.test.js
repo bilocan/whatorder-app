@@ -326,9 +326,9 @@ describe('B10 presence / live-order freeze', () => {
       options: { overwrite: true },
       targetEnv: PREPROD_ENV,
     });
-    expect(next.business.isOnline).toBeUndefined();
+    expect(next.business.isOnline).toBe(false);
     expect(next.business.lastSeenAt).toBeUndefined();
-    expect(next.business.presenceSessions).toBeUndefined();
+    expect(next.business.presenceSessions).toEqual({});
     expect(next.business.ordersOpen).toBe(false);
     expect(next.business.deliveryOpen).toBe(false);
   });
