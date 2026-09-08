@@ -379,7 +379,9 @@
       "photoRemove": "Fotoğrafı kaldır",
       "photoUploading": "Yükleniyor…",
       "photoTooLarge": "Görsel en fazla 5MB olmalı.",
-      "photoInvalidType": "Seçilen dosya bir görsel değil."
+      "photoInvalidType": "Seçilen dosya bir görsel değil.",
+      "photoUploadFailed": "Görsel yüklenemedi. Ürün kaydedilmedi.",
+      "saveFailed": "Kaydedilemedi. Tekrar dene."
     },
     "category": {
       "mains": "Ana Yemekler",

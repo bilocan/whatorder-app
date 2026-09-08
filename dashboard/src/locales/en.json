@@ -379,7 +379,9 @@
       "photoRemove": "Remove photo",
       "photoUploading": "Uploading…",
       "photoTooLarge": "Image must be 5MB or smaller.",
-      "photoInvalidType": "Selected file is not an image."
+      "photoInvalidType": "Selected file is not an image.",
+      "photoUploadFailed": "Photo could not be uploaded. The item was not saved.",
+      "saveFailed": "Could not save. Try again."
     },
     "category": {
       "mains": "Mains",

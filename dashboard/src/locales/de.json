@@ -379,7 +379,9 @@
       "photoRemove": "Foto entfernen",
       "photoUploading": "Wird hochgeladen…",
       "photoTooLarge": "Bild darf maximal 5MB groß sein.",
-      "photoInvalidType": "Die ausgewählte Datei ist kein Bild."
+      "photoInvalidType": "Die ausgewählte Datei ist kein Bild.",
+      "photoUploadFailed": "Foto konnte nicht hochgeladen werden. Der Artikel wurde nicht gespeichert.",
+      "saveFailed": "Speichern fehlgeschlagen. Versuch es nochmal."
     },
     "category": {
       "mains": "Hauptgerichte",
