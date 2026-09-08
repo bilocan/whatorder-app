@@ -334,6 +334,61 @@ describe('MenuPage', () => {
     expect(screen.getByDisplayValue('Cola')).toBeInTheDocument()
   })
 
+  it('shows a save error when an edit Firestore write fails', async () => {
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    mockUpdateDoc.mockRejectedValue(new Error('permission-denied'))
+
+    renderPage('/menu?edit=m1')
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByText('Save'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save. Try again.')
+    expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+  })
+
+  it('does not show a stale add error on the edit form after switching mid-save', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:preview')
+    URL.revokeObjectURL = vi.fn()
+    mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
+      cb({ docs: ITEMS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    let rejectUpload: (reason: unknown) => void = () => {}
+    mockUploadBytes.mockImplementation(() => new Promise((_, reject) => {
+      rejectUpload = reject
+    }))
+
+    const { container } = renderPage()
+    fireEvent.click(screen.getByText('+ Add item'))
+    fireEvent.change(container.querySelector('input[required]') as HTMLInputElement, { target: { value: 'Cordon Bleu' } })
+    fireEvent.change(container.querySelector('input[type="number"]') as HTMLInputElement, { target: { value: '12' } })
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(fileInput, {
+      target: { files: [new File([new Uint8Array(10)], 'x.jpg', { type: 'image/jpeg' })] },
+    })
+    fireEvent.click(screen.getByText('Add'))
+    expect(screen.getByText('Saving…')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByText('Edit')[0])
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    })
+
+    rejectUpload(Object.assign(new Error('permission'), { code: 'storage/unauthorized' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Saving…')).not.toBeInTheDocument()
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByDisplayValue('Döner')).toBeInTheDocument()
+    expect(screen.queryByDisplayValue('Cordon Bleu')).not.toBeInTheDocument()
+  })
+
   describe('VAT rate', () => {
     it('offers 0%, 10%, and 20% options on the add form', () => {
       mockOnSnapshot.mockImplementation((_col: unknown, cb: (s: object) => void) => {
