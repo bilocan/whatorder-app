@@ -3,6 +3,19 @@ import { vi } from 'vitest'
 
 // jsdom does not implement scrollIntoView; MenuPage uses it after ?edit= navigation.
 Element.prototype.scrollIntoView = vi.fn()
+
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }),
+})
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import en from '../locales/en.json'

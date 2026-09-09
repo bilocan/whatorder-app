@@ -9,6 +9,7 @@ import { isLegalComplete, missingLegalFields, withCompleteFlag } from '../lib/le
 import { evaluateOnboardingChecklist } from '../lib/onboardingChecklist';
 import LegalFieldsForm, { type LegalFormState } from '../components/LegalFieldsForm';
 import { parseSettingsTab, SETTINGS_TABS, type SettingsTab } from '../lib/settingsTabs';
+import PwaInstallHint from '../components/PwaInstallHint';
 import type { Business, DaySchedule, MenuItem } from '../types';
 
 const DEFAULT_LEGAL_FORM: LegalFormState = { country: 'AT' };
@@ -291,7 +292,9 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === 'restaurant' && (
-        <section className="settings-card" role="tabpanel" aria-labelledby="settings-tab-restaurant">
+        <div role="tabpanel" aria-labelledby="settings-tab-restaurant">
+          <PwaInstallHint />
+          <section className="settings-card">
           <h3 className="settings-card-title">{t('settings.profile.title')}</h3>
           <p className="settings-card-desc">{t('settings.profile.description')}</p>
           <div className="settings-grid-2">
@@ -391,6 +394,7 @@ export default function SettingsPage() {
             {saveStatus === 'error' && <span className="settings-status-err">{t('settings.location.invalidCoords')}</span>}
           </div>
         </section>
+        </div>
       )}
 
       {activeTab === 'hours' && (

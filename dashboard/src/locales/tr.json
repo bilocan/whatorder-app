@@ -561,6 +561,11 @@
       "coords": "Gelişmiş — harita koordinatları",
       "orderWindow": "Gelişmiş — son sipariş saatleri (bot kesimi)"
     },
+    "pwa": {
+      "title": "Telefonda kullan",
+      "android": "Önce Siparişler'e git. Chrome'da menüden Uygulamayı yükle (veya Ana ekrana ekle). Simge mutfağı açar.",
+      "ios": "iPhone: Siparişler'i Safari'de aç (Chrome değil), sonra Paylaş → Ana Ekrana Ekle. Safari o anki sayfayı kaydeder."
+    },
     "profile": {
       "title": "Restoran",
       "description": "Ad ve uyarı numarası sabittir. Yakındaki arama ve teslimat için adresi düzenleyin."
