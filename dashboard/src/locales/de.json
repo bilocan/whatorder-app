@@ -561,6 +561,11 @@
       "coords": "Erweitert — Kartenkoordinaten",
       "orderWindow": "Erweitert — letzte Bestellzeiten (Bot-Cutoff)"
     },
+    "pwa": {
+      "title": "Auf dem Handy nutzen",
+      "android": "Android: geh zu Bestellungen, dann in Chrome Menü → App installieren. Das Symbol öffnet die Küche.",
+      "ios": "iPhone: Bestellungen in Safari öffnen (nicht Chrome), dann Teilen → Zum Home-Bildschirm."
+    },
     "profile": {
       "title": "Restaurant",
       "description": "Name und Alert-Nummer sind fest. Adresse für Nearby-Suche und Lieferung bearbeiten."
