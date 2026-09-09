@@ -563,8 +563,8 @@
     },
     "pwa": {
       "title": "Use on your phone",
-      "android": "Open Orders first. In Chrome, use the menu and tap Install app (or Add to Home screen) so the icon opens the kitchen.",
-      "ios": "iPhone: open Orders in Safari (not Chrome), then Share → Add to Home Screen. Safari saves the page you are on."
+      "android": "Android: go to Orders, then Chrome menu → Install app. The icon opens the kitchen.",
+      "ios": "iPhone: open Orders in Safari (not Chrome), then Share → Add to Home Screen."
     },
     "profile": {
       "title": "Restaurant",

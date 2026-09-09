@@ -563,8 +563,8 @@
     },
     "pwa": {
       "title": "Telefonda kullan",
-      "android": "Önce Siparişler'e git. Chrome'da menüden Uygulamayı yükle (veya Ana ekrana ekle). Simge mutfağı açar.",
-      "ios": "iPhone: Siparişler'i Safari'de aç (Chrome değil), sonra Paylaş → Ana Ekrana Ekle. Safari o anki sayfayı kaydeder."
+      "android": "Android: Siparişler'e git, sonra Chrome menü → Uygulamayı yükle. Simge mutfağı açar.",
+      "ios": "iPhone: Siparişler'i Safari'de aç (Chrome değil), sonra Paylaş → Ana Ekrana Ekle."
     },
     "profile": {
       "title": "Restoran",

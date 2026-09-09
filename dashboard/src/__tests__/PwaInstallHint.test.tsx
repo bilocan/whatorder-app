@@ -11,7 +11,7 @@ describe('PwaInstallHint', () => {
   it('shows Android and iOS install steps when not standalone', () => {
     render(<PwaInstallHint forceStandalone={false} />)
     expect(screen.getByRole('heading', { name: 'Use on your phone' })).toBeInTheDocument()
-    expect(screen.getByText(/Open Orders first/)).toBeInTheDocument()
+    expect(screen.getByText(/go to Orders/)).toBeInTheDocument()
     expect(screen.getByText(/open Orders in Safari/)).toBeInTheDocument()
   })
 })
