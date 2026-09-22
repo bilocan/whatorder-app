@@ -144,7 +144,6 @@ jobs:
           flags: --min-instances=0 --allow-unauthenticated --service-account=87472938058-compute@developer.gserviceaccount.com
           # Plain Flow id: WHATSAPP_MENU_FLOW_ID (renamed from WHATSAPP_FLOW_ID).
           # After first deploy, remove stale WHATSAPP_FLOW_ID on the Cloud Run service.
-          # WHATSAPP_CHECKOUT_FLOW_ID: add here when a checkout Flow is published on this WABA.
           env_vars: |
             DEPLOY_ENV=preproduction
             GIT_SHA=${{ github.sha }}
@@ -156,9 +155,10 @@ jobs:
             FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
             BACKEND_URL=https://whatorder-backend-pre-87472938058.europe-west3.run.app
             MAP_PUBLIC_URL=https://whatorder.at
-            WHATSAPP_BUSINESS_ACCOUNT_ID=2111136853086660
-            WHATSAPP_PHONE_NUMBER_ID=1230087620193335
-            WHATSAPP_MENU_FLOW_ID=2216684979118924
+            WHATSAPP_BUSINESS_ACCOUNT_ID=1007063558373941
+            WHATSAPP_PHONE_NUMBER_ID=1264601586744779
+            WHATSAPP_MENU_FLOW_ID=28605611755736349
+            WHATSAPP_CHECKOUT_FLOW_ID=1849444466420247
             WHATSAPP_RETURN_PHONE=+436602647870
             AI_INTENT_ENABLED=true
             LLM_PROVIDER=google

@@ -140,6 +140,39 @@
           "type": "string",
           "__example__": "addr_0"
         },
+        "address_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "addr_0",
+              "title": "Hippgasse 11",
+              "description": "Top 14 · 1160 Wien",
+              "metadata": "★"
+            },
+            {
+              "id": "addr_new",
+              "title": "New address",
+              "description": "Type a different address"
+            }
+          ]
+        },
         "address_fields_visible": {
           "type": "boolean",
           "__example__": true
@@ -1309,6 +1342,39 @@
           "type": "string",
           "__example__": "addr_0"
         },
+        "address_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "addr_0",
+              "title": "Hippgasse 11",
+              "description": "Top 14 · 1160 Wien",
+              "metadata": "★"
+            },
+            {
+              "id": "addr_new",
+              "title": "New address",
+              "description": "Type a different address"
+            }
+          ]
+        },
         "address_fields_visible": {
           "type": "boolean",
           "__example__": true
@@ -2021,6 +2087,39 @@
         "address_choice": {
           "type": "string",
           "__example__": "addr_0"
+        },
+        "address_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "addr_0",
+              "title": "Hippgasse 11",
+              "description": "Top 14 · 1160 Wien",
+              "metadata": "★"
+            },
+            {
+              "id": "addr_new",
+              "title": "New address",
+              "description": "Type a different address"
+            }
+          ]
         },
         "address_fields_visible": {
           "type": "boolean",
