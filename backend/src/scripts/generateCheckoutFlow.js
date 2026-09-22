@@ -138,6 +138,14 @@ async function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
         ],
       },
       [F.ADDRESS_CHOICE]: { type: 'string', '__example__': 'addr_0' },
+      // Live exchange still sends this on CHECKOUT_REVIEW. Undeclared keys make the Flow fail to open.
+      [F.ADDRESS_OPTIONS]: {
+        ...OPTION_LIST_SCHEMA,
+        '__example__': [
+          { id: 'addr_0', title: 'Hippgasse 11', description: 'Top 14 · 1160 Wien', metadata: '★' },
+          { id: 'addr_new', title: 'New address', description: 'Type a different address' },
+        ],
+      },
       [F.ADDRESS_FIELDS_VISIBLE]: { type: 'boolean', '__example__': true },
       [F.DELIVERY_ADDRESS]: { type: 'string', '__example__': 'Hippgasse 11, Top 14, 1160 Wien' },
       [F.DELIVERY_APARTMENT]: { type: 'string', '__example__': 'Top 14' },

@@ -561,6 +561,11 @@
       "coords": "Advanced — map coordinates",
       "orderWindow": "Advanced — last order times (bot cutoff)"
     },
+    "pwa": {
+      "title": "Use on your phone",
+      "android": "Android: go to Orders, then Chrome menu → Install app. The icon opens the kitchen.",
+      "ios": "iPhone: open Orders in Safari (not Chrome), then Share → Add to Home Screen."
+    },
     "profile": {
       "title": "Restaurant",
       "description": "Name and alert number are fixed. Edit the address for nearby search and delivery."

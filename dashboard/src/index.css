@@ -1556,6 +1556,10 @@ button:focus-visible {
   margin: -0.35rem 0 0;
   font-size: var(--text-sm);
   color: var(--text-quiet);
+  overflow-wrap: break-word;
+}
+.settings-card-desc + .settings-card-desc {
+  margin-top: 0.45rem;
 }
 .settings-grid-2 {
   display: grid;

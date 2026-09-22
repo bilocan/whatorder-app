@@ -6,8 +6,8 @@ const TEST_BUSINESS_PHONE_NUMBER_ID = '1329391920253229';
 /** Legacy Meta sandbox / BenAT row id from older Test docs — not the e2e default bot. */
 const TEST_BENAT_PHONE_NUMBER_ID = '1056173694256337';
 
-/** Production Meta line — never the default e2e target. */
-const PROD_BUSINESS_PHONE_NUMBER_ID = '1230087620193335';
+/** Production Meta line (+43 660 2647870, Whatorderat). Never the default e2e target. */
+const PROD_BUSINESS_PHONE_NUMBER_ID = '1264601586744779';
 
 /** Test GCP / Firebase project (Admin SDK). */
 const TEST_FIREBASE_PROJECT_ID = 'whatorder-fire';
