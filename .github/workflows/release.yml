@@ -152,6 +152,7 @@ jobs:
             STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest
             GOOGLE_MAPS_API_KEY=GOOGLE_MAPS_API_KEY:latest
             GOOGLE_MAPS_JS_API_KEY=GOOGLE_MAPS_JS_API_KEY:latest
+            WALLBOARD_TOKEN=WALLBOARD_TOKEN:latest
 
       # Alias the promoted image with the release tag so Artifact Registry
       # shows which SHA shipped as which release.

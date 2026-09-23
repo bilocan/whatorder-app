@@ -155,5 +155,11 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create, update, delete: if false;
     }
+
+    // Office TV feed. Custom-token claim only. Admin SDK writes.
+    match /wallboardFeed/{orderId} {
+      allow read: if request.auth != null && request.auth.token.wallboard == true;
+      allow write: if false;
+    }
   }
 }

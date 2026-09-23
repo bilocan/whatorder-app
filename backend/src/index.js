@@ -19,6 +19,7 @@ const intentPhrasesRouter = require('./routes/intentPhrases');
 const dealsRouter = require('./routes/deals');
 const mapsRestaurantsRouter = require('./routes/mapsRestaurants');
 const mapsConfigRouter = require('./routes/mapsConfig');
+const wallboardRouter = require('./routes/wallboard');
 const { getBuildInfo } = require('./lib/buildInfo');
 
 const app = express();
@@ -62,6 +63,7 @@ app.use('/api', intentPhrasesRouter);
 app.use('/api', dealsRouter);
 app.use('/api', mapsRestaurantsRouter);
 app.use('/api', mapsConfigRouter);
+app.use('/api', wallboardRouter);
 
 if (require.main === module) {
   const host = process.env.NODE_ENV === 'production' ? undefined : '0.0.0.0';

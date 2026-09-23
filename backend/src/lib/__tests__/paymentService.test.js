@@ -42,16 +42,21 @@ jest.mock('../whatsappRouting', () => jest.requireActual('../whatsappRouting'));
 jest.mock('../templates', () => ({
   t: jest.fn((key, _lang, arg) => `${key}:${arg}`),
 }));
+jest.mock('../wallboardFeed', () => ({
+  updateWallboardFeedIfExists: jest.fn().mockResolvedValue(undefined),
+}));
 
 const { ordersRef, stripeEventRef, businessRef, receiptRef } = require('../collections');
 const { getStripe } = require('../stripe');
 const { getFeeConfig, calcFeeCents } = require('../feeConfig');
 const { sendText, sendButtonMessage, uploadMedia, sendDocument } = require('../whatsapp');
 const { issueCustomerBeleg } = require('../receiptService');
+const { updateWallboardFeedIfExists } = require('../wallboardFeed');
 const {
   createCheckoutSessionForOrder,
   handleCheckoutSessionCompleted,
   refundOrderPayment,
+  applyOrderRefunded,
   handleChargeRefunded,
   processStripeWebhookEvent,
   paymentBaseUrl,
@@ -344,6 +349,80 @@ describe('handleCheckoutSessionCompleted', () => {
     expect(sendDocument).not.toHaveBeenCalled();
     errorSpy.mockRestore();
   });
+
+  test('updates the wallboard feed when the checkout is paid', async () => {
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'pending',
+        status: 'pending',
+        total: 29,
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+    await handleCheckoutSessionCompleted({
+      id: 'cs_1',
+      amount_total: 2900,
+      payment_intent: 'pi_1',
+      metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+    });
+    expect(updateWallboardFeedIfExists).toHaveBeenCalledWith('order_abc123', expect.objectContaining({
+      paymentStatus: 'paid',
+      paymentMethod: 'stripe',
+      status: 'pending',
+      total: 29,
+    }));
+  });
+
+  test('still marks the order paid when the wallboard feed throws', async () => {
+    updateWallboardFeedIfExists.mockRejectedValueOnce(new Error('feed down'));
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'pending',
+        status: 'pending',
+        total: 29,
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+    await expect(handleCheckoutSessionCompleted({
+      id: 'cs_1',
+      amount_total: 2900,
+      payment_intent: 'pi_1',
+      metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+    })).resolves.toBeUndefined();
+    expect(mockOrderUpdate).toHaveBeenCalledWith(expect.objectContaining({ paymentStatus: 'paid' }));
+  });
+
+  test('updates the wallboard feed when the checkout was already paid', async () => {
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'paid',
+        status: 'preparing',
+        total: 29,
+        paymentNotifiedAt: 'TS',
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+    await handleCheckoutSessionCompleted({
+      id: 'cs_1',
+      amount_total: 2900,
+      payment_intent: 'pi_1',
+      metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+    });
+    expect(updateWallboardFeedIfExists).toHaveBeenCalledWith('order_abc123', expect.objectContaining({
+      paymentStatus: 'paid',
+      paymentMethod: 'stripe',
+      status: 'preparing',
+    }));
+  });
 });
 
 describe('processStripeWebhookEvent', () => {
@@ -496,6 +575,49 @@ describe('refundOrderPayment', () => {
     });
 
     expect(sendText).not.toHaveBeenCalled();
+  });
+
+  test('updates the wallboard feed when the payment is refunded', async () => {
+    const create = jest.fn().mockResolvedValue({ id: 're_1' });
+    getStripe.mockReturnValue({ refunds: { create } });
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentMethod: 'stripe',
+        paymentStatus: 'paid',
+        status: 'delivered',
+        total: 29,
+        stripePaymentIntentId: 'pi_1',
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+    await refundOrderPayment('biz1', 'order_abc123', { notifyCustomer: false });
+    expect(updateWallboardFeedIfExists).toHaveBeenCalledWith('order_abc123', expect.objectContaining({
+      paymentStatus: 'refunded',
+      status: 'delivered',
+      total: 29,
+    }));
+  });
+
+  test('updates the wallboard feed when the order is already refunded', async () => {
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentMethod: 'stripe',
+        paymentStatus: 'refunded',
+        status: 'delivered',
+        total: 29,
+        stripeRefundId: 're_old',
+      }),
+    });
+    await applyOrderRefunded('biz1', 'order_abc123', { notifyCustomer: false });
+    expect(mockOrderUpdate).not.toHaveBeenCalled();
+    expect(updateWallboardFeedIfExists).toHaveBeenCalledWith('order_abc123', expect.objectContaining({
+      paymentStatus: 'refunded',
+      status: 'delivered',
+    }));
   });
 });
 

@@ -10,6 +10,7 @@ const { runWithMessageIdentity, applyBusinessInfoIdentity, PLATFORM_IDENTITY } =
 const { t } = require('./templates');
 const { isLegalComplete, isSettlementIbanComplete } = require('./legalProfile');
 const { issueCustomerBeleg } = require('./receiptService');
+const { updateWallboardFeedIfExists } = require('./wallboardFeed');
 
 const LEGAL_PROFILE_INCOMPLETE = 'LEGAL_PROFILE_INCOMPLETE';
 const SETTLEMENT_IBAN_INCOMPLETE = 'SETTLEMENT_IBAN_INCOMPLETE';
@@ -120,6 +121,18 @@ async function handleCheckoutSessionCompleted(session) {
     });
   }
 
+  try {
+    await updateWallboardFeedIfExists(orderId, {
+      ...order,
+      status: order.status,
+      paymentMethod: 'stripe',
+      paymentStatus: 'paid',
+      total: order.total,
+    });
+  } catch (err) {
+    console.error(`[wallboard] feed payment failed orderId=${orderId}: ${err.message}`);
+  }
+
   // Best-effort Beleg: never roll back paid status on PDF/GCS failure.
   let beleg = null;
   try {
@@ -215,6 +228,16 @@ async function applyOrderRefunded(businessId, orderId, {
     if (reason) update.refundReason = reason;
     if (actor) update.refundActor = actor;
     await orderRef.update(update);
+  }
+
+  try {
+    await updateWallboardFeedIfExists(orderId, {
+      ...order,
+      paymentStatus: 'refunded',
+      total: order.total,
+    });
+  } catch (err) {
+    console.error(`[wallboard] feed refund failed orderId=${orderId}: ${err.message}`);
   }
 
   let notified = false;
