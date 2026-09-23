@@ -16,12 +16,17 @@ jest.mock('../templates');
 jest.mock('../sessionStore', () => ({
   patchSession: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('../../lib/wallboardFeed', () => ({
+  writeWallboardFeedOnCreate: jest.fn().mockResolvedValue(undefined),
+  updateWallboardFeedIfExists: jest.fn().mockResolvedValue(undefined),
+}));
 
 const { createOrder, getLastOrderForCustomer, getOrder, amendOrderAddItems, approveOrder, rejectOrder, startPreparation, markReady, markOnTheWay, markPickedUp, markDelivered, cancelOrder } = require('../orderService');
 const { ordersRef, businessRef, customersRef } = require('../../lib/collections');
 const { sendText, sendButtonMessage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
 const { patchSession } = require('../sessionStore');
+const { writeWallboardFeedOnCreate, updateWallboardFeedIfExists } = require('../../lib/wallboardFeed');
 
 const BIZ = 'biz_test';
 
@@ -37,7 +42,7 @@ const ORDER_PARAMS = {
 
 const mockCustomerSet = jest.fn().mockResolvedValue(undefined);
 const mockCustomerUpdate = jest.fn().mockResolvedValue(undefined);
-const mockCustomerDoc = { set: mockCustomerSet, update: mockCustomerUpdate };
+const mockCustomerDoc = { set: mockCustomerSet, update: mockCustomerUpdate, get: jest.fn() };
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -47,6 +52,7 @@ beforeEach(() => {
   t.mockImplementation((key) => key);
   mockCustomerSet.mockResolvedValue(undefined);
   mockCustomerUpdate.mockResolvedValue(undefined);
+  mockCustomerDoc.get = jest.fn().mockResolvedValue({ exists: false, data: () => ({}) });
   customersRef.mockReturnValue({ doc: jest.fn().mockReturnValue(mockCustomerDoc) });
   businessRef.mockReturnValue({
     get: jest.fn().mockResolvedValue({ exists: false, data: () => ({}) }),
@@ -443,6 +449,30 @@ describe('createOrder', () => {
     expect(msg).toContain('Mariahilfer Str. 10');
     expect(msg).toContain('€19.50');
   });
+
+  test('writes a first-order feed row when the customer profile is missing', async () => {
+    makeOrdersRef('order_abc123');
+    await createOrder(BIZ, ORDER_PARAMS);
+    expect(writeWallboardFeedOnCreate).toHaveBeenCalledWith(
+      BIZ,
+      'order_abc123',
+      expect.objectContaining({ paymentMethod: 'cash', paymentStatus: 'cash', total: 17 }),
+      true,
+    );
+  });
+
+  test('writes feed firstOrder false when orderCount is already at least 1', async () => {
+    makeOrdersRef('order_abc123');
+    mockCustomerDoc.get.mockResolvedValue({ exists: true, data: () => ({ orderCount: 2 }) });
+    await createOrder(BIZ, ORDER_PARAMS);
+    expect(writeWallboardFeedOnCreate).toHaveBeenCalledWith(BIZ, 'order_abc123', expect.anything(), false);
+  });
+
+  test('still returns the order id when the feed write rejects', async () => {
+    makeOrdersRef('order_abc123');
+    writeWallboardFeedOnCreate.mockRejectedValueOnce(new Error('feed down'));
+    await expect(createOrder(BIZ, ORDER_PARAMS)).resolves.toBe('order_abc123');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -476,6 +506,16 @@ describe('Order state machine', () => {
     expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved', approvedAt: expect.any(String), prepMins: 30, pickupTime: expect.any(String) }));
     expect(t).toHaveBeenCalledWith('orderApproved', 'tr', 'ABC123', expect.any(String));
     expect(sendText).toHaveBeenCalledWith('+43699000001', 'Onaylandı!', 'prod_phone_id');
+  });
+
+  test('updates the feed after approve and still resolves if the feed rejects', async () => {
+    makeRef(ORDER('pending'));
+    updateWallboardFeedIfExists.mockRejectedValueOnce(new Error('feed down'));
+    await expect(approveOrder(BIZ, 'order_abc123')).resolves.toBeUndefined();
+    expect(updateWallboardFeedIfExists).toHaveBeenCalledWith(
+      'order_abc123',
+      expect.objectContaining({ status: 'approved' }),
+    );
   });
 
   test('approveOrder: honors owner-supplied etaMinutes override', async () => {
@@ -967,6 +1007,31 @@ describe('amendOrderAddItems', () => {
       subtotal: 2,
       total: 0,
     }));
+  });
+
+  test('updates the feed total after amend', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue(undefined);
+    const orderData = {
+      status: 'pending',
+      paymentMethod: 'cash',
+      orderType: 'pickup',
+      items: [{ name: 'Döner', qty: 1, price: 8 }],
+      total: 8,
+      customerName: 'Ali',
+      customerPhone: '+43699000001',
+      whatsappPhoneNumberId: 'phone_id_test',
+    };
+    ordersRef.mockReturnValue({
+      doc: jest.fn().mockReturnValue({
+        get: jest.fn().mockResolvedValue({ exists: true, data: () => orderData }),
+        update: mockUpdate,
+      }),
+    });
+    await amendOrderAddItems(BIZ, 'order_abc123', [{ name: 'Ayran', qty: 1, price: 2 }]);
+    expect(updateWallboardFeedIfExists).toHaveBeenCalledWith(
+      'order_abc123',
+      expect.objectContaining({ total: 10 }),
+    );
   });
 
   test('rejects stripe orders', async () => {
