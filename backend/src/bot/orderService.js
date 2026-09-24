@@ -8,6 +8,7 @@ const { t } = require('./templates');
 const { normalizeCustomerPhone } = require('../lib/phone');
 const { FEE_LINE_KIND } = require('../lib/receiptMath');
 const { patchSession } = require('./sessionStore');
+const { writeWallboardFeedOnCreate, updateWallboardFeedIfExists } = require('../lib/wallboardFeed');
 
 const TERMINAL_REENTRY_STATUSES = new Set(['delivered', 'picked_up', 'rejected', 'cancelled']);
 
@@ -169,9 +170,25 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
   }
   await ref.set(doc);
 
+  const customerDoc = customersRef(businessId).doc(phone);
+  let firstOrder = true;
+  try {
+    const existing = await customerDoc.get();
+    if (existing.exists) {
+      firstOrder = (Number(existing.data().orderCount) || 0) === 0;
+    }
+  } catch (err) {
+    console.error(`[wallboard] customer read failed businessId=${businessId}: ${err.message}`);
+    firstOrder = false;
+  }
+  try {
+    await writeWallboardFeedOnCreate(businessId, ref.id, doc, firstOrder);
+  } catch (err) {
+    console.error(`[wallboard] feed create failed orderId=${ref.id}: ${err.message}`);
+  }
+
   // Upsert customer profile
   try {
-    const customerDoc = customersRef(businessId).doc(phone);
     await customerDoc.set({
       phone,
       name: resolvedName,
@@ -246,6 +263,12 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
   }
 
   await ref.update(update);
+
+  try {
+    await updateWallboardFeedIfExists(orderId, { ...order, status: toStatus });
+  } catch (err) {
+    console.error(`[wallboard] feed status failed orderId=${orderId}: ${err.message}`);
+  }
 
   try {
     const phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);
@@ -337,6 +360,12 @@ async function amendOrderAddItems(businessId, orderId, newItems) {
     total,
     amendedAt: new Date().toISOString(),
   });
+
+  try {
+    await updateWallboardFeedIfExists(orderId, { ...order, total });
+  } catch (err) {
+    console.error(`[wallboard] feed amend failed orderId=${orderId}: ${err.message}`);
+  }
 
   try {
     const phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);

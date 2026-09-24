@@ -107,6 +107,10 @@ const seedOverridesRef = (businessId) =>
 const commandLearningRef = (keyHash) =>
   db.collection('commandLearnings').doc(keyHash);
 
+// wallboardFeed/{orderId} — sanitized office TV row. Platform-wide, not restaurant-scoped.
+const wallboardFeedRef = (orderId) =>
+  db.collection('wallboardFeed').doc(orderId);
+
 module.exports = {
   businessesCollectionRef,
   businessRef, menuRef, optionGroupsRef, ordersRef, dealsRef, dealRef, customersRef,
@@ -126,4 +130,5 @@ module.exports = {
   seededIntentsRef,
   seedOverridesRef,
   commandLearningRef,
+  wallboardFeedRef,
 };

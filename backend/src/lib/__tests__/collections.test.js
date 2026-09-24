@@ -15,7 +15,7 @@ const {
   receiptsRef, receiptRef, receiptCounterRef, dealsRef, dealRef,
   ownerRef, ownersCollectionRef, ownersByBusinessIdsQuery, ownersByLegacyBusinessIdQuery, adminRef, processedMessageRef, stripeEventRef, configRef,
   settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, intentLearningsRef, commandLearningRef,
-  seededIntentRef, seededIntentsRef, seedOverridesRef,
+  seededIntentRef, seededIntentsRef, seedOverridesRef, wallboardFeedRef,
 } = require('../collections');
 
 beforeEach(() => {
@@ -274,5 +274,13 @@ describe('commandLearningRef', () => {
     commandLearningRef('abc123');
     expect(db.collection).toHaveBeenCalledWith('commandLearnings');
     expect(db.doc).toHaveBeenCalledWith('abc123');
+  });
+});
+
+describe('wallboardFeedRef', () => {
+  test('builds path: wallboardFeed/{orderId}', () => {
+    wallboardFeedRef('ord_1');
+    expect(db.collection).toHaveBeenCalledWith('wallboardFeed');
+    expect(db.doc).toHaveBeenCalledWith('ord_1');
   });
 });
