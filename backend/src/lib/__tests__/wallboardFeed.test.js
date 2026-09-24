@@ -45,6 +45,7 @@ describe('writeWallboardFeedOnCreate', () => {
       status: 'pending',
       paymentMethod: 'cash',
       paymentStatus: 'cash',
+      orderType: 'pickup',
       customerPhone: '43664111',
       customerName: 'Ada',
     }, true);
@@ -55,6 +56,7 @@ describe('writeWallboardFeedOnCreate', () => {
       createdAt: expect.anything(),
       boardStatus: 'in_progress',
       paymentStatus: 'cash',
+      orderType: 'pickup',
       firstOrder: true,
     });
     const doc = set.mock.calls[0][0];
@@ -82,10 +84,10 @@ describe('updateWallboardFeedIfExists', () => {
     const set = jest.fn().mockResolvedValue(undefined);
     wallboardFeedRef.mockReturnValue({ get: jest.fn().mockResolvedValue({ exists: true }), set });
     await updateWallboardFeedIfExists('ord_1', {
-      status: 'delivered', paymentMethod: 'stripe', paymentStatus: 'paid', total: 9,
+      status: 'delivered', paymentMethod: 'stripe', paymentStatus: 'paid', total: 9, orderType: 'delivery',
     });
     expect(set).toHaveBeenCalledWith(
-      { boardStatus: 'completed', paymentStatus: 'paid', total: 9 },
+      { boardStatus: 'completed', paymentStatus: 'paid', total: 9, orderType: 'delivery' },
       { merge: true },
     );
     const patch = set.mock.calls[0][0];

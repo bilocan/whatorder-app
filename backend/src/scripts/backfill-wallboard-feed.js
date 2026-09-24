@@ -103,6 +103,7 @@ async function main() {
           createdAt: order.createdAt,
           boardStatus: boardStatus(order),
           paymentStatus: order.paymentStatus || '',
+          orderType: order.orderType === 'delivery' || order.orderType === 'pickup' ? order.orderType : '',
           firstOrder,
         });
         wrote += 1;
