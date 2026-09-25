@@ -66,6 +66,19 @@ function cartRemoveModeOptions(lang, t = defaultT, { allowEdit = true } = {}) {
   return opts;
 }
 
+/** Checkout Flow cart: same remove chrome as the menu cart, footer returns to Prüfen. */
+function checkoutCartCopy(lang, t = defaultT) {
+  return {
+    [F.UI_SCREEN_TITLE]: t('menuFlowCartTitle', lang),
+    [F.UI_CART_HINT]: t('menuFlowCartHint', lang),
+    [F.UI_REMOVE_LABEL]: t('menuFlowRemoveLabel', lang),
+    [F.UI_REMOVE_MODE_LABEL]: t('menuFlowRemoveModeLabel', lang),
+    [F.UI_REMOVE_SELECTED]: t('menuFlowRemoveSelected', lang),
+    [F.UI_ADD_MORE]: t('menuFlowAddMore', lang),
+    [F.UI_RETURN_TO_REVIEW]: t('confirmFlowReturnToReview', lang),
+  };
+}
+
 function cartDoneCopy(lang, t = defaultT) {
   return {
     [F.UI_SCREEN_TITLE]: t('menuFlowCartTitle', lang),
@@ -128,6 +141,7 @@ module.exports = {
   orderItemCopy,
   cartEditCopy,
   cartRemoveModeOptions,
+  checkoutCartCopy,
   cartDoneCopy,
   checkoutReviewCopy,
   checkoutManageCopy,

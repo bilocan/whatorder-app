@@ -3,7 +3,8 @@
   "data_api_version": "3.0",
   "routing_model": {
     "CHECKOUT_REVIEW": [
-      "ADDRESS_MANAGE"
+      "ADDRESS_MANAGE",
+      "CHECKOUT_CART"
     ],
     "ADDRESS_MANAGE": [
       "ADDRESS_MANAGE_UPDATED",
@@ -12,8 +13,15 @@
     "ADDRESS_MANAGE_UPDATED": [
       "CHECKOUT_REVIEW_RETURN"
     ],
+    "CHECKOUT_CART": [
+      "CHECKOUT_REVIEW_RETURN"
+    ],
     "CHECKOUT_REVIEW_RETURN": [
-      "ADDRESS_MANAGE_AGAIN"
+      "ADDRESS_MANAGE_AGAIN",
+      "CHECKOUT_CART_AGAIN"
+    ],
+    "CHECKOUT_CART_AGAIN": [
+      "CHECKOUT_REVIEW_DONE"
     ],
     "ADDRESS_MANAGE_AGAIN": [
       "CHECKOUT_REVIEW_DONE"
@@ -286,7 +294,13 @@
                 "on-click-action": {
                   "name": "data_exchange",
                   "payload": {
-                    "checkout_action": "back_to_cart"
+                    "checkout_action": "open_cart",
+                    "customer_name": "${data.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${data.address_choice}",
+                    "delivery_address": "${data.delivery_address}",
+                    "delivery_apartment": "${data.delivery_apartment}",
+                    "note": "${form.note}"
                   }
                 }
               },
@@ -303,6 +317,244 @@
                     "delivery_address": "${data.delivery_address}",
                     "delivery_apartment": "${data.delivery_apartment}",
                     "note": "${form.note}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "CHECKOUT_CART",
+      "title": "${data.ui_screen_title}",
+      "refresh_on_back": true,
+      "data": {
+        "ui_screen_title": {
+          "type": "string",
+          "__example__": "Your cart"
+        },
+        "ui_cart_hint": {
+          "type": "string",
+          "__example__": "Check items to remove."
+        },
+        "ui_remove_label": {
+          "type": "string",
+          "__example__": "Remove items:"
+        },
+        "ui_remove_mode_label": {
+          "type": "string",
+          "__example__": "How to remove?"
+        },
+        "ui_remove_selected": {
+          "type": "string",
+          "__example__": "Apply"
+        },
+        "ui_add_more": {
+          "type": "string",
+          "__example__": "Add more items"
+        },
+        "ui_return_to_review": {
+          "type": "string",
+          "__example__": "Back to review"
+        },
+        "subtotal_label": {
+          "type": "string",
+          "__example__": "Subtotal: €15.40"
+        },
+        "discount_label": {
+          "type": "string",
+          "__example__": ""
+        },
+        "discount_visible": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "delivery_label": {
+          "type": "string",
+          "__example__": ""
+        },
+        "delivery_visible": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "total_label": {
+          "type": "string",
+          "__example__": "Total: €15.40"
+        },
+        "basket_items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "string"
+              },
+              "image": {
+                "type": "string"
+              },
+              "alt-text": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "0",
+              "title": "1x Dürüm Huhn",
+              "description": "Tomaten, Salat",
+              "metadata": "€8.50",
+              "image": "AA==",
+              "alt-text": "1x Dürüm Huhn"
+            }
+          ]
+        },
+        "remove_mode_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "one",
+              "title": "1 unit"
+            },
+            {
+              "id": "line",
+              "title": "Whole line"
+            },
+            {
+              "id": "all",
+              "title": "Clear cart"
+            }
+          ]
+        },
+        "form_init_values": {
+          "type": "object",
+          "properties": {
+            "remove_mode": {
+              "type": "string"
+            }
+          },
+          "__example__": {
+            "remove_mode": "one"
+          }
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        },
+        "error_visible": {
+          "type": "boolean",
+          "__example__": false
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "checkout_cart_form",
+            "init-values": "${data.form_init_values}",
+            "children": [
+              {
+                "type": "TextCaption",
+                "text": "${data.ui_cart_hint}"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.error_visible}"
+              },
+              {
+                "type": "CheckboxGroup",
+                "label": "${data.ui_remove_label}",
+                "name": "remove_items",
+                "required": false,
+                "media-size": "large",
+                "data-source": "${data.basket_items}"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.subtotal_label}"
+              },
+              {
+                "type": "If",
+                "condition": "${data.discount_visible}",
+                "then": [
+                  {
+                    "type": "TextBody",
+                    "text": "${data.discount_label}"
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${data.delivery_visible}",
+                "then": [
+                  {
+                    "type": "TextBody",
+                    "text": "${data.delivery_label}"
+                  }
+                ]
+              },
+              {
+                "type": "TextSubheading",
+                "text": "${data.total_label}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "label": "${data.ui_remove_mode_label}",
+                "name": "remove_mode",
+                "required": true,
+                "data-source": "${data.remove_mode_options}"
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_remove_selected}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "cart_remove",
+                    "remove_items": "${form.remove_items}",
+                    "remove_mode": "${form.remove_mode}"
+                  }
+                }
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_add_more}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "add_more"
+                  }
+                }
+              },
+              {
+                "type": "Footer",
+                "label": "${data.ui_return_to_review}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "return_to_review"
                   }
                 }
               }
@@ -1488,7 +1740,13 @@
                 "on-click-action": {
                   "name": "data_exchange",
                   "payload": {
-                    "checkout_action": "back_to_cart"
+                    "checkout_action": "open_cart",
+                    "customer_name": "${data.customer_name}",
+                    "order_type": "${form.order_type}",
+                    "address_choice": "${data.address_choice}",
+                    "delivery_address": "${data.delivery_address}",
+                    "delivery_apartment": "${data.delivery_apartment}",
+                    "note": "${form.note}"
                   }
                 }
               },
@@ -1505,6 +1763,244 @@
                     "delivery_address": "${data.delivery_address}",
                     "delivery_apartment": "${data.delivery_apartment}",
                     "note": "${form.note}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "CHECKOUT_CART_AGAIN",
+      "title": "${data.ui_screen_title}",
+      "refresh_on_back": true,
+      "data": {
+        "ui_screen_title": {
+          "type": "string",
+          "__example__": "Your cart"
+        },
+        "ui_cart_hint": {
+          "type": "string",
+          "__example__": "Check items to remove."
+        },
+        "ui_remove_label": {
+          "type": "string",
+          "__example__": "Remove items:"
+        },
+        "ui_remove_mode_label": {
+          "type": "string",
+          "__example__": "How to remove?"
+        },
+        "ui_remove_selected": {
+          "type": "string",
+          "__example__": "Apply"
+        },
+        "ui_add_more": {
+          "type": "string",
+          "__example__": "Add more items"
+        },
+        "ui_return_to_review": {
+          "type": "string",
+          "__example__": "Back to review"
+        },
+        "subtotal_label": {
+          "type": "string",
+          "__example__": "Subtotal: €15.40"
+        },
+        "discount_label": {
+          "type": "string",
+          "__example__": ""
+        },
+        "discount_visible": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "delivery_label": {
+          "type": "string",
+          "__example__": ""
+        },
+        "delivery_visible": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "total_label": {
+          "type": "string",
+          "__example__": "Total: €15.40"
+        },
+        "basket_items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "string"
+              },
+              "image": {
+                "type": "string"
+              },
+              "alt-text": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "0",
+              "title": "1x Dürüm Huhn",
+              "description": "Tomaten, Salat",
+              "metadata": "€8.50",
+              "image": "AA==",
+              "alt-text": "1x Dürüm Huhn"
+            }
+          ]
+        },
+        "remove_mode_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "one",
+              "title": "1 unit"
+            },
+            {
+              "id": "line",
+              "title": "Whole line"
+            },
+            {
+              "id": "all",
+              "title": "Clear cart"
+            }
+          ]
+        },
+        "form_init_values": {
+          "type": "object",
+          "properties": {
+            "remove_mode": {
+              "type": "string"
+            }
+          },
+          "__example__": {
+            "remove_mode": "one"
+          }
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        },
+        "error_visible": {
+          "type": "boolean",
+          "__example__": false
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "checkout_cart_form",
+            "init-values": "${data.form_init_values}",
+            "children": [
+              {
+                "type": "TextCaption",
+                "text": "${data.ui_cart_hint}"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.error_visible}"
+              },
+              {
+                "type": "CheckboxGroup",
+                "label": "${data.ui_remove_label}",
+                "name": "remove_items",
+                "required": false,
+                "media-size": "large",
+                "data-source": "${data.basket_items}"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.subtotal_label}"
+              },
+              {
+                "type": "If",
+                "condition": "${data.discount_visible}",
+                "then": [
+                  {
+                    "type": "TextBody",
+                    "text": "${data.discount_label}"
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${data.delivery_visible}",
+                "then": [
+                  {
+                    "type": "TextBody",
+                    "text": "${data.delivery_label}"
+                  }
+                ]
+              },
+              {
+                "type": "TextSubheading",
+                "text": "${data.total_label}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "label": "${data.ui_remove_mode_label}",
+                "name": "remove_mode",
+                "required": true,
+                "data-source": "${data.remove_mode_options}"
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_remove_selected}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "cart_remove",
+                    "remove_items": "${form.remove_items}",
+                    "remove_mode": "${form.remove_mode}"
+                  }
+                }
+              },
+              {
+                "type": "EmbeddedLink",
+                "text": "${data.ui_add_more}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "add_more"
+                  }
+                }
+              },
+              {
+                "type": "Footer",
+                "label": "${data.ui_return_to_review}",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "checkout_action": "return_to_review"
                   }
                 }
               }
@@ -2225,16 +2721,6 @@
                     "delivery_address": "${data.delivery_address}",
                     "delivery_apartment": "${data.delivery_apartment}",
                     "note": "${form.note}"
-                  }
-                }
-              },
-              {
-                "type": "EmbeddedLink",
-                "text": "${data.ui_back_to_cart}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "checkout_action": "back_to_cart"
                   }
                 }
               },

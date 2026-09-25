@@ -1353,6 +1353,70 @@ describe('Checkout confirm Flow', () => {
     }));
   });
 
+  test('add_more Flow completion sends the menu and keeps Prüfen choices on the session', async () => {
+    const basket = [{ name: 'Döner', qty: 1, price: 8.50 }];
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'confirming',
+      businessId: BIZ,
+      basket,
+      customerName: 'Alex',
+      orderType: 'pickup',
+      confirmFlowDraft: {
+        orderType: 'delivery',
+        customerName: 'Alex',
+        specialRequests: 'ohne Zwiebel',
+        deliveryAddress: 'Hippgasse 11',
+        deliveryApartment: 'Top 14',
+      },
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'flow_completion',
+      data: { checkout_action: 'add_more' },
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowAction: 'data_exchange',
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket,
+      orderType: 'delivery',
+      customerName: 'Alex',
+      specialRequests: 'ohne Zwiebel',
+      deliveryAddress: expect.stringContaining('Top 14'),
+    }));
+  });
+
+  test('cart_emptied Flow completion opens the menu instead of the remove-button basket', async () => {
+    getSession.mockResolvedValue({
+      language: 'en',
+      state: 'confirming',
+      businessId: BIZ,
+      basket: [],
+      customerName: 'John',
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'flow_completion',
+      data: { checkout_action: 'cart_emptied' },
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expectOrderEntryPrompt();
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_remove_item' })]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: [],
+      confirmFlowDraft: null,
+    }));
+  });
+
   test('back_to_cart Flow completion shows the basket and moves to browsing', async () => {
     const basket = [{ name: 'Döner', qty: 1, price: 8.50 }];
     getSession.mockResolvedValue({

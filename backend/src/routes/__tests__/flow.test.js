@@ -406,6 +406,172 @@ test('checkout data_exchange on CHECKOUT_REVIEW without |checkout token still ro
   expect(parsed(res).data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
 });
 
+test('checkout open_cart stays in the Flow on the cart screen', async () => {
+  const session = {
+    businessId: 'biz1',
+    language: 'de',
+    basket: [{ name: 'Burger', qty: 2, price: 10, itemId: 'b1' }],
+    customerName: 'Alex',
+    orderType: 'pickup',
+  };
+  const ref = {
+    get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
+    set: jest.fn(),
+  };
+  sessionRef.mockReturnValue(ref);
+
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_REVIEW,
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+    data: {
+      checkout_action: 'open_cart',
+      [F.ORDER_TYPE]: 'pickup',
+      [F.CHECKOUT_NOTE]: 'ohne Zwiebel',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CHECKOUT_CART);
+  expect(body.data[F.BASKET_ITEMS][0].title).toContain('Burger');
+  expect(body.data[F.REMOVE_MODE_OPTIONS].map(row => row.id)).toEqual(['one', 'line', 'all']);
+  expect(body.data[F.UI_RETURN_TO_REVIEW]).toBeTruthy();
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({
+      confirmFlowDraft: expect.objectContaining({
+        orderType: 'pickup',
+        specialRequests: 'ohne Zwiebel',
+      }),
+    }),
+    { merge: true },
+  );
+});
+
+test('checkout cart remove one stays on the cart and writes the basket', async () => {
+  const session = {
+    businessId: 'biz1',
+    language: 'en',
+    basket: [{ name: 'Burger', qty: 2, price: 10, itemId: 'b1' }],
+    orderType: 'pickup',
+  };
+  const ref = {
+    get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
+    set: jest.fn(),
+  };
+  sessionRef.mockReturnValue(ref);
+
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_CART,
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+    data: {
+      checkout_action: 'cart_remove',
+      [F.REMOVE_ITEMS]: ['0'],
+      [F.REMOVE_MODE]: 'one',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CHECKOUT_CART);
+  expect(body.data[F.BASKET_ITEMS][0].title).toMatch(/^1x /);
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({
+      basket: [expect.objectContaining({ name: 'Burger', qty: 1 })],
+    }),
+    { merge: true },
+  );
+});
+
+test('checkout cart return_to_review opens the next Prüfen clone', async () => {
+  const session = {
+    businessId: 'biz1',
+    language: 'en',
+    basket: [{ name: 'Burger', qty: 1, price: 10 }],
+    customerName: 'Alex',
+    orderType: 'pickup',
+  };
+  const ref = {
+    get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
+    set: jest.fn(),
+  };
+  sessionRef.mockReturnValue(ref);
+
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_CART,
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+    data: { checkout_action: 'return_to_review' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
+  expect(body.data[F.RECEIPT_TEXT]).toContain('Burger');
+  expect(body.data[F.CUSTOMER_NAME]).toBe('Alex');
+});
+
+test('checkout cart add_more closes the Flow without clearing the basket', async () => {
+  const session = {
+    businessId: 'biz1',
+    language: 'de',
+    basket: [{ name: 'Burger', qty: 1, price: 10 }],
+    orderType: 'pickup',
+    confirmFlowDraft: { orderType: 'delivery', specialRequests: 'ohne Zwiebel' },
+  };
+  const ref = {
+    get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
+    set: jest.fn(),
+  };
+  sessionRef.mockReturnValue(ref);
+  const token = checkoutFlowToken('phone1', 'biz1');
+
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_CART,
+    version: V,
+    flow_token: token,
+    data: { checkout_action: 'add_more' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe('SUCCESS');
+  expect(body.data.extension_message_response.params).toEqual({
+    flow_token: token,
+    checkout_action: 'add_more',
+  });
+  expect(ref.set).not.toHaveBeenCalled();
+});
+
+test('checkout cart clear closes the Flow with cart_emptied', async () => {
+  const session = {
+    businessId: 'biz1',
+    language: 'en',
+    basket: [{ name: 'Burger', qty: 1, price: 10 }],
+    orderType: 'pickup',
+  };
+  const ref = {
+    get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
+    set: jest.fn(),
+  };
+  sessionRef.mockReturnValue(ref);
+  const token = checkoutFlowToken('phone1', 'biz1');
+
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_CART,
+    version: V,
+    flow_token: token,
+    data: {
+      checkout_action: 'cart_remove',
+      [F.REMOVE_MODE]: 'all',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe('SUCCESS');
+  expect(body.data.extension_message_response.params).toEqual({
+    flow_token: token,
+    checkout_action: 'cart_emptied',
+  });
+});
+
 test('checkout data_exchange back_to_cart → SUCCESS with checkout_action', async () => {
   const token = checkoutFlowToken('phone1', 'biz1');
   const res = await post({

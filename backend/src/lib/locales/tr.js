@@ -83,6 +83,7 @@ module.exports = {
   confirmGateContinue: () => 'Devam',
   confirmFlowFooter: () => 'Siparişi ver',
   confirmFlowBackToCart: () => 'Sepete dön',
+  confirmFlowReturnToReview: () => 'Kontrole dön',
   confirmFlowReviewIntro: () => 'Neredeyse bitti!',
   confirmFlowReviewSectionBasket: () => 'Siparişin',
   confirmFlowReviewSectionDetails: () => 'Bilgilerin',

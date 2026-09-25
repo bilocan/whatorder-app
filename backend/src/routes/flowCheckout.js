@@ -1,5 +1,5 @@
 ﻿const { sessionRef } = require('../lib/collections');
-const { getBusinessInfo } = require('../bot/menuService');
+const { getBusinessInfo, getMenu } = require('../bot/menuService');
 const { t } = require('../bot/templates');
 const {
   buildCheckoutReviewData,
@@ -26,7 +26,7 @@ const {
   resolveTypedDeliveryAddress,
   shouldConfirmDeliveryBuilding,
 } = require('../bot/resolveTypedDeliveryAddress');
-const { checkoutReviewCopy, checkoutManageCopy } = require('../bot/menuFlowCopy');
+const { checkoutReviewCopy, checkoutManageCopy, checkoutCartCopy, cartRemoveModeOptions } = require('../bot/menuFlowCopy');
 const {
   loadCustomerAddresses,
   saveCustomerAddress,
@@ -37,7 +37,7 @@ const {
 const { loadCheckoutTotals } = require('../bot/checkoutDeal');
 const { basketSubtotal } = require('../bot/orderTotals');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
-const { attachAddressListImages, addressHomeIconBase64 } = require('../lib/flowImages');
+const { attachAddressListImages, addressHomeIconBase64, attachListImages } = require('../lib/flowImages');
 
 const REVIEW_SCREENS = new Set([
   S.CHECKOUT_REVIEW,
@@ -51,7 +51,26 @@ const MANAGE_SCREENS = new Set([
   S.ADDRESS_MANAGE_AGAIN,
 ]);
 
-const CHECKOUT_EXCHANGE_SCREENS = new Set([...REVIEW_SCREENS, ...MANAGE_SCREENS]);
+const CHECKOUT_CART_SCREENS = new Set([
+  S.CHECKOUT_CART,
+  S.CHECKOUT_CART_AGAIN,
+]);
+
+const CART_SCREEN_FOR_REVIEW = {
+  [S.CHECKOUT_REVIEW]: S.CHECKOUT_CART,
+  [S.CHECKOUT_REVIEW_RETURN]: S.CHECKOUT_CART_AGAIN,
+};
+
+const REVIEW_SCREEN_FOR_CART = {
+  [S.CHECKOUT_CART]: S.CHECKOUT_REVIEW_RETURN,
+  [S.CHECKOUT_CART_AGAIN]: S.CHECKOUT_REVIEW_DONE,
+};
+
+const CHECKOUT_EXCHANGE_SCREENS = new Set([
+  ...REVIEW_SCREENS,
+  ...MANAGE_SCREENS,
+  ...CHECKOUT_CART_SCREENS,
+]);
 
 function emptyProfile() {
   return { savedAddresses: [], lastDeliveryAddress: null, customerName: null };
@@ -693,9 +712,267 @@ async function buildCheckoutInitResponse({ phone, businessId, version }) {
   };
 }
 
+function clipFlowText(text, max, { ellipsis = false } = {}) {
+  const s = String(text ?? '');
+  if (s.length <= max) return s;
+  return ellipsis ? `${s.slice(0, max - 1)}…` : s.slice(0, max);
+}
+
+function joinCartDetailParts(...parts) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of parts) {
+    const s = String(raw || '').trim();
+    if (!s) continue;
+    for (const bit of s.split(/\s*·\s*/)) {
+      const piece = bit.trim();
+      if (!piece) continue;
+      const key = piece.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(piece);
+    }
+  }
+  return out.join(' · ');
+}
+
+function cartRowCopy(item) {
+  const noteField = String(item.note || item.notes || '').trim();
+  if (item.baseName) {
+    return {
+      baseName: String(item.baseName).trim(),
+      detail: joinCartDetailParts(item.detail, noteField),
+    };
+  }
+  const name = String(item.name || '').trim();
+  const custom = name.match(/^(.*?)\s+[—–]\s+(.*)$/);
+  if (custom) {
+    const base = custom[1].trim();
+    const rest = custom[2].trim();
+    const withNotes = rest.match(/^(.*?)\s+\((.*)\)\s*$/);
+    const opts = (withNotes ? withNotes[1] : rest).trim();
+    const scraped = (withNotes ? withNotes[2] : '').trim();
+    return { baseName: base, detail: joinCartDetailParts(opts, scraped, noteField) };
+  }
+  return { baseName: name, detail: noteField };
+}
+
+function decrementBasketAtIndices(basket, indices) {
+  const selected = new Set(indices);
+  const next = [];
+  for (let i = 0; i < basket.length; i++) {
+    if (!selected.has(i)) {
+      next.push(basket[i]);
+      continue;
+    }
+    const qty = Math.max(1, Number(basket[i].qty) || 1);
+    if (qty > 1) next.push({ ...basket[i], qty: qty - 1 });
+  }
+  return next;
+}
+
+function basketAfterCartRemove(basket, payload) {
+  const raw = payload[F.REMOVE_ITEMS];
+  const removeIds = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+  const modeRaw = payload[F.REMOVE_MODE];
+  const mode = modeRaw === 'line' || modeRaw === 'one' || modeRaw === 'all' ? modeRaw : 'one';
+  if (mode === 'all' || removeIds.includes('clear')) return [];
+  const removeSet = new Set(removeIds.map(id => parseInt(id, 10)).filter(n => !Number.isNaN(n)));
+  if (!removeSet.size) return basket;
+  if (mode === 'one') return decrementBasketAtIndices(basket, removeSet);
+  return basket.filter((_, i) => !removeSet.has(i));
+}
+
+function dealShortLabel(deal, lang) {
+  if (deal?.discountType === 'percent' && deal.discountValue != null) {
+    return t('menuFlowDiscountPercentLabel', lang, deal.discountValue);
+  }
+  if (deal?.discountType === 'fixed' && deal.discountValue != null) {
+    return t('menuFlowDiscountFixedLabel', lang, Number(deal.discountValue).toFixed(2));
+  }
+  return String(deal?.label || '').trim();
+}
+
+async function buildCheckoutCartData({
+  basket, lang, businessId, phone, session, info, cartError,
+}) {
+  let menu = [];
+  try {
+    menu = await getMenu(businessId);
+  } catch (err) {
+    console.warn('[flow/exchange] checkout cart menu load failed:', err.message);
+  }
+  const flowListImageById = {};
+  const productRows = basket.map((item, idx) => {
+    const { baseName, detail } = cartRowCopy(item);
+    const rowId = String(idx);
+    const menuItem = menu.find(entry => entry.id && (entry.id === item.itemId || entry.id === item.menuItemId))
+      || menu.find(entry => entry.name === baseName);
+    if (menuItem?.flowListImage) flowListImageById[rowId] = menuItem.flowListImage;
+    return {
+      id: rowId,
+      title: clipFlowText(`${item.qty}x ${baseName}`, 30, { ellipsis: true }),
+      description: clipFlowText(detail, 300),
+      metadata: clipFlowText(`€${(Number(item.price) * Number(item.qty)).toFixed(2)}`, 20),
+    };
+  });
+  const totals = await loadCheckoutTotals({
+    businessId,
+    info,
+    customerPhone: phone,
+    basket,
+    session,
+  });
+  const hasDiscount = totals.discount > 0 && totals.deal;
+  const showDelivery = !!totals.isDelivery;
+  return {
+    ...checkoutCartCopy(lang),
+    [F.SUBTOTAL_LABEL]: t('menuFlowSubtotal', lang, Number(totals.subtotal).toFixed(2)),
+    [F.DISCOUNT_LABEL]: hasDiscount
+      ? t('menuFlowDiscount', lang, dealShortLabel(totals.deal, lang), Number(totals.discount).toFixed(2))
+      : '',
+    [F.DISCOUNT_VISIBLE]: !!hasDiscount,
+    [F.DELIVERY_LABEL]: showDelivery
+      ? t('menuFlowDeliveryFee', lang, Number(totals.deliveryFee || 0).toFixed(2))
+      : '',
+    [F.DELIVERY_VISIBLE]: showDelivery,
+    [F.TOTAL_LABEL]: t('orderTotal', lang, Number(totals.total).toFixed(2)),
+    [F.BASKET_ITEMS]: await attachListImages(productRows, { flowListImageById }),
+    [F.REMOVE_MODE_OPTIONS]: cartRemoveModeOptions(lang, t, { allowEdit: false }),
+    [F.FORM_INIT_VALUES]: { [F.REMOVE_MODE]: 'one' },
+    [F.ERROR_MESSAGE]: cartError || '',
+    [F.ERROR_VISIBLE]: !!cartError,
+  };
+}
+
+function cartEmptiedResponse({ version, flow_token }) {
+  return {
+    version,
+    screen: 'SUCCESS',
+    data: {
+      extension_message_response: {
+        params: {
+          flow_token,
+          checkout_action: 'cart_emptied',
+        },
+      },
+    },
+  };
+}
+
+function isCheckoutCartAction(screen, action) {
+  return action === 'open_cart'
+    || action === 'cart_remove'
+    || action === 'return_to_review'
+    || action === 'add_more'
+    || (CHECKOUT_CART_SCREENS.has(screen) && !action);
+}
+
+async function handleCheckoutCart({
+  screen,
+  action,
+  payload,
+  version,
+  flow_token,
+  phone,
+  businessId,
+  ref,
+  session,
+  lang,
+  profile,
+}) {
+  if (action === 'open_cart') {
+    const cartScreen = CART_SCREEN_FOR_REVIEW[screen];
+    if (!cartScreen) {
+      return null;
+    }
+    const draft = buildConfirmFlowDraft(payload);
+    if (draft) {
+      await ref.set({ confirmFlowDraft: draft, updatedAt: new Date() }, { merge: true });
+      session = { ...session, confirmFlowDraft: draft };
+    }
+    const basket = Array.isArray(session.basket) ? session.basket : [];
+    if (!basket.length) return cartEmptiedResponse({ version, flow_token });
+    const info = await getBusinessInfo(businessId);
+    return {
+      version,
+      screen: cartScreen,
+      data: await buildCheckoutCartData({
+        basket, lang, businessId, phone, session, info,
+      }),
+    };
+  }
+
+  if (action === 'add_more') {
+    if (!CHECKOUT_CART_SCREENS.has(screen)) return null;
+    return {
+      version,
+      screen: 'SUCCESS',
+      data: {
+        extension_message_response: {
+          params: {
+            flow_token,
+            checkout_action: 'add_more',
+          },
+        },
+      },
+    };
+  }
+
+  if (!CHECKOUT_CART_SCREENS.has(screen)) return null;
+
+  const basket = Array.isArray(session.basket) ? session.basket : [];
+  const info = await getBusinessInfo(businessId);
+
+  if (action === 'cart_remove') {
+    const nextBasket = basketAfterCartRemove(basket, payload);
+    const changed = nextBasket !== basket;
+    if (changed && !nextBasket.length) {
+      await ref.set({
+        basket: [],
+        confirmFlowDraft: null,
+        updatedAt: new Date(),
+      }, { merge: true });
+      return cartEmptiedResponse({ version, flow_token });
+    }
+    if (changed) {
+      await ref.set({ basket: nextBasket, updatedAt: new Date() }, { merge: true });
+      session = { ...session, basket: nextBasket };
+    }
+    return {
+      version,
+      screen,
+      data: await buildCheckoutCartData({
+        basket: session.basket ?? [],
+        lang,
+        businessId,
+        phone,
+        session,
+        info,
+      }),
+    };
+  }
+
+  const reviewScreen = REVIEW_SCREEN_FOR_CART[screen];
+  if (!reviewScreen) return null;
+  if (!(session.basket ?? []).length) {
+    await ref.set({ basket: [], confirmFlowDraft: null, updatedAt: new Date() }, { merge: true });
+    return cartEmptiedResponse({ version, flow_token });
+  }
+  return buildReviewReturnResponse({
+    screen: reviewScreen,
+    profile,
+    session,
+    ref,
+    version,
+    businessId,
+    phone,
+  });
+}
+
 /**
- * EmbeddedLink "Back to cart" uses data_exchange (complete is not allowed on EmbeddedLink).
- * Close the Flow via SUCCESS so WhatsApp sends nfm_reply with checkout_action for the bot.
+ * Published Flow JSON that still sends `back_to_cart` closes via SUCCESS.
+ * Regenerated JSON uses `open_cart` and stays inside the Flow.
  */
 async function buildCheckoutDataExchangeResponse({
   screen,
@@ -724,6 +1001,23 @@ async function buildCheckoutDataExchangeResponse({
   const { ref, session } = await loadSession(phone);
   const lang = session.language || 'de';
   const tenantMismatch = isTenantMismatch(session, businessId);
+  if (!tenantMismatch && isCheckoutCartAction(screen, action)) {
+    const profile = await loadCustomerAddresses(phone, businessId);
+    const cartResponse = await handleCheckoutCart({
+      screen,
+      action,
+      payload,
+      version,
+      flow_token,
+      phone,
+      businessId,
+      ref,
+      session,
+      lang,
+      profile,
+    });
+    if (cartResponse) return cartResponse;
+  }
   if (tenantMismatch) {
     console.warn(
       `[flow/exchange] checkout tenant mismatch: token=${businessId} session=${session.businessId}`,
@@ -770,6 +1064,21 @@ async function buildCheckoutDataExchangeResponse({
         version,
         editVisible: false,
       });
+    }
+
+    if (CHECKOUT_CART_SCREENS.has(screen)) {
+      return {
+        version,
+        screen,
+        data: await buildCheckoutCartData({
+          basket: [],
+          lang,
+          businessId,
+          phone,
+          session: {},
+          info: await getBusinessInfo(businessId),
+        }),
+      };
     }
 
     return buildBlankReviewResponse({

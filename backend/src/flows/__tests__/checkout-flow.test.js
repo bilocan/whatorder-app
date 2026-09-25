@@ -45,15 +45,16 @@ test('review screens show read-only name and delivery address', () => {
   }
 });
 
-test('profile edit link sits with Sepete dön above the place-order footer', () => {
-  for (const id of REVIEW_IDS) {
+test('profile edit link sits with Zum Warenkorb above the place-order footer', () => {
+  for (const id of [S.CHECKOUT_REVIEW, S.CHECKOUT_REVIEW_RETURN]) {
     const children = formChildren(id);
     const profileIdx = children.findIndex(
       (child) => child['on-click-action']?.payload?.checkout_action === 'manage_addresses',
     );
-    const cartIdx = children.findIndex(
-      (child) => child['on-click-action']?.payload?.checkout_action === 'back_to_cart',
+    const cartLink = children.find(
+      (child) => child['on-click-action']?.payload?.checkout_action === 'open_cart',
     );
+    const cartIdx = children.indexOf(cartLink);
     const footerIdx = children.findIndex((child) => child.type === 'Footer');
     const nameIdx = children.findIndex(
       (child) => child.type === 'TextBody' && child.text === `\${data.${F.CUSTOMER_NAME_DISPLAY}}`,
@@ -61,10 +62,48 @@ test('profile edit link sits with Sepete dön above the place-order footer', () 
     const typeIdx = children.findIndex((child) => child.name === F.ORDER_TYPE);
 
     expect(profileIdx).toBeGreaterThan(-1);
+    expect(cartLink['on-click-action'].payload[F.ORDER_TYPE]).toBe(`\${form.${F.ORDER_TYPE}}`);
+    expect(cartLink['on-click-action'].payload[F.CHECKOUT_NOTE]).toBe(`\${form.${F.CHECKOUT_NOTE}}`);
     expect(cartIdx).toBe(profileIdx + 1);
     expect(footerIdx).toBe(cartIdx + 1);
     expect(profileIdx).toBeGreaterThan(typeIdx);
     expect(nameIdx).toBeLessThan(typeIdx);
+  }
+});
+
+test('terminal review has no in-flow cart link', () => {
+  const children = formChildren(S.CHECKOUT_REVIEW_DONE);
+  expect(children.find(
+    (child) => child['on-click-action']?.payload?.checkout_action === 'open_cart',
+  )).toBeUndefined();
+  expect(children.find(
+    (child) => child['on-click-action']?.payload?.checkout_action === 'back_to_cart',
+  )).toBeUndefined();
+});
+
+test('checkout cart screens return to the next review clone', () => {
+  expect(flow.routing_model[S.CHECKOUT_REVIEW]).toEqual(
+    expect.arrayContaining([S.CHECKOUT_CART]),
+  );
+  expect(flow.routing_model[S.CHECKOUT_CART]).toEqual([S.CHECKOUT_REVIEW_RETURN]);
+  expect(flow.routing_model[S.CHECKOUT_CART_AGAIN]).toEqual([S.CHECKOUT_REVIEW_DONE]);
+
+  for (const id of [S.CHECKOUT_CART, S.CHECKOUT_CART_AGAIN]) {
+    const children = formChildren(id);
+    const footer = children.find((child) => child.type === 'Footer');
+    expect(footer['on-click-action']).toEqual({
+      name: 'data_exchange',
+      payload: { checkout_action: 'return_to_review' },
+    });
+    const apply = children.find(
+      (child) => child['on-click-action']?.payload?.checkout_action === 'cart_remove',
+    );
+    const addMore = children.find(
+      (child) => child['on-click-action']?.payload?.checkout_action === 'add_more',
+    );
+    expect(apply).toBeDefined();
+    expect(addMore).toBeDefined();
+    expect(children.find((child) => child['on-click-action']?.name === 'complete')).toBeUndefined();
   }
 });
 
