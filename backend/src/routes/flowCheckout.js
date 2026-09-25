@@ -14,6 +14,7 @@ const {
   returnReviewScreenForManage,
   ADDRESS_CHOICE_NEW,
   MAX_SAVED_ADDRESS_OPTIONS,
+  isDeliverySelectableInReview,
 } = require('../bot/checkoutConfirmFlow');
 const {
   splitDeliveryAddressFields,
@@ -151,6 +152,15 @@ function resolveReviewOrderType(session = {}, payload = {}) {
   if (fromDraft === 'pickup' || fromDraft === 'delivery') return fromDraft;
   if (session.orderType === 'pickup' || session.orderType === 'delivery') return session.orderType;
   return 'pickup';
+}
+
+/** Cart totals follow the Prüfen draft. session.orderType stays unset until place. */
+function sessionPricedForCart(session = {}, info = {}, basket = []) {
+  const requested = resolveReviewOrderType(session);
+  const orderType = requested === 'delivery' && !isDeliverySelectableInReview(info, basket)
+    ? 'pickup'
+    : requested;
+  return { ...session, orderType };
 }
 
 async function applyAddressFromManageReturn({
@@ -821,7 +831,7 @@ async function buildCheckoutCartData({
     info,
     customerPhone: phone,
     basket,
-    session,
+    session: sessionPricedForCart(session, info, basket),
   });
   const hasDiscount = totals.discount > 0 && totals.deal;
   const showDelivery = !!totals.isDelivery;

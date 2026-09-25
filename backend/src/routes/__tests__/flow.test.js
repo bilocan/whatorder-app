@@ -447,6 +447,73 @@ test('checkout open_cart stays in the Flow on the cart screen', async () => {
   );
 });
 
+test('checkout open_cart prices delivery from the review draft', async () => {
+  getBusinessInfo.mockResolvedValue({
+    deliveryEnabled: true,
+    deliveryOpen: true,
+    deliveryFee: 2.5,
+  });
+  const session = {
+    businessId: 'biz1',
+    language: 'de',
+    basket: [{ name: 'Burger', qty: 1, price: 10, itemId: 'b1' }],
+    customerName: 'Alex',
+    orderType: 'pickup',
+  };
+  sessionRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
+    set: jest.fn(),
+  });
+
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_REVIEW,
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+    data: {
+      checkout_action: 'open_cart',
+      [F.ORDER_TYPE]: 'delivery',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CHECKOUT_CART);
+  expect(body.data[F.DELIVERY_VISIBLE]).toBe(true);
+  expect(body.data[F.DELIVERY_LABEL]).toBe('Liefergebühr: €2.50');
+  expect(body.data[F.TOTAL_LABEL]).toBe('Gesamt: €12.50');
+});
+
+test('checkout open_cart prices pickup when delivery is closed', async () => {
+  getBusinessInfo.mockResolvedValue({
+    deliveryEnabled: true,
+    deliveryOpen: false,
+    deliveryFee: 2.5,
+  });
+  const session = {
+    businessId: 'biz1',
+    language: 'de',
+    basket: [{ name: 'Burger', qty: 1, price: 10, itemId: 'b1' }],
+    orderType: 'pickup',
+  };
+  sessionRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
+    set: jest.fn(),
+  });
+
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_REVIEW,
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+    data: {
+      checkout_action: 'open_cart',
+      [F.ORDER_TYPE]: 'delivery',
+    },
+  });
+  const body = parsed(res);
+  expect(body.data[F.DELIVERY_VISIBLE]).toBe(false);
+  expect(body.data[F.TOTAL_LABEL]).toBe('Gesamt: €10.00');
+});
+
 test('checkout cart remove one stays on the cart and writes the basket', async () => {
   const session = {
     businessId: 'biz1',
