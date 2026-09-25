@@ -309,9 +309,14 @@ module.exports = {
     firstOrderTime && lastOrderTime
       ? `🔒 ${name} ist derzeit geschlossen.\n\nBestellzeiten: ${firstOrderTime} – ${lastOrderTime}. Bis dann! 🙏`
       : `🔒 ${name} ist derzeit geschlossen. Bitte versuchen Sie es später! 🙏`,
+  restaurantClosedPickOther: (name, firstOrderTime, lastOrderTime) =>
+    firstOrderTime && lastOrderTime
+      ? `🔒 ${name} ist derzeit geschlossen.\n\nBestellzeiten: ${firstOrderTime} – ${lastOrderTime}.\n\nBitte wählen Sie ein anderes Restaurant.`
+      : `🔒 ${name} ist derzeit geschlossen. Bitte wählen Sie ein anderes Restaurant.`,
   closedLabel: () => '🔒 Geschlossen',
 
   ordersClosedByOwner: (name) => `⏸️ ${name} nimmt gerade keine Bestellungen entgegen. Bitte versuchen Sie es später! 🙏`,
+  ordersClosedByOwnerPickOther: (name) => `⏸️ ${name} nimmt gerade keine Bestellungen entgegen. Bitte wählen Sie ein anderes Restaurant.`,
   deliveryClosedByOwner: () => '🚫 Lieferung ist derzeit nicht verfügbar. Bitte wählen Sie Abholung.',
 
   intentConfirmHeader: () => 'Verstanden:',
