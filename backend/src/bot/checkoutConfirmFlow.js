@@ -644,6 +644,30 @@ function validateCheckoutSubmit(payload = {}, { addressLabels = {} } = {}) {
   };
 }
 
+/**
+ * Copy Prüfen choices onto session fields before leaving for the menu Flow.
+ * confirmFlowDraft is dropped by the next patchSession, so order type, name, note,
+ * and address have to live on the whitelisted fields.
+ */
+function applyConfirmDraftToSession(session = {}) {
+  const draft = session.confirmFlowDraft;
+  if (!draft || typeof draft !== 'object') return session;
+  const next = { ...session };
+  if (draft.orderType === 'pickup' || draft.orderType === 'delivery') {
+    next.orderType = draft.orderType;
+  }
+  const name = trimmed(draft.customerName);
+  if (name.length >= 2) next.customerName = name;
+  if (Object.prototype.hasOwnProperty.call(draft, 'specialRequests')) {
+    next.specialRequests = draft.specialRequests;
+  }
+  if (next.orderType === 'delivery' && trimmed(draft.deliveryAddress)) {
+    const composed = composeDeliveryAddressFromFields(draft.deliveryAddress, draft.deliveryApartment);
+    if (composed.ok) next.deliveryAddress = composed.deliveryAddress;
+  }
+  return next;
+}
+
 function applyCheckoutSubmitToSession(session, values) {
   return {
     ...session,
@@ -732,6 +756,7 @@ module.exports = {
   composeDeliveryAddressFromFields,
   validateCheckoutSubmit,
   applyCheckoutSubmitToSession,
+  applyConfirmDraftToSession,
   nextScreenAfterManageWrite,
   manageScreenForReview,
   returnReviewScreenForManage,

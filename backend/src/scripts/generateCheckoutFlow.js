@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
-const { checkoutReviewCopy, checkoutManageCopy } = require('../bot/menuFlowCopy');
+const { checkoutReviewCopy, checkoutManageCopy, checkoutCartCopy, cartRemoveModeOptions } = require('../bot/menuFlowCopy');
 const { ADDRESS_CHOICE_NEW } = require('../bot/checkoutConfirmFlow');
 const { t } = require('../lib/templates');
 const { addressHomeIconBase64, addressNewIconBase64 } = require('../lib/flowImages');
@@ -114,7 +114,7 @@ function deliveryAddressFields() {
   ];
 }
 
-async function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
+async function checkoutReviewScreen(id, { includeManageLink = true, includeCartLink = true } = {}) {
   const copy = checkoutReviewCopy(EXAMPLE_LANG);
   if (!includeManageLink) delete copy[F.UI_MANAGE_ADDRESSES_LINK];
   return {
@@ -221,14 +221,17 @@ async function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
               },
             },
           }] : []),
-          {
+          ...(includeCartLink ? [{
             type: 'EmbeddedLink',
             text: `\${data.${F.UI_BACK_TO_CART}}`,
             'on-click-action': {
               name: 'data_exchange',
-              payload: { checkout_action: 'back_to_cart' },
+              payload: {
+                checkout_action: 'open_cart',
+                ...reviewFormPayload(),
+              },
             },
-          },
+          }] : []),
           {
             type: 'Footer',
             label: `\${data.${F.UI_PLACE_ORDER}}`,
@@ -494,26 +497,158 @@ async function addressManageScreen(id, exampleOptions) {
   };
 }
 
+const CART_OPTION_PROPS = {
+  id: { type: 'string' },
+  title: { type: 'string' },
+  description: { type: 'string' },
+  metadata: { type: 'string' },
+  image: { type: 'string' },
+  'alt-text': { type: 'string' },
+};
+
+/** Same remove UI as the menu cart. Footer returns to the next Prüfen clone. No Bearbeiten. */
+function checkoutCartScreen(id) {
+  const copy = checkoutCartCopy(EXAMPLE_LANG, t);
+  return {
+    id,
+    title: `\${data.${F.UI_SCREEN_TITLE}}`,
+    refresh_on_back: true,
+    data: {
+      ...uiSchema(copy),
+      [F.SUBTOTAL_LABEL]: { type: 'string', '__example__': 'Subtotal: €15.40' },
+      [F.DISCOUNT_LABEL]: { type: 'string', '__example__': '' },
+      [F.DISCOUNT_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.DELIVERY_LABEL]: { type: 'string', '__example__': '' },
+      [F.DELIVERY_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.TOTAL_LABEL]: { type: 'string', '__example__': 'Total: €15.40' },
+      [F.BASKET_ITEMS]: {
+        type: 'array',
+        items: { type: 'object', properties: CART_OPTION_PROPS },
+        '__example__': [
+          {
+            id: '0',
+            title: '1x Dürüm Huhn',
+            description: 'Tomaten, Salat',
+            metadata: '€8.50',
+            image: 'AA==',
+            'alt-text': '1x Dürüm Huhn',
+          },
+        ],
+      },
+      [F.REMOVE_MODE_OPTIONS]: {
+        type: 'array',
+        items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } } },
+        '__example__': cartRemoveModeOptions(EXAMPLE_LANG, t, { allowEdit: false }),
+      },
+      [F.FORM_INIT_VALUES]: {
+        type: 'object',
+        properties: { [F.REMOVE_MODE]: { type: 'string' } },
+        '__example__': { [F.REMOVE_MODE]: 'one' },
+      },
+      [F.ERROR_MESSAGE]: { type: 'string', '__example__': '' },
+      [F.ERROR_VISIBLE]: { type: 'boolean', '__example__': false },
+    },
+    layout: {
+      type: 'SingleColumnLayout',
+      children: [{
+        type: 'Form',
+        name: 'checkout_cart_form',
+        'init-values': `\${data.${F.FORM_INIT_VALUES}}`,
+        children: [
+          { type: 'TextCaption', text: `\${data.${F.UI_CART_HINT}}` },
+          {
+            type: 'TextBody',
+            text: `\${data.${F.ERROR_MESSAGE}}`,
+            visible: `\${data.${F.ERROR_VISIBLE}}`,
+          },
+          {
+            type: 'CheckboxGroup',
+            label: `\${data.${F.UI_REMOVE_LABEL}}`,
+            name: F.REMOVE_ITEMS,
+            required: false,
+            'media-size': 'large',
+            'data-source': `\${data.${F.BASKET_ITEMS}}`,
+          },
+          { type: 'TextBody', text: `\${data.${F.SUBTOTAL_LABEL}}` },
+          {
+            type: 'If',
+            condition: `\${data.${F.DISCOUNT_VISIBLE}}`,
+            then: [{ type: 'TextBody', text: `\${data.${F.DISCOUNT_LABEL}}` }],
+          },
+          {
+            type: 'If',
+            condition: `\${data.${F.DELIVERY_VISIBLE}}`,
+            then: [{ type: 'TextBody', text: `\${data.${F.DELIVERY_LABEL}}` }],
+          },
+          { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
+          {
+            type: 'RadioButtonsGroup',
+            label: `\${data.${F.UI_REMOVE_MODE_LABEL}}`,
+            name: F.REMOVE_MODE,
+            required: true,
+            'data-source': `\${data.${F.REMOVE_MODE_OPTIONS}}`,
+          },
+          {
+            type: 'EmbeddedLink',
+            text: `\${data.${F.UI_REMOVE_SELECTED}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: {
+                checkout_action: 'cart_remove',
+                [F.REMOVE_ITEMS]: `\${form.${F.REMOVE_ITEMS}}`,
+                [F.REMOVE_MODE]: `\${form.${F.REMOVE_MODE}}`,
+              },
+            },
+          },
+          {
+            type: 'EmbeddedLink',
+            text: `\${data.${F.UI_ADD_MORE}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: { checkout_action: 'add_more' },
+            },
+          },
+          {
+            type: 'Footer',
+            label: `\${data.${F.UI_RETURN_TO_REVIEW}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: { checkout_action: 'return_to_review' },
+            },
+          },
+        ],
+      }],
+    },
+  };
+}
+
 async function main() {
   const exampleOptions = await exampleAddressOptions(EXAMPLE_LANG);
   const flow = {
     version: '7.3',
     data_api_version: '3.0',
     routing_model: {
-      [S.CHECKOUT_REVIEW]: [S.ADDRESS_MANAGE],
+      [S.CHECKOUT_REVIEW]: [S.ADDRESS_MANAGE, S.CHECKOUT_CART],
       [S.ADDRESS_MANAGE]: [S.ADDRESS_MANAGE_UPDATED, S.CHECKOUT_REVIEW_RETURN],
       [S.ADDRESS_MANAGE_UPDATED]: [S.CHECKOUT_REVIEW_RETURN],
-      [S.CHECKOUT_REVIEW_RETURN]: [S.ADDRESS_MANAGE_AGAIN],
+      [S.CHECKOUT_CART]: [S.CHECKOUT_REVIEW_RETURN],
+      [S.CHECKOUT_REVIEW_RETURN]: [S.ADDRESS_MANAGE_AGAIN, S.CHECKOUT_CART_AGAIN],
+      [S.CHECKOUT_CART_AGAIN]: [S.CHECKOUT_REVIEW_DONE],
       [S.ADDRESS_MANAGE_AGAIN]: [S.CHECKOUT_REVIEW_DONE],
       [S.CHECKOUT_REVIEW_DONE]: [],
     },
     screens: [
       await checkoutReviewScreen(S.CHECKOUT_REVIEW),
+      checkoutCartScreen(S.CHECKOUT_CART),
       await addressManageScreen(S.ADDRESS_MANAGE, exampleOptions),
       await addressManageScreen(S.ADDRESS_MANAGE_UPDATED, exampleOptions),
       await checkoutReviewScreen(S.CHECKOUT_REVIEW_RETURN),
+      checkoutCartScreen(S.CHECKOUT_CART_AGAIN),
       await addressManageScreen(S.ADDRESS_MANAGE_AGAIN, exampleOptions),
-      await checkoutReviewScreen(S.CHECKOUT_REVIEW_DONE, { includeManageLink: true }),
+      await checkoutReviewScreen(S.CHECKOUT_REVIEW_DONE, {
+        includeManageLink: true,
+        includeCartLink: false,
+      }),
     ],
   };
 

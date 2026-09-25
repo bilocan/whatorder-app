@@ -83,6 +83,7 @@ module.exports = {
   confirmGateContinue: () => 'Weiter',
   confirmFlowFooter: () => 'Bestellung aufgeben',
   confirmFlowBackToCart: () => 'Zum Warenkorb',
+  confirmFlowReturnToReview: () => 'Zur Prüfung',
   confirmFlowReviewIntro: () => 'Fast geschafft!',
   confirmFlowReviewSectionBasket: () => 'Deine Bestellung',
   confirmFlowReviewSectionDetails: () => 'Deine Angaben',

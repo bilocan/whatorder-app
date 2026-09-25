@@ -19,6 +19,9 @@ const SCREENS = {
   CHECKOUT_REVIEW_RETURN: 'CHECKOUT_REVIEW_RETURN',
   // Meta screen ids: letters + underscores only (no digits). Mirrors CART_DONE.
   CHECKOUT_REVIEW_DONE: 'CHECKOUT_REVIEW_DONE',
+  // In-flow cart from Prüfen. Forward-only: review → cart → next review clone.
+  CHECKOUT_CART: 'CHECKOUT_CART',
+  CHECKOUT_CART_AGAIN: 'CHECKOUT_CART_AGAIN',
   ADDRESS_MANAGE: 'ADDRESS_MANAGE',
   ADDRESS_MANAGE_UPDATED: 'ADDRESS_MANAGE_UPDATED',
   ADDRESS_MANAGE_AGAIN: 'ADDRESS_MANAGE_AGAIN',
@@ -135,6 +138,7 @@ const FIELDS = {
   UI_DELIVERY_ADDRESS_EMPTY: 'ui_delivery_address_empty',
   UI_NOTE_LABEL:      'ui_note_label',
   UI_BACK_TO_CART:    'ui_back_to_cart',
+  UI_RETURN_TO_REVIEW: 'ui_return_to_review',
   UI_BACK_TO_CART_VISIBLE: 'ui_back_to_cart_visible',
   UI_MANAGE_ADDRESSES_LINK: 'ui_manage_addresses_link',
 

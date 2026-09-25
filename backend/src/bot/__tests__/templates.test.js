@@ -16,7 +16,7 @@ const FUNCTION_KEYS = [
   'confirmEditNameBtn', 'confirmEditAddressBtn', 'confirmEditOrderTypeBtn',
   'confirmOrderTypePickup', 'confirmOrderTypeDelivery', 'confirmNoAddressYet',
   'confirmFlowCta', 'confirmGateAddMore', 'confirmGateContinue',
-  'confirmFlowFooter', 'confirmFlowBackToCart',
+  'confirmFlowFooter', 'confirmFlowBackToCart', 'confirmFlowReturnToReview',
   'confirmFlowReviewIntro', 'confirmFlowReviewSectionBasket',
   'confirmFlowPaymentCard',
   'confirmFlowNameLabel', 'confirmFlowTypeLabel', 'confirmFlowAddressLabel',
