@@ -309,9 +309,14 @@ module.exports = {
     firstOrderTime && lastOrderTime
       ? `🔒 ${name} şu an kapalı.\n\nSipariş saatleri: ${firstOrderTime} – ${lastOrderTime}. Sizi bekleriz! 🙏`
       : `🔒 ${name} şu an kapalı. Lütfen daha sonra tekrar deneyin! 🙏`,
+  restaurantClosedPickOther: (name, firstOrderTime, lastOrderTime) =>
+    firstOrderTime && lastOrderTime
+      ? `🔒 ${name} şu an kapalı.\n\nSipariş saatleri: ${firstOrderTime} – ${lastOrderTime}.\n\nLütfen başka bir restoran seçin.`
+      : `🔒 ${name} şu an kapalı. Lütfen başka bir restoran seçin.`,
   closedLabel: () => '🔒 Kapalı',
 
   ordersClosedByOwner: (name) => `⏸️ ${name} şu an sipariş almıyor. Lütfen daha sonra tekrar deneyin! 🙏`,
+  ordersClosedByOwnerPickOther: (name) => `⏸️ ${name} şu an sipariş almıyor. Lütfen başka bir restoran seçin.`,
   deliveryClosedByOwner: () => '🚫 Teslimat şu an mevcut değil. Lütfen gel-al seçeneğini seçin.',
 
   intentConfirmHeader: () => 'Anladım:',
