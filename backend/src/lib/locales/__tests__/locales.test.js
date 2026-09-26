@@ -122,6 +122,7 @@ describe('post-complete re-entry keys — all locales', () => {
     for (const loc of [en, de, tr]) {
       expect(loc.postReorderBtn().length).toBeLessThanOrEqual(20);
       expect(loc.postCompleteRestaurantBtn().length).toBeLessThanOrEqual(20);
+      expect(loc.paymentBackBtn().length).toBeLessThanOrEqual(20);
     }
   });
 });

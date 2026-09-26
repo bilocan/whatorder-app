@@ -66,6 +66,81 @@ async function createCheckoutSessionForOrder(businessId, orderId, { totalEuros, 
   return { url: session.url, sessionId: session.id };
 }
 
+/**
+ * Close an open Stripe Checkout session so the pay link cannot complete after
+ * the customer goes back to Bestellung prüfen. A completed session is left
+ * alone and reported as paid.
+ * @param {string|null|undefined} sessionId
+ * @returns {Promise<{ paid: boolean, released: boolean }>}
+ */
+async function releaseUnpaidCheckoutSession(sessionId) {
+  if (!sessionId) return { paid: false, released: true };
+  const stripe = getStripe();
+  if (!stripe) throw new Error('Stripe is not configured');
+
+  const isPaid = (session) => session.payment_status === 'paid' || session.status === 'complete';
+  let session = await stripe.checkout.sessions.retrieve(sessionId);
+  if (isPaid(session)) return { paid: true, released: false };
+  if (session.status === 'expired') return { paid: false, released: true };
+
+  try {
+    session = await stripe.checkout.sessions.expire(sessionId);
+  } catch (err) {
+    const again = await stripe.checkout.sessions.retrieve(sessionId);
+    if (isPaid(again)) return { paid: true, released: false };
+    if (again.status === 'expired') return { paid: false, released: true };
+    throw err;
+  }
+  if (isPaid(session)) return { paid: true, released: false };
+  return { paid: false, released: true };
+}
+
+/**
+ * Run the paid Checkout path for a session Stripe already marked paid.
+ * Marks the order, issues the Beleg, and sends the post-payment messages
+ * when the customer has not been notified yet.
+ * @returns {Promise<boolean>} true when the session was paid and the handler ran
+ */
+async function completePaidCheckoutSession(sessionId) {
+  if (!sessionId) return false;
+  const stripe = getStripe();
+  if (!stripe) throw new Error('Stripe is not configured');
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  const paid = session.payment_status === 'paid' || session.status === 'complete';
+  if (!paid) return false;
+  await handleCheckoutSessionCompleted(session);
+  return true;
+}
+
+async function refundCheckoutOnWithdrawnOrder(businessId, orderId, order, session) {
+  if (order.paymentStatus === 'refunded') return;
+  const orderRef = ordersRef(businessId).doc(orderId);
+  const intentId = typeof session.payment_intent === 'string'
+    ? session.payment_intent
+    : session.payment_intent?.id ?? order.stripePaymentIntentId ?? null;
+
+  if (order.paymentStatus !== 'paid') {
+    await orderRef.update({
+      paymentStatus: 'paid',
+      paymentMethod: 'stripe',
+      paymentStripeSessionId: session.id,
+      stripePaymentIntentId: intentId,
+      paymentProcessedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  try {
+    await refundOrderPayment(businessId, orderId, {
+      reason: 'withdrawn_before_payment',
+      actor: 'system',
+      notifyCustomer: true,
+    });
+  } catch (err) {
+    console.error(`[stripe] refund after withdraw failed orderId=${orderId}: ${err.message}`);
+    throw err;
+  }
+}
+
 async function isStripeEventProcessed(eventId) {
   const snap = await stripeEventRef(eventId).get();
   return snap.exists;
@@ -95,7 +170,21 @@ async function handleCheckoutSessionCompleted(session) {
 
   const order = orderSnap.data();
 
+  if (order.status === 'cancelled' || order.status === 'rejected') {
+    await refundCheckoutOnWithdrawnOrder(businessId, orderId, order, session);
+    return;
+  }
+
   const alreadyPaid = order.paymentStatus === 'paid';
+  // Ändern can cancel the order while fees are being computed. Re-read before
+  // the paid write so a withdrawn order is refunded instead of confirmed.
+  const liveSnap = await orderRef.get();
+  const live = liveSnap.exists ? liveSnap.data() : order;
+  if (live.status === 'cancelled' || live.status === 'rejected') {
+    await refundCheckoutOnWithdrawnOrder(businessId, orderId, live, session);
+    return;
+  }
+
   const grossAmountCents = session.amount_total ?? Math.round((order.total || 0) * 100);
   const feeConfig = await getFeeConfig();
   const settlementConfig = await getSettlementConfig();
@@ -382,6 +471,8 @@ module.exports = {
   LEGAL_PROFILE_INCOMPLETE,
   SETTLEMENT_IBAN_INCOMPLETE,
   createCheckoutSessionForOrder,
+  releaseUnpaidCheckoutSession,
+  completePaidCheckoutSession,
   handleCheckoutSessionCompleted,
   refundOrderPayment,
   applyOrderRefunded,

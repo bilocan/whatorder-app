@@ -12,7 +12,7 @@ const {
   buildBasketText, sendCatalog, sendMenu, formatBasketItemsText, basketViewButtons, sendBasketView, parseBasketItemName,
 } = require('../botHelpers');
 const { getBusinessInfo, getMenuContext } = require('../menuService');
-const { createOrder } = require('../orderService');
+const { createOrder, getOrder, cancelOrder } = require('../orderService');
 const { customersRef, ordersRef, menuRef } = require('../../lib/collections');
 const { reverseGeocode } = require('../../lib/geocode');
 const {
@@ -27,7 +27,7 @@ const {
   parseDeliveryUnit,
 } = require('../deliveryAddress');
 const { isStripeConfigured } = require('../../lib/stripe');
-const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
+const { createCheckoutSessionForOrder, releaseUnpaidCheckoutSession, completePaidCheckoutSession, refundOrderPayment } = require('../../lib/paymentService');
 const { isLegalComplete, missingLegalFields, isSettlementIbanComplete } = require('../../lib/legalProfile');
 const { isPaymentEnabled } = require('../paymentGate');
 const { buildOrderTaxSnapshot } = require('../../lib/receiptMath');
@@ -237,6 +237,8 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
 
   if (paymentMethod === 'stripe') {
     const chargedTotal = chargedCustomerTotal(taxSnapshot, total);
+    const payBody = t('paymentLink', lang, shortId, itemLines, chargedTotal.toFixed(2), info.name, info.alertPhone || null, info.address || null, isDelivery ? (session.deliveryAddress || null) : null, checkoutDealLines(t, lang, totals));
+    let payUrl = null;
     try {
       const { url, sessionId } = await createCheckoutSessionForOrder(businessId, orderId, {
         totalEuros: chargedTotal,
@@ -245,15 +247,33 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
         lang,
       });
       await ordersRef(businessId).doc(orderId).update({ paymentStripeSessionId: sessionId });
-      await sendCtaUrlMessage(from, {
-        body: t('paymentLink', lang, shortId, itemLines, chargedTotal.toFixed(2), info.name, info.alertPhone || null, info.address || null, isDelivery ? (session.deliveryAddress || null) : null, checkoutDealLines(t, lang, totals)),
-        buttonLabel: t('payNowBtn', lang),
-        url,
-      }, phoneNumberId);
+      payUrl = url;
     } catch (err) {
       console.error('[payment] checkout session failed:', err.message);
-      await sendText(from, t('paymentLinkFailed', lang, shortId), phoneNumberId);
     }
+    // Ändern goes out first so Jetzt zahlen stays the bottom bubble, next to the thumb.
+    await sendButtonMessage(from, {
+      body: t('paymentBackPrompt', lang),
+      buttons: [{ id: 'btn_payment_back', title: t('paymentBackBtn', lang) }],
+    }, phoneNumberId);
+    if (!payUrl) {
+      await sendText(from, t('paymentLinkFailed', lang, shortId), phoneNumberId);
+      return;
+    }
+    // Ändern can land before this send. Skip the pay link if that already withdrew the order.
+    // A failed re-read still sends the link. Dropping it would leave the customer with no way to pay.
+    let fresh = null;
+    try {
+      fresh = await getOrder(businessId, orderId);
+    } catch (err) {
+      console.error('[checkout] unpaid order re-read failed:', err.message);
+    }
+    if (fresh?.status === 'cancelled') return;
+    await sendCtaUrlMessage(from, {
+      body: payBody,
+      buttonLabel: t('payNowBtn', lang),
+      url: payUrl,
+    }, phoneNumberId);
     return;
   }
 
@@ -1688,6 +1708,204 @@ async function handleConfirming({
   await transitionToConfirming(from, session, lang, businessId, basket, session.customerName);
 }
 
+const ORDER_ITEM_TAX_KEYS = new Set(['vatRate', 'net', 'vat', 'gross', 'unitPriceGross', 'kind', '_cents']);
+
+function basketFromOrderItems(items) {
+  return (items || [])
+    .filter((item) => item && item.kind !== 'fee' && item.name && item.qty && item.price != null)
+    .map((item) => {
+      const line = {};
+      for (const [key, val] of Object.entries(item)) {
+        if (ORDER_ITEM_TAX_KEYS.has(key) || val == null) continue;
+        line[key] = val;
+      }
+      return line;
+    });
+}
+
+function postOrderButtons(lang) {
+  return [
+    { id: 'btn_post_cancel', title: t('postCancelBtn', lang) },
+    { id: 'btn_post_reorder', title: t('postReorderBtn', lang) },
+    { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
+  ];
+}
+
+// Payment already landed. Send the same confirmation, action buttons, and Beleg
+// the Stripe webhook sends. A second tap only repeats the three buttons.
+async function showPaidCheckout({ from, businessId, orderId, order, lang, phoneNumberId }) {
+  if (!order.paymentNotifiedAt && order.paymentStripeSessionId) {
+    try {
+      const done = await completePaidCheckoutSession(order.paymentStripeSessionId);
+      if (done) {
+        const latest = await getOrder(businessId, orderId);
+        if (latest?.paymentNotifiedAt) return;
+      }
+    } catch (err) {
+      console.error('[checkout] paid checkout notify failed:', err.message);
+    }
+  }
+  await sendButtonMessage(from, {
+    body: t('postOrderOptions', lang, order.restaurantName || null),
+    buttons: postOrderButtons(lang),
+  }, phoneNumberId);
+}
+
+// Ändern above the pay link. The cta_url bubble can only carry Jetzt zahlen, so
+// this is a second reply button. Unpaid pending orders are withdrawn and Prüfen reopens.
+async function handlePaymentBack({ from, session, lang }) {
+  const phoneNumberId = session.whatsappPhoneNumberId || null;
+  const businessId = session.pendingAmendBusinessId || session.businessId;
+  const orderId = session.pendingAmendOrderId;
+
+  if (!orderId || !businessId) {
+    if (session.state === 'confirming') return;
+    if (businessId) {
+      const info = await getBusinessInfo(businessId);
+      const phone = info.alertPhone || info.phone || null;
+      await sendText(from, t('postOrderCallRestaurant', lang, info.name, phone), phoneNumberId);
+    }
+    return;
+  }
+
+  const order = await getOrder(businessId, orderId);
+  if (!order) {
+    const info = await getBusinessInfo(businessId);
+    const phone = info.alertPhone || info.phone || null;
+    await sendText(from, t('postOrderCallRestaurant', lang, info.name, phone), phoneNumberId);
+    return;
+  }
+
+  const shortId = orderId.slice(-6).toUpperCase();
+  const paidAndOpen = order.paymentStatus === 'paid'
+    && order.status !== 'cancelled'
+    && order.status !== 'rejected';
+  if (paidAndOpen) {
+    await showPaidCheckout({ from, businessId, orderId, order, lang, phoneNumberId });
+    return;
+  }
+  if (order.paymentStatus === 'refunded') {
+    await sendText(from, t('paymentRefunded', lang, shortId), phoneNumberId);
+    return;
+  }
+  const alreadySettled = order.paymentStatus === 'paid';
+  if (alreadySettled || order.status !== 'pending') {
+    if (alreadySettled) {
+      await sendText(from, t('paymentBackPaid', lang, shortId), phoneNumberId);
+    } else {
+      const info = await getBusinessInfo(businessId);
+      const phone = info.alertPhone || info.phone || null;
+      await sendText(from, t('postOrderCallRestaurant', lang, info.name, phone), phoneNumberId);
+    }
+    return;
+  }
+
+  let release;
+  try {
+    release = await releaseUnpaidCheckoutSession(order.paymentStripeSessionId);
+  } catch (err) {
+    console.error('[checkout] expire unpaid session failed:', err.message);
+    await sendText(from, t('paymentBackFailed', lang), phoneNumberId);
+    return;
+  }
+  if (release.paid) {
+    await showPaidCheckout({ from, businessId, orderId, order, lang, phoneNumberId });
+    return;
+  }
+
+  const fresh = await getOrder(businessId, orderId);
+  if (fresh?.paymentStatus === 'paid') {
+    await showPaidCheckout({ from, businessId, orderId, order: fresh, lang, phoneNumberId });
+    return;
+  }
+
+  let withdrew = false;
+  try {
+    if (fresh?.status === 'pending') {
+      await cancelOrder(businessId, orderId, { skipReentry: true, skipCustomerNotify: true });
+      // Payment can land between the re-read above and this cancel. The webhook
+      // may already have taken the paid path, so refund from here too.
+      const after = await getOrder(businessId, orderId);
+      if (after?.paymentStatus === 'paid') {
+        try {
+          await refundOrderPayment(businessId, orderId, {
+            reason: 'withdrawn_before_payment',
+            actor: 'customer',
+            notifyCustomer: true,
+          });
+        } catch (err) {
+          console.error('[checkout] refund after withdraw failed:', err.message);
+          await sendText(from, t('paymentBackFailed', lang), phoneNumberId);
+          return;
+        }
+      }
+      withdrew = true;
+    } else if (fresh?.status === 'cancelled') {
+      // Another Ändern already withdrew this order. Skip the owner alert and Prüfen.
+      return;
+    } else {
+      const info = await getBusinessInfo(businessId);
+      const phone = info.alertPhone || info.phone || null;
+      await sendText(from, t('postOrderCallRestaurant', lang, info.name, phone), phoneNumberId);
+      return;
+    }
+  } catch (err) {
+    console.error('[checkout] withdraw unpaid order failed:', err.message);
+    const again = await getOrder(businessId, orderId);
+    if (again?.paymentStatus === 'paid' && again.status !== 'cancelled' && again.status !== 'rejected') {
+      await showPaidCheckout({ from, businessId, orderId, order: again, lang, phoneNumberId });
+      return;
+    }
+    if (again?.paymentStatus === 'refunded') {
+      await sendText(from, t('paymentRefunded', lang, shortId), phoneNumberId);
+      return;
+    }
+    if (again?.paymentStatus === 'paid') {
+      await sendText(from, t('paymentBackPaid', lang, shortId), phoneNumberId);
+      return;
+    }
+    if (again?.status !== 'cancelled') {
+      await sendText(from, t('paymentBackFailed', lang), phoneNumberId);
+      return;
+    }
+    return;
+  }
+
+  if (!withdrew) return;
+
+  const info = await getBusinessInfo(businessId);
+  try {
+    if (info.alertPhone) {
+      await sendText(
+        info.alertPhone,
+        `↩️ Order #${shortId} withdrawn before payment\nCustomer: ${order.customerName || 'WhatsApp Customer'} (${order.customerPhone || from})`,
+        phoneNumberId,
+      );
+    }
+  } catch (err) {
+    console.error('[checkout] owner withdraw notify failed:', err.message);
+  }
+
+  const basket = basketFromOrderItems(order.items);
+  const customerName = order.customerName && order.customerName !== 'WhatsApp Customer'
+    ? order.customerName
+    : (session.customerName || '');
+  const next = {
+    ...session,
+    businessId,
+    basket,
+    customerName,
+    orderType: order.orderType || 'pickup',
+    deliveryAddress: order.orderType === 'delivery' ? (order.deliveryAddress || null) : null,
+    specialRequests: order.notes || null,
+    ...recomputePrepFields(info),
+  };
+  delete next.pendingAmendOrderId;
+  delete next.pendingAmendBusinessId;
+  delete next.pendingAmendPlacedAt;
+  await transitionToConfirming(from, next, lang, businessId, basket, customerName);
+}
+
 module.exports = {
   handleAwaitingConfirmNote,
   handleAwaitingOrderType,
@@ -1700,4 +1918,5 @@ module.exports = {
   resumeDeliveryCheckout,
   showDeliveryBasketGate,
   proceedFromConfirmedBasket,
+  handlePaymentBack,
 };

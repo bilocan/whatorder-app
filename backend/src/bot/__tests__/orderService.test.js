@@ -715,6 +715,14 @@ describe('Order state machine', () => {
     expect(patchSession).not.toHaveBeenCalled();
   });
 
+  test('cancelOrder: skipCustomerNotify updates status without a customer message', async () => {
+    const { mockUpdate } = makeRef(ORDER('pending'));
+    await cancelOrder(BIZ, 'order_abc123', { skipReentry: true, skipCustomerNotify: true });
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }));
+    expect(sendText).not.toHaveBeenCalled();
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+  });
+
   test('cancelOrder: approved → cancelled', async () => {
     const { mockUpdate } = makeRef(ORDER('approved'));
     await cancelOrder(BIZ, 'order_abc123');

@@ -16,6 +16,7 @@ import {
   getPrimaryAction,
   isKitchenAdvanceAction,
   isKitchenPaymentBlocked,
+  showKitchenPaymentHint,
   postOrderAction,
 } from '../lib/orderActions';
 import { orderElapsed } from '../lib/orderElapsed';
@@ -317,6 +318,7 @@ export default function OrdersPage() {
                     const pay = paymentBadge(order, t);
                     const loading = loadingIds.has(order.id);
                     const paymentBlocked = isKitchenPaymentBlocked(order);
+                    const paymentHint = showKitchenPaymentHint(order);
                     return (
                       <div
                         key={order.id}
@@ -353,7 +355,7 @@ export default function OrdersPage() {
                           <PaymentBadge kind={pay.kind} label={pay.label} />
                           <StatusBadge status={order.status} label={statusLabel(order.status)} />
                         </div>
-                        {paymentBlocked && (
+                        {paymentHint && (
                           <p className="kitchen-payment-hint">{t('orderDetail.paymentRequiredHint')}</p>
                         )}
                         {primary && (
@@ -590,7 +592,7 @@ export default function OrdersPage() {
                 )}
               </div>
             )}
-            {isKitchenPaymentBlocked(openOrder) && (
+            {showKitchenPaymentHint(openOrder) && (
               <p className="order-detail-error">{t('orderDetail.paymentRequiredHint')}</p>
             )}
             <Link

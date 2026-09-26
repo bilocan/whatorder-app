@@ -10,7 +10,7 @@ import {
   startOfLocalDayMs,
 } from '../orderBoardColumns'
 import { orderElapsed } from '../orderElapsed'
-import { getPrimaryAction, getActionButtons, isKitchenPaymentBlocked, isKitchenAdvanceAction } from '../orderActions'
+import { getPrimaryAction, getActionButtons, isKitchenPaymentBlocked, isKitchenAdvanceAction, showKitchenPaymentHint } from '../orderActions'
 import type { Order } from '../../types'
 
 describe('orderBoardColumns', () => {
@@ -172,6 +172,14 @@ describe('kitchen payment gate helpers', () => {
     expect(isKitchenPaymentBlocked({ paymentMethod: 'stripe', paymentStatus: 'paid' })).toBe(false)
     expect(isKitchenPaymentBlocked({ paymentMethod: 'cash', paymentStatus: 'cash' })).toBe(false)
     expect(isKitchenPaymentBlocked({})).toBe(false)
+  })
+
+  it('hides the pay hint once the order is withdrawn', () => {
+    const unpaid = { paymentMethod: 'stripe' as const, paymentStatus: 'pending' as const }
+    expect(showKitchenPaymentHint({ ...unpaid, status: 'pending' })).toBe(true)
+    expect(showKitchenPaymentHint({ ...unpaid, status: 'cancelled' })).toBe(false)
+    expect(showKitchenPaymentHint({ ...unpaid, status: 'rejected' })).toBe(false)
+    expect(showKitchenPaymentHint({ paymentMethod: 'stripe', paymentStatus: 'paid', status: 'pending' })).toBe(false)
   })
 
   it('treats reject and cancel as non-kitchen advances', () => {

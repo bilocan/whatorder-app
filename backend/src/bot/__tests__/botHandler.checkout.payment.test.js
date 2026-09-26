@@ -32,6 +32,9 @@ jest.mock('../../lib/stripe', () => ({
 }));
 jest.mock('../../lib/paymentService', () => ({
   createCheckoutSessionForOrder: jest.fn(),
+  releaseUnpaidCheckoutSession: jest.fn(),
+  completePaidCheckoutSession: jest.fn(),
+  refundOrderPayment: jest.fn(),
 }));
 
 const mockOrderUpdate = jest.fn().mockResolvedValue(undefined);
@@ -45,7 +48,7 @@ jest.mock('../../lib/collections', () => ({
 }));
 
 const { handleMessage } = require('../botHandler');
-const { getSession } = require('../sessionStore');
+const { getSession, setSession } = require('../sessionStore');
 const { getMenu, getMenuContext, getBusinessInfo, resolvePhotoUrl } = require('../menuService');
 const { createOrder, getLastOrderForCustomer, getOrder, cancelOrder, amendOrderAddItems } = require('../orderService');
 const {
@@ -54,7 +57,7 @@ const {
 } = require('../../lib/whatsapp');
 const { reverseGeocode } = require('../../lib/geocode');
 const { customersRef, menuRef } = require('../../lib/collections');
-const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
+const { createCheckoutSessionForOrder, releaseUnpaidCheckoutSession, completePaidCheckoutSession, refundOrderPayment } = require('../../lib/paymentService');
 const { t } = require('../templates');
 
 const BIZ = 'biz_test';
@@ -151,6 +154,9 @@ beforeEach(() => {
   sendLocationRequest.mockResolvedValue();
   sendImage.mockResolvedValue('map_msg_id');
   createCheckoutSessionForOrder.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/cs_1', sessionId: 'cs_1' });
+  releaseUnpaidCheckoutSession.mockResolvedValue({ paid: false, released: true });
+  completePaidCheckoutSession.mockResolvedValue(true);
+  refundOrderPayment.mockResolvedValue({ refunded: true, skipped: false });
   customersRef.mockReturnValue({
     doc: jest.fn().mockReturnValue({
       get: jest.fn().mockResolvedValue({ exists: false, data: () => null }),
@@ -179,9 +185,16 @@ describe('Stripe checkout gates on legal profile and VAT', () => {
       expect.objectContaining({ name: 'Döner', qty: 2, price: 8.5, vatRate: 10, net: 15.45, vat: 1.55, gross: 17 }),
       expect.objectContaining({ name: 'Ayran', qty: 1, price: 2, vatRate: 20, net: 1.67, vat: 0.33, gross: 2 }),
     ]);
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: t('paymentBackPrompt', 'en'),
+      buttons: [{ id: 'btn_payment_back', title: t('paymentBackBtn', 'en') }],
+    }), 'test_phone_id');
     expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       url: 'https://checkout.stripe.com/pay/cs_1',
     }), 'test_phone_id');
+    expect(sendButtonMessage.mock.invocationCallOrder[0]).toBeLessThan(
+      sendCtaUrlMessage.mock.invocationCallOrder[0],
+    );
   });
 
   test('includes the delivery fee in the snapshot at 10%', async () => {
@@ -289,6 +302,277 @@ describe('Stripe checkout gates on legal profile and VAT', () => {
     expect(createCheckoutSessionForOrder).not.toHaveBeenCalled();
     expect(sendCtaUrlMessage).not.toHaveBeenCalled();
     expect(sendText).toHaveBeenCalledWith(FROM, t('paymentLegalIncomplete', 'en'), 'test_phone_id');
+  });
+});
+
+describe('unpaid payment back button', () => {
+  const placedSession = {
+    language: 'en',
+    state: 'browsing',
+    businessId: BIZ,
+    basket: [],
+    customerName: 'John',
+    whatsappPhoneNumberId: 'test_phone_id',
+    pendingAmendOrderId: 'order_abc123',
+    pendingAmendBusinessId: BIZ,
+    pendingAmendPlacedAt: Date.now(),
+  };
+
+  const unpaidOrder = {
+    id: 'order_abc123',
+    status: 'pending',
+    paymentMethod: 'stripe',
+    paymentStatus: 'pending',
+    paymentStripeSessionId: 'cs_1',
+    customerName: 'John',
+    customerPhone: FROM,
+    orderType: 'pickup',
+    notes: 'no onion',
+    items: [
+      { name: 'Döner', qty: 2, price: 8.5, vatRate: 10, net: 15.45, vat: 1.55, gross: 17 },
+      { name: 'Ayran', qty: 1, price: 2, menuItemId: 'item_2', vatRate: 20, net: 1.67, vat: 0.33, gross: 2 },
+    ],
+  };
+
+  test('withdraws the unpaid order and reopens Bestellung prüfen', async () => {
+    getSession.mockResolvedValue(placedSession);
+    getOrder.mockResolvedValue(unpaidOrder);
+
+    await handleMessage(ROUTING, {
+      from: FROM,
+      contactName: 'Test User',
+      type: 'button_reply',
+      id: 'btn_payment_back',
+      title: 'Back',
+      text: '',
+      items: null,
+    });
+
+    expect(releaseUnpaidCheckoutSession).toHaveBeenCalledWith('cs_1');
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, 'order_abc123', {
+      skipReentry: true,
+      skipCustomerNotify: true,
+    });
+    expect(sendText).toHaveBeenCalledWith(
+      '+43699123456',
+      expect.stringContaining('withdrawn before payment'),
+      'test_phone_id',
+    );
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      businessId: BIZ,
+      customerName: 'John',
+      orderType: 'pickup',
+      specialRequests: 'no onion',
+      basket: [
+        expect.objectContaining({ name: 'Döner', qty: 2, price: 8.5 }),
+        expect.objectContaining({ name: 'Ayran', qty: 1, price: 2, menuItemId: 'item_2' }),
+      ],
+    }));
+    const saved = setSession.mock.calls.at(-1)[1];
+    expect(saved.pendingAmendOrderId).toBeUndefined();
+    expect(saved.basket[0].vatRate).toBeUndefined();
+    expect(sendCtaUrlMessage).not.toHaveBeenCalled();
+  });
+
+  test('a second Ändern on an already withdrawn order stays quiet', async () => {
+    getSession.mockResolvedValue(placedSession);
+    getOrder
+      .mockResolvedValueOnce(unpaidOrder)
+      .mockResolvedValueOnce({ ...unpaidOrder, status: 'cancelled' });
+
+    await handleMessage(ROUTING, {
+      from: FROM,
+      contactName: 'Test User',
+      type: 'button_reply',
+      id: 'btn_payment_back',
+      title: 'Change',
+      text: '',
+      items: null,
+    });
+
+    expect(cancelOrder).not.toHaveBeenCalled();
+    expect(sendText).not.toHaveBeenCalled();
+    expect(setSession).not.toHaveBeenCalled();
+  });
+
+  test('a second Ändern whose cancel loses the race stays quiet', async () => {
+    getSession.mockResolvedValue(placedSession);
+    getOrder
+      .mockResolvedValueOnce(unpaidOrder)
+      .mockResolvedValueOnce(unpaidOrder)
+      .mockResolvedValueOnce({ ...unpaidOrder, status: 'cancelled' });
+    cancelOrder.mockRejectedValue(new Error('Invalid transition: cancelled → cancelled'));
+
+    await handleMessage(ROUTING, {
+      from: FROM,
+      contactName: 'Test User',
+      type: 'button_reply',
+      id: 'btn_payment_back',
+      title: 'Change',
+      text: '',
+      items: null,
+    });
+
+    expect(sendText).not.toHaveBeenCalled();
+    expect(setSession).not.toHaveBeenCalled();
+  });
+
+  test('a refunded order tells the customer the payment was refunded', async () => {
+    getSession.mockResolvedValue(placedSession);
+    getOrder.mockResolvedValue({ ...unpaidOrder, status: 'cancelled', paymentStatus: 'refunded' });
+
+    await handleMessage(ROUTING, {
+      from: FROM,
+      contactName: 'Test User',
+      type: 'button_reply',
+      id: 'btn_payment_back',
+      title: 'Change',
+      text: '',
+      items: null,
+    });
+
+    expect(cancelOrder).not.toHaveBeenCalled();
+    expect(setSession).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, t('paymentRefunded', 'en', 'ABC123'), 'test_phone_id');
+    expect(sendText).not.toHaveBeenCalledWith(FROM, t('paymentBackPaid', 'en', 'ABC123'), 'test_phone_id');
+  });
+
+  test('leaves a paid order in place and sends the post-payment messages', async () => {
+    getSession.mockResolvedValue(placedSession);
+    getOrder
+      .mockResolvedValueOnce({ ...unpaidOrder, paymentStatus: 'paid', restaurantName: 'enes kebap' })
+      .mockResolvedValueOnce({
+        ...unpaidOrder,
+        paymentStatus: 'paid',
+        paymentNotifiedAt: 'TS',
+      });
+
+    await handleMessage(ROUTING, {
+      from: FROM,
+      contactName: 'Test User',
+      type: 'button_reply',
+      id: 'btn_payment_back',
+      title: 'Change',
+      text: '',
+      items: null,
+    });
+
+    expect(cancelOrder).not.toHaveBeenCalled();
+    expect(releaseUnpaidCheckoutSession).not.toHaveBeenCalled();
+    expect(completePaidCheckoutSession).toHaveBeenCalledWith('cs_1');
+    expect(sendText).not.toHaveBeenCalledWith(FROM, t('paymentBackPaid', 'en', 'ABC123'), 'test_phone_id');
+    expect(setSession).not.toHaveBeenCalled();
+  });
+
+  test('repeats the post-order buttons when payment was already announced', async () => {
+    getSession.mockResolvedValue(placedSession);
+    getOrder.mockResolvedValue({
+      ...unpaidOrder,
+      paymentStatus: 'paid',
+      paymentNotifiedAt: 'TS',
+      restaurantName: 'enes kebap',
+    });
+
+    await handleMessage(ROUTING, {
+      from: FROM,
+      contactName: 'Test User',
+      type: 'button_reply',
+      id: 'btn_payment_back',
+      title: 'Change',
+      text: '',
+      items: null,
+    });
+
+    expect(completePaidCheckoutSession).not.toHaveBeenCalled();
+    expect(cancelOrder).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, {
+      body: t('postOrderOptions', 'en', 'enes kebap'),
+      buttons: [
+        { id: 'btn_post_cancel', title: t('postCancelBtn', 'en') },
+        { id: 'btn_post_reorder', title: t('postReorderBtn', 'en') },
+        { id: 'btn_post_restaurant', title: t('postRestaurantBtn', 'en') },
+      ],
+    }, 'test_phone_id');
+  });
+
+  test('completes a Stripe session that is already paid when Ändern is tapped', async () => {
+    getSession.mockResolvedValue(placedSession);
+    getOrder
+      .mockResolvedValueOnce(unpaidOrder)
+      .mockResolvedValueOnce({ ...unpaidOrder, paymentStatus: 'paid', paymentNotifiedAt: 'TS' });
+    releaseUnpaidCheckoutSession.mockResolvedValue({ paid: true, released: false });
+
+    await handleMessage(ROUTING, {
+      from: FROM,
+      contactName: 'Test User',
+      type: 'button_reply',
+      id: 'btn_payment_back',
+      title: 'Change',
+      text: '',
+      items: null,
+    });
+
+    expect(cancelOrder).not.toHaveBeenCalled();
+    expect(completePaidCheckoutSession).toHaveBeenCalledWith('cs_1');
+    expect(sendText).not.toHaveBeenCalled();
+    expect(setSession).not.toHaveBeenCalled();
+  });
+
+  test('refunds when payment lands between the re-read and cancel', async () => {
+    getSession.mockResolvedValue(placedSession);
+    getOrder
+      .mockResolvedValueOnce(unpaidOrder)
+      .mockResolvedValueOnce(unpaidOrder)
+      .mockResolvedValueOnce({
+        ...unpaidOrder,
+        status: 'cancelled',
+        paymentStatus: 'paid',
+        paymentMethod: 'stripe',
+      });
+
+    await handleMessage(ROUTING, {
+      from: FROM,
+      contactName: 'Test User',
+      type: 'button_reply',
+      id: 'btn_payment_back',
+      title: 'Change',
+      text: '',
+      items: null,
+    });
+
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, 'order_abc123', {
+      skipReentry: true,
+      skipCustomerNotify: true,
+    });
+    expect(refundOrderPayment).toHaveBeenCalledWith(BIZ, 'order_abc123', {
+      reason: 'withdrawn_before_payment',
+      actor: 'customer',
+      notifyCustomer: true,
+    });
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'confirming' }));
+  });
+
+  test('does not reopen Prüfen when that refund fails', async () => {
+    getSession.mockResolvedValue(placedSession);
+    getOrder
+      .mockResolvedValueOnce(unpaidOrder)
+      .mockResolvedValueOnce(unpaidOrder)
+      .mockResolvedValueOnce({ ...unpaidOrder, status: 'cancelled', paymentStatus: 'paid' });
+    refundOrderPayment.mockRejectedValue(new Error('stripe down'));
+
+    await handleMessage(ROUTING, {
+      from: FROM,
+      contactName: 'Test User',
+      type: 'button_reply',
+      id: 'btn_payment_back',
+      title: 'Change',
+      text: '',
+      items: null,
+    });
+
+    expect(sendText).toHaveBeenCalledWith(FROM, t('paymentBackFailed', 'en'), 'test_phone_id');
+    expect(setSession).not.toHaveBeenCalled();
   });
 });
 

@@ -92,7 +92,15 @@ const BIZ_INFO = {
 function makeOrdersRefForCreate() {
   const mockSet = jest.fn().mockResolvedValue(undefined);
   const mockUpdate = jest.fn().mockResolvedValue(undefined);
-  const newDocRef = { id: ORDER_ID, set: mockSet, update: mockUpdate };
+  const newDocRef = {
+    id: ORDER_ID,
+    set: mockSet,
+    update: mockUpdate,
+    get: jest.fn().mockResolvedValue({
+      exists: true,
+      data: () => ({ status: 'pending', paymentStatus: 'pending' }),
+    }),
+  };
   ordersRef.mockReturnValue({ doc: jest.fn().mockReturnValue(newDocRef) });
   return mockSet;
 }
