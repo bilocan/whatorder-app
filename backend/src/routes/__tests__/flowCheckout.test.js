@@ -171,6 +171,54 @@ test('manage_addresses opens the manage screen with current profile options', as
   expect(response.data[F.MANAGE_UI_MODE]).toBe('list');
 });
 
+test('single layout profile and cart updates stay on CHECKOUT_REVIEW', async () => {
+  const layout = { checkout_layout: 'single', [F.CHECKOUT_UI_MODE]: 'review' };
+  const opened = await exchange(S.CHECKOUT_REVIEW, {
+    ...layout,
+    checkout_action: 'manage_addresses',
+  });
+  expect(opened.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(opened.data[F.CHECKOUT_UI_MODE]).toBe('manage');
+  expect(opened.data[F.MANAGE_UI_MODE]).toBe('list');
+  expect(opened.data[F.UI_SCREEN_TITLE]).toBe(opened.data[F.UI_MANAGE_SCREEN_TITLE]);
+
+  const back = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'manage',
+    checkout_action: 'manage_back',
+    [F.CUSTOMER_NAME]: 'Alex',
+  });
+  expect(back.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(back.data[F.CHECKOUT_UI_MODE]).toBe('review');
+
+  const openedAgain = await exchange(S.CHECKOUT_REVIEW, {
+    ...layout,
+    checkout_action: 'manage_addresses',
+  });
+  expect(openedAgain.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(openedAgain.data[F.CHECKOUT_UI_MODE]).toBe('manage');
+
+  const cart = await exchange(S.CHECKOUT_REVIEW, {
+    ...layout,
+    checkout_action: 'open_cart',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.CHECKOUT_NOTE]: 'Ring',
+  });
+  expect(cart.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(cart.data[F.CHECKOUT_UI_MODE]).toBe('cart');
+
+  mockSession({ basket: [{ name: 'Burger', qty: 2, price: 10 }] });
+  const removed = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'cart',
+    checkout_action: 'cart_remove',
+    [F.REMOVE_ITEMS]: ['0'],
+    [F.REMOVE_MODE]: 'one',
+  });
+  expect(removed.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(removed.data[F.CHECKOUT_UI_MODE]).toBe('cart');
+});
+
 test('select_order_type pickup hides address fields and keeps the typed note', async () => {
   getBusinessInfo.mockResolvedValue({
     name: 'Demo Kitchen',
