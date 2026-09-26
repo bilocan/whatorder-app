@@ -206,6 +206,8 @@ test('single layout profile and cart updates stay on CHECKOUT_REVIEW', async () 
   });
   expect(cart.screen).toBe(S.CHECKOUT_REVIEW);
   expect(cart.data[F.CHECKOUT_UI_MODE]).toBe('cart');
+  expect(cart.data[F.SUBTOTAL_LABEL]).not.toContain('\n');
+  expect(cart.data[F.SUBTOTAL_LABEL]).toContain(' · ');
 
   mockSession({ basket: [{ name: 'Burger', qty: 2, price: 10 }] });
   const removed = await exchange(S.CHECKOUT_REVIEW, {

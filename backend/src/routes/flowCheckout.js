@@ -1027,7 +1027,7 @@ function joinCartSummary(data) {
   return [data[F.SUBTOTAL_LABEL], data[F.DISCOUNT_LABEL], data[F.DELIVERY_LABEL]]
     .map((line) => (typeof line === 'string' ? line.trim() : ''))
     .filter(Boolean)
-    .join('\n');
+    .join(' · ');
 }
 
 async function presentSingleCheckout(response, { phone, businessId }) {
