@@ -106,10 +106,12 @@ function deliveryAddressFields() {
     {
       type: 'TextCaption',
       text: `\${data.${F.UI_ADDRESS_CHOICE_LABEL}}`,
+      visible: `\${data.${F.ADDRESS_FIELDS_VISIBLE}}`,
     },
     {
       type: 'TextBody',
       text: `\${data.${F.DELIVERY_ADDRESS_DISPLAY}}`,
+      visible: `\${data.${F.ADDRESS_FIELDS_VISIBLE}}`,
     },
   ];
 }
@@ -199,11 +201,7 @@ async function checkoutReviewScreen(id, { includeManageLink = true, includeCartL
               },
             },
           },
-          {
-            type: 'If',
-            condition: `\${form.${F.ORDER_TYPE}} == 'delivery'`,
-            then: deliveryAddressFields(),
-          },
+          ...deliveryAddressFields(),
           {
             type: 'TextArea',
             label: `\${data.${F.UI_NOTE_LABEL}}`,
@@ -276,6 +274,8 @@ async function addressManageScreen(id, exampleOptions) {
       [F.DELIVERY_ADDRESS]: { type: 'string', '__example__': 'Hippgasse 11, 1160 Wien' },
       [F.DELIVERY_APARTMENT]: { type: 'string', '__example__': 'Top 14' },
       [F.MANAGE_UI_MODE]: { type: 'string', '__example__': 'list' },
+      [F.MANAGE_FORM_VISIBLE]: { type: 'boolean', '__example__': true },
+      [F.MANAGE_DELETE_VISIBLE]: { type: 'boolean', '__example__': false },
       [F.MANAGE_CONFIRM_PENDING]: { type: 'string', '__example__': '' },
       [F.MANAGE_CONFIRM_TYPED]: { type: 'string', '__example__': '' },
       [F.MANAGE_CONFIRM_BUILDING]: { type: 'string', '__example__': 'Hippgasse 11' },
@@ -309,10 +309,36 @@ async function addressManageScreen(id, exampleOptions) {
             visible: `\${data.${F.ERROR_VISIBLE}}`,
           },
           {
-            // Meta: Footer inside If must exist in both then and else; no Footer outside.
-            type: 'If',
-            condition: `\${data.${F.MANAGE_UI_MODE}} == 'confirm'`,
-            then: [
+            type: 'TextInput',
+            label: `\${data.${F.UI_PROFILE_NAME_LABEL}}`,
+            name: F.CUSTOMER_NAME,
+            required: true,
+            visible: `\${data.${F.MANAGE_FORM_VISIBLE}}`,
+            'helper-text': `\${data.${F.UI_PROFILE_NAME_HELPER}}`,
+          },
+          {
+            type: 'RadioButtonsGroup',
+            label: `\${data.${F.UI_MANAGE_HINT}}`,
+            name: F.MANAGE_ADDRESS_CHOICE,
+            required: false,
+            visible: `\${data.${F.MANAGE_FORM_VISIBLE}}`,
+            'data-source': `\${data.${F.MANAGE_ADDRESS_OPTIONS}}`,
+            'media-size': 'regular',
+            'on-select-action': {
+              name: 'data_exchange',
+              payload: {
+                checkout_action: 'select_address',
+                [F.MANAGE_ADDRESS_CHOICE]: `\${form.${F.MANAGE_ADDRESS_CHOICE}}`,
+                [F.MANAGE_SET_AS_DEFAULT]: `\${form.${F.MANAGE_SET_AS_DEFAULT}}`,
+              },
+            },
+          },
+          {
+            // Switch is not an If, so Profil modes do not add another nesting level.
+            type: 'Switch',
+            value: `\${data.${F.MANAGE_UI_MODE}}`,
+            cases: {
+              confirm: [
               {
                 type: 'TextBody',
                 text: `\${data.${F.UI_MANAGE_HINT}}`,
@@ -377,119 +403,86 @@ async function addressManageScreen(id, exampleOptions) {
                   },
                 },
               },
-            ],
-            else: [
-              {
-                type: 'TextInput',
-                label: `\${data.${F.UI_PROFILE_NAME_LABEL}}`,
-                name: F.CUSTOMER_NAME,
-                required: true,
-                'helper-text': `\${data.${F.UI_PROFILE_NAME_HELPER}}`,
-              },
-              {
-                type: 'RadioButtonsGroup',
-                label: `\${data.${F.UI_MANAGE_HINT}}`,
-                name: F.MANAGE_ADDRESS_CHOICE,
-                // Not required: list opens with no selection; Footer "back" must stay tappable.
-                required: false,
-                'data-source': `\${data.${F.MANAGE_ADDRESS_OPTIONS}}`,
-                'media-size': 'regular',
-                'on-select-action': {
-                  name: 'data_exchange',
-                  payload: {
-                    checkout_action: 'select_address',
-                    [F.MANAGE_ADDRESS_CHOICE]: `\${form.${F.MANAGE_ADDRESS_CHOICE}}`,
-                    [F.MANAGE_SET_AS_DEFAULT]: `\${form.${F.MANAGE_SET_AS_DEFAULT}}`,
+              ],
+              edit: [
+                {
+                  type: 'TextCaption',
+                  text: `\${data.${F.UI_MANAGE_EDIT_CAPTION}}`,
+                },
+                {
+                  type: 'TextInput',
+                  label: `\${data.${F.UI_ADDRESS_LABEL}}`,
+                  name: F.DELIVERY_ADDRESS,
+                  required: true,
+                  'helper-text': `\${data.${F.UI_ADDRESS_HELPER}}`,
+                },
+                {
+                  type: 'TextInput',
+                  label: `\${data.${F.UI_APARTMENT_LABEL}}`,
+                  name: F.DELIVERY_APARTMENT,
+                  required: true,
+                  'helper-text': `\${data.${F.UI_APARTMENT_HELPER}}`,
+                },
+                {
+                  type: 'OptIn',
+                  label: `\${data.${F.UI_MANAGE_SET_DEFAULT}}`,
+                  name: F.MANAGE_SET_AS_DEFAULT,
+                  required: false,
+                },
+                {
+                  type: 'EmbeddedLink',
+                  text: `\${data.${F.UI_MANAGE_DELETE}}`,
+                  visible: `\${data.${F.MANAGE_DELETE_VISIBLE}}`,
+                  'on-click-action': {
+                    name: 'data_exchange',
+                    payload: {
+                      checkout_action: 'manage_delete',
+                      ...formPayload,
+                    },
                   },
                 },
-              },
-              {
-                type: 'If',
-                condition: `\${data.${F.MANAGE_UI_MODE}} == 'edit'`,
-                then: [
-                  {
-                    type: 'TextCaption',
-                    text: `\${data.${F.UI_MANAGE_EDIT_CAPTION}}`,
-                  },
-                  {
-                    type: 'TextInput',
-                    label: `\${data.${F.UI_ADDRESS_LABEL}}`,
-                    name: F.DELIVERY_ADDRESS,
-                    required: true,
-                    'helper-text': `\${data.${F.UI_ADDRESS_HELPER}}`,
-                  },
-                  {
-                    type: 'TextInput',
-                    label: `\${data.${F.UI_APARTMENT_LABEL}}`,
-                    name: F.DELIVERY_APARTMENT,
-                    required: true,
-                    'helper-text': `\${data.${F.UI_APARTMENT_HELPER}}`,
-                  },
-                  {
-                    type: 'OptIn',
-                    label: `\${data.${F.UI_MANAGE_SET_DEFAULT}}`,
-                    name: F.MANAGE_SET_AS_DEFAULT,
-                    required: false,
-                  },
-                  {
-                    type: 'If',
-                    condition: `\${form.${F.MANAGE_ADDRESS_CHOICE}} != '${ADDRESS_CHOICE_NEW}'`,
-                    then: [{
-                      type: 'EmbeddedLink',
-                      text: `\${data.${F.UI_MANAGE_DELETE}}`,
-                      'on-click-action': {
-                        name: 'data_exchange',
-                        payload: {
-                          checkout_action: 'manage_delete',
-                          ...formPayload,
-                        },
-                      },
-                    }],
-                  },
-                  {
-                    type: 'EmbeddedLink',
-                    text: `\${data.${F.UI_MANAGE_BACK}}`,
-                    'on-click-action': {
-                      name: 'data_exchange',
-                      payload: {
-                        checkout_action: 'manage_back',
-                        ...formPayload,
-                      },
+                {
+                  type: 'EmbeddedLink',
+                  text: `\${data.${F.UI_MANAGE_BACK}}`,
+                  'on-click-action': {
+                    name: 'data_exchange',
+                    payload: {
+                      checkout_action: 'manage_back',
+                      ...formPayload,
                     },
                   },
-                  {
-                    type: 'Footer',
-                    label: `\${data.${F.UI_MANAGE_SAVE}}`,
-                    'on-click-action': {
-                      name: 'data_exchange',
-                      payload: {
-                        checkout_action: 'manage_save',
-                        ...formPayload,
-                      },
+                },
+                {
+                  type: 'Footer',
+                  label: `\${data.${F.UI_MANAGE_SAVE}}`,
+                  'on-click-action': {
+                    name: 'data_exchange',
+                    payload: {
+                      checkout_action: 'manage_save',
+                      ...formPayload,
                     },
                   },
-                ],
-                else: [
-                  {
-                    type: 'TextCaption',
-                    text: `\${data.${F.UI_MANAGE_SELECT_HINT}}`,
-                  },
-                  {
-                    // List mode: primary action is return (tap a row to open the form).
-                    // Include name so Profil edits persist on Siparişe dön.
-                    type: 'Footer',
-                    label: `\${data.${F.UI_MANAGE_BACK}}`,
-                    'on-click-action': {
-                      name: 'data_exchange',
-                      payload: {
-                        checkout_action: 'manage_back',
-                        ...formPayload,
-                      },
+                },
+              ],
+              list: [
+                {
+                  type: 'TextCaption',
+                  text: `\${data.${F.UI_MANAGE_SELECT_HINT}}`,
+                },
+                {
+                  // List mode: primary action is return (tap a row to open the form).
+                  type: 'Footer',
+                  label: `\${data.${F.UI_MANAGE_BACK}}`,
+                  'on-click-action': {
+                    name: 'data_exchange',
+                    payload: {
+                      checkout_action: 'manage_back',
+                      ...formPayload,
                     },
                   },
-                ],
-              },
-            ],
+                },
+              ],
+            },
           },
         ],
       }],
@@ -570,16 +563,6 @@ function checkoutCartScreen(id) {
             'data-source': `\${data.${F.BASKET_ITEMS}}`,
           },
           { type: 'TextBody', text: `\${data.${F.SUBTOTAL_LABEL}}` },
-          {
-            type: 'If',
-            condition: `\${data.${F.DISCOUNT_VISIBLE}}`,
-            then: [{ type: 'TextBody', text: `\${data.${F.DISCOUNT_LABEL}}` }],
-          },
-          {
-            type: 'If',
-            condition: `\${data.${F.DELIVERY_VISIBLE}}`,
-            then: [{ type: 'TextBody', text: `\${data.${F.DELIVERY_LABEL}}` }],
-          },
           { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
           {
             type: 'RadioButtonsGroup',
@@ -622,33 +605,91 @@ function checkoutCartScreen(id) {
   };
 }
 
+function formChildren(screen) {
+  return screen.layout.children[0].children;
+}
+
+function tagSingleLayout(node) {
+  if (Array.isArray(node)) {
+    node.forEach(tagSingleLayout);
+    return;
+  }
+  if (!node || typeof node !== 'object') return;
+  for (const key of ['on-click-action', 'on-select-action']) {
+    const action = node[key];
+    if (action?.name === 'data_exchange' && action.payload) {
+      action.payload.checkout_layout = 'single';
+      action.payload[F.CHECKOUT_UI_MODE] = `\${data.${F.CHECKOUT_UI_MODE}}`;
+    }
+  }
+  Object.values(node).forEach(tagSingleLayout);
+}
+
+/**
+ * One screen. Profil and Warenkorb are modes, not routing steps.
+ * Meta's progress bar advances on every new screen id, and the old clone chain
+ * (review → manage → review return → manage again → review done) filled the bar
+ * and then had nowhere left to go.
+ */
+async function unifiedCheckoutScreen(exampleOptions) {
+  const review = await checkoutReviewScreen(S.CHECKOUT_REVIEW);
+  const manage = await addressManageScreen(S.ADDRESS_MANAGE, exampleOptions);
+  const cart = checkoutCartScreen(S.CHECKOUT_CART);
+  const children = [
+    {
+      type: 'If',
+      condition: `\${data.${F.CHECKOUT_UI_MODE}} == 'manage'`,
+      then: formChildren(manage),
+      else: [{
+        type: 'If',
+        condition: `\${data.${F.CHECKOUT_UI_MODE}} == 'cart'`,
+        then: formChildren(cart),
+        else: formChildren(review),
+      }],
+    },
+  ];
+  tagSingleLayout(children);
+  return {
+    id: S.CHECKOUT_REVIEW,
+    title: `\${data.${F.UI_SCREEN_TITLE}}`,
+    terminal: true,
+    data: {
+      ...review.data,
+      ...manage.data,
+      ...cart.data,
+      [F.CHECKOUT_UI_MODE]: strField('review'),
+    },
+    layout: {
+      type: 'SingleColumnLayout',
+      children: [{
+        type: 'Form',
+        name: 'checkout_form',
+        'init-values': {
+          [F.ORDER_TYPE]: `\${data.${F.ORDER_TYPE}}`,
+          [F.CHECKOUT_NOTE]: `\${data.${F.CHECKOUT_NOTE}}`,
+          [F.CUSTOMER_NAME]: `\${data.${F.CUSTOMER_NAME}}`,
+          [F.MANAGE_ADDRESS_CHOICE]: `\${data.${F.MANAGE_ADDRESS_CHOICE}}`,
+          [F.DELIVERY_ADDRESS]: `\${data.${F.DELIVERY_ADDRESS}}`,
+          [F.DELIVERY_APARTMENT]: `\${data.${F.DELIVERY_APARTMENT}}`,
+          [F.MANAGE_SET_AS_DEFAULT]: false,
+          [F.REMOVE_MODE]: `\${data.${F.FORM_INIT_VALUES}.${F.REMOVE_MODE}}`,
+        },
+        children,
+      }],
+    },
+  };
+}
+
 async function main() {
   const exampleOptions = await exampleAddressOptions(EXAMPLE_LANG);
   const flow = {
     version: '7.3',
     data_api_version: '3.0',
     routing_model: {
-      [S.CHECKOUT_REVIEW]: [S.ADDRESS_MANAGE, S.CHECKOUT_CART],
-      [S.ADDRESS_MANAGE]: [S.ADDRESS_MANAGE_UPDATED, S.CHECKOUT_REVIEW_RETURN],
-      [S.ADDRESS_MANAGE_UPDATED]: [S.CHECKOUT_REVIEW_RETURN],
-      [S.CHECKOUT_CART]: [S.CHECKOUT_REVIEW_RETURN],
-      [S.CHECKOUT_REVIEW_RETURN]: [S.ADDRESS_MANAGE_AGAIN, S.CHECKOUT_CART_AGAIN],
-      [S.CHECKOUT_CART_AGAIN]: [S.CHECKOUT_REVIEW_DONE],
-      [S.ADDRESS_MANAGE_AGAIN]: [S.CHECKOUT_REVIEW_DONE],
-      [S.CHECKOUT_REVIEW_DONE]: [],
+      [S.CHECKOUT_REVIEW]: [],
     },
     screens: [
-      await checkoutReviewScreen(S.CHECKOUT_REVIEW),
-      checkoutCartScreen(S.CHECKOUT_CART),
-      await addressManageScreen(S.ADDRESS_MANAGE, exampleOptions),
-      await addressManageScreen(S.ADDRESS_MANAGE_UPDATED, exampleOptions),
-      await checkoutReviewScreen(S.CHECKOUT_REVIEW_RETURN),
-      checkoutCartScreen(S.CHECKOUT_CART_AGAIN),
-      await addressManageScreen(S.ADDRESS_MANAGE_AGAIN, exampleOptions),
-      await checkoutReviewScreen(S.CHECKOUT_REVIEW_DONE, {
-        includeManageLink: true,
-        includeCartLink: false,
-      }),
+      await unifiedCheckoutScreen(exampleOptions),
     ],
   };
 

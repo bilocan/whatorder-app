@@ -715,11 +715,11 @@ async function buildCheckoutInitResponse({ phone, businessId, version }) {
     deal: totals.deal,
   });
 
-  return {
+  return presentSingleCheckout({
     version,
     screen: S.CHECKOUT_REVIEW,
     data,
-  };
+  }, { phone, businessId });
 }
 
 function clipFlowText(text, max, { ellipsis = false } = {}) {
@@ -807,10 +807,13 @@ async function buildCheckoutCartData({
   basket, lang, businessId, phone, session, info, cartError,
 }) {
   let menu = [];
-  try {
-    menu = await getMenu(businessId);
-  } catch (err) {
-    console.warn('[flow/exchange] checkout cart menu load failed:', err.message);
+  if (basket.length) {
+    try {
+      const loaded = await getMenu(businessId);
+      if (Array.isArray(loaded)) menu = loaded;
+    } catch (err) {
+      console.warn('[flow/exchange] checkout cart menu load failed:', err.message);
+    }
   }
   const flowListImageById = {};
   const productRows = basket.map((item, idx) => {
@@ -981,11 +984,120 @@ async function handleCheckoutCart({
   });
 }
 
+const SINGLE_LAYOUT = 'single';
+
+/**
+ * Published clone JSON still routes by screen id.
+ * Regenerated JSON stays on CHECKOUT_REVIEW and sends checkout_layout: single.
+ * Map that mode back onto the clone ids so the existing handlers can run, then
+ * presentSingleCheckout folds the answer back onto CHECKOUT_REVIEW.
+ */
+function logicalCheckoutScreen(payload = {}) {
+  const action = payload.checkout_action;
+  const mode = payload[F.CHECKOUT_UI_MODE] || 'review';
+  if (action === 'manage_addresses' || action === 'select_order_type' || action === 'open_cart') {
+    return S.CHECKOUT_REVIEW;
+  }
+  if (
+    action === 'manage_back'
+    || action === 'manage_save'
+    || action === 'manage_delete'
+    || action === 'manage_set_default'
+    || action === 'manage_confirm_accept'
+    || action === 'manage_confirm_reject'
+    || action === 'manage_open_edit'
+    || action === 'select_address'
+  ) {
+    return mode === 'cart' ? S.CHECKOUT_CART : S.ADDRESS_MANAGE;
+  }
+  if (action === 'cart_remove' || action === 'return_to_review' || action === 'add_more') {
+    return S.CHECKOUT_CART;
+  }
+  if (mode === 'manage') return S.ADDRESS_MANAGE;
+  if (mode === 'cart') return S.CHECKOUT_CART;
+  return S.CHECKOUT_REVIEW;
+}
+
+function singleUiMode(responseScreen) {
+  if (MANAGE_SCREENS.has(responseScreen)) return 'manage';
+  if (CHECKOUT_CART_SCREENS.has(responseScreen)) return 'cart';
+  return 'review';
+}
+
+function joinCartSummary(data) {
+  return [data[F.SUBTOTAL_LABEL], data[F.DISCOUNT_LABEL], data[F.DELIVERY_LABEL]]
+    .map((line) => (typeof line === 'string' ? line.trim() : ''))
+    .filter(Boolean)
+    .join(' · ');
+}
+
+async function presentSingleCheckout(response, { phone, businessId }) {
+  if (!response || response.screen === 'SUCCESS') return response;
+  const snap = await sessionRef(phone).get();
+  const session = snap.exists ? (snap.data() || {}) : {};
+  const lang = session.language || 'de';
+  const info = await getBusinessInfo(businessId);
+  const mode = singleUiMode(response.screen);
+  const [reviewBlank, manageBlank, cartBlank] = await Promise.all([
+    reviewDataFrom({
+      session: { language: lang },
+      basket: [],
+      info,
+      lang,
+      profile: emptyProfile(),
+    }),
+    buildManageData({ profile: emptyProfile(), lang }),
+    buildCheckoutCartData({
+      basket: [],
+      lang,
+      businessId,
+      phone,
+      session: { language: lang },
+      info,
+    }),
+  ]);
+  const data = {
+    ...reviewBlank,
+    ...manageBlank,
+    ...cartBlank,
+    ...response.data,
+    [F.CHECKOUT_UI_MODE]: mode,
+  };
+  if (mode === 'manage') {
+    data[F.UI_SCREEN_TITLE] = data[F.UI_MANAGE_SCREEN_TITLE] || data[F.UI_SCREEN_TITLE];
+  }
+  if (mode === 'cart') {
+    data[F.SUBTOTAL_LABEL] = joinCartSummary(data);
+  }
+  const manageMode = data[F.MANAGE_UI_MODE];
+  const manageChoice = data[F.MANAGE_ADDRESS_CHOICE];
+  data[F.MANAGE_FORM_VISIBLE] = manageMode === 'list' || manageMode === 'edit';
+  data[F.MANAGE_DELETE_VISIBLE] = manageMode === 'edit'
+    && typeof manageChoice === 'string'
+    && manageChoice.length > 0
+    && manageChoice !== 'addr_new';
+  return {
+    version: response.version,
+    screen: S.CHECKOUT_REVIEW,
+    data,
+  };
+}
+
 /**
  * Published Flow JSON that still sends `back_to_cart` closes via SUCCESS.
  * Regenerated JSON uses `open_cart` and stays inside the Flow.
  */
-async function buildCheckoutDataExchangeResponse({
+async function buildCheckoutDataExchangeResponse(args) {
+  const singleLayout = args.payload?.checkout_layout === SINGLE_LAYOUT;
+  const response = await dispatchCheckoutExchange({
+    ...args,
+    screen: singleLayout ? logicalCheckoutScreen(args.payload) : args.screen,
+  });
+  if (!singleLayout) return response;
+  return presentSingleCheckout(response, args);
+}
+
+async function dispatchCheckoutExchange({
   screen,
   payload = {},
   flow_token,

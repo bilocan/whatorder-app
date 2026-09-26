@@ -123,6 +123,8 @@ const FIELDS = {
   DELIVERY_ADDRESS_UNIT_VISIBLE: 'delivery_address_unit_visible',
   REVIEW_PIN_IMAGE: 'review_pin_image',
   CHECKOUT_NOTE:      'note',
+  // review | manage | cart. Same screen, so repeated Profil / Warenkorb opens do not advance the progress bar.
+  CHECKOUT_UI_MODE:   'checkout_ui_mode',
   UI_REVIEW_INTRO:    'ui_review_intro',
   UI_REVIEW_SECTION_BASKET: 'ui_review_section_basket',
   UI_NAME_LABEL:      'ui_name_label',
@@ -162,6 +164,9 @@ const FIELDS = {
   UI_MANAGE_CONFIRM_FOUND: 'ui_manage_confirm_found',
   // 'list' | 'edit' | 'confirm' — string (not boolean): Meta If is unreliable with boolean false.
   MANAGE_UI_MODE:         'manage_ui_mode',
+  // Booleans: Flow `visible` rejects comparisons (those are strings to the schema).
+  MANAGE_FORM_VISIBLE:    'manage_form_visible',
+  MANAGE_DELETE_VISIBLE:  'manage_delete_visible',
   // Normalized candidate shown on confirm; also echoed in accept payload if session is missing.
   MANAGE_CONFIRM_PENDING: 'manage_confirm_pending',
   MANAGE_CONFIRM_TYPED:   'manage_confirm_typed',
