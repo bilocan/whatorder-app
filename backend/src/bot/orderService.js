@@ -270,6 +270,10 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
     console.error(`[wallboard] feed status failed orderId=${orderId}: ${err.message}`);
   }
 
+  // Unpaid card withdraw reopens Bestellung prüfen itself. A "storniert" text
+  // would land on top of that screen.
+  if (options.skipCustomerNotify) return;
+
   try {
     const phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);
     const shortId = orderId.slice(-6).toUpperCase();

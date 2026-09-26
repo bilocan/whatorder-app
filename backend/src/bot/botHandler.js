@@ -13,7 +13,7 @@ const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { isAcceptingOrders } = require('../lib/presence');
 const { getBusinessesInfo, sendRestaurantPicker, presentRestaurantPickerForLocation } = require('./botHelpers');
 const { handleAwaitingLocation, handleSelectingRestaurant, refuseClosedRestaurant } = require('./states/restaurant');
-const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingDeliveryAddressConfirm, handleAwaitingDeliveryAddressUnit, handleAwaitingName, handleConfirming } = require('./states/checkout');
+const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingDeliveryAddressConfirm, handleAwaitingDeliveryAddressUnit, handleAwaitingName, handleConfirming, handlePaymentBack } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
 const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
@@ -172,6 +172,14 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
     && !!session.businessId;
   const sessionExpiredForPicker = isMulti && isIdleBrowsing && lastActive
     && (Date.now() - lastActive.getTime() > SESSION_TTL_MS);
+
+  // Ändern above an unpaid card pay link. Works when multi cleared businessId
+  // after place (restaurant id lives on pendingAmendBusinessId).
+  if (type === 'button_reply' && id === 'btn_payment_back') {
+    const postLang = session.language || 'de';
+    await handlePaymentBack({ from, session, lang: postLang });
+    return;
+  }
 
   // Post-order action buttons must work even in multi-restaurant mode where session.businessId
   // is null after order placement. Intercept before the restaurant-picker early return.
