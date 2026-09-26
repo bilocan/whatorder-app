@@ -1391,13 +1391,21 @@ describe('Checkout confirm Flow', () => {
     }));
   });
 
-  test('cart_emptied Flow completion opens the menu instead of the remove-button basket', async () => {
+  test('cart_emptied Flow completion sends the menu and keeps Prüfen choices', async () => {
     getSession.mockResolvedValue({
-      language: 'en',
+      language: 'de',
       state: 'confirming',
       businessId: BIZ,
       basket: [],
-      customerName: 'John',
+      customerName: 'Alex',
+      orderType: 'pickup',
+      confirmFlowDraft: {
+        orderType: 'delivery',
+        customerName: 'Alex',
+        specialRequests: 'ohne Zwiebel',
+        deliveryAddress: 'Hippgasse 11',
+        deliveryApartment: 'Top 14',
+      },
     });
 
     await handleMessage(ROUTING, msg({
@@ -1406,14 +1414,18 @@ describe('Checkout confirm Flow', () => {
     }));
 
     expect(createOrder).not.toHaveBeenCalled();
-    expectOrderEntryPrompt();
-    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_remove_item' })]),
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowAction: 'data_exchange',
     }));
+    expect(sendButtonMessage).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'browsing',
       basket: [],
-      confirmFlowDraft: null,
+      orderType: 'delivery',
+      customerName: 'Alex',
+      specialRequests: 'ohne Zwiebel',
+      deliveryAddress: expect.stringContaining('Top 14'),
     }));
   });
 
