@@ -1434,6 +1434,23 @@ async function handleAwaitingName({ from, session, lang, businessId, basket, typ
   await sendText(from, t('confirmSummary', lang, buildBasketText(basket, lang), session.prepMins, session.pickupTime));
 }
 
+/** Close checkout and send the menu Flow. Draft choices are copied first so the next Prüfen keeps them. */
+async function resumeMenuAfterCheckoutClose({ from, session, lang, businessId, basket }) {
+  const next = {
+    ...applyConfirmDraftToSession(session),
+    state: 'browsing',
+    basket: Array.isArray(basket) ? basket : [],
+  };
+  await setSession(from, { ...next, pendingDeleteIds: [] });
+  if (session.flow === 'list') {
+    const { menuId, textMenuIndex, textMenuCategory } = await sendMenu(from, lang, businessId);
+    await patchSession(from, { menuId, textMenuIndex, textMenuCategory }, next);
+  } else {
+    const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
+    await patchSession(from, { menuId, textMenuIndex, textMenuCategory }, next);
+  }
+}
+
 async function handleConfirming({
   from, contactName, session, lang, businessId, basket, isMulti, type, id, norm, text, data,
 }) {
@@ -1452,42 +1469,15 @@ async function handleConfirming({
       return;
     }
 
-    // Mehr hinzufügen on the in-flow cart: close Prüfen and send the menu Flow.
+    // Mehr hinzufügen and Alles leeren both close Prüfen and send the menu Flow.
     // Draft choices are copied onto session fields first so the next Prüfen keeps them.
     if (payload.checkout_action === 'add_more') {
-      const next = {
-        ...applyConfirmDraftToSession(session),
-        state: 'browsing',
-        basket: Array.isArray(basket) ? basket : [],
-      };
-      await setSession(from, { ...next, pendingDeleteIds: [] });
-      if (session.flow === 'list') {
-        const { menuId, textMenuIndex, textMenuCategory } = await sendMenu(from, lang, businessId);
-        await patchSession(from, { menuId, textMenuIndex, textMenuCategory }, next);
-      } else {
-        const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
-        await patchSession(from, { menuId, textMenuIndex, textMenuCategory }, next);
-      }
+      await resumeMenuAfterCheckoutClose({ from, session, lang, businessId, basket });
       return;
     }
 
-    // In-flow cart cleared every line. Do not drop the customer on the chat Entfernen card.
     if (payload.checkout_action === 'cart_emptied') {
-      const nextSession = {
-        ...session,
-        state: 'browsing',
-        basket: [],
-        confirmFlowDraft: null,
-      };
-      await sendOrderEntryPrompt({
-        from,
-        session: nextSession,
-        lang,
-        businessId,
-        basket: [],
-        bodyOverride: t('basketEmpty', lang),
-      });
-      await setSession(from, { ...nextSession, pendingDeleteIds: [] });
+      await resumeMenuAfterCheckoutClose({ from, session, lang, businessId, basket: [] });
       return;
     }
 

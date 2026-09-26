@@ -613,6 +613,7 @@ test('checkout cart clear closes the Flow with cart_emptied', async () => {
     language: 'en',
     basket: [{ name: 'Burger', qty: 1, price: 10 }],
     orderType: 'pickup',
+    confirmFlowDraft: { orderType: 'delivery', specialRequests: 'ohne Zwiebel' },
   };
   const ref = {
     get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
@@ -637,6 +638,11 @@ test('checkout cart clear closes the Flow with cart_emptied', async () => {
     flow_token: token,
     checkout_action: 'cart_emptied',
   });
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({ basket: [] }),
+    { merge: true },
+  );
+  expect(ref.set.mock.calls[0][0]).not.toHaveProperty('confirmFlowDraft');
 });
 
 test('checkout data_exchange back_to_cart → SUCCESS with checkout_action', async () => {

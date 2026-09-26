@@ -938,9 +938,10 @@ async function handleCheckoutCart({
     const nextBasket = basketAfterCartRemove(basket, payload);
     const changed = nextBasket !== basket;
     if (changed && !nextBasket.length) {
+      // Keep confirmFlowDraft. The completion handler copies it onto session fields
+      // before the menu send. Clearing it here would drop name, order type, and note.
       await ref.set({
         basket: [],
-        confirmFlowDraft: null,
         updatedAt: new Date(),
       }, { merge: true });
       return cartEmptiedResponse({ version, flow_token });
@@ -966,7 +967,7 @@ async function handleCheckoutCart({
   const reviewScreen = REVIEW_SCREEN_FOR_CART[screen];
   if (!reviewScreen) return null;
   if (!(session.basket ?? []).length) {
-    await ref.set({ basket: [], confirmFlowDraft: null, updatedAt: new Date() }, { merge: true });
+    await ref.set({ basket: [], updatedAt: new Date() }, { merge: true });
     return cartEmptiedResponse({ version, flow_token });
   }
   return buildReviewReturnResponse({
