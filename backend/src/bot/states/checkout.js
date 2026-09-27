@@ -482,6 +482,12 @@ async function beginDefaultDeliveryCheckout({ from, session, lang, businessId, b
 
   const subtotal = basketSubtotal(basket);
   if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    if (shouldSkipChatCheckoutSlots(info)) {
+      await skipToConfirmingWithPrefill({
+        from, session: delivSession, lang, businessId, basket, businessInfo: info,
+      });
+      return;
+    }
     const { msgId } = await sendDeliveryBasketGate({
       from, lang, basket, minimumOrderValue: info.minimumOrderValue,
     });
@@ -577,6 +583,12 @@ async function resumeDeliveryCheckout({ from, session, lang, businessId, basket 
   const info = await getBusinessInfo(businessId);
   const subtotal = basketSubtotal(basket);
   if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    if (shouldSkipChatCheckoutSlots(info)) {
+      await skipToConfirmingWithPrefill({
+        from, session, lang, businessId, basket, businessInfo: info,
+      });
+      return;
+    }
     const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
     await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
     return;
@@ -658,7 +670,7 @@ async function advanceCheckoutFromSlots({ from, session, lang, businessId, baske
       });
       return;
     }
-    if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    if (info.minimumOrderValue && subtotal < info.minimumOrderValue && !shouldSkipChatCheckoutSlots(info)) {
       const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
       await setSession(from, {
         ...s,
@@ -699,6 +711,12 @@ async function advanceCheckoutFromSlots({ from, session, lang, businessId, baske
 // is met) without advancing to the address step.
 async function showDeliveryBasketGate({ from, session, lang, basket, businessId }) {
   const info = await getBusinessInfo(businessId);
+  if (shouldSkipChatCheckoutSlots(info)) {
+    await skipToConfirmingWithPrefill({
+      from, session, lang, businessId, basket, businessInfo: info,
+    });
+    return;
+  }
   const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue || 0 });
   await setSession(from, { ...session, pendingDeleteIds: msgId ? [msgId] : [] });
 }
@@ -899,10 +917,14 @@ async function transitionToConfirming(from, session, lang, businessId, basket, n
   const info = await getBusinessInfo(businessId);
   const { subtotal } = orderTotals(basket, session, info);
 
-  // Safety net: the delivery minimum gate normally runs earlier (btn_delivery /
-  // resumeDeliveryCheckout), before the address is even asked. This re-check only
-  // matters if the basket somehow changed after the gate already passed.
-  if (session.orderType === 'delivery' && info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+  // Chat-only safety net. Flow-on restaurants open Prüfen, which blocks a short
+  // Lieferung basket on the review screen. place_order still uses gateDeliverySubmit.
+  if (
+    session.orderType === 'delivery'
+    && info.minimumOrderValue
+    && subtotal < info.minimumOrderValue
+    && !shouldSkipChatCheckoutSlots(info)
+  ) {
     const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
     await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
     return;
@@ -1037,6 +1059,7 @@ async function handleDeliveryMinimumAfterMutation(ctx, session, basket) {
   if (session.orderType !== 'delivery') return false;
 
   const info = await getBusinessInfo(businessId);
+  if (shouldSkipChatCheckoutSlots(info)) return false;
   if (!info.minimumOrderValue) return false;
 
   const subtotal = basketSubtotal(basket);

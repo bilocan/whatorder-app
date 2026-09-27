@@ -44,16 +44,20 @@ test('review mode refreshes on order type select and stays read-only for name an
     }),
   }));
 
-  const nameDisplay = review.find(
+  expect(review.find((child) => child.type === 'TextHeading').text).toBe(`\${data.${F.UI_REVIEW_INTRO}}`);
+  expect(review.find(
     (child) => child.type === 'TextBody' && child.text === `\${data.${F.CUSTOMER_NAME_DISPLAY}}`,
-  );
-  expect(nameDisplay).toBeDefined();
+  )).toBeUndefined();
   expect(review.find((child) => child.name === F.CUSTOMER_NAME)).toBeUndefined();
+  expect(review.find((child) => child.name === F.CHECKOUT_NOTE).type).toBe('TextInput');
 
   const addressBody = review.find(
     (child) => child.type === 'TextBody' && child.text === `\${data.${F.DELIVERY_ADDRESS_DISPLAY}}`,
   );
   expect(addressBody.visible).toBe(`\${data.${F.ADDRESS_FIELDS_VISIBLE}}`);
+  expect(review.find(
+    (child) => child.type === 'TextCaption' && child.text === `\${data.${F.UI_ADDRESS_CHOICE_LABEL}}`,
+  )).toBeUndefined();
   expect(review.find((child) => child.name === F.DELIVERY_ADDRESS)).toBeUndefined();
 });
 
@@ -67,15 +71,21 @@ test('profile and cart links sit above the place-order footer', () => {
   );
   const cartIdx = review.indexOf(cartLink);
   const footerIdx = review.findIndex((child) => child.type === 'Footer');
-  const nameIdx = review.findIndex(
-    (child) => child.type === 'TextBody' && child.text === `\${data.${F.CUSTOMER_NAME_DISPLAY}}`,
-  );
   const typeIdx = review.findIndex((child) => child.name === F.ORDER_TYPE);
+  const noteIdx = review.findIndex((child) => child.name === F.CHECKOUT_NOTE);
+  const blockIdx = review.findIndex((child) => child.text === `\${data.${F.CHECKOUT_BLOCK_REASON}}`);
+  const receiptIdx = review.findIndex(
+    (child) => child.type === 'TextBody' && child.text === `\${data.${F.RECEIPT_TEXT}}`,
+  );
 
-  expect(profileIdx).toBeGreaterThan(typeIdx);
-  expect(cartIdx).toBe(profileIdx + 1);
-  expect(footerIdx).toBe(cartIdx + 1);
-  expect(nameIdx).toBeLessThan(typeIdx);
+  expect(review.findIndex((child) => child.type === 'TextHeading')).toBe(0);
+  expect(typeIdx).toBe(1);
+  expect(receiptIdx).toBeGreaterThan(typeIdx);
+  expect(noteIdx).toBeGreaterThan(receiptIdx);
+  expect(blockIdx).toBeGreaterThan(noteIdx);
+  expect(cartIdx).toBe(blockIdx + 1);
+  expect(profileIdx).toBe(cartIdx + 1);
+  expect(footerIdx).toBe(profileIdx + 1);
   expect(cartLink['on-click-action'].payload.checkout_layout).toBe('single');
   expect(cartLink['on-click-action'].payload[F.CHECKOUT_UI_MODE]).toBe(`\${data.${F.CHECKOUT_UI_MODE}}`);
 });

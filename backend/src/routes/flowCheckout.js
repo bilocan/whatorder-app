@@ -37,7 +37,6 @@ const {
   deleteCustomerAddress,
 } = require('../bot/customerAddresses');
 const { loadCheckoutTotals } = require('../bot/checkoutDeal');
-const { basketSubtotal } = require('../bot/orderTotals');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 const { attachAddressListImages, addressHomeIconBase64, attachListImages } = require('../lib/flowImages');
 
@@ -455,6 +454,13 @@ async function manageResponse({
       foundChecked,
     }),
   };
+}
+
+function orderAddressWasCleared(draft) {
+  if (!draft || typeof draft !== 'object') return false;
+  if (draft.addressChoice !== ADDRESS_CHOICE_NEW) return false;
+  if (!Object.prototype.hasOwnProperty.call(draft, 'deliveryAddress')) return false;
+  return !trimmedName(draft.deliveryAddress);
 }
 
 function normalizedAddress(address) {
@@ -1371,38 +1377,15 @@ async function dispatchCheckoutExchange({
   }
 
   if (action === 'select_order_type' && REVIEW_SCREENS.has(screen)) {
-    const draft = mergeConfirmFlowDraft(payload, session.confirmFlowDraft) || {};
-    const selectedType = draft.orderType || payload[F.ORDER_TYPE];
-    const basket = Array.isArray(session.basket) ? session.basket : [];
-    const info = await getBusinessInfo(businessId);
-
-    // Option 3: Lieferung below Mindestbestellwert closes the Flow immediately so the bot
-    // can show the chat gate (Mehr hinzufügen). Same destination as place_order gate, earlier.
-    if (
-      selectedType === 'delivery'
-      && info.minimumOrderValue
-      && basketSubtotal(basket) < info.minimumOrderValue
-    ) {
-      await ref.set({
-        orderType: 'delivery',
-        deliveryAddress: null,
-        confirmFlowDraft: null,
-        updatedAt: new Date(),
-      }, { merge: true });
-      return {
-        version,
-        screen: 'SUCCESS',
-        data: {
-          extension_message_response: {
-            params: {
-              flow_token,
-              checkout_action: 'delivery_below_minimum',
-            },
-          },
-        },
-      };
-    }
-
+    const previousDraft = session.confirmFlowDraft;
+    const draft = mergeConfirmFlowDraft(payload, previousDraft) || {};
+    // A cleared Neue Adresse must survive Abholung ↔ Lieferung. The hidden
+    // pickup payload would otherwise copy the saved default back onto the order.
+    const keepClearedAddress = orderAddressWasCleared(previousDraft)
+      && !trimmedName(payload[F.DELIVERY_ADDRESS]);
+    // Below Mindestbestellwert stays on Prüfen. buildCheckoutReviewData puts the
+    // shortfall on the Lieferung row and disables Bestellung aufgeben.
+    // place_order still runs gateDeliverySubmit if this refresh is skipped.
     await ref.set({ confirmFlowDraft: draft, updatedAt: new Date() }, { merge: true });
     session.confirmFlowDraft = draft;
     return buildReviewFromDraft({
@@ -1413,6 +1396,7 @@ async function dispatchCheckoutExchange({
       version,
       businessId,
       phone,
+      keepNewAddress: keepClearedAddress,
     });
   }
 

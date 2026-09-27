@@ -100,14 +100,9 @@ function reviewFormPayload() {
   };
 }
 
-/** Delivery block on Prüfen: read-only full label (profile link lives outside). */
+/** Delivery street on Prüfen. No separate caption: that gap is Flow's padding between two text components. */
 function deliveryAddressFields() {
   return [
-    {
-      type: 'TextCaption',
-      text: `\${data.${F.UI_ADDRESS_CHOICE_LABEL}}`,
-      visible: `\${data.${F.ADDRESS_FIELDS_VISIBLE}}`,
-    },
     {
       type: 'TextBody',
       text: `\${data.${F.DELIVERY_ADDRESS_DISPLAY}}`,
@@ -118,6 +113,7 @@ function deliveryAddressFields() {
 
 async function checkoutReviewScreen(id, { includeManageLink = true, includeCartLink = true } = {}) {
   const copy = checkoutReviewCopy(EXAMPLE_LANG);
+  copy[F.UI_REVIEW_INTRO] = 'Demo Kitchen';
   if (!includeManageLink) delete copy[F.UI_MANAGE_ADDRESSES_LINK];
   return {
     id,
@@ -135,8 +131,12 @@ async function checkoutReviewScreen(id, { includeManageLink = true, includeCartL
       [F.ORDER_TYPE_OPTIONS]: {
         ...OPTION_LIST_SCHEMA,
         '__example__': [
-          { id: 'pickup', title: 'Pickup' },
-          { id: 'delivery', title: 'Delivery' },
+          { id: 'pickup', title: 'Pickup', description: 'No delivery fee' },
+          {
+            id: 'delivery',
+            title: 'Delivery',
+            metadata: '€2.00',
+          },
         ],
       },
       [F.ADDRESS_CHOICE]: { type: 'string', '__example__': 'addr_0' },
@@ -157,6 +157,8 @@ async function checkoutReviewScreen(id, { includeManageLink = true, includeCartL
       },
       [F.CHECKOUT_NOTE]: { type: 'string', '__example__': 'Please ring the bell.' },
       [F.PLACE_ORDER_ENABLED]: { type: 'boolean', '__example__': true },
+      [F.CHECKOUT_BLOCK_REASON]: { type: 'string', '__example__': '' },
+      [F.CHECKOUT_BLOCK_VISIBLE]: { type: 'boolean', '__example__': false },
     },
     layout: {
       type: 'SingleColumnLayout',
@@ -169,24 +171,8 @@ async function checkoutReviewScreen(id, { includeManageLink = true, includeCartL
         },
         children: [
           {
-            type: 'TextCaption',
+            type: 'TextHeading',
             text: `\${data.${F.UI_REVIEW_INTRO}}`,
-          },
-          {
-            type: 'TextCaption',
-            text: `\${data.${F.UI_REVIEW_SECTION_BASKET}}`,
-          },
-          {
-            type: 'TextBody',
-            text: `\${data.${F.RECEIPT_TEXT}}`,
-          },
-          {
-            type: 'TextCaption',
-            text: `\${data.${F.UI_NAME_LABEL}}`,
-          },
-          {
-            type: 'TextBody',
-            text: `\${data.${F.CUSTOMER_NAME_DISPLAY}}`,
           },
           {
             type: 'RadioButtonsGroup',
@@ -204,22 +190,20 @@ async function checkoutReviewScreen(id, { includeManageLink = true, includeCartL
           },
           ...deliveryAddressFields(),
           {
-            type: 'TextArea',
+            type: 'TextBody',
+            text: `\${data.${F.RECEIPT_TEXT}}`,
+          },
+          {
+            type: 'TextInput',
             label: `\${data.${F.UI_NOTE_LABEL}}`,
             name: F.CHECKOUT_NOTE,
             required: false,
           },
-          ...(includeManageLink ? [{
-            type: 'EmbeddedLink',
-            text: `\${data.${F.UI_MANAGE_ADDRESSES_LINK}}`,
-            'on-click-action': {
-              name: 'data_exchange',
-              payload: {
-                checkout_action: 'manage_addresses',
-                ...reviewFormPayload(),
-              },
-            },
-          }] : []),
+          {
+            type: 'TextCaption',
+            text: `\${data.${F.CHECKOUT_BLOCK_REASON}}`,
+            visible: `\${data.${F.CHECKOUT_BLOCK_VISIBLE}}`,
+          },
           ...(includeCartLink ? [{
             type: 'EmbeddedLink',
             text: `\${data.${F.UI_BACK_TO_CART}}`,
@@ -227,6 +211,17 @@ async function checkoutReviewScreen(id, { includeManageLink = true, includeCartL
               name: 'data_exchange',
               payload: {
                 checkout_action: 'open_cart',
+                ...reviewFormPayload(),
+              },
+            },
+          }] : []),
+          ...(includeManageLink ? [{
+            type: 'EmbeddedLink',
+            text: `\${data.${F.UI_MANAGE_ADDRESSES_LINK}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: {
+                checkout_action: 'manage_addresses',
                 ...reviewFormPayload(),
               },
             },
@@ -663,6 +658,8 @@ async function unifiedCheckoutScreen(exampleOptions) {
       ...manage.data,
       ...cart.data,
       [F.CHECKOUT_UI_MODE]: strField('review'),
+      // Manage copy spreads the static intro. The review heading example is the restaurant.
+      [F.UI_REVIEW_INTRO]: strField('Demo Kitchen'),
     },
     layout: {
       type: 'SingleColumnLayout',

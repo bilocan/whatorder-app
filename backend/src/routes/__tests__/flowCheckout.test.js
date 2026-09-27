@@ -337,6 +337,51 @@ test('select_order_type delivery restores the default saved address instead of N
   expect(response.data[F.DELIVERY_APARTMENT]).toBe('Top 14');
 });
 
+test('select_order_type keeps a cleared Neue Adresse through pickup and delivery', async () => {
+  const cleared = {
+    orderType: 'delivery',
+    addressChoice: 'addr_new',
+    deliveryAddress: '',
+    deliveryApartment: '',
+  };
+  mockSession({
+    orderType: 'delivery',
+    deliveryAddress: null,
+    confirmFlowDraft: cleared,
+  });
+  const pickup = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'pickup',
+    [F.ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: '',
+    [F.DELIVERY_APARTMENT]: '',
+  });
+
+  expect(pickup.data[F.DELIVERY_ADDRESS]).toBe('');
+  expect(pickup.data[F.ADDRESS_CHOICE]).toBe('addr_new');
+
+  mockSession({
+    orderType: 'pickup',
+    deliveryAddress: null,
+    confirmFlowDraft: { ...cleared, orderType: 'pickup' },
+  });
+  const delivery = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: '',
+    [F.DELIVERY_APARTMENT]: '',
+  });
+
+  expect(delivery.data[F.ORDER_TYPE]).toBe('delivery');
+  expect(delivery.data[F.ADDRESS_CHOICE]).toBe('addr_new');
+  expect(delivery.data[F.DELIVERY_ADDRESS]).toBe('');
+  expect(delivery.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('No address yet.');
+  expect(delivery.data[F.PLACE_ORDER_ENABLED]).toBe(false);
+});
+
 test('select_order_type delivery shows address fields and prices in the delivery fee', async () => {
   mockSession({ orderType: 'pickup', confirmFlowDraft: { orderType: 'pickup' } });
   getBusinessInfo.mockResolvedValue({
@@ -396,7 +441,7 @@ test('select_address keeps pickup when the customer is still on Abholung', async
   expect(response.data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
 });
 
-test('select_order_type delivery below minimum closes Flow with delivery_below_minimum', async () => {
+test('select_order_type delivery below minimum stays on review with the footer off', async () => {
   const { ref } = mockSession({
     orderType: 'pickup',
     deliveryAddress: null,
@@ -418,15 +463,14 @@ test('select_order_type delivery below minimum closes Flow with delivery_below_m
     [F.CHECKOUT_NOTE]: '',
   });
 
-  expect(response.screen).toBe('SUCCESS');
-  expect(response.data.extension_message_response.params).toEqual({
-    flow_token: FLOW_TOKEN,
-    checkout_action: 'delivery_below_minimum',
-  });
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(response.data[F.ORDER_TYPE]).toBe('delivery');
+  expect(response.data[F.PLACE_ORDER_ENABLED]).toBe(false);
+  expect(response.data[F.CHECKOUT_BLOCK_VISIBLE]).toBe(true);
+  expect(response.data[F.CHECKOUT_BLOCK_REASON]).toContain('Minimum order €10.00');
+  expect(response.data[F.UI_REVIEW_INTRO]).toBe('Demo Kitchen');
   expect(ref.set).toHaveBeenCalledWith(expect.objectContaining({
-    orderType: 'delivery',
-    deliveryAddress: null,
-    confirmFlowDraft: null,
+    confirmFlowDraft: expect.objectContaining({ orderType: 'delivery' }),
   }), { merge: true });
 });
 
@@ -1113,7 +1157,7 @@ test('manage_back with an empty address book drops a leftover order address', as
   expect(response.screen).toBe(S.CHECKOUT_REVIEW);
   expect(response.data[F.CHECKOUT_UI_MODE]).toBe('review');
   expect(response.data[F.DELIVERY_ADDRESS]).toBe('');
-  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('No address — tap Address & profile.');
+  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('No address yet.');
   expect(ref.set).toHaveBeenCalledWith(
     expect.objectContaining({
       deliveryAddress: null,
@@ -1157,7 +1201,7 @@ test('manage_back after deleting the order address does not fill the first saved
   expect(response.screen).toBe(S.CHECKOUT_REVIEW);
   expect(response.data[F.CHECKOUT_UI_MODE]).toBe('review');
   expect(response.data[F.DELIVERY_ADDRESS]).toBe('');
-  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('No address — tap Address & profile.');
+  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('No address yet.');
   expect(response.data[F.PLACE_ORDER_ENABLED]).toBe(false);
   expect(ref.set).not.toHaveBeenCalledWith(
     expect.objectContaining({ deliveryAddress: ADDRESS_2 }),

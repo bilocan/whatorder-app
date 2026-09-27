@@ -16,7 +16,7 @@
         },
         "ui_review_intro": {
           "type": "string",
-          "__example__": "Almost done!"
+          "__example__": "Demo Kitchen"
         },
         "ui_review_section_basket": {
           "type": "string",
@@ -28,11 +28,11 @@
         },
         "ui_name_empty": {
           "type": "string",
-          "__example__": "No name yet — tap Address & profile."
+          "__example__": "No name yet."
         },
         "ui_type_label": {
           "type": "string",
-          "__example__": "How would you like to receive your order?"
+          "__example__": "How do you want it?"
         },
         "ui_address_choice_label": {
           "type": "string",
@@ -56,7 +56,7 @@
         },
         "ui_delivery_address_empty": {
           "type": "string",
-          "__example__": "No address — tap Address & profile."
+          "__example__": "No address yet."
         },
         "ui_note_label": {
           "type": "string",
@@ -72,7 +72,7 @@
         },
         "ui_manage_addresses_link": {
           "type": "string",
-          "__example__": "Address & profile"
+          "__example__": "Change name or address"
         },
         "receipt_text": {
           "type": "string",
@@ -112,11 +112,13 @@
           "__example__": [
             {
               "id": "pickup",
-              "title": "Pickup"
+              "title": "Pickup",
+              "description": "No delivery fee"
             },
             {
               "id": "delivery",
-              "title": "Delivery"
+              "title": "Delivery",
+              "metadata": "€2.00"
             }
           ]
         },
@@ -180,6 +182,14 @@
         "place_order_enabled": {
           "type": "boolean",
           "__example__": true
+        },
+        "checkout_block_reason": {
+          "type": "string",
+          "__example__": ""
+        },
+        "checkout_block_visible": {
+          "type": "boolean",
+          "__example__": false
         },
         "ui_manage_screen_title": {
           "type": "string",
@@ -799,24 +809,8 @@
                     ],
                     "else": [
                       {
-                        "type": "TextCaption",
+                        "type": "TextHeading",
                         "text": "${data.ui_review_intro}"
-                      },
-                      {
-                        "type": "TextCaption",
-                        "text": "${data.ui_review_section_basket}"
-                      },
-                      {
-                        "type": "TextBody",
-                        "text": "${data.receipt_text}"
-                      },
-                      {
-                        "type": "TextCaption",
-                        "text": "${data.ui_name_label}"
-                      },
-                      {
-                        "type": "TextBody",
-                        "text": "${data.customer_name_display}"
                       },
                       {
                         "type": "RadioButtonsGroup",
@@ -840,28 +834,32 @@
                         }
                       },
                       {
-                        "type": "TextCaption",
-                        "text": "${data.ui_address_choice_label}",
-                        "visible": "${data.address_fields_visible}"
-                      },
-                      {
                         "type": "TextBody",
                         "text": "${data.delivery_address_display}",
                         "visible": "${data.address_fields_visible}"
                       },
                       {
-                        "type": "TextArea",
+                        "type": "TextBody",
+                        "text": "${data.receipt_text}"
+                      },
+                      {
+                        "type": "TextInput",
                         "label": "${data.ui_note_label}",
                         "name": "note",
                         "required": false
                       },
                       {
+                        "type": "TextCaption",
+                        "text": "${data.checkout_block_reason}",
+                        "visible": "${data.checkout_block_visible}"
+                      },
+                      {
                         "type": "EmbeddedLink",
-                        "text": "${data.ui_manage_addresses_link}",
+                        "text": "${data.ui_back_to_cart}",
                         "on-click-action": {
                           "name": "data_exchange",
                           "payload": {
-                            "checkout_action": "manage_addresses",
+                            "checkout_action": "open_cart",
                             "customer_name": "${data.customer_name}",
                             "order_type": "${form.order_type}",
                             "address_choice": "${data.address_choice}",
@@ -875,11 +873,11 @@
                       },
                       {
                         "type": "EmbeddedLink",
-                        "text": "${data.ui_back_to_cart}",
+                        "text": "${data.ui_manage_addresses_link}",
                         "on-click-action": {
                           "name": "data_exchange",
                           "payload": {
-                            "checkout_action": "open_cart",
+                            "checkout_action": "manage_addresses",
                             "customer_name": "${data.customer_name}",
                             "order_type": "${form.order_type}",
                             "address_choice": "${data.address_choice}",

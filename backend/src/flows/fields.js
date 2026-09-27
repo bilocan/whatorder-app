@@ -103,8 +103,11 @@ const FIELDS = {
   UI_REMOVE_SELECTED:  'ui_remove_selected',
   UI_ADD_MORE:         'ui_add_more',
   UI_PLACE_ORDER:      'ui_place_order',
-  // Bestellung aufgeben stays disabled until name (and, for Lieferung, address) is filled.
+  // Bestellung aufgeben stays off until name is set, and for Lieferung an address
+  // and the minimum order value. checkout_block_* explains why, above the footer.
   PLACE_ORDER_ENABLED: 'place_order_enabled',
+  CHECKOUT_BLOCK_REASON: 'checkout_block_reason',
+  CHECKOUT_BLOCK_VISIBLE: 'checkout_block_visible',
 
   // CHECKOUT_REVIEW
   RECEIPT_TEXT:       'receipt_text',

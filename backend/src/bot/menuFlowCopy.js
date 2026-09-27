@@ -90,6 +90,7 @@ function cartDoneCopy(lang, t = defaultT) {
 function checkoutReviewCopy(lang, t = defaultT) {
   return {
     [F.UI_SCREEN_TITLE]: t('confirmListHeader', lang),
+    // Runtime fills the heading with the restaurant name. The static copy is only a schema placeholder.
     [F.UI_REVIEW_INTRO]: t('confirmFlowReviewIntro', lang),
     [F.UI_REVIEW_SECTION_BASKET]: t('confirmFlowReviewSectionBasket', lang),
     [F.UI_NAME_LABEL]: t('confirmFlowNameLabel', lang),

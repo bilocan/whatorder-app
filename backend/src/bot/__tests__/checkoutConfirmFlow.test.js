@@ -57,13 +57,13 @@ describe('checkoutConfirmFlow', () => {
       paymentEnabled: true,
     });
 
-    expect(receipt).toContain('Demo Kitchen');
-    expect(receipt).toContain('orderTotal:en:21.00');
+    expect(receipt).not.toContain('Demo Kitchen');
+    expect(receipt).toContain('*orderTotal:en:21.00*');
     expect(receipt).toContain('confirmFlowPaymentCard:en:');
+    expect(receipt).toContain('confirmFlowNameLine:en:Alex');
     expect(receipt).toContain('2× Chicken Dürüm');
     expect(receipt).toContain('1× Ayran');
     expect(receipt).not.toContain('Main Street 12');
-    expect(receipt).not.toContain('Alex');
   });
 
   test('drops a leftover delivery address from a pickup receipt', async () => {
@@ -110,8 +110,16 @@ describe('checkoutConfirmFlow', () => {
       [F.DELIVERY_ADDRESS]: 'Main Street 12',
       [F.CHECKOUT_NOTE]: 'Ring twice',
       [F.ORDER_TYPE_OPTIONS]: [
-        { id: 'pickup', title: 'confirmFlowTypePickup:en:' },
-        { id: 'delivery', title: 'confirmFlowTypeDelivery:en:' },
+        {
+          id: 'pickup',
+          title: 'confirmFlowTypePickup:en:',
+          description: 'confirmFlowPickupNoFee:en:',
+        },
+        {
+          id: 'delivery',
+          title: 'confirmFlowTypeDelivery:en:',
+          metadata: '€2.00',
+        },
       ],
       [F.ADDRESS_CHOICE]: 'addr_0',
       [F.ADDRESS_OPTIONS]: [
@@ -543,9 +551,20 @@ describe('checkoutConfirmFlow', () => {
 
     expect(data[F.ORDER_TYPE]).toBe('pickup');
     expect(data[F.ORDER_TYPE_OPTIONS]).toEqual([
-      { id: 'pickup', title: 'confirmFlowTypePickup:en:' },
-      { id: 'delivery', title: 'confirmFlowTypeDelivery:en:' },
+      {
+        id: 'pickup',
+        title: 'confirmFlowTypePickup:en:',
+        description: 'confirmFlowPickupNoFee:en:',
+      },
+      {
+        id: 'delivery',
+        title: 'confirmFlowTypeDelivery:en:',
+        description: 'confirmFlowBelowMinimum:en:30.00|11.00',
+        metadata: '€2.00',
+      },
     ]);
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(true);
+    expect(data[F.CHECKOUT_BLOCK_VISIBLE]).toBe(false);
   });
 
   test('shows address fields when review order type is delivery', async () => {
@@ -560,6 +579,7 @@ describe('checkoutConfirmFlow', () => {
     expect(data[F.ORDER_TYPE]).toBe('delivery');
     expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(true);
     expect(data[F.PLACE_ORDER_ENABLED]).toBe(true);
+    expect(data[F.RECEIPT_TEXT].startsWith('\n')).toBe(true);
   });
 
   test('disables place order on delivery when the address is empty', async () => {
@@ -573,6 +593,7 @@ describe('checkoutConfirmFlow', () => {
 
     expect(data[F.PLACE_ORDER_ENABLED]).toBe(false);
     expect(data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('confirmFlowAddressEmpty:en:');
+    expect(data[F.UI_MANAGE_ADDRESSES_LINK]).toBe('confirmFlowProfileLinkAddAddress:en:');
   });
 
   test('disables place order when the name is missing, even for pickup', async () => {
@@ -585,6 +606,31 @@ describe('checkoutConfirmFlow', () => {
     });
 
     expect(data[F.PLACE_ORDER_ENABLED]).toBe(false);
+    expect(data[F.UI_MANAGE_ADDRESSES_LINK]).toBe('confirmFlowProfileLinkAddName:en:');
+  });
+
+  test('asks to add both when Lieferung has no name and no address', async () => {
+    const data = await buildCheckoutReviewData({
+      session: { customerName: '', orderType: 'delivery', deliveryAddress: '' },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.UI_MANAGE_ADDRESSES_LINK]).toBe('confirmFlowProfileLinkAddBoth:en:');
+  });
+
+  test('keeps the change link when name and address are already set', async () => {
+    const data = await buildCheckoutReviewData({
+      session: { customerName: 'Alex', orderType: 'delivery', deliveryAddress: 'Main Street 12' },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.UI_MANAGE_ADDRESSES_LINK]).toBe('confirmFlowProfileLink:en:');
   });
 
   test('hides address fields when the customer switches the draft to pickup', async () => {
@@ -603,6 +649,8 @@ describe('checkoutConfirmFlow', () => {
 
     expect(data[F.ORDER_TYPE]).toBe('pickup');
     expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(false);
+    expect(data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('');
+    expect(data[F.RECEIPT_TEXT].startsWith('\n')).toBe(false);
   });
 
   test('keeps delivery selectable when below minimum (gate runs on place, not by hiding Lieferung)', async () => {
@@ -616,10 +664,10 @@ describe('checkoutConfirmFlow', () => {
 
     expect(data[F.ORDER_TYPE]).toBe('delivery');
     expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(true);
-    expect(data[F.ORDER_TYPE_OPTIONS]).toEqual([
-      { id: 'pickup', title: 'confirmFlowTypePickup:en:' },
-      { id: 'delivery', title: 'confirmFlowTypeDelivery:en:' },
-    ]);
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(false);
+    expect(data[F.CHECKOUT_BLOCK_VISIBLE]).toBe(true);
+    expect(data[F.CHECKOUT_BLOCK_REASON]).toBe('confirmFlowBelowMinimum:en:30.00|11.00');
+    expect(data[F.ORDER_TYPE_OPTIONS][1].description).toBe('confirmFlowBelowMinimum:en:30.00|11.00');
   });
 
   test('payment hint follows the same gate as the place path', async () => {
