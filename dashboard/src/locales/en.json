@@ -58,7 +58,6 @@
       "waitingSince": "Waiting since order placed",
       "openFull": "Open full order details",
       "printBeleg": "Print receipt",
-      "paidViaCash": "Paid via cash",
       "paidViaCard": "Paid via card",
       "terminal": "This order is {{status}} — no further action.",
       "col": {

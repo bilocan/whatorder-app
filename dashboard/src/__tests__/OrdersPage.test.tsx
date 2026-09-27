@@ -267,7 +267,7 @@ describe('OrdersPage', () => {
       restaurantPhone: '+43 660 111111',
       lines: [{ label: '2× Döner', amount: '€17.00' }],
       totalAmount: '€17.00',
-      payment: 'Paid via cash',
+      payment: 'Cash',
     })))
   })
 

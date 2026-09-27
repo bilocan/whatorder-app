@@ -24,7 +24,7 @@ export interface OrderBelegPrintInput {
   payment?: string;
 }
 
-/** Payment line on the bon. Unpaid, failed, and refunded stay status words. Cash and card say how it was paid. */
+/** Payment line on the bon. Cash is the method word. "Paid by card" only after a card charge. */
 export function belegPaymentLine(
   order: { paymentMethod?: 'stripe' | 'cash'; paymentStatus?: string },
   labels: { cash: string; card: string; pending: string; failed: string; refunded: string },
@@ -33,9 +33,9 @@ export function belegPaymentLine(
   if (status === 'refunded') return labels.refunded;
   if (status === 'failed') return labels.failed;
   if (status === 'pending') return labels.pending;
-  if (order.paymentMethod === 'cash' || status === 'cash' || !status) return labels.cash;
-  if (order.paymentMethod === 'stripe' || status === 'paid') return labels.card;
-  return undefined;
+  if (status === 'paid') return labels.card;
+  if (order.paymentMethod === 'cash' || status === 'cash' || !order.paymentMethod) return labels.cash;
+  return labels.pending;
 }
 
 /** Header lines for the bon. Shop name, then the public address, then the alert phone. */

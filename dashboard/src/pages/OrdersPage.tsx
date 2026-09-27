@@ -656,7 +656,7 @@ export default function OrdersPage() {
                       ? t('orderDetail.note', { note: openOrder.notes })
                       : undefined,
                     payment: belegPaymentLine(openOrder, {
-                      cash: t('orders.board.paidViaCash'),
+                      cash: t('orders.payment.cash'),
                       card: t('orders.board.paidViaCard'),
                       pending: t('orders.payment.pending'),
                       failed: t('orders.payment.failed'),

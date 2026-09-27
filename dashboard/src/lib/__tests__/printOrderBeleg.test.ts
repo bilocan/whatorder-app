@@ -72,16 +72,16 @@ describe('restaurantSlipLines', () => {
 
 describe('belegPaymentLine', () => {
   const labels = {
-    cash: 'Paid via cash',
+    cash: 'Cash',
     card: 'Paid via card',
     pending: 'Unpaid',
     failed: 'Failed',
     refunded: 'Refunded',
   }
 
-  it('names cash and card, and keeps unpaid as a status', () => {
-    expect(belegPaymentLine({}, labels)).toBe('Paid via cash')
-    expect(belegPaymentLine({ paymentMethod: 'cash' }, labels)).toBe('Paid via cash')
+  it('names cash as the method and card only after it is paid', () => {
+    expect(belegPaymentLine({}, labels)).toBe('Cash')
+    expect(belegPaymentLine({ paymentMethod: 'cash', paymentStatus: 'cash' }, labels)).toBe('Cash')
     expect(belegPaymentLine({ paymentMethod: 'stripe', paymentStatus: 'paid' }, labels)).toBe('Paid via card')
     expect(belegPaymentLine({ paymentMethod: 'stripe', paymentStatus: 'pending' }, labels)).toBe('Unpaid')
   })

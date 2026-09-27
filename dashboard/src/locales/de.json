@@ -58,7 +58,6 @@
       "waitingSince": "Wartet seit Bestellung",
       "openFull": "Vollständige Bestelldetails öffnen",
       "printBeleg": "Beleg drucken",
-      "paidViaCash": "Bezahlt bar",
       "paidViaCard": "Bezahlt per Karte",
       "terminal": "Diese Bestellung ist {{status}} — keine weitere Aktion.",
       "col": {
