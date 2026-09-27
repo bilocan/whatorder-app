@@ -312,7 +312,9 @@ test('checkout INIT → CHECKOUT_REVIEW with session prefill', async () => {
     [F.DELIVERY_ADDRESS]: 'Main Street 12',
     [F.CHECKOUT_NOTE]: 'Ring twice',
   });
-  expect(body.data[F.RECEIPT_TEXT]).toContain('Test Bistro');
+  expect(body.data[F.UI_REVIEW_INTRO]).toBe('Test Bistro');
+  expect(body.data[F.RECEIPT_TEXT]).toContain('For Alex');
+  expect(body.data[F.RECEIPT_TEXT]).not.toContain('Test Bistro');
   expect(getBusinessInfo).toHaveBeenCalledWith('biz1');
   expect(getMenu).not.toHaveBeenCalled();
   expect(ref.set).not.toHaveBeenCalled();

@@ -872,7 +872,9 @@ describe('Checkout confirm Flow', () => {
         customer_name: 'Ahmet',
         order_type: 'pickup',
         order_type_options: [expect.objectContaining({ id: 'pickup' })],
-        receipt_text: expect.stringContaining('Döner Palace'),
+        ui_review_intro: 'Döner Palace',
+        ui_manage_addresses_link: 'Change name',
+        receipt_text: expect.stringContaining('For Ahmet'),
       }),
     }));
     expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({

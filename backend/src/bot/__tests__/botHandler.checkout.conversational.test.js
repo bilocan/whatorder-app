@@ -355,6 +355,47 @@ describe('Checkout state: M2 conversational basket + text gates', () => {
     expect(sendListMessage).toHaveBeenCalled();
   });
 
+  test('flag on — adding an item below minimum while Lieferung is selected reopens Prüfen', async () => {
+    process.env.WHATSAPP_CHECKOUT_FLOW_ID = 'flow-checkout';
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      conversationalBasket: true,
+      checkoutConfirmFlow: true,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+      minimumOrderValue: 50,
+    });
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
+    getMenuContext.mockResolvedValue({
+      menu: [
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'c1', name: 'Cola', price: 2.5, available: true },
+      ],
+      menuMatch: require('../menuMapper').buildMenuMatchIndex([
+        { id: 'd1', name: 'Döner', price: 8.5, available: true },
+        { id: 'c1', name: 'Cola', price: 2.5, available: true },
+      ]),
+      menuTokenIndex: null,
+    });
+    getSession.mockResolvedValue({
+      language: 'de', state: 'confirming', businessId: BIZ,
+      basket: [{ name: 'Cola', qty: 1, price: 2.5 }],
+      customerName: 'Max',
+      orderType: 'delivery',
+      deliveryAddress: 'Hauptstraße 5',
+      pickupTime: '14:30',
+      prepMins: 20,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'noch ein cola' }));
+
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/minimum order|Mindestbestellwert/i),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'confirming' }));
+  });
+
   test('flag on — confirming saves product-like text as note without Add note button', async () => {
     getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, conversationalBasket: true });
     getSession.mockResolvedValue({

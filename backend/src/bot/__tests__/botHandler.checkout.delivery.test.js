@@ -209,6 +209,34 @@ describe('Checkout confirm Flow: chat slot short-circuit', () => {
     }));
   });
 
+  test('delivery below minimum opens Prüfen instead of the chat gate', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      checkoutConfirmFlow: true,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+      minimumOrderValue: 50,
+    });
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'browsing',
+      orderType: 'delivery',
+      deliveryAddress: null,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
+
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      orderType: 'delivery',
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/minimum order|Mindestbestellwert/i),
+    }));
+  });
+
   test('pickup selection skips awaiting_name', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,

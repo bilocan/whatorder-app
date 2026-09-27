@@ -1,6 +1,6 @@
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 const { formatBasketItemsText } = require('./botHelpers');
-const { orderTotals } = require('./orderTotals');
+const { orderTotals, basketSubtotal } = require('./orderTotals');
 const { isDeliveryOffered } = require('./checkoutSlots');
 const { isPaymentEnabled } = require('./paymentGate');
 const { checkoutReviewCopy } = require('./menuFlowCopy');
@@ -100,21 +100,30 @@ function buildReceiptText({
   if (resolved.isDelivery && Number(resolved.deliveryFee) > 0) {
     money.push(t('checkoutDeliveryFee', lang, Number(resolved.deliveryFee).toFixed(2)));
   }
-  money.push(t('orderTotal', lang, Number(total || 0).toFixed(2)));
+  let totalLine = `*${t('orderTotal', lang, Number(total || 0).toFixed(2))}*`;
   if (paymentEnabled) {
-    money.push(t('confirmFlowPaymentCard', lang));
+    totalLine = `${totalLine} · ${t('confirmFlowPaymentCard', lang)}`;
   }
+  money.push(totalLine);
 
   const items = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });
-  return [trimmed(businessName), items, money.join('\n')].filter(Boolean).join('\n\n');
+  const knownName = trimmed(session.customerName);
+  const nameLine = knownName.length >= 2
+    ? t('confirmFlowNameLine', lang, knownName)
+    : t('confirmFlowNameEmpty', lang);
+  // Restaurant name is the screen heading, not a line in this bill.
+  void businessName;
+  const body = [items, money.join('\n'), nameLine].filter(Boolean).join('\n\n');
+  // Leading blank line renders. A trailing blank on the address body does not.
+  if (session.orderType === 'delivery') return `\n${body}`;
+  return body;
 }
 
 /**
  * Delivery is offered on the confirm screen when enabled and not paused by the owner.
- * Mindestbestellwert is enforced on place (and on chat btn_delivery), not by hiding the
- * Lieferung option — customers default to Abholung and only hit the gate after choosing
- * delivery. Pickup ↔ delivery taps refresh the screen (`select_order_type`) so the
- * receipt re-prices.
+ * Mindestbestellwert does not hide Lieferung. Choosing it stays on this screen, shows
+ * the shortfall, and leaves Bestellung aufgeben off. place_order still runs the gate.
+ * Pickup and delivery taps refresh the screen (`select_order_type`) so the receipt re-prices.
  */
 function isDeliverySelectableInReview(info = {}, _basket = []) {
   if (!isDeliveryOffered(info)) return false;
@@ -516,21 +525,42 @@ async function buildCheckoutReviewData({
     ...session, orderType, customerName, deliveryAddress: reviewDeliveryAddress, specialRequests,
   };
   const totals = orderTotals(basket, reviewSession, info, deal || null);
-  const options = [
-    { id: 'pickup', title: t('confirmFlowTypePickup', lang) },
-  ];
-  if (deliverySelectable) {
-    options.push({ id: 'delivery', title: t('confirmFlowTypeDelivery', lang) });
-  }
-
   const displayAddress = normalizeBuildingLabel(
     trimmed(deliveryAddress) || trimmed(reviewDeliveryAddress) || '',
   );
-  const addressDisplay = displayAddress || t('confirmFlowAddressEmpty', lang);
+  const addressLine = displayAddress || t('confirmFlowAddressEmpty', lang);
+  // Pickup sends an empty body so the hidden address row does not keep a gap.
+  const addressDisplay = orderType === 'delivery' ? addressLine : '';
+  const subtotal = basketSubtotal(basket);
+  const minimumOrderValue = Number(info.minimumOrderValue) || 0;
+  const deliveryBelowMinimum = minimumOrderValue > 0 && subtotal < minimumOrderValue;
+  const minimumLabel = minimumOrderValue.toFixed(2);
+  const remainingLabel = Math.max(0, minimumOrderValue - subtotal).toFixed(2);
+  const blockReason = reviewBlockReason({
+    customerName,
+    orderType,
+    deliveryAddress: displayAddress,
+    deliveryBelowMinimum,
+    minimumLabel,
+    remainingLabel,
+    lang,
+    t,
+  });
+  const options = buildOrderTypeOptions({
+    deliverySelectable,
+    deliveryFee: info.deliveryFee,
+    address: displayAddress,
+    deliveryBelowMinimum,
+    minimumLabel,
+    remainingLabel,
+    lang,
+    t,
+  });
   const placeOrderEnabled = canPlaceCheckoutOrder({
     customerName,
     orderType,
     deliveryAddress: displayAddress,
+    belowMinimum: orderType === 'delivery' && deliveryBelowMinimum,
   });
 
   return {
@@ -558,6 +588,16 @@ async function buildCheckoutReviewData({
     [F.PLACE_ORDER_ENABLED]: placeOrderEnabled,
     [F.CHECKOUT_NOTE]: specialRequests,
     ...checkoutReviewCopy(lang, t),
+    [F.UI_REVIEW_INTRO]: trimmed(info.name),
+    [F.UI_MANAGE_ADDRESSES_LINK]: profileManageLink({
+      customerName,
+      orderType,
+      deliveryAddress: displayAddress,
+      lang,
+      t,
+    }),
+    [F.CHECKOUT_BLOCK_REASON]: blockReason,
+    [F.CHECKOUT_BLOCK_VISIBLE]: Boolean(blockReason),
   };
 }
 
@@ -690,11 +730,83 @@ function resolveDeliveryAddressForSubmit(
   return composed;
 }
 
-/** Name is always required. A delivery address is required only for Lieferung. */
-function canPlaceCheckoutOrder({ customerName = '', orderType = 'pickup', deliveryAddress = '' } = {}) {
+function profileManageLink({
+  customerName = '',
+  orderType = 'pickup',
+  deliveryAddress = '',
+  lang,
+  t,
+}) {
+  const nameMissing = trimmed(customerName).length < 2;
+  const addressMissing = orderType === 'delivery' && !trimmed(deliveryAddress);
+  if (!addressMissing && !nameMissing) {
+    return orderType === 'delivery'
+      ? t('confirmFlowProfileLink', lang)
+      : t('confirmFlowProfileLinkPickup', lang);
+  }
+  if (nameMissing && addressMissing) return t('confirmFlowProfileLinkAddBoth', lang);
+  if (addressMissing) return t('confirmFlowProfileLinkAddAddress', lang);
+  return t('confirmFlowProfileLinkAddName', lang);
+}
+
+/** Name is always required. Lieferung also needs an address and the minimum subtotal. */
+function canPlaceCheckoutOrder({
+  customerName = '',
+  orderType = 'pickup',
+  deliveryAddress = '',
+  belowMinimum = false,
+} = {}) {
   if (trimmed(customerName).length < 2) return false;
   if (orderType === 'delivery' && !trimmed(deliveryAddress)) return false;
+  if (orderType === 'delivery' && belowMinimum) return false;
   return true;
+}
+
+function reviewBlockReason({
+  customerName,
+  orderType,
+  deliveryAddress,
+  deliveryBelowMinimum,
+  minimumLabel,
+  remainingLabel,
+  lang,
+  t,
+}) {
+  if (trimmed(customerName).length < 2) return t('confirmFlowBlockName', lang);
+  if (orderType === 'delivery' && !trimmed(deliveryAddress)) return t('confirmFlowBlockAddress', lang);
+  if (orderType === 'delivery' && deliveryBelowMinimum) {
+    return t('confirmFlowBelowMinimum', lang, minimumLabel, remainingLabel);
+  }
+  return '';
+}
+
+function buildOrderTypeOptions({
+  deliverySelectable,
+  deliveryFee,
+  address,
+  deliveryBelowMinimum,
+  minimumLabel,
+  remainingLabel,
+  lang,
+  t,
+}) {
+  const pickup = { id: 'pickup', title: t('confirmFlowTypePickup', lang) };
+  if (!deliverySelectable) return [pickup];
+  pickup.description = t('confirmFlowPickupNoFee', lang);
+
+  const delivery = { id: 'delivery', title: t('confirmFlowTypeDelivery', lang) };
+  // The full address is the Lieferadresse line. Repeating it here wraps the row.
+  if (deliveryBelowMinimum) {
+    delivery.description = clipFlowOption(
+      t('confirmFlowBelowMinimum', lang, minimumLabel, remainingLabel),
+      300,
+    );
+  } else if (!trimmed(address)) {
+    delivery.description = t('confirmFlowDeliveryNeedsAddress', lang);
+  }
+  const fee = Number(deliveryFee) || 0;
+  if (fee > 0) delivery.metadata = clipFlowOption(`€${fee.toFixed(2)}`, 20);
+  return [pickup, delivery];
 }
 
 function validateCheckoutSubmit(
