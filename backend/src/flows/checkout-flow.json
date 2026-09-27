@@ -219,11 +219,11 @@
         },
         "ui_manage_confirm_yes": {
           "type": "string",
-          "__example__": "Yes"
+          "__example__": "Save"
         },
         "ui_manage_confirm_edit": {
           "type": "string",
-          "__example__": "Edit"
+          "__example__": "Type again"
         },
         "ui_manage_confirm_typed": {
           "type": "string",
@@ -232,6 +232,10 @@
         "ui_manage_confirm_found": {
           "type": "string",
           "__example__": "We found"
+        },
+        "ui_manage_found_label": {
+          "type": "string",
+          "__example__": "Found"
         },
         "ui_profile_name_label": {
           "type": "string",
@@ -334,6 +338,26 @@
         "manage_confirm_pin_image": {
           "type": "string",
           "__example__": "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAACXBIWXMAAAsTAAALEwEAmpwYAAAGPklEQVR42u1dbW8UVRSeP+EHRYxRQQ1o1K9qTIzGgNAYY/wkIoUWSgFfYtRowRc00QbUpU0EMUCJoFYjolCKb6BJu5gW2pTtG223u3TbYnW73Zmd5YOQ6302tDZtd93euXvvzOyZ5KSb7ezOmefZOfecc8891zByHOl0+ibLsjebVrrRStk9/HXKSqUZSQ7JYGT3ZDCz7E0cw4XGfA/bthdYVnqPadlXCFRnwjG8yv/WJy5fvjkv8E3bfoIzaBF4ssU2k7ZdkhN8/sg8f40xAqxQT4Nlb8n6yyfw1ZAw60ngNv9GMjtqzRHH/IbppmcfgaLaW0rvnXI1ydvRYoquwPLg17+FANEWM1QaPGA4QWDoegrSxw0+IPQRGNoG4x6DvB+tBFgGgaBXiAAigAggIIiA3DI4cYl9FTvNqnr3s2c63mcPtbzM7jmzgS1uXpMRvMZ7+B/OqY/9lvkMEeBAYsm/2J7IcbaybSu7pelZISnhn/2Ufwe+iwjIU/oTw2xr7wG2JLhOGPiZsiRYxrb11rGBxAgRkE0SlsV2R45xsMqlAT+biHWseqCexU2TCJgu5+Nhtuzc6wUDfqYs59cKxQeJAMiR4aaC/uqzyVJ+zaPDzcVNwKGLP7NF3ItRDf6kLGp+ju2LNBYnAfujJ7UBP1PgKRUVATA7+PW5hQDo8r0mc6ScgK7xCLsruN414P/nIZWzDu4M+JqAcctU6u3M3zt6I+MO+5aAQPhb14I/KTWDR/1JAKJQRKRuJwCmKJwY9R8BSC+4HfxJeevCQX8RgGSYjNzO7c2lrKJzVybbieh5LJnICF7jvYrOQOYcGbkjVQk8JQTAz3YKSnnoI9YTv/i/1+oej7Iyfq7z2KDBPwQ4SSnDR68VGBgxmN7WtNpBKnubPwjAgHarAyBqHXglNeEjwteFzhEFkzoFJwC22YnZcXr9taEPha//Tex37xOAKULRATcfm59P5C06MGMSx/MEYJ5W5Obh7cjSYUMoIKTDKq675wl4sPUloZuH6ZKlw5dDp4V0wES/5wm4l1csiNx8JzcdMmfcRHS474+N3idA1P6OmePSdMB3iehwR7DU+wSIRsAyCbhkxoUjYs8TcH/LC0I3L3PSvEPQBD3Q8qL3CXj8XJX2QfiLoVNCOqxoq/I+AWtCOwTd0IA0HdaHPhbSAbp7noAd/fVCN4+azy4JnhCCOVFHYOfA194n4ORoq3AqoExCKqI0tFP4+tDd8wSMcm/GSVayRlMyDjqPSvTEtKajn2rf7giI2vB3QuA7IR46+2Y+YG+0wfEECbKa+YwJOMeJ2ZkU6OwbArBYQkYhFgZmJNaQ24Fvj2ANgtd4D97OYgmljtBV1QIPZZPyqwSzojpERRZUOQEnRlo8Q0CjAu9HOQFmymaPnH3N9eA/3PoKS3JdfVkZdyD6o+sJgI6+rg0VnaBRIUi+qV6+pLw6+vDQr64lALr5vjwd9nW5CyukH+Pjk0rbr3WBRqOD/JAfPB9XLFESTREXQhDcFd0aMVTM3a1hdeRcqyWxOLwoV0l+EvlBOwHQoWiXqWLQe7r9XW3gP9n2NpuwUsW9UBszVks1mCJUPHRJrD3ydKsCHRGy6ojX9c06KjtrlIEvo+radwSMJONK0hSoU4ol/yYC5pLgWHemHLBQ4OO7cQ3qF5Szgccvvrf7rm9Z9uaFOk8vPfU8AYgPVp+vlgY+FolMKG5B4PmmfahofvTsq1JmuDDAU9M+wSANiyREwUc7S7e0JvNs39BTf7azO4Nr5w0+PoPPUt9QCXJs+My8WpuhrgdNoahxq+SpzHwWfOOcuuhP1Lq4ELIrj2Jb1IRS7+gCynv9h7OCj/9R824F8sHA7EUf7/R9Tt3TVUr1NBK29x2i9vW6ngQI7R9AQgQQASREgEcJoI3c9ImdBAG9BIQ2ArppM8+U7s08LXsTgaGJANOuwIbOC2lDZy0bOv+T2dD52pbmnxEoadVbmu+e2lOeM7EAG80TMOq8n1Qqdb0x/eBvLCNTpMT0XE3a9kpjrgP7y+MEAqpw4HOMNxu5Ds5OCZmjwpgdbndWGPkcpmleZ6bSAYzUBJzzXz2Xg7Nsfj4H3CT+yFTygKEBURulLfLbJx5YIcjifv7GKVczy/Evctkv3+EyKOkAAAAASUVORK5CYII="
+        },
+        "manage_found_line": {
+          "type": "string",
+          "__example__": "Gefunden"
+        },
+        "manage_found_visible": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "manage_found_apply": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "manage_edit_link_visible": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "ui_manage_edit_link": {
+          "type": "string",
+          "__example__": "Löschen"
         },
         "error_message": {
           "type": "string",
@@ -485,6 +509,7 @@
               "delivery_address": "${data.delivery_address}",
               "delivery_apartment": "${data.delivery_apartment}",
               "manage_set_as_default": false,
+              "manage_found_apply": "${data.manage_found_apply}",
               "remove_mode": "${data.form_init_values.remove_mode}"
             },
             "children": [
@@ -535,25 +560,6 @@
                           "text": "${data.ui_manage_hint}"
                         },
                         {
-                          "type": "Image",
-                          "src": "${data.manage_confirm_pin_image}",
-                          "width": 64,
-                          "height": 64,
-                          "scale-type": "contain"
-                        },
-                        {
-                          "type": "TextCaption",
-                          "text": "${data.ui_manage_confirm_typed}"
-                        },
-                        {
-                          "type": "TextBody",
-                          "text": "${data.manage_confirm_typed}"
-                        },
-                        {
-                          "type": "TextCaption",
-                          "text": "${data.ui_manage_confirm_found}"
-                        },
-                        {
                           "type": "TextHeading",
                           "text": "${data.manage_confirm_building}"
                         },
@@ -563,8 +569,12 @@
                           "visible": "${data.manage_confirm_unit_visible}"
                         },
                         {
-                          "type": "TextCaption",
+                          "type": "TextBody",
                           "text": "${data.manage_confirm_locality}"
+                        },
+                        {
+                          "type": "TextCaption",
+                          "text": "${data.manage_confirm_typed}"
                         },
                         {
                           "type": "EmbeddedLink",
@@ -625,13 +635,20 @@
                           "required": false
                         },
                         {
+                          "type": "OptIn",
+                          "label": "${data.manage_found_line}",
+                          "name": "manage_found_apply",
+                          "required": true,
+                          "visible": "${data.manage_found_visible}"
+                        },
+                        {
                           "type": "EmbeddedLink",
-                          "text": "${data.ui_manage_delete}",
-                          "visible": "${data.manage_delete_visible}",
+                          "text": "${data.ui_manage_edit_link}",
+                          "visible": "${data.manage_edit_link_visible}",
                           "on-click-action": {
                             "name": "data_exchange",
                             "payload": {
-                              "checkout_action": "manage_delete",
+                              "checkout_action": "manage_edit_link",
                               "customer_name": "${form.customer_name}",
                               "manage_address_choice": "${form.manage_address_choice}",
                               "delivery_address": "${form.delivery_address}",
@@ -671,6 +688,7 @@
                               "delivery_address": "${form.delivery_address}",
                               "delivery_apartment": "${form.delivery_apartment}",
                               "manage_set_as_default": "${form.manage_set_as_default}",
+                              "manage_found_apply": "${form.manage_found_apply}",
                               "checkout_layout": "single",
                               "checkout_ui_mode": "${data.checkout_ui_mode}"
                             }

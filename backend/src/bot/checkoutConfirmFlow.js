@@ -10,6 +10,8 @@ const {
   composeDeliveryLabel,
   hasUnitPattern,
   normalizeBuildingLabel,
+  addressKey,
+  isHausSkip,
 } = require('./deliveryAddress');
 
 const CHECKOUT_TOKEN_MARKER = 'checkout';
@@ -17,6 +19,51 @@ const ORDER_TYPES = new Set(['delivery', 'pickup']);
 
 function trimmed(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function isBuildingOnlyLabel(label) {
+  const text = trimmed(label);
+  if (!text || hasUnitPattern(text)) return false;
+  return !trimmed(splitDeliveryAddressFields(text).apartment);
+}
+
+function sameBuilding(left, right) {
+  const a = addressKey(splitDeliveryAddressFields(left).street || left);
+  const b = addressKey(splitDeliveryAddressFields(right).street || right);
+  return Boolean(a) && a === b;
+}
+
+function apartmentBlankOrHaus(value) {
+  const apartment = trimmed(value);
+  return !apartment || isHausSkip(apartment.toLowerCase());
+}
+
+/**
+ * A saved building-only label is Haus. Stiege and Top are not required.
+ * An empty Wohnung on that row must not block Bestellung aufgeben.
+ */
+function savedHausLabelForSubmit(
+  payload = {},
+  addressLabels = {},
+  savedAddresses = [],
+  defaultAddress = '',
+) {
+  if (!apartmentBlankOrHaus(payload[F.DELIVERY_APARTMENT])) return '';
+  const street = trimmed(payload[F.DELIVERY_ADDRESS]);
+  const choice = trimmed(payload[F.ADDRESS_CHOICE]);
+  const selected = (choice && choice !== ADDRESS_CHOICE_NEW)
+    ? trimmed(addressLabels[choice] || '')
+    : '';
+  const knownHaus = (label) => isBuildingOnlyLabel(label)
+    && isKnownSavedLabel(label, savedAddresses, defaultAddress);
+  if (selected && knownHaus(selected) && (!street || sameBuilding(street, selected))) {
+    return selected;
+  }
+  if (!street) return '';
+  const match = Object.values(addressLabels).find((label) => (
+    knownHaus(label) && addressKey(label) === addressKey(street)
+  ));
+  return trimmed(match || '');
 }
 
 /**
@@ -449,6 +496,20 @@ async function buildCheckoutReviewData({
     }
   }
 
+  const selectedLabel = addressState.addressChoice !== ADDRESS_CHOICE_NEW
+    ? trimmed(addressState.labelsByChoice[addressState.addressChoice] || '')
+    : '';
+  if (
+    selectedLabel
+    && isKnownSavedLabel(selectedLabel, savedAddresses, defaultAddress)
+    && isBuildingOnlyLabel(selectedLabel)
+    && apartmentBlankOrHaus(deliveryApartment)
+    && (!trimmed(deliveryAddress) || sameBuilding(deliveryAddress, selectedLabel))
+  ) {
+    deliveryApartment = 'Haus';
+    if (!trimmed(deliveryAddress)) deliveryAddress = selectedLabel;
+  }
+
   const specialRequests = draft.specialRequests ?? trimmed(session.specialRequests);
 
   const reviewSession = {
@@ -580,7 +641,19 @@ function composeDeliveryAddressFromFields(streetValue, apartmentValue) {
  * @param {object} payload
  * @param {Record<string, string>} [addressLabels] id → exact stored label
  */
-function resolveDeliveryAddressForSubmit(payload = {}, addressLabels = {}) {
+function resolveDeliveryAddressForSubmit(
+  payload = {},
+  addressLabels = {},
+  { savedAddresses = [], defaultAddress = '' } = {},
+) {
+  const savedHaus = savedHausLabelForSubmit(
+    payload,
+    addressLabels,
+    savedAddresses,
+    defaultAddress,
+  );
+  if (savedHaus) return { ok: true, deliveryAddress: savedHaus };
+
   const choice = trimmed(payload[F.ADDRESS_CHOICE]);
   const selectedExact = (choice && choice !== ADDRESS_CHOICE_NEW)
     ? trimmed(addressLabels[choice] || '')
@@ -624,7 +697,10 @@ function canPlaceCheckoutOrder({ customerName = '', orderType = 'pickup', delive
   return true;
 }
 
-function validateCheckoutSubmit(payload = {}, { addressLabels = {} } = {}) {
+function validateCheckoutSubmit(
+  payload = {},
+  { addressLabels = {}, savedAddresses = [], defaultAddress = '' } = {},
+) {
   if (payload.checkout_action === 'back_to_cart') {
     return { ok: true, values: null };
   }
@@ -641,7 +717,10 @@ function validateCheckoutSubmit(payload = {}, { addressLabels = {} } = {}) {
 
   let deliveryAddress = null;
   if (orderType === 'delivery') {
-    const resolved = resolveDeliveryAddressForSubmit(payload, addressLabels);
+    const resolved = resolveDeliveryAddressForSubmit(payload, addressLabels, {
+      savedAddresses,
+      defaultAddress,
+    });
     if (!resolved.ok) return resolved;
     deliveryAddress = resolved.deliveryAddress;
   }

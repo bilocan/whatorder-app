@@ -123,12 +123,29 @@ test('manage mode uses Switch so If nesting stays within Meta limits', () => {
   expect(modeSwitch.value).toBe(`\${data.${F.MANAGE_UI_MODE}}`);
   expect(modeSwitch.cases.edit.find((child) => child.type === 'Footer').label)
     .toBe(`\${data.${F.UI_MANAGE_SAVE}}`);
+  const foundOptIn = modeSwitch.cases.edit.find((child) => child.name === F.MANAGE_FOUND_APPLY);
+  expect(foundOptIn).toEqual(expect.objectContaining({
+    type: 'OptIn',
+    required: true,
+    visible: `\${data.${F.MANAGE_FOUND_VISIBLE}}`,
+    label: `\${data.${F.MANAGE_FOUND_LINE}}`,
+  }));
+  expect(foundOptIn['on-click-action']).toBeUndefined();
+  const editLink = modeSwitch.cases.edit.find(
+    (child) => child['on-click-action']?.payload?.checkout_action === 'manage_edit_link',
+  );
+  expect(editLink).toEqual(expect.objectContaining({
+    type: 'EmbeddedLink',
+    text: `\${data.${F.UI_MANAGE_EDIT_LINK}}`,
+    visible: `\${data.${F.MANAGE_EDIT_LINK_VISIBLE}}`,
+  }));
+  const editChildren = modeSwitch.cases.edit;
+  expect(editChildren.findIndex((child) => child.name === F.MANAGE_FOUND_APPLY))
+    .toBe(editChildren.findIndex((child) => child.name === F.MANAGE_SET_AS_DEFAULT) + 1);
+  expect(modeSwitch.cases.edit.find((child) => child.type === 'Footer')['on-click-action']
+    .payload[F.MANAGE_FOUND_APPLY]).toBe(`\${form.${F.MANAGE_FOUND_APPLY}}`);
   expect(modeSwitch.cases.list.find((child) => child.type === 'Footer')['on-click-action']
     .payload.checkout_action).toBe('manage_back');
-  const deleteLink = modeSwitch.cases.edit.find(
-    (child) => child['on-click-action']?.payload?.checkout_action === 'manage_delete',
-  );
-  expect(deleteLink.visible).toBe(`\${data.${F.MANAGE_DELETE_VISIBLE}}`);
   expect(modeSwitch.cases.list.find((child) => child.type === 'Footer')['on-click-action']
     .payload[F.CUSTOMER_NAME]).toBe(`\${form.${F.CUSTOMER_NAME}}`);
 });
@@ -155,6 +172,6 @@ test('unified screen stays within Meta component and link limits', () => {
   const { review, manage, cart } = modeBranches();
   expect(countNodes(review, (node) => node.type === 'EmbeddedLink').n).toBeLessThanOrEqual(2);
   expect(countNodes(cart, (node) => node.type === 'EmbeddedLink').n).toBeLessThanOrEqual(2);
-  // Delete, back, and confirm-edit sit in different branches. Same as the old manage screen.
+  // Edit has one shared link (Löschen, or Andere Adresse eingeben while a find shows) plus back.
   expect(countNodes(manage, (node) => node.type === 'EmbeddedLink').n).toBeLessThanOrEqual(3);
 });

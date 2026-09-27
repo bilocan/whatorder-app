@@ -288,6 +288,11 @@ async function addressManageScreen(id, exampleOptions) {
         type: 'string',
         '__example__': await addressHomeIconBase64(),
       },
+      [F.MANAGE_FOUND_LINE]: { type: 'string', '__example__': 'Gefunden' },
+      [F.MANAGE_FOUND_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.MANAGE_FOUND_APPLY]: { type: 'boolean', '__example__': false },
+      [F.MANAGE_EDIT_LINK_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.UI_MANAGE_EDIT_LINK]: { type: 'string', '__example__': 'Löschen' },
       // Manage writes answer on the same screen, so the failure reason needs a visible slot.
       [F.ERROR_MESSAGE]: { type: 'string', '__example__': 'Select a saved address first.' },
       [F.ERROR_VISIBLE]: { type: 'boolean', '__example__': false },
@@ -347,25 +352,6 @@ async function addressManageScreen(id, exampleOptions) {
                 text: `\${data.${F.UI_MANAGE_HINT}}`,
               },
               {
-                type: 'Image',
-                src: `\${data.${F.MANAGE_CONFIRM_PIN_IMAGE}}`,
-                width: 64,
-                height: 64,
-                'scale-type': 'contain',
-              },
-              {
-                type: 'TextCaption',
-                text: `\${data.${F.UI_MANAGE_CONFIRM_TYPED}}`,
-              },
-              {
-                type: 'TextBody',
-                text: `\${data.${F.MANAGE_CONFIRM_TYPED}}`,
-              },
-              {
-                type: 'TextCaption',
-                text: `\${data.${F.UI_MANAGE_CONFIRM_FOUND}}`,
-              },
-              {
                 type: 'TextHeading',
                 text: `\${data.${F.MANAGE_CONFIRM_BUILDING}}`,
               },
@@ -375,8 +361,12 @@ async function addressManageScreen(id, exampleOptions) {
                 visible: `\${data.${F.MANAGE_CONFIRM_UNIT_VISIBLE}}`,
               },
               {
-                type: 'TextCaption',
+                type: 'TextBody',
                 text: `\${data.${F.MANAGE_CONFIRM_LOCALITY}}`,
+              },
+              {
+                type: 'TextCaption',
+                text: `\${data.${F.MANAGE_CONFIRM_TYPED}}`,
               },
               {
                 type: 'EmbeddedLink',
@@ -433,13 +423,24 @@ async function addressManageScreen(id, exampleOptions) {
                   required: false,
                 },
                 {
+                  // No on-click-action: Meta turns that into a "Read more" link.
+                  // Required so the footer stays off until this find is accepted.
+                  type: 'OptIn',
+                  label: `\${data.${F.MANAGE_FOUND_LINE}}`,
+                  name: F.MANAGE_FOUND_APPLY,
+                  required: true,
+                  visible: `\${data.${F.MANAGE_FOUND_VISIBLE}}`,
+                },
+                {
+                  // Same slot as Löschen. While a find is showing, the label is
+                  // Andere Adresse eingeben and the server clears the form.
                   type: 'EmbeddedLink',
-                  text: `\${data.${F.UI_MANAGE_DELETE}}`,
-                  visible: `\${data.${F.MANAGE_DELETE_VISIBLE}}`,
+                  text: `\${data.${F.UI_MANAGE_EDIT_LINK}}`,
+                  visible: `\${data.${F.MANAGE_EDIT_LINK_VISIBLE}}`,
                   'on-click-action': {
                     name: 'data_exchange',
                     payload: {
-                      checkout_action: 'manage_delete',
+                      checkout_action: 'manage_edit_link',
                       ...formPayload,
                     },
                   },
@@ -463,6 +464,7 @@ async function addressManageScreen(id, exampleOptions) {
                     payload: {
                       checkout_action: 'manage_save',
                       ...formPayload,
+                      [F.MANAGE_FOUND_APPLY]: `\${form.${F.MANAGE_FOUND_APPLY}}`,
                     },
                   },
                 },
@@ -675,6 +677,7 @@ async function unifiedCheckoutScreen(exampleOptions) {
           [F.DELIVERY_ADDRESS]: `\${data.${F.DELIVERY_ADDRESS}}`,
           [F.DELIVERY_APARTMENT]: `\${data.${F.DELIVERY_APARTMENT}}`,
           [F.MANAGE_SET_AS_DEFAULT]: false,
+          [F.MANAGE_FOUND_APPLY]: `\${data.${F.MANAGE_FOUND_APPLY}}`,
           [F.REMOVE_MODE]: `\${data.${F.FORM_INIT_VALUES}.${F.REMOVE_MODE}}`,
         },
         children,

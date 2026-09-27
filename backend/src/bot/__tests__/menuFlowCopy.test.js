@@ -44,8 +44,8 @@ describe('menuFlowCopy', () => {
       .toBe('Gespeicherte Adressen (3/5)');
     expect(checkoutManageCopy('en')[F.UI_MANAGE_EDIT_CAPTION]).toBe('Edit the selected address');
     expect(checkoutManageCopy('de')[F.UI_MANAGE_SET_DEFAULT]).toBe('Als Standardadresse speichern');
-    expect(checkoutManageCopy('de')[F.UI_MANAGE_CONFIRM_YES]).toBe('Ja');
-    expect(checkoutManageCopy('tr')[F.UI_MANAGE_CONFIRM_EDIT]).toBe('Düzenle');
+    expect(checkoutManageCopy('de')[F.UI_MANAGE_CONFIRM_YES]).toBe('Speichern');
+    expect(checkoutManageCopy('tr')[F.UI_MANAGE_CONFIRM_EDIT]).toBe('Yeniden yaz');
     expect(checkoutReviewCopy('de')[F.UI_ADDRESS_HELPER])
       .toBe('Straße und Hausnummer (z. B. Lavaterstrasse 3)');
   });
