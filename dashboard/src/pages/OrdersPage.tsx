@@ -8,6 +8,7 @@ import type { Order, OrderStatus } from '../types';
 import { toDate } from '../types';
 import { paymentBadge } from '../lib/paymentBadge';
 import { shortId } from '../lib/shortId';
+import { printOrderBeleg } from '../lib/printOrderBeleg';
 import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
 import { getActivePhoneNumberId } from '../lib/activePhoneNumberId';
 import {
@@ -595,13 +596,66 @@ export default function OrdersPage() {
             {showKitchenPaymentHint(openOrder) && (
               <p className="order-detail-error">{t('orderDetail.paymentRequiredHint')}</p>
             )}
-            <Link
-              className="kitchen-modal-full"
-              to={orderHref(openOrder.id)}
-              onClick={() => setOpenOrderId(null)}
-            >
-              {t('orders.board.openFull')}
-            </Link>
+            <div className="kitchen-modal-footer">
+              <button
+                type="button"
+                className="kitchen-beleg-print"
+                onClick={() => {
+                  const pay = paymentBadge(openOrder, t);
+                  const adjustments: string[] = [];
+                  if (Number(openOrder.discount) > 0) {
+                    adjustments.push(t('orderDetail.discount', {
+                      label: openOrder.discountLabel || t('orderDetail.discountFallback'),
+                      amount: Number(openOrder.discount).toFixed(2),
+                    }));
+                  }
+                  if (openOrder.orderType === 'delivery' && openOrder.deliveryFee) {
+                    adjustments.push(t('orderDetail.deliveryFee', {
+                      fee: openOrder.deliveryFee.toFixed(2),
+                    }));
+                  }
+                  printOrderBeleg({
+                    code: shortId(openOrder.id),
+                    customerName: openOrder.customerName,
+                    customerPhone: openOrder.customerPhone,
+                    orderedAt: toDate(openOrder.createdAt).toLocaleString('de-AT', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }),
+                    fulfillment: openOrder.orderType === 'delivery' ? t('orders.delivery') : undefined,
+                    address: openOrder.orderType === 'delivery' ? openOrder.deliveryAddress : undefined,
+                    lines: openOrder.items.map((item) => ({
+                      label: `${item.qty}× ${item.name}`,
+                      amount: `€${(item.price * item.qty).toFixed(2)}`,
+                    })),
+                    adjustments,
+                    totalLabel: t('orders.col.total'),
+                    totalAmount: `€${openOrder.total.toFixed(2)}`,
+                    notes: openOrder.notes
+                      ? t('orderDetail.note', { note: openOrder.notes })
+                      : undefined,
+                    payment: pay.label,
+                  });
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 8V3.5h10V8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M7 17H5.5A2.5 2.5 0 0 1 3 14.5v-4A2.5 2.5 0 0 1 5.5 8h13A2.5 2.5 0 0 1 21 10.5v4a2.5 2.5 0 0 1-2.5 2.5H17" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M7 13.5h10V21H7z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {t('orders.board.printBeleg')}
+              </button>
+              <Link
+                className="kitchen-modal-full"
+                to={orderHref(openOrder.id)}
+                onClick={() => setOpenOrderId(null)}
+              >
+                {t('orders.board.openFull')}
+              </Link>
+            </div>
           </div>
         </div>
       )}

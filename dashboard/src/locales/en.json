@@ -57,6 +57,7 @@
       "close": "✕ Close",
       "waitingSince": "Waiting since order placed",
       "openFull": "Open full order details",
+      "printBeleg": "Print receipt",
       "terminal": "This order is {{status}} — no further action.",
       "col": {
         "new": "New",

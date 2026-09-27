@@ -5,10 +5,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import OrdersPage from '../pages/OrdersPage'
 import { localDayKey } from '../lib/orderBoardColumns'
 
-const { mockUseAuth, mockOnSnapshot, mockPostOrderAction } = vi.hoisted(() => ({
+const { mockUseAuth, mockOnSnapshot, mockPostOrderAction, mockPrintOrderBeleg } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
   mockOnSnapshot: vi.fn(),
   mockPostOrderAction: vi.fn(),
+  mockPrintOrderBeleg: vi.fn(),
 }))
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: mockUseAuth }))
@@ -18,6 +19,9 @@ vi.mock('firebase/firestore', () => ({
   query: vi.fn(() => 'mock-query'),
   orderBy: vi.fn(),
   onSnapshot: mockOnSnapshot,
+}))
+vi.mock('../lib/printOrderBeleg', () => ({
+  printOrderBeleg: mockPrintOrderBeleg,
 }))
 vi.mock('../lib/orderActions', async () => {
   const actual = await vi.importActual<typeof import('../lib/orderActions')>('../lib/orderActions')
@@ -235,6 +239,13 @@ describe('OrdersPage', () => {
       'href',
       '/orders/o1',
     )
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
+    expect(mockPrintOrderBeleg).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'O1',
+      customerName: 'Ali Veli',
+      lines: [{ label: '2× Döner', amount: '€17.00' }],
+      totalAmount: '€17.00',
+    }))
   })
 
   it('runs the primary quick action from a card', async () => {
