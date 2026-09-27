@@ -190,7 +190,31 @@ async function setDefaultCustomerAddress({ phone, businessId, label }) {
   });
 }
 
-async function deleteCustomerAddress({ phone, businessId, label }) {
+/**
+ * `retainLabels` is the manage list the customer can see, without the deleted row.
+ * Addresses stored past the 5-row cap are not in that list, so they are dropped
+ * instead of sliding into the freed slot.
+ */
+function remainingAfterDelete(profile, exact, retainLabels) {
+  if (!Array.isArray(retainLabels)) {
+    return profile.savedAddresses.filter((addr) => addr !== exact);
+  }
+
+  const known = mutableLabels(profile);
+  const remaining = [];
+  const seen = new Set();
+  for (const raw of retainLabels) {
+    const match = findExactLabel(known, raw);
+    if (!match || match === exact) continue;
+    const key = match.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    remaining.push(match);
+  }
+  return remaining;
+}
+
+async function deleteCustomerAddress({ phone, businessId, label, retainLabels = null }) {
   return guarded(async () => {
     const profile = await loadCustomerDoc(phone, businessId);
     const exact = findExactLabel(mutableLabels(profile), label);
@@ -198,12 +222,16 @@ async function deleteCustomerAddress({ phone, businessId, label }) {
       return { ok: false, errorKey: 'confirmFlowErrorManageSelect' };
     }
 
-    const remaining = profile.savedAddresses.filter((addr) => addr !== exact);
+    const remaining = remainingAfterDelete(profile, exact, retainLabels);
     const patch = { savedAddresses: remaining };
+    // A missing star stays missing. Promote only when the deleted row was the default.
+    const deletedWasDefault = profile.lastDeliveryAddress === exact;
 
-    if (profile.lastDeliveryAddress === exact) {
+    if (deletedWasDefault) {
+      // Visible list is default-first, so the next shown row becomes the star.
+      // Without retainLabels, keep the previous newest-remaining rule.
       patch.lastDeliveryAddress = remaining.length > 0
-        ? remaining[remaining.length - 1]
+        ? (Array.isArray(retainLabels) ? remaining[0] : remaining[remaining.length - 1])
         : null;
     }
 

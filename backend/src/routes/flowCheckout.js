@@ -189,23 +189,35 @@ async function applyAddressFromManageReturn({
     choiceId = choice;
   }
 
+  const sessionAddr = trimmedName(session.deliveryAddress);
+  const pendingAddr = trimmedName(session.pendingOrderAddress);
+  if (!label && !sessionAddr && pendingAddr && validProfileAddresses(profile).includes(normalizedAddress(pendingAddr))) {
+    // Saved while this order had no address. Zurück should carry that label onto Prüfen.
+    label = pendingAddr;
+  }
+
   if (!label) {
     const defaultAddr = trimmedName(profile.lastDeliveryAddress);
-    const sessionAddr = trimmedName(session.deliveryAddress);
-    if (defaultAddr && defaultAddr.toLowerCase() !== sessionAddr.toLowerCase()) {
+    // A deleted order address stays empty. The star replaces an address only while one is still set.
+    if (sessionAddr && defaultAddr && defaultAddr.toLowerCase() !== sessionAddr.toLowerCase()) {
       label = defaultAddr;
     }
   }
 
-  if (!label) return session;
+  if (!label) {
+    if (!pendingAddr) return session;
+    await ref.set({ pendingOrderAddress: null, updatedAt: new Date() }, { merge: true });
+    return { ...session, pendingOrderAddress: null };
+  }
 
-  const sessionAddr = trimmedName(session.deliveryAddress);
   const draftAddr = trimmedName(session.confirmFlowDraft?.deliveryAddress);
   if (
     sessionAddr.toLowerCase() === label.toLowerCase()
     && (!draftAddr || draftAddr.toLowerCase() === label.toLowerCase())
   ) {
-    return session;
+    if (!pendingAddr) return session;
+    await ref.set({ pendingOrderAddress: null, updatedAt: new Date() }, { merge: true });
+    return { ...session, pendingOrderAddress: null };
   }
 
   const parts = splitDeliveryAddressFields(label);
@@ -226,11 +238,13 @@ async function applyAddressFromManageReturn({
     deliveryAddress: label,
     orderType: 'delivery',
     confirmFlowDraft: draft,
+    pendingOrderAddress: null,
   };
   await ref.set({
     deliveryAddress: label,
     orderType: 'delivery',
     confirmFlowDraft: draft,
+    pendingOrderAddress: null,
     updatedAt: new Date(),
   }, { merge: true });
   return next;
@@ -444,6 +458,48 @@ function cleanAddressDraft(draft, profile, fallbackAddress) {
   return Object.keys(cleaned).length ? cleaned : null;
 }
 
+function stripDraftAddress(draft) {
+  if (!draft || typeof draft !== 'object') return null;
+  const cleaned = { ...draft };
+  delete cleaned.deliveryAddress;
+  delete cleaned.deliveryApartment;
+  delete cleaned.addressChoice;
+  return Object.keys(cleaned).length ? cleaned : null;
+}
+
+/** Drop the deleted label from this order. Do not substitute another saved row. */
+async function clearOrderAddressIfDeleted({ session, ref, deletedLabel }) {
+  const deleted = normalizedAddress(deletedLabel);
+  if (!deleted) return session;
+
+  const patch = {};
+  if (normalizedAddress(session.deliveryAddress) === deleted) {
+    patch.deliveryAddress = null;
+  }
+  if (normalizedAddress(session.pendingOrderAddress) === deleted) {
+    patch.pendingOrderAddress = null;
+  }
+
+  const draft = session.confirmFlowDraft;
+  if (draft && typeof draft === 'object') {
+    const draftAddress = normalizedAddress(draftDeliveryAddress(draft, ''));
+    const draftStreet = normalizedAddress(draft.deliveryAddress);
+    if (draftAddress === deleted || draftStreet === deleted) {
+      const next = { ...draft };
+      delete next.deliveryAddress;
+      delete next.deliveryApartment;
+      delete next.addressChoice;
+      patch.confirmFlowDraft = Object.keys(next).length ? next : null;
+    }
+  }
+
+  if (!Object.keys(patch).length) return session;
+
+  patch.updatedAt = new Date();
+  await ref.set(patch, { merge: true });
+  return { ...session, ...patch };
+}
+
 async function buildReviewReturnResponse({
   screen,
   profile,
@@ -457,17 +513,28 @@ async function buildReviewReturnResponse({
     ? session.deliveryAddress.trim()
     : '';
   const validAddresses = validProfileAddresses(profile);
-  const shouldClearDeliveryAddress = currentAddress
-    && !validAddresses.includes(normalizedAddress(currentAddress));
-  const confirmFlowDraft = cleanAddressDraft(
-    session.confirmFlowDraft,
-    profile,
-    currentAddress,
-  );
+  const bookEmpty = validAddresses.length === 0;
+  const shouldClearDeliveryAddress = bookEmpty
+    || (currentAddress && !validAddresses.includes(normalizedAddress(currentAddress)));
+  let confirmFlowDraft = bookEmpty
+    ? stripDraftAddress(session.confirmFlowDraft)
+    : cleanAddressDraft(session.confirmFlowDraft, profile, currentAddress);
+  const orderAddress = shouldClearDeliveryAddress ? '' : currentAddress;
+  const showBlankAddress = !String(orderAddress || '').trim();
+  // Other saved rows stay in the book. They must not become the order address.
+  if (showBlankAddress && !bookEmpty) {
+    const draft = confirmFlowDraft && typeof confirmFlowDraft === 'object'
+      ? { ...confirmFlowDraft }
+      : {};
+    draft.deliveryAddress = '';
+    draft.deliveryApartment = '';
+    draft.addressChoice = ADDRESS_CHOICE_NEW;
+    confirmFlowDraft = draft;
+  }
   const patch = {
     confirmFlowDraft,
     updatedAt: new Date(),
-    ...(shouldClearDeliveryAddress ? { deliveryAddress: null } : {}),
+    ...(shouldClearDeliveryAddress || showBlankAddress ? { deliveryAddress: null } : {}),
   };
   await ref.set(patch, { merge: true });
 
@@ -475,14 +542,9 @@ async function buildReviewReturnResponse({
     ...session,
     ...patch,
   };
-  const preferredProfileAddress = String(
-    profile.lastDeliveryAddress || profile.savedAddresses?.[0] || '',
-  ).trim();
   const reviewSession = {
     ...patchedSession,
-    deliveryAddress: shouldClearDeliveryAddress
-      ? preferredProfileAddress
-      : currentAddress,
+    deliveryAddress: orderAddress,
   };
   const info = await getBusinessInfo(businessId);
   const basket = reviewSession.basket ?? [];
@@ -503,6 +565,7 @@ async function buildReviewReturnResponse({
       lang: reviewSession.language || 'de',
       profile,
       deal: totals.deal,
+      keepNewAddress: showBlankAddress,
     }),
   };
 }
@@ -1422,43 +1485,25 @@ async function dispatchCheckoutExchange({
       });
     }
 
-    const nextScreen = nextScreenAfterManageWrite(screen);
+    if (!trimmedName(session.deliveryAddress)) {
+      await ref.set({ pendingOrderAddress: label, updatedAt: new Date() }, { merge: true });
+    }
+
     const nextProfile = {
       savedAddresses: result.savedAddresses,
       lastDeliveryAddress: result.lastDeliveryAddress,
       customerName: result.customerName ?? profile.customerName ?? null,
     };
-    // Confirmed label wins for this order (may not be profile default yet).
-    const preferredLabel = label || result.lastDeliveryAddress || null;
-    const withAddress = await applyAddressFromManageReturn({
-      payload,
-      profile: nextProfile,
-      session,
-      ref,
-      lang,
-      preferredLabel,
-    });
-    if (nextScreen === S.CHECKOUT_REVIEW_RETURN
-      || nextScreen === S.CHECKOUT_REVIEW_DONE) {
-      return buildReviewReturnResponse({
-        screen: nextScreen,
-        profile: nextProfile,
-        session: withAddress,
-        ref,
-        version,
-        businessId,
-        phone,
-      });
-    }
+    // Ja stays on Profil. If this order had no address, Zurück copies the saved label onto Prüfen.
     return manageResponse({
-      screen: nextScreen,
+      screen,
       profile: nextProfile,
       lang,
       version,
       payload: {
-        [F.MANAGE_ADDRESS_CHOICE]: pending?.choice || payload[F.MANAGE_ADDRESS_CHOICE],
+        [F.CUSTOMER_NAME]: payload[F.CUSTOMER_NAME],
       },
-      editVisible: true,
+      editVisible: false,
     });
   }
 
@@ -1596,10 +1641,13 @@ async function dispatchCheckoutExchange({
         label: exactLabel,
       });
     } else {
+      // Only the rows on screen stay. A 6th stored address must not refill (5/5).
+      const visibleLabels = Object.values(labels);
       result = await deleteCustomerAddress({
         phone,
         businessId,
         label: exactLabel,
+        retainLabels: visibleLabels.filter((label) => label !== exactLabel),
       });
     }
 
@@ -1617,17 +1665,35 @@ async function dispatchCheckoutExchange({
 
     await ref.set({ flowManageAddressConfirm: null, updatedAt: new Date() }, { merge: true });
 
-    const nextScreen = nextScreenAfterManageWrite(screen);
     const nextProfile = {
       savedAddresses: result.savedAddresses,
       lastDeliveryAddress: result.lastDeliveryAddress,
       customerName: result.customerName ?? workingProfile.customerName ?? null,
     };
+
+    // Löschen stays on Profil. It must not open Bestellung prüfen or fill a replacement address.
+    if (action === 'manage_delete') {
+      await clearOrderAddressIfDeleted({
+        session: workingSession,
+        ref,
+        deletedLabel: exactLabel,
+      });
+      return manageResponse({
+        screen,
+        profile: nextProfile,
+        lang,
+        version,
+        payload: {
+          [F.CUSTOMER_NAME]: payload[F.CUSTOMER_NAME],
+        },
+        editVisible: false,
+      });
+    }
+
+    const nextScreen = nextScreenAfterManageWrite(screen);
     // Order address = selected/saved row. Do not prefer stale profile default over exactLabel
     // (keep another saved row) or over a new address that is not yet lastDeliveryAddress.
-    const preferredLabel = action === 'manage_delete'
-      ? (result.lastDeliveryAddress || null)
-      : (savedLabel || exactLabel || result.lastDeliveryAddress || null);
+    const preferredLabel = savedLabel || exactLabel || result.lastDeliveryAddress || null;
     const withAddress = await applyAddressFromManageReturn({
       payload,
       profile: nextProfile,

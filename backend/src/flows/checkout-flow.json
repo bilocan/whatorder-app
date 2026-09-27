@@ -177,6 +177,10 @@
           "type": "string",
           "__example__": "Please ring the bell."
         },
+        "place_order_enabled": {
+          "type": "boolean",
+          "__example__": true
+        },
         "ui_manage_screen_title": {
           "type": "string",
           "__example__": "Profile"
@@ -871,6 +875,7 @@
                       {
                         "type": "Footer",
                         "label": "${data.ui_place_order}",
+                        "enabled": "${data.place_order_enabled}",
                         "on-click-action": {
                           "name": "complete",
                           "payload": {
