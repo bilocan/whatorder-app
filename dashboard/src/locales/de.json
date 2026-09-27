@@ -57,6 +57,8 @@
       "close": "✕ Schließen",
       "waitingSince": "Wartet seit Bestellung",
       "openFull": "Vollständige Bestelldetails öffnen",
+      "printBeleg": "Beleg drucken",
+      "paidViaCard": "Bezahlt per Karte",
       "terminal": "Diese Bestellung ist {{status}} — keine weitere Aktion.",
       "col": {
         "new": "Neu",

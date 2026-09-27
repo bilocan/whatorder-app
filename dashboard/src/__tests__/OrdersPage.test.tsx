@@ -1,24 +1,35 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import OrdersPage from '../pages/OrdersPage'
 import { localDayKey } from '../lib/orderBoardColumns'
 
-const { mockUseAuth, mockOnSnapshot, mockPostOrderAction } = vi.hoisted(() => ({
+const { mockUseAuth, mockOnSnapshot, mockPostOrderAction, mockPrintOrderBeleg, mockGetDoc } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
   mockOnSnapshot: vi.fn(),
   mockPostOrderAction: vi.fn(),
+  mockPrintOrderBeleg: vi.fn(),
+  mockGetDoc: vi.fn(),
 }))
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: mockUseAuth }))
 vi.mock('../lib/firebase', () => ({ db: {} }))
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
+  doc: vi.fn(),
   query: vi.fn(() => 'mock-query'),
   orderBy: vi.fn(),
   onSnapshot: mockOnSnapshot,
+  getDoc: mockGetDoc,
 }))
+vi.mock('../lib/printOrderBeleg', async () => {
+  const actual = await vi.importActual<typeof import('../lib/printOrderBeleg')>('../lib/printOrderBeleg')
+  return {
+    ...actual,
+    printOrderBeleg: mockPrintOrderBeleg,
+  }
+})
 vi.mock('../lib/orderActions', async () => {
   const actual = await vi.importActual<typeof import('../lib/orderActions')>('../lib/orderActions')
   return {
@@ -91,6 +102,14 @@ describe('OrdersPage', () => {
     vi.stubEnv('VITE_WHATSAPP_PHONE_NUMBER_ID', '')
     mockUseAuth.mockReturnValue({ businessId: 'biz-1' })
     mockPostOrderAction.mockResolvedValue({ ok: true, nextStatus: 'approved' })
+    mockGetDoc.mockResolvedValue({
+      exists: () => true,
+      data: () => ({
+        name: 'Enes Kebap',
+        address: 'Huttengasse 41, 1160 Wien',
+        alertPhone: '+43 660 111111',
+      }),
+    })
   })
 
   it('shows empty state when there are no orders for the day', () => {
@@ -235,6 +254,21 @@ describe('OrdersPage', () => {
       'href',
       '/orders/o1',
     )
+    await waitFor(() => expect(mockGetDoc).toHaveBeenCalled())
+    await act(async () => {
+      await mockGetDoc.mock.results[0]?.value
+    })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
+    await waitFor(() => expect(mockPrintOrderBeleg).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'O1',
+      customerName: 'Ali Veli',
+      restaurantName: 'Enes Kebap',
+      restaurantAddress: 'Huttengasse 41, 1160 Wien',
+      restaurantPhone: '+43 660 111111',
+      lines: [{ label: '2× Döner', amount: '€17.00' }],
+      totalAmount: '€17.00',
+      payment: 'Cash',
+    })))
   })
 
   it('runs the primary quick action from a card', async () => {

@@ -898,9 +898,39 @@ button:focus-visible {
   color: var(--text-quiet);
   margin: 0.75rem 0 0;
 }
+.kitchen-modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-top: 1rem;
+}
+.kitchen-beleg-print {
+  display: inline-flex;
+  flex: 1 1 12rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 3rem;
+  padding: 0.75rem 1.1rem;
+  background: var(--text-strong);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.kitchen-beleg-print:hover {
+  background: #222;
+}
+.kitchen-beleg-print svg {
+  flex-shrink: 0;
+}
 .kitchen-modal-full {
   display: inline-block;
-  margin-top: 1rem;
+  flex: 1 1 12rem;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--green-600);
