@@ -330,6 +330,7 @@ async function addressManageScreen(id, exampleOptions) {
               name: 'data_exchange',
               payload: {
                 checkout_action: 'select_address',
+                [F.CUSTOMER_NAME]: `\${form.${F.CUSTOMER_NAME}}`,
                 [F.MANAGE_ADDRESS_CHOICE]: `\${form.${F.MANAGE_ADDRESS_CHOICE}}`,
                 [F.MANAGE_SET_AS_DEFAULT]: `\${form.${F.MANAGE_SET_AS_DEFAULT}}`,
               },
