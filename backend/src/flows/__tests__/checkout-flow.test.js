@@ -100,6 +100,7 @@ test('place order payload binds name and address from data (not form)', () => {
   const { review } = modeBranches();
   const footer = review.find((child) => child.type === 'Footer');
   expect(footer['on-click-action'].name).toBe('complete');
+  expect(footer.enabled).toBe(`\${data.${F.PLACE_ORDER_ENABLED}}`);
   expect(footer['on-click-action'].payload[F.CUSTOMER_NAME]).toBe(`\${data.${F.CUSTOMER_NAME}}`);
   expect(footer['on-click-action'].payload[F.DELIVERY_ADDRESS]).toBe(`\${data.${F.DELIVERY_ADDRESS}}`);
   expect(footer['on-click-action'].payload[F.ADDRESS_CHOICE]).toBe(`\${data.${F.ADDRESS_CHOICE}}`);

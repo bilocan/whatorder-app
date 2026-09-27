@@ -888,11 +888,55 @@ test('manage_save with OptIn set-as-default calls setDefault after save', async 
   expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
 });
 
-test('manage_delete returning to review clears deleted session and draft address fields', async () => {
+test('manage_delete stays on the profile list and does not replace the order address', async () => {
   const { ref } = mockSession({
+    deliveryAddress: 'Hippgasse 11, 1160 Wien',
     confirmFlowDraft: {
       customerName: 'Alex',
       deliveryAddress: 'Hippgasse 11, 1160 Wien',
+      deliveryApartment: 'Top 14',
+      addressChoice: 'addr_0',
+      specialRequests: 'Ring twice',
+    },
+  });
+  deleteCustomerAddress.mockResolvedValue({
+    ok: true,
+    savedAddresses: [ADDRESS_1],
+    lastDeliveryAddress: ADDRESS_1,
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE_UPDATED, {
+    checkout_action: 'manage_delete',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.MANAGE_ADDRESS_CHOICE]: 'addr_1',
+  });
+
+  expect(deleteCustomerAddress).toHaveBeenCalledWith({
+    phone: PHONE,
+    businessId: BUSINESS_ID,
+    label: ADDRESS_2,
+    retainLabels: [ADDRESS_1],
+  });
+  expect(response.screen).toBe(S.ADDRESS_MANAGE_UPDATED);
+  expect(response.data[F.MANAGE_UI_MODE]).toBe('list');
+  expect(response.data[F.UI_MANAGE_HINT]).toBe('Saved addresses (1/5)');
+  expect(response.data[F.MANAGE_ADDRESS_OPTIONS]).toHaveLength(2);
+  expect(ref.set).not.toHaveBeenCalledWith(
+    expect.objectContaining({ deliveryAddress: ADDRESS_2 }),
+    expect.anything(),
+  );
+  expect(ref.set).not.toHaveBeenCalledWith(
+    expect.objectContaining({ deliveryAddress: ADDRESS_1 }),
+    expect.anything(),
+  );
+});
+
+test('manage_delete clears the order address when that row is the one removed', async () => {
+  const { ref } = mockSession({
+    deliveryAddress: ADDRESS_1,
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      deliveryAddress: ADDRESS_1,
       deliveryApartment: 'Top 14',
       addressChoice: 'addr_0',
       specialRequests: 'Ring twice',
@@ -904,7 +948,55 @@ test('manage_delete returning to review clears deleted session and draft address
     lastDeliveryAddress: ADDRESS_2,
   });
 
-  const response = await exchange(S.ADDRESS_MANAGE_UPDATED, {
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'manage',
+    checkout_action: 'manage_delete',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.MANAGE_ADDRESS_CHOICE]: 'addr_0',
+  });
+
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(response.data[F.CHECKOUT_UI_MODE]).toBe('manage');
+  expect(response.data[F.MANAGE_UI_MODE]).toBe('list');
+  expect(response.data[F.UI_MANAGE_HINT]).toBe('Saved addresses (1/5)');
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({
+      deliveryAddress: null,
+      confirmFlowDraft: expect.objectContaining({
+        customerName: 'Alex',
+        specialRequests: 'Ring twice',
+      }),
+    }),
+    { merge: true },
+  );
+  const clearedDraft = ref.set.mock.calls
+    .map(([patch]) => patch.confirmFlowDraft)
+    .find((draft) => draft && draft.customerName === 'Alex');
+  expect(clearedDraft.deliveryAddress).toBeUndefined();
+  expect(clearedDraft.deliveryApartment).toBeUndefined();
+});
+
+test('manage_delete keeps only the rows that were on screen', async () => {
+  const visible = [
+    ADDRESS_2,
+    'Street 3, Top 3, 1030 Wien',
+    'Street 4, Top 4, 1040 Wien',
+    'Street 5, Top 5, 1050 Wien',
+  ];
+  const hidden = 'Hidden Street 9, Top 1, 1010 Wien';
+  loadCustomerAddresses.mockResolvedValue({
+    savedAddresses: [ADDRESS_1, ...visible, hidden],
+    lastDeliveryAddress: ADDRESS_1,
+    customerName: 'Alex',
+  });
+  deleteCustomerAddress.mockResolvedValue({
+    ok: true,
+    savedAddresses: visible,
+    lastDeliveryAddress: visible[0],
+  });
+
+  await exchange(S.ADDRESS_MANAGE, {
     checkout_action: 'manage_delete',
     [F.MANAGE_ADDRESS_CHOICE]: 'addr_0',
   });
@@ -913,21 +1005,8 @@ test('manage_delete returning to review clears deleted session and draft address
     phone: PHONE,
     businessId: BUSINESS_ID,
     label: ADDRESS_1,
+    retainLabels: visible,
   });
-  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
-  expect(response.data[F.DELIVERY_ADDRESS]).toBe(ADDRESS_2);
-  expect(ref.set).toHaveBeenCalledWith(
-    expect.objectContaining({
-      deliveryAddress: ADDRESS_2,
-      orderType: 'delivery',
-      confirmFlowDraft: expect.objectContaining({
-        customerName: 'Alex',
-        deliveryAddress: ADDRESS_2,
-        specialRequests: 'Ring twice',
-      }),
-    }),
-    { merge: true },
-  );
 });
 
 test('manage_delete acts on a lastDeliveryAddress-only row', async () => {
@@ -950,8 +1029,168 @@ test('manage_delete acts on a lastDeliveryAddress-only row', async () => {
     phone: PHONE,
     businessId: BUSINESS_ID,
     label: ADDRESS_1,
+    retainLabels: [],
   });
-  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
+  expect(response.screen).toBe(S.ADDRESS_MANAGE);
+  expect(response.data[F.MANAGE_UI_MODE]).toBe('list');
+  expect(response.data[F.UI_MANAGE_HINT]).toBe('Saved addresses (0/5)');
+});
+
+test('manage_back with an empty address book drops a leftover order address', async () => {
+  const { ref } = mockSession({
+    deliveryAddress: null,
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      deliveryAddress: 'Lavaterstraße 3, 1220 Wien',
+      deliveryApartment: '',
+      addressChoice: 'addr_0',
+      specialRequests: 'Ring twice',
+    },
+  });
+  loadCustomerAddresses.mockResolvedValue({
+    savedAddresses: [],
+    lastDeliveryAddress: null,
+    customerName: 'Alex',
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'manage',
+    checkout_action: 'manage_back',
+    [F.CUSTOMER_NAME]: 'Alex',
+  });
+
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(response.data[F.CHECKOUT_UI_MODE]).toBe('review');
+  expect(response.data[F.DELIVERY_ADDRESS]).toBe('');
+  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('No address — tap Address & profile.');
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({
+      deliveryAddress: null,
+      confirmFlowDraft: expect.objectContaining({
+        customerName: 'Alex',
+        specialRequests: 'Ring twice',
+      }),
+    }),
+    { merge: true },
+  );
+  const clearedDraft = ref.set.mock.calls
+    .map(([patch]) => patch.confirmFlowDraft)
+    .find((draft) => draft && draft.customerName === 'Alex');
+  expect(clearedDraft.deliveryAddress).toBeUndefined();
+  expect(clearedDraft.addressChoice).toBeUndefined();
+});
+
+test('manage_back after deleting the order address does not fill the first saved row', async () => {
+  const { ref } = mockSession({
+    deliveryAddress: null,
+    orderType: 'delivery',
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      specialRequests: 'Ring twice',
+    },
+  });
+  loadCustomerAddresses.mockResolvedValue({
+    savedAddresses: [ADDRESS_2, ADDRESS_1],
+    lastDeliveryAddress: ADDRESS_2,
+    customerName: 'Alex',
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'manage',
+    checkout_action: 'manage_back',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.MANAGE_ADDRESS_CHOICE]: '',
+  });
+
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(response.data[F.CHECKOUT_UI_MODE]).toBe('review');
+  expect(response.data[F.DELIVERY_ADDRESS]).toBe('');
+  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('No address — tap Address & profile.');
+  expect(response.data[F.PLACE_ORDER_ENABLED]).toBe(false);
+  expect(ref.set).not.toHaveBeenCalledWith(
+    expect.objectContaining({ deliveryAddress: ADDRESS_2 }),
+    expect.anything(),
+  );
+  expect(ref.set).not.toHaveBeenCalledWith(
+    expect.objectContaining({ deliveryAddress: ADDRESS_1 }),
+    expect.anything(),
+  );
+});
+
+test('manage_confirm_accept remembers a saved address when the order has none', async () => {
+  const saved = 'Lavaterstraße 3, Top 4, 1220 Wien';
+  const { ref } = mockSession({
+    deliveryAddress: null,
+    orderType: 'delivery',
+    confirmFlowDraft: { customerName: 'Alex', orderType: 'delivery' },
+    flowManageAddressConfirm: {
+      label: saved,
+      choice: 'addr_new',
+      setDefault: false,
+    },
+  });
+  saveCustomerAddress.mockResolvedValue({
+    ok: true,
+    savedAddresses: [saved],
+    lastDeliveryAddress: null,
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'manage',
+    checkout_action: 'manage_confirm_accept',
+  });
+
+  expect(response.data[F.CHECKOUT_UI_MODE]).toBe('manage');
+  expect(response.data[F.MANAGE_UI_MODE]).toBe('list');
+  expect(ref.set).toHaveBeenCalledWith({
+    pendingOrderAddress: saved,
+    updatedAt: expect.any(Date),
+  }, { merge: true });
+  expect(ref.set).not.toHaveBeenCalledWith(
+    expect.objectContaining({ deliveryAddress: saved }),
+    expect.anything(),
+  );
+});
+
+test('manage_back puts a just-saved address on an empty order', async () => {
+  const saved = 'Lavaterstraße 3, Top 4, 1220 Wien';
+  const { ref } = mockSession({
+    deliveryAddress: null,
+    orderType: 'delivery',
+    pendingOrderAddress: saved,
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      specialRequests: 'Ring twice',
+    },
+  });
+  loadCustomerAddresses.mockResolvedValue({
+    savedAddresses: [saved, ADDRESS_2],
+    lastDeliveryAddress: ADDRESS_2,
+    customerName: 'Alex',
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'manage',
+    checkout_action: 'manage_back',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.MANAGE_ADDRESS_CHOICE]: '',
+  });
+
+  expect(response.data[F.CHECKOUT_UI_MODE]).toBe('review');
+  expect(response.data[F.DELIVERY_ADDRESS]).toBe(saved);
+  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe(saved);
+  expect(response.data[F.PLACE_ORDER_ENABLED]).toBe(true);
+  expect(ref.set).toHaveBeenCalledWith(
+    expect.objectContaining({
+      deliveryAddress: saved,
+      pendingOrderAddress: null,
+    }),
+    { merge: true },
+  );
 });
 
 test('manage_back applies the selected saved address on review', async () => {
@@ -1291,7 +1530,10 @@ test('manage_confirm_accept saves the pending normalized label', async () => {
   });
 
   const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'manage',
     checkout_action: 'manage_confirm_accept',
+    [F.CUSTOMER_NAME]: 'Alex',
   });
 
   expect(saveCustomerAddress).toHaveBeenCalledWith({
@@ -1309,14 +1551,16 @@ test('manage_confirm_accept saves the pending normalized label', async () => {
     flowManageAddressConfirm: null,
     updatedAt: expect.any(Date),
   }, { merge: true });
-  expect(ref.set).toHaveBeenCalledWith(
+  expect(ref.set).not.toHaveBeenCalledWith(
     expect.objectContaining({
-      deliveryAddress: 'Lavaterstraße 3, Top 4, 1220 Wien',
+      deliveryAddress: expect.anything(),
     }),
     { merge: true },
   );
-  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
-  expect(response.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('Lavaterstraße 3, Top 4, 1220 Wien');
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(response.data[F.CHECKOUT_UI_MODE]).toBe('manage');
+  expect(response.data[F.MANAGE_UI_MODE]).toBe('list');
+  expect(response.data[F.CUSTOMER_NAME]).toBe('Alex');
 });
 
 test('manage_confirm_reject returns to edit with original fields', async () => {

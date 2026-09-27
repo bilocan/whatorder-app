@@ -103,6 +103,8 @@ const FIELDS = {
   UI_REMOVE_SELECTED:  'ui_remove_selected',
   UI_ADD_MORE:         'ui_add_more',
   UI_PLACE_ORDER:      'ui_place_order',
+  // Bestellung aufgeben stays disabled until name (and, for Lieferung, address) is filled.
+  PLACE_ORDER_ENABLED: 'place_order_enabled',
 
   // CHECKOUT_REVIEW
   RECEIPT_TEXT:       'receipt_text',

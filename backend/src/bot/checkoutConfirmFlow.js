@@ -466,6 +466,11 @@ async function buildCheckoutReviewData({
     trimmed(deliveryAddress) || trimmed(reviewDeliveryAddress) || '',
   );
   const addressDisplay = displayAddress || t('confirmFlowAddressEmpty', lang);
+  const placeOrderEnabled = canPlaceCheckoutOrder({
+    customerName,
+    orderType,
+    deliveryAddress: displayAddress,
+  });
 
   return {
     [F.RECEIPT_TEXT]: buildReceiptText({
@@ -489,6 +494,7 @@ async function buildCheckoutReviewData({
     [F.DELIVERY_ADDRESS]: deliveryAddress,
     [F.DELIVERY_APARTMENT]: deliveryApartment,
     [F.DELIVERY_ADDRESS_DISPLAY]: addressDisplay,
+    [F.PLACE_ORDER_ENABLED]: placeOrderEnabled,
     [F.CHECKOUT_NOTE]: specialRequests,
     ...checkoutReviewCopy(lang, t),
   };
@@ -609,6 +615,13 @@ function resolveDeliveryAddressForSubmit(payload = {}, addressLabels = {}) {
   }
 
   return composed;
+}
+
+/** Name is always required. A delivery address is required only for Lieferung. */
+function canPlaceCheckoutOrder({ customerName = '', orderType = 'pickup', deliveryAddress = '' } = {}) {
+  if (trimmed(customerName).length < 2) return false;
+  if (orderType === 'delivery' && !trimmed(deliveryAddress)) return false;
+  return true;
 }
 
 function validateCheckoutSubmit(payload = {}, { addressLabels = {} } = {}) {
@@ -754,6 +767,7 @@ module.exports = {
   buildCheckoutSubmitPayloadFromSession,
   isDeliverySelectableInReview,
   composeDeliveryAddressFromFields,
+  canPlaceCheckoutOrder,
   validateCheckoutSubmit,
   applyCheckoutSubmitToSession,
   applyConfirmDraftToSession,

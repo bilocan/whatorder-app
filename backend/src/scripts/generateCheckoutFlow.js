@@ -156,6 +156,7 @@ async function checkoutReviewScreen(id, { includeManageLink = true, includeCartL
         '__example__': 'Hippgasse 11, Top 14, 1160 Wien',
       },
       [F.CHECKOUT_NOTE]: { type: 'string', '__example__': 'Please ring the bell.' },
+      [F.PLACE_ORDER_ENABLED]: { type: 'boolean', '__example__': true },
     },
     layout: {
       type: 'SingleColumnLayout',
@@ -233,6 +234,7 @@ async function checkoutReviewScreen(id, { includeManageLink = true, includeCartL
           {
             type: 'Footer',
             label: `\${data.${F.UI_PLACE_ORDER}}`,
+            enabled: `\${data.${F.PLACE_ORDER_ENABLED}}`,
             'on-click-action': {
               name: 'complete',
               payload: {

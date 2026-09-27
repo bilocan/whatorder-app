@@ -424,6 +424,93 @@ describe('deleteCustomerAddress', () => {
     });
   });
 
+  test('retainLabels drops addresses that were past the visible cap', async () => {
+    const store = createCustomerStore({
+      savedAddresses: ['Shown A', 'Shown B', 'Shown C', 'Hidden'],
+      lastDeliveryAddress: 'Shown A',
+    });
+
+    const result = await deleteCustomerAddress({
+      phone: PHONE,
+      businessId: BIZ,
+      label: 'Shown B',
+      retainLabels: ['Shown A', 'Shown C'],
+    });
+
+    expect(result.savedAddresses).toEqual(['Shown A', 'Shown C']);
+    expect(result.lastDeliveryAddress).toBe('Shown A');
+    expect(store.docRef.set).toHaveBeenCalledWith(
+      { savedAddresses: ['Shown A', 'Shown C'] },
+      { merge: true },
+    );
+  });
+
+  test('retainLabels does not invent a default when none was set', async () => {
+    const store = createCustomerStore({
+      savedAddresses: ['Addr A', 'Addr B'],
+      lastDeliveryAddress: null,
+    });
+
+    const result = await deleteCustomerAddress({
+      phone: PHONE,
+      businessId: BIZ,
+      label: 'Addr B',
+      retainLabels: ['Addr A'],
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      customerName: null,
+      savedAddresses: ['Addr A'],
+      lastDeliveryAddress: null,
+    });
+    expect(store.docRef.set).toHaveBeenCalledWith(
+      { savedAddresses: ['Addr A'] },
+      { merge: true },
+    );
+  });
+
+  test('delete without a default does not promote the newest remaining row', async () => {
+    const store = createCustomerStore({
+      savedAddresses: ['Older', 'Newer'],
+      lastDeliveryAddress: null,
+    });
+
+    const result = await deleteCustomerAddress({
+      phone: PHONE,
+      businessId: BIZ,
+      label: 'Older',
+    });
+
+    expect(result.lastDeliveryAddress).toBeNull();
+    expect(result.savedAddresses).toEqual(['Newer']);
+    expect(store.docRef.set).toHaveBeenCalledWith(
+      { savedAddresses: ['Newer'] },
+      { merge: true },
+    );
+  });
+
+  test('retainLabels promotes the next visible row when the default is deleted', async () => {
+    createCustomerStore({
+      savedAddresses: ['Default', 'Next', 'Hidden tail'],
+      lastDeliveryAddress: 'Default',
+    });
+
+    const result = await deleteCustomerAddress({
+      phone: PHONE,
+      businessId: BIZ,
+      label: 'Default',
+      retainLabels: ['Next'],
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      customerName: null,
+      savedAddresses: ['Next'],
+      lastDeliveryAddress: 'Next',
+    });
+  });
+
   test('rejects delete when label is not saved', async () => {
     createCustomerStore({
       savedAddresses: ['Addr A'],

@@ -559,6 +559,32 @@ describe('checkoutConfirmFlow', () => {
 
     expect(data[F.ORDER_TYPE]).toBe('delivery');
     expect(data[F.ADDRESS_FIELDS_VISIBLE]).toBe(true);
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(true);
+  });
+
+  test('disables place order on delivery when the address is empty', async () => {
+    const data = await buildCheckoutReviewData({
+      session: { customerName: 'Alex', orderType: 'delivery', deliveryAddress: '' },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(false);
+    expect(data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('confirmFlowAddressEmpty:en:');
+  });
+
+  test('disables place order when the name is missing, even for pickup', async () => {
+    const data = await buildCheckoutReviewData({
+      session: { customerName: '', orderType: 'pickup' },
+      basket,
+      info: { name: 'Demo', deliveryEnabled: true, deliveryOpen: true },
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(false);
   });
 
   test('hides address fields when the customer switches the draft to pickup', async () => {
