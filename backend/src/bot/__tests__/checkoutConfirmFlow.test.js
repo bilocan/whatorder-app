@@ -778,6 +778,41 @@ describe('checkoutConfirmFlow', () => {
     })).toEqual({ ok: false, errorKey: 'confirmFlowErrorApartment' });
   });
 
+  test('accepts a saved building-only address when Wohnung is empty', async () => {
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      address_choice: 'addr_0',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: '',
+    }, {
+      addressLabels: { addr_0: 'Hippgasse 11, 1160 Wien' },
+      savedAddresses: ['Hippgasse 11, 1160 Wien'],
+    })).toEqual({
+      ok: true,
+      values: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Hippgasse 11, 1160 Wien',
+        specialRequests: '',
+      },
+    });
+  });
+
+  test('still asks for a unit when the saved address has one and Wohnung is empty', async () => {
+    expect(validateCheckoutSubmit({
+      checkout_action: 'place_order',
+      customer_name: 'Alex',
+      order_type: 'delivery',
+      address_choice: 'addr_0',
+      delivery_address: 'Hippgasse 11, 1160 Wien',
+      delivery_apartment: '',
+    }, {
+      addressLabels: { addr_0: 'Hippgasse 11, Top 14, 1160 Wien' },
+    })).toEqual({ ok: false, errorKey: 'confirmFlowErrorApartment' });
+  });
+
   test('accepts Haus apartment and keeps building-only address', async () => {
     expect(validateCheckoutSubmit({
       checkout_action: 'place_order',

@@ -4,7 +4,8 @@ const {
   isDeliverableBuildingLabel,
   normalizeBuildingLabel,
   composeDeliveryLabel,
-  isNearlySameAddress,
+  formatConfirmAddressDisplay,
+  addressKey,
 } = require('./deliveryAddress');
 
 /**
@@ -70,17 +71,38 @@ async function resolveTypedDeliveryAddress(rawText) {
   };
 }
 
+/** Street + house only. PLZ and city are ignored so "Hippgasse 11" matches "Hippgasse 11, 1160 Wien". */
+function streetHouseKey(address) {
+  const { building } = formatConfirmAddressDisplay(address);
+  const line = String(building || '')
+    .replace(/\b\d{4}\b/g, ' ')
+    .replace(/\b(wien|vienna|österreich|osterreich|austria)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return addressKey(line);
+}
+
+function postalCode(address) {
+  const match = String(address || '').match(/\b(\d{4})\b/);
+  return match ? match[1] : '';
+}
+
 /**
- * Confirm when building was corrected OR when customer omitted PLZ.
- * With PLZ present and label nearly identical, skip Yes/Edit (Wien optional).
- * Without PLZ always confirm — Wien alone is not enough (ambiguous Hauptstraße).
+ * Same street + house can sit in more than one PLZ. Confirm unless the
+ * customer already typed a PLZ and it matches the resolved one.
+ * Street or house corrections confirm. A typed PLZ that Google replaced
+ * confirms (1110 → 1220). Omitting PLZ confirms, so the district is visible.
  */
 function shouldConfirmDeliveryBuilding(rawInput, normalizedLabel) {
-  const inputHasPlz = /\b\d{4}\b/.test(String(rawInput || ''));
-  if (rawInput && inputHasPlz && isNearlySameAddress(rawInput, normalizedLabel)) {
-    return false;
-  }
-  return true;
+  const inputKey = streetHouseKey(rawInput);
+  const labelKey = streetHouseKey(normalizedLabel);
+  if (!inputKey || !labelKey || inputKey !== labelKey) return true;
+  const inputPlz = postalCode(rawInput);
+  if (!inputPlz) return true;
+  const labelPlz = postalCode(normalizedLabel);
+  // A label with no PLZ cannot prove the typed district. Confirm.
+  if (!labelPlz || inputPlz !== labelPlz) return true;
+  return false;
 }
 
 module.exports = {

@@ -17,10 +17,21 @@ describe('shouldConfirmDeliveryBuilding', () => {
     )).toBe(false);
   });
 
-  test('requires confirm when PLZ missing', () => {
+  test('requires confirm when PLZ was not typed', () => {
     expect(shouldConfirmDeliveryBuilding(
       'Lavaterstrasse 3 Wien',
       'Lavaterstraße 3, 1220 Wien',
+    )).toBe(true);
+    expect(shouldConfirmDeliveryBuilding(
+      'Hippgasse 11',
+      'Hippgasse 11, 1160 Wien',
+    )).toBe(true);
+  });
+
+  test('requires confirm when the house number changed', () => {
+    expect(shouldConfirmDeliveryBuilding(
+      'Hippgasse 1',
+      'Hippgasse 11, 1160 Wien',
     )).toBe(true);
   });
 
@@ -28,6 +39,13 @@ describe('shouldConfirmDeliveryBuilding', () => {
     expect(shouldConfirmDeliveryBuilding(
       'Lavaterstrasse 3, 1110 Wien',
       'Lavaterstraße 3, 1220 Wien',
+    )).toBe(true);
+  });
+
+  test('requires confirm when the resolved label has no PLZ', () => {
+    expect(shouldConfirmDeliveryBuilding(
+      'Hippgasse 11, 1160 Wien',
+      'Hippgasse 11',
     )).toBe(true);
   });
 });

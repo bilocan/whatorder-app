@@ -177,6 +177,13 @@ const FIELDS = {
   MANAGE_CONFIRM_LOCALITY: 'manage_confirm_locality',
   MANAGE_CONFIRM_UNIT_VISIBLE: 'manage_confirm_unit_visible',
   MANAGE_CONFIRM_PIN_IMAGE: 'manage_confirm_pin_image',
+  // Found address on the edit form. OptIn is consent only. Speichern commits it when checked.
+  MANAGE_FOUND_LINE:      'manage_found_line',
+  MANAGE_FOUND_VISIBLE:   'manage_found_visible',
+  MANAGE_FOUND_APPLY:     'manage_found_apply',
+  MANAGE_EDIT_LINK_VISIBLE: 'manage_edit_link_visible',
+  UI_MANAGE_FOUND_LABEL:  'ui_manage_found_label',
+  UI_MANAGE_EDIT_LINK:    'ui_manage_edit_link',
   ERROR_MESSAGE:          'error_message',
   ERROR_VISIBLE:          'error_visible',
 };

@@ -1535,7 +1535,11 @@ async function handleConfirming({
       t,
       profile?.lastDeliveryAddress || '',
     );
-    const validation = validateCheckoutSubmit(payload, { addressLabels });
+    const validation = validateCheckoutSubmit(payload, {
+      addressLabels,
+      savedAddresses: profile?.savedAddresses || [],
+      defaultAddress: profile?.lastDeliveryAddress || '',
+    });
     if (!validation.ok) {
       await sendText(from, t(validation.errorKey, lang));
       await reofferConfirming(

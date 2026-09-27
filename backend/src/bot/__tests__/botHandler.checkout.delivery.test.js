@@ -590,7 +590,7 @@ describe('Delivery flow: awaiting_delivery_address', () => {
     }));
   });
 
-  test('street without city always shows confirm (ambiguous Hauptstraße)', async () => {
+  test('street without PLZ shows confirm so the district can be checked', async () => {
     const { validateDeliveryAddress } = require('../../lib/geocode');
     validateDeliveryAddress.mockResolvedValue({
       formattedAddress: 'Hauptstraße 4, 1140 Wien',
