@@ -501,6 +501,24 @@ test('select_address Neue Adresse opens empty edit form', async () => {
   expect(response.data[F.DELIVERY_ADDRESS]).toBe('');
 });
 
+test('select_address Neue Adresse keeps a name typed on Profil', async () => {
+  loadCustomerAddresses.mockResolvedValue({
+    savedAddresses: [],
+    lastDeliveryAddress: null,
+    customerName: null,
+  });
+
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_action: 'select_address',
+    [F.MANAGE_ADDRESS_CHOICE]: 'addr_new',
+    [F.CUSTOMER_NAME]: 'Enes Yildirim',
+  });
+
+  expect(response.data[F.MANAGE_UI_MODE]).toBe('edit');
+  expect(response.data[F.CUSTOMER_NAME]).toBe('Enes Yildirim');
+  expect(response.data[F.DELIVERY_ADDRESS]).toBe('');
+});
+
 test('select_address Neue Adresse clears street and apartment', async () => {
   const response = await exchange(S.CHECKOUT_REVIEW, {
     checkout_action: 'select_address',

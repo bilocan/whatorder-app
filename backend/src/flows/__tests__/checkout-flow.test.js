@@ -117,6 +117,7 @@ test('manage mode uses Switch so If nesting stays within Meta limits', () => {
   const radio = manage.find((child) => child.name === F.MANAGE_ADDRESS_CHOICE);
   expect(radio.required).toBe(false);
   expect(radio['on-select-action'].payload.checkout_layout).toBe('single');
+  expect(radio['on-select-action'].payload[F.CUSTOMER_NAME]).toBe(`\${form.${F.CUSTOMER_NAME}}`);
 
   const modeSwitch = manage.find((child) => child.type === 'Switch');
   expect(modeSwitch.value).toBe(`\${data.${F.MANAGE_UI_MODE}}`);

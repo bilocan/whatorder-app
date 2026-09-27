@@ -517,6 +517,7 @@
                       "name": "data_exchange",
                       "payload": {
                         "checkout_action": "select_address",
+                        "customer_name": "${form.customer_name}",
                         "manage_address_choice": "${form.manage_address_choice}",
                         "manage_set_as_default": "${form.manage_set_as_default}",
                         "checkout_layout": "single",
