@@ -58,6 +58,8 @@
       "waitingSince": "Siparişten beri bekliyor",
       "openFull": "Tam sipariş detayını aç",
       "printBeleg": "Fişi yazdır",
+      "paidViaCash": "Nakit ödendi",
+      "paidViaCard": "Kartla ödendi",
       "terminal": "Bu sipariş {{status}} — başka işlem yok.",
       "col": {
         "new": "Yeni",

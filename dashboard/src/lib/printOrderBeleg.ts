@@ -8,6 +8,9 @@ export interface OrderBelegLine {
 
 export interface OrderBelegPrintInput {
   code: string;
+  restaurantName?: string;
+  restaurantAddress?: string;
+  restaurantPhone?: string;
   customerName: string;
   customerPhone: string;
   orderedAt: string;
@@ -19,6 +22,35 @@ export interface OrderBelegPrintInput {
   totalAmount: string;
   notes?: string;
   payment?: string;
+}
+
+/** Payment line on the bon. Unpaid, failed, and refunded stay status words. Cash and card say how it was paid. */
+export function belegPaymentLine(
+  order: { paymentMethod?: 'stripe' | 'cash'; paymentStatus?: string },
+  labels: { cash: string; card: string; pending: string; failed: string; refunded: string },
+): string | undefined {
+  const status = order.paymentStatus;
+  if (status === 'refunded') return labels.refunded;
+  if (status === 'failed') return labels.failed;
+  if (status === 'pending') return labels.pending;
+  if (order.paymentMethod === 'cash' || status === 'cash' || !status) return labels.cash;
+  if (order.paymentMethod === 'stripe' || status === 'paid') return labels.card;
+  return undefined;
+}
+
+/** Header lines for the bon. Shop name, then the public address, then the alert phone. */
+export function restaurantSlipLines(business: {
+  name?: string;
+  address?: string;
+  alertPhone?: string;
+  legal?: { legalName?: string; street?: string; zip?: string; city?: string } | null;
+}): { name?: string; address?: string; phone?: string } {
+  const name = (business.name || business.legal?.legalName || '').trim() || undefined;
+  const legalStreet = [business.legal?.zip, business.legal?.city].filter(Boolean).join(' ');
+  const legalAddress = [business.legal?.street, legalStreet].filter(Boolean).join(', ');
+  const address = (business.address || legalAddress).trim() || undefined;
+  const phone = (business.alertPhone || '').trim() || undefined;
+  return { name, address, phone };
 }
 
 function esc(value: string): string {
@@ -45,6 +77,18 @@ export function buildOrderBelegHtml(input: OrderBelegPrintInput): string {
   const address = input.address ? `<div>${esc(input.address)}</div>` : '';
   const notes = input.notes ? `<p class="note">${esc(input.notes)}</p>` : '';
   const payment = input.payment ? `<p class="pay">${esc(input.payment)}</p>` : '';
+  const shopName = input.restaurantName
+    ? `<div class="shop-name">${esc(input.restaurantName)}</div>`
+    : '';
+  const shopAddress = input.restaurantAddress
+    ? `<div>${esc(input.restaurantAddress)}</div>`
+    : '';
+  const shopPhone = input.restaurantPhone
+    ? `<div>${esc(input.restaurantPhone)}</div>`
+    : '';
+  const shop = shopName || shopAddress || shopPhone
+    ? `<div class="shop">${shopName}${shopAddress}${shopPhone}</div><hr class="rule">`
+    : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -61,6 +105,8 @@ export function buildOrderBelegHtml(input: OrderBelegPrintInput): string {
     line-height: 1.35;
   }
   h1 { margin: 0 0 2mm; font-size: 16px; text-align: center; letter-spacing: 0.06em; }
+  .shop { margin: 0 0 3mm; text-align: center; }
+  .shop-name { font-size: 15px; font-weight: 700; margin-bottom: 1mm; }
   .meta { margin: 0 0 3mm; text-align: center; }
   table { width: 100%; border-collapse: collapse; }
   td { vertical-align: top; padding: 0.6mm 0; }
@@ -71,6 +117,7 @@ export function buildOrderBelegHtml(input: OrderBelegPrintInput): string {
 </style>
 </head>
 <body>
+  ${shop}
   <h1>#${esc(input.code)}</h1>
   <div class="meta">
     <div>${esc(input.customerName)}</div>

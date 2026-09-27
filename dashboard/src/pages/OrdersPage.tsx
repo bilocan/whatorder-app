@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
@@ -8,7 +8,7 @@ import type { Order, OrderStatus } from '../types';
 import { toDate } from '../types';
 import { paymentBadge } from '../lib/paymentBadge';
 import { shortId } from '../lib/shortId';
-import { printOrderBeleg } from '../lib/printOrderBeleg';
+import { belegPaymentLine, printOrderBeleg, restaurantSlipLines } from '../lib/printOrderBeleg';
 import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
 import { getActivePhoneNumberId } from '../lib/activePhoneNumberId';
 import {
@@ -44,6 +44,7 @@ export default function OrdersPage() {
   const { businessId } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [restaurant, setRestaurant] = useState<{ name?: string; address?: string; phone?: string } | null>(null);
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
   const [loadingIds, setLoadingIds] = useState<Set<string>>(() => new Set());
   const [actionError, setActionError] = useState('');
@@ -73,6 +74,21 @@ export default function OrdersPage() {
     const id = window.setInterval(() => setNowMs(Date.now()), 30_000);
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!businessId) {
+      setRestaurant(null);
+      return;
+    }
+    let cancelled = false;
+    getDoc(doc(db, 'businesses', businessId)).then((snap) => {
+      if (cancelled || !snap.exists()) return;
+      setRestaurant(restaurantSlipLines(snap.data()));
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId]);
 
   useEffect(() => {
     if (!isActiveBoard) setOpenOrderId(null);
@@ -601,7 +617,6 @@ export default function OrdersPage() {
                 type="button"
                 className="kitchen-beleg-print"
                 onClick={() => {
-                  const pay = paymentBadge(openOrder, t);
                   const adjustments: string[] = [];
                   if (Number(openOrder.discount) > 0) {
                     adjustments.push(t('orderDetail.discount', {
@@ -616,6 +631,9 @@ export default function OrdersPage() {
                   }
                   printOrderBeleg({
                     code: shortId(openOrder.id),
+                    restaurantName: restaurant?.name,
+                    restaurantAddress: restaurant?.address,
+                    restaurantPhone: restaurant?.phone,
                     customerName: openOrder.customerName,
                     customerPhone: openOrder.customerPhone,
                     orderedAt: toDate(openOrder.createdAt).toLocaleString('de-AT', {
@@ -637,7 +655,13 @@ export default function OrdersPage() {
                     notes: openOrder.notes
                       ? t('orderDetail.note', { note: openOrder.notes })
                       : undefined,
-                    payment: pay.label,
+                    payment: belegPaymentLine(openOrder, {
+                      cash: t('orders.board.paidViaCash'),
+                      card: t('orders.board.paidViaCard'),
+                      pending: t('orders.payment.pending'),
+                      failed: t('orders.payment.failed'),
+                      refunded: t('orders.payment.refunded'),
+                    }),
                   });
                 }}
               >
