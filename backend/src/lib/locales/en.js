@@ -67,7 +67,7 @@ module.exports = {
       : `⏱️ Ready around ${pickupTime}`;
     const notesLine = notes ? `\n📝 Note: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Payment: Card' : '';
-    return `✅ Almost done!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Total: €${total}\n${detail}${paymentLine}${notesLine}\n\nTap below to confirm or edit.`;
+    return `✅ Almost done!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Total: €${total}\n${detail}${paymentLine}${notesLine}\n\nTap Review below.`;
   },
   confirmListHeader: () => 'Review order',
   confirmListBtn: () => 'Confirm or edit',

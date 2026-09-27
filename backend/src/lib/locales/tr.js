@@ -67,7 +67,7 @@ module.exports = {
       : `⏱️ Hazır saat: ~${pickupTime}`;
     const notesLine = notes ? `\n📝 Not: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Ödeme: Kart' : '';
-    return `✅ Neredeyse bitti!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nOnaylamak veya düzenlemek için aşağıya dokunun.`;
+    return `✅ Neredeyse bitti!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nAşağıdan Kontrol’a dokunun.`;
   },
   confirmListHeader: () => 'Siparişi kontrol et',
   confirmListBtn: () => 'Onayla / düzenle',

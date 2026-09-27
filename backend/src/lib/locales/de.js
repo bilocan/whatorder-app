@@ -67,7 +67,7 @@ module.exports = {
       : `⏱️ Fertig gegen ${pickupTime}`;
     const notesLine = notes ? `\n📝 Notiz: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Zahlung: Karte' : '';
-    return `✅ Fast fertig!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Gesamt: €${total}\n${detail}${paymentLine}${notesLine}\n\nUnten tippen zum Bestätigen oder Ändern.`;
+    return `✅ Fast fertig!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Gesamt: €${total}\n${detail}${paymentLine}${notesLine}\n\nUnten auf Prüfen tippen.`;
   },
   confirmListHeader: () => 'Bestellung prüfen',
   confirmListBtn: () => 'Optionen',
