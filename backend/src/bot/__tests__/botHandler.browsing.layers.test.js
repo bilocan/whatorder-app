@@ -300,7 +300,7 @@ describe('Layer 0: reorder-first for returning customers', () => {
     }));
   });
 
-  test('btn_reorder_confirm loads last order into basket', async () => {
+  test('btn_reorder_confirm loads last order and starts checkout', async () => {
     getSession.mockResolvedValue({
       language: 'de',
       state: 'browsing',
@@ -312,14 +312,45 @@ describe('Layer 0: reorder-first for returning customers', () => {
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_reorder_confirm' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'browsing',
+      basket: [{ name: 'Döner', qty: 2, price: 8.5 }],
+      pendingReorderItems: undefined,
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_name',
       basket: [{ name: 'Döner', qty: 2, price: 8.5 }],
     }));
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_confirm' }),
-      ]),
-    }));
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalled();
+  });
+
+  test('btn_reorder_confirm opens checkout Flow when the flag is on', async () => {
+    process.env.WHATSAPP_CHECKOUT_FLOW_ID = 'checkout_flow_test_id';
+    try {
+      getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, checkoutConfirmFlow: true });
+      mockCustomerProfile({ name: 'Ahmet' });
+      sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
+      getSession.mockResolvedValue({
+        language: 'de',
+        state: 'browsing',
+        businessId: BIZ,
+        basket: [],
+        pendingReorderItems: [{ name: 'Döner', qty: 2, price: 8.5 }],
+      });
+
+      await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_reorder_confirm' }));
+
+      expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+        flowId: 'checkout_flow_test_id',
+        screen: 'CHECKOUT_REVIEW',
+      }));
+      expect(sendButtonMessage).not.toHaveBeenCalled();
+      expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+        state: 'confirming',
+        basket: [{ name: 'Döner', qty: 2, price: 8.5 }],
+      }));
+    } finally {
+      delete process.env.WHATSAPP_CHECKOUT_FLOW_ID;
+    }
   });
 
   test('btn_reorder_browse opens catalog instead', async () => {

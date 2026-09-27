@@ -400,7 +400,13 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
 
   // Action buttons (post-add or basket view)
   if (type === 'button_reply') {
-    if (await handleReorderButtons({ from, session, lang, businessId, basket, id })) return;
+    if (await handleReorderButtons({
+      from, session, lang, businessId, basket, id,
+      onReorderCheckout: ({ session: nextSession, basket: loadedBasket }) =>
+        proceedCheckoutFromBasket({
+          from, session: nextSession, lang, businessId, basket: loadedBasket,
+        }),
+    })) return;
     if (await handleIntentButtons({ from, session, lang, businessId, basket, id })) return;
 
     if (id === 'btn_view_full_menu') {

@@ -2,7 +2,7 @@ const { patchSession, getSession } = require('./sessionStore');
 const { sendButtonMessage } = require('../lib/whatsapp');
 const { applyBusinessInfoIdentity } = require('../lib/messageIdentity');
 const { t } = require('./templates');
-const { buildPostAddBody, postAddBasketButtons, sendCatalog } = require('./botHelpers');
+const { sendCatalog } = require('./botHelpers');
 const { getMenu, getBusinessInfo } = require('./menuService');
 const { getLastOrderForCustomer } = require('./orderService');
 const { matchMenuItem } = require('./menuMatch');
@@ -78,7 +78,7 @@ async function tryOfferReorder({ from, session, lang, businessId, basket, busine
   return true;
 }
 
-async function handleReorderButtons({ from, session, lang, businessId, basket, id }) {
+async function handleReorderButtons({ from, session, lang, businessId, basket, id, onReorderCheckout }) {
   if (id === 'btn_reorder_confirm') {
     const live = await getSession(from);
     const pending = live.pendingReorderItems ?? [];
@@ -86,6 +86,18 @@ async function handleReorderButtons({ from, session, lang, businessId, basket, i
       await sendCatalog(from, lang, businessId);
       return true;
     }
+    const nextSession = {
+      ...live,
+      state: 'browsing',
+      language: lang,
+      businessId,
+      basket: pending,
+      pendingReorderItems: undefined,
+      pendingReorderUnmatched: undefined,
+      pendingDeleteIds: [],
+    };
+    // Persist the loaded basket before checkout sends, so a later patch cannot
+    // overwrite it with the empty pre-confirm snapshot.
     await patchSession(from, {
       state: 'browsing',
       language: lang,
@@ -95,10 +107,7 @@ async function handleReorderButtons({ from, session, lang, businessId, basket, i
       pendingReorderUnmatched: undefined,
       pendingDeleteIds: [],
     }, live);
-    await sendButtonMessage(from, {
-      body: buildPostAddBody(lang, pending, { reorder: true }),
-      buttons: postAddBasketButtons(lang),
-    });
+    await onReorderCheckout({ session: nextSession, basket: pending });
     return true;
   }
 
