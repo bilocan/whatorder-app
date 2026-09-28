@@ -337,6 +337,102 @@ test('select_order_type delivery restores the default saved address instead of N
   expect(response.data[F.DELIVERY_APARTMENT]).toBe('Top 14');
 });
 
+test('select_order_type after a blank manage_back does not restore a saved address', async () => {
+  const { ref, session } = mockSession({
+    deliveryAddress: null,
+    orderType: 'delivery',
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      specialRequests: 'Ring twice',
+    },
+  });
+  loadCustomerAddresses.mockResolvedValue({
+    savedAddresses: [ADDRESS_1],
+    lastDeliveryAddress: ADDRESS_1,
+    customerName: 'Alex',
+  });
+
+  const back = await exchange(S.ADDRESS_MANAGE, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'manage',
+    checkout_action: 'manage_back',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.MANAGE_ADDRESS_CHOICE]: '',
+    [F.DELIVERY_ADDRESS]: '',
+    [F.DELIVERY_APARTMENT]: '',
+  });
+  expect(back.data[F.DELIVERY_ADDRESS]).toBe('');
+  expect(back.data[F.ADDRESS_CHOICE]).toBe('addr_new');
+
+  const savedDraft = ref.set.mock.calls
+    .map(([patch]) => patch.confirmFlowDraft)
+    .find((draft) => draft && Object.prototype.hasOwnProperty.call(draft, 'addressChoice'));
+  mockSession({
+    ...session,
+    deliveryAddress: null,
+    confirmFlowDraft: savedDraft,
+  });
+
+  const pickup = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'review',
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'pickup',
+    [F.ADDRESS_CHOICE]: back.data[F.ADDRESS_CHOICE],
+    [F.DELIVERY_ADDRESS]: back.data[F.DELIVERY_ADDRESS],
+    [F.DELIVERY_APARTMENT]: back.data[F.DELIVERY_APARTMENT],
+  });
+
+  expect(pickup.data[F.DELIVERY_ADDRESS]).toBe('');
+  expect(pickup.data[F.ADDRESS_CHOICE]).toBe('addr_new');
+});
+
+test('select_order_type does not restore a stale draft street when the order has no address', async () => {
+  mockSession({
+    deliveryAddress: null,
+    orderType: 'delivery',
+    confirmFlowDraft: {
+      customerName: 'Alex',
+      orderType: 'delivery',
+      addressChoice: 'addr_0',
+      deliveryAddress: ADDRESS_1,
+      deliveryApartment: 'Top 14',
+    },
+  });
+
+  const pickup = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'review',
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'pickup',
+    [F.ADDRESS_CHOICE]: 'addr_new',
+    [F.DELIVERY_ADDRESS]: '',
+    [F.DELIVERY_APARTMENT]: '',
+  });
+
+  expect(pickup.data[F.DELIVERY_ADDRESS]).toBe('');
+  expect(pickup.data[F.ADDRESS_CHOICE]).toBe('addr_new');
+
+  const delivery = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'review',
+    checkout_action: 'select_order_type',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.ADDRESS_CHOICE]: pickup.data[F.ADDRESS_CHOICE],
+    [F.DELIVERY_ADDRESS]: pickup.data[F.DELIVERY_ADDRESS],
+    [F.DELIVERY_APARTMENT]: pickup.data[F.DELIVERY_APARTMENT],
+  });
+
+  expect(delivery.data[F.ORDER_TYPE]).toBe('delivery');
+  expect(delivery.data[F.ADDRESS_CHOICE]).toBe('addr_new');
+  expect(delivery.data[F.DELIVERY_ADDRESS]).toBe('');
+  expect(delivery.data[F.DELIVERY_ADDRESS_DISPLAY]).toBe('No address yet.');
+  expect(delivery.data[F.PLACE_ORDER_ENABLED]).toBe(false);
+});
+
 test('select_order_type keeps a cleared Neue Adresse through pickup and delivery', async () => {
   const cleared = {
     orderType: 'delivery',

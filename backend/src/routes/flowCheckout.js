@@ -463,6 +463,12 @@ function orderAddressWasCleared(draft) {
   return !trimmedName(draft.deliveryAddress);
 }
 
+function payloadExplicitEmptyNew(payload = {}) {
+  if (!Object.prototype.hasOwnProperty.call(payload, F.DELIVERY_ADDRESS)) return false;
+  if (trimmedName(payload[F.DELIVERY_ADDRESS])) return false;
+  return trimmedName(payload[F.ADDRESS_CHOICE]) === ADDRESS_CHOICE_NEW;
+}
+
 function normalizedAddress(address) {
   return typeof address === 'string' ? address.trim().toLowerCase() : '';
 }
@@ -1378,16 +1384,34 @@ async function dispatchCheckoutExchange({
 
   if (action === 'select_order_type' && REVIEW_SCREENS.has(screen)) {
     const previousDraft = session.confirmFlowDraft;
-    const draft = mergeConfirmFlowDraft(payload, previousDraft) || {};
-    // A cleared Neue Adresse must survive Abholung ↔ Lieferung. The hidden
-    // pickup payload would otherwise copy the saved default back onto the order.
-    const keepClearedAddress = orderAddressWasCleared(previousDraft)
-      && !trimmedName(payload[F.DELIVERY_ADDRESS]);
+    const explicitEmptyNew = payloadExplicitEmptyNew(payload);
+    const sessionStreet = trimmedName(session.deliveryAddress);
+    const draftCleared = orderAddressWasCleared(previousDraft);
+    // The review payload reads data.delivery_address. An empty Neue Adresse on
+    // an order that has no street must stay empty. A stale draft street, or the
+    // saved default, was what Abholung wrote back before the next Lieferung tap.
+    // An order that still has a street keeps the hidden-widget restore.
+    const keepClearedAddress = (draftCleared && !trimmedName(payload[F.DELIVERY_ADDRESS]))
+      || (explicitEmptyNew && !sessionStreet);
+    const draft = mergeConfirmFlowDraft(
+      payload,
+      keepClearedAddress ? null : previousDraft,
+    ) || {};
+    if (keepClearedAddress) {
+      draft.addressChoice = ADDRESS_CHOICE_NEW;
+      draft.deliveryAddress = '';
+      draft.deliveryApartment = '';
+    }
     // Below Mindestbestellwert stays on Prüfen. buildCheckoutReviewData puts the
     // shortfall on the Lieferung row and disables Bestellung aufgeben.
     // place_order still runs gateDeliverySubmit if this refresh is skipped.
-    await ref.set({ confirmFlowDraft: draft, updatedAt: new Date() }, { merge: true });
+    await ref.set({
+      confirmFlowDraft: draft,
+      updatedAt: new Date(),
+      ...(keepClearedAddress ? { deliveryAddress: null } : {}),
+    }, { merge: true });
     session.confirmFlowDraft = draft;
+    if (keepClearedAddress) session.deliveryAddress = null;
     return buildReviewFromDraft({
       screen,
       session,
