@@ -164,14 +164,17 @@ jobs:
             LLM_PROVIDER=google
             LLM_MODEL=gemini-2.5-flash-lite
             LLM_TIMEOUT_MS=8000
+          # Preprod stays on Stripe test copies. STRIPE_SECRET_KEY and
+          # STRIPE_WEBHOOK_SECRET are the production names (release.yml).
+          # A later sk_live_ version must not land on this service.
           secrets: |
             WHATSAPP_VERIFY_TOKEN=WHATSAPP_VERIFY_TOKEN:latest
             WHATSAPP_ACCESS_TOKEN=WHATSAPP_ACCESS_TOKEN:latest
             WHATSAPP_APP_SECRET=WHATSAPP_APP_SECRET:latest
             FLOW_PRIVATE_KEY=FLOW_PRIVATE_KEY:latest
             GEMINI_API_KEY=GEMINI_API_KEY:latest
-            STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest
-            STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest
+            STRIPE_SECRET_KEY=STRIPE_SECRET_KEY_TEST:latest
+            STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET_TEST:latest
             GOOGLE_MAPS_API_KEY=GOOGLE_MAPS_API_KEY:latest
             GOOGLE_MAPS_JS_API_KEY=GOOGLE_MAPS_JS_API_KEY:latest
             WALLBOARD_TOKEN=WALLBOARD_TOKEN:latest
