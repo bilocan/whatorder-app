@@ -67,7 +67,7 @@ module.exports = {
       : `⏱️ Fertig gegen ${pickupTime}`;
     const notesLine = notes ? `\n📝 Notiz: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Zahlung: Karte' : '';
-    return `✅ Fast fertig!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Gesamt: €${total}\n${detail}${paymentLine}${notesLine}\n\nUnten tippen zum Bestätigen oder Ändern.`;
+    return `✅ Fast fertig!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Gesamt: €${total}\n${detail}${paymentLine}${notesLine}\n\nUnten auf Prüfen tippen.`;
   },
   confirmListHeader: () => 'Bestellung prüfen',
   confirmListBtn: () => 'Optionen',
@@ -83,22 +83,33 @@ module.exports = {
   confirmGateContinue: () => 'Weiter',
   confirmFlowFooter: () => 'Bestellung aufgeben',
   confirmFlowBackToCart: () => 'Zum Warenkorb',
+  confirmFlowReturnToReview: () => 'Zur Prüfung',
   confirmFlowReviewIntro: () => 'Fast geschafft!',
   confirmFlowReviewSectionBasket: () => 'Deine Bestellung',
   confirmFlowReviewSectionDetails: () => 'Deine Angaben',
-  confirmFlowPaymentCard: () => '💳 Zahlung: Karte',
+  confirmFlowPaymentCard: () => 'Karte',
   confirmFlowNameLabel: () => 'Name',
-  confirmFlowNameEmpty: () => 'Noch kein Name — tippe Adresse & Profil.',
-  confirmFlowProfileLink: () => 'Adresse & Profil',
+  confirmFlowNameLine: (name) => `Für ${name}`,
+  confirmFlowNameEmpty: () => 'Noch kein Name.',
+  confirmFlowProfileLink: () => 'Name oder Adresse ändern',
+  confirmFlowProfileLinkPickup: () => 'Namen ändern',
+  confirmFlowProfileLinkAddName: () => 'Namen hinzufügen',
+  confirmFlowProfileLinkAddAddress: () => 'Adresse hinzufügen',
+  confirmFlowProfileLinkAddBoth: () => 'Angaben hinzufügen',
+  confirmFlowPickupNoFee: () => 'Keine Liefergebühr',
+  confirmFlowDeliveryNeedsAddress: () => 'Adresse fehlt',
+  confirmFlowBlockName: () => 'Für die Bestellung fehlt der Name.',
+  confirmFlowBlockAddress: () => 'Für die Lieferung fehlt die Adresse.',
+  confirmFlowBelowMinimum: (min, more) => `Mindestbestellwert €${min}. Noch €${more}.`,
   confirmFlowProfileNameLabel: () => 'Dein Name',
   confirmFlowProfileNameHelper: () => 'Steht auf der Bestellung',
-  confirmFlowTypeLabel: () => 'Wie möchten Sie Ihre Bestellung erhalten?',
+  confirmFlowTypeLabel: () => 'Wie bekommst du sie?',
   confirmFlowAddressChoiceLabel: () => 'Lieferadresse',
   confirmFlowAddressNew: () => 'Neue Adresse',
   confirmFlowAddressNewDesc: () => 'Unten eingeben',
   confirmFlowAddressLabel: () => 'Straße',
   confirmFlowAddressHelper: () => 'Straße und Hausnummer (z. B. Lavaterstrasse 3)',
-  confirmFlowAddressEmpty: () => 'Keine Adresse — tippe Adresse & Profil.',
+  confirmFlowAddressEmpty: () => 'Keine Adresse.',
   confirmFlowApartmentLabel: () => 'Wohnung',
   confirmFlowApartmentHelper: () => 'Stiege / Tür / Top, oder Haus',
   confirmFlowNoteLabel: () => 'Notiz',
@@ -120,9 +131,14 @@ module.exports = {
   confirmFlowManageBack: () => 'Zurück zur Bestellung',
   confirmFlowManageConfirmHint: () => 'Meintest du diese Adresse?',
   confirmFlowManageConfirmTyped: () => 'Du hast eingegeben',
+  confirmFlowManageConfirmTypedLine: (typed) => `Du hast eingegeben: ${typed}`,
   confirmFlowManageConfirmFound: () => 'Wir haben gefunden',
-  confirmFlowManageConfirmYes: () => 'Ja',
-  confirmFlowManageConfirmEdit: () => 'Ändern',
+  confirmFlowManageConfirmYes: () => 'Speichern',
+  confirmFlowManageConfirmEdit: () => 'Anders eingeben',
+  confirmFlowManageFoundLine: (label) => `Gefunden: ${label}`,
+  confirmFlowManageFoundSave: () => 'Diese Adresse speichern',
+  confirmFlowManageFoundRetry: () => 'Andere Adresse eingeben',
+  confirmFlowManageFoundLabel: () => 'Gefunden',
   confirmFlowErrorAddressInvalid: () => 'Diese Adresse konnten wir nicht prüfen. Bitte Straße und Hausnummer prüfen.',
   confirmFlowErrorManageSelect: () => 'Bitte zuerst eine gespeicherte Adresse wählen.',
   confirmFlowErrorManageCap: () => 'Bitte zuerst eine Adresse entfernen (max. 5).',
@@ -182,6 +198,10 @@ module.exports = {
   checkoutBasketUpdated: (basketText) => `✅ Warenkorb aktualisiert.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'Das klingt nach einer Bestellung. Bitte geben Sie Ihre Lieferadresse ein, oder fügen Sie Artikel über den Warenkorb hinzu.',
   payNowBtn: () => 'Jetzt zahlen 💳',
+  paymentBackPrompt: () => 'Noch etwas ändern, bevor du bezahlst?',
+  paymentBackBtn: () => 'Ändern',
+  paymentBackPaid: (shortId) => `Die Zahlung für Bestellung #${shortId} ist schon eingegangen.`,
+  paymentBackFailed: () => 'Die Bestellung lässt sich gerade nicht ändern. Bitte bezahle über den Button oder kontaktiere das Restaurant.',
   paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
@@ -309,9 +329,14 @@ module.exports = {
     firstOrderTime && lastOrderTime
       ? `🔒 ${name} ist derzeit geschlossen.\n\nBestellzeiten: ${firstOrderTime} – ${lastOrderTime}. Bis dann! 🙏`
       : `🔒 ${name} ist derzeit geschlossen. Bitte versuchen Sie es später! 🙏`,
+  restaurantClosedPickOther: (name, firstOrderTime, lastOrderTime) =>
+    firstOrderTime && lastOrderTime
+      ? `🔒 ${name} ist derzeit geschlossen.\n\nBestellzeiten: ${firstOrderTime} – ${lastOrderTime}.\n\nBitte wählen Sie ein anderes Restaurant.`
+      : `🔒 ${name} ist derzeit geschlossen. Bitte wählen Sie ein anderes Restaurant.`,
   closedLabel: () => '🔒 Geschlossen',
 
   ordersClosedByOwner: (name) => `⏸️ ${name} nimmt gerade keine Bestellungen entgegen. Bitte versuchen Sie es später! 🙏`,
+  ordersClosedByOwnerPickOther: (name) => `⏸️ ${name} nimmt gerade keine Bestellungen entgegen. Bitte wählen Sie ein anderes Restaurant.`,
   deliveryClosedByOwner: () => '🚫 Lieferung ist derzeit nicht verfügbar. Bitte wählen Sie Abholung.',
 
   intentConfirmHeader: () => 'Verstanden:',

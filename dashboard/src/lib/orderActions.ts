@@ -25,6 +25,17 @@ export function isKitchenPaymentBlocked(order: {
   );
 }
 
+/** Hint only while a status advance exists. A withdrawn order has nothing to move. */
+export function showKitchenPaymentHint(order: {
+  status: OrderStatus;
+  orderType?: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+}): boolean {
+  if (!isKitchenPaymentBlocked(order)) return false;
+  return getPrimaryAction(order.status, order.orderType) != null;
+}
+
 export function isKitchenAdvanceAction(action: string): boolean {
   return action !== 'reject' && action !== 'cancel';
 }

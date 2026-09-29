@@ -12,7 +12,7 @@ const {
   buildBasketText, sendCatalog, sendMenu, formatBasketItemsText, basketViewButtons, sendBasketView, parseBasketItemName,
 } = require('../botHelpers');
 const { getBusinessInfo, getMenuContext } = require('../menuService');
-const { createOrder } = require('../orderService');
+const { createOrder, getOrder, cancelOrder } = require('../orderService');
 const { customersRef, ordersRef, menuRef } = require('../../lib/collections');
 const { reverseGeocode } = require('../../lib/geocode');
 const {
@@ -27,7 +27,7 @@ const {
   parseDeliveryUnit,
 } = require('../deliveryAddress');
 const { isStripeConfigured } = require('../../lib/stripe');
-const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
+const { createCheckoutSessionForOrder, releaseUnpaidCheckoutSession, completePaidCheckoutSession, refundOrderPayment } = require('../../lib/paymentService');
 const { isLegalComplete, missingLegalFields, isSettlementIbanComplete } = require('../../lib/legalProfile');
 const { isPaymentEnabled } = require('../paymentGate');
 const { buildOrderTaxSnapshot } = require('../../lib/receiptMath');
@@ -38,6 +38,7 @@ const {
   checkoutFlowToken,
   validateCheckoutSubmit,
   applyCheckoutSubmitToSession,
+  applyConfirmDraftToSession,
   buildCheckoutReviewData,
   buildConfirmFlowDraft,
   buildCheckoutSubmitPayloadFromSession,
@@ -236,6 +237,8 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
 
   if (paymentMethod === 'stripe') {
     const chargedTotal = chargedCustomerTotal(taxSnapshot, total);
+    const payBody = t('paymentLink', lang, shortId, itemLines, chargedTotal.toFixed(2), info.name, info.alertPhone || null, info.address || null, isDelivery ? (session.deliveryAddress || null) : null, checkoutDealLines(t, lang, totals));
+    let payUrl = null;
     try {
       const { url, sessionId } = await createCheckoutSessionForOrder(businessId, orderId, {
         totalEuros: chargedTotal,
@@ -244,15 +247,34 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
         lang,
       });
       await ordersRef(businessId).doc(orderId).update({ paymentStripeSessionId: sessionId });
-      await sendCtaUrlMessage(from, {
-        body: t('paymentLink', lang, shortId, itemLines, chargedTotal.toFixed(2), info.name, info.alertPhone || null, info.address || null, isDelivery ? (session.deliveryAddress || null) : null, checkoutDealLines(t, lang, totals)),
-        buttonLabel: t('payNowBtn', lang),
-        url,
-      }, phoneNumberId);
+      payUrl = url;
     } catch (err) {
       console.error('[payment] checkout session failed:', err.message);
-      await sendText(from, t('paymentLinkFailed', lang, shortId), phoneNumberId);
     }
+    // Ändern goes out first so Jetzt zahlen stays the bottom bubble, next to the thumb.
+    // Button id carries businessId + orderId so a stale bubble withdraws that order only.
+    await sendButtonMessage(from, {
+      body: t('paymentBackPrompt', lang),
+      buttons: [{ id: paymentBackButtonId(businessId, orderId), title: t('paymentBackBtn', lang) }],
+    }, phoneNumberId);
+    if (!payUrl) {
+      await sendText(from, t('paymentLinkFailed', lang, shortId), phoneNumberId);
+      return;
+    }
+    // Ändern can land before this send. Skip the pay link if that already withdrew the order.
+    // A failed re-read still sends the link. Dropping it would leave the customer with no way to pay.
+    let fresh = null;
+    try {
+      fresh = await getOrder(businessId, orderId);
+    } catch (err) {
+      console.error('[checkout] unpaid order re-read failed:', err.message);
+    }
+    if (fresh?.status === 'cancelled') return;
+    await sendCtaUrlMessage(from, {
+      body: payBody,
+      buttonLabel: t('payNowBtn', lang),
+      url: payUrl,
+    }, phoneNumberId);
     return;
   }
 
@@ -461,6 +483,12 @@ async function beginDefaultDeliveryCheckout({ from, session, lang, businessId, b
 
   const subtotal = basketSubtotal(basket);
   if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    if (shouldSkipChatCheckoutSlots(info)) {
+      await skipToConfirmingWithPrefill({
+        from, session: delivSession, lang, businessId, basket, businessInfo: info,
+      });
+      return;
+    }
     const { msgId } = await sendDeliveryBasketGate({
       from, lang, basket, minimumOrderValue: info.minimumOrderValue,
     });
@@ -556,6 +584,12 @@ async function resumeDeliveryCheckout({ from, session, lang, businessId, basket 
   const info = await getBusinessInfo(businessId);
   const subtotal = basketSubtotal(basket);
   if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    if (shouldSkipChatCheckoutSlots(info)) {
+      await skipToConfirmingWithPrefill({
+        from, session, lang, businessId, basket, businessInfo: info,
+      });
+      return;
+    }
     const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
     await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
     return;
@@ -637,7 +671,7 @@ async function advanceCheckoutFromSlots({ from, session, lang, businessId, baske
       });
       return;
     }
-    if (info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+    if (info.minimumOrderValue && subtotal < info.minimumOrderValue && !shouldSkipChatCheckoutSlots(info)) {
       const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
       await setSession(from, {
         ...s,
@@ -678,6 +712,12 @@ async function advanceCheckoutFromSlots({ from, session, lang, businessId, baske
 // is met) without advancing to the address step.
 async function showDeliveryBasketGate({ from, session, lang, basket, businessId }) {
   const info = await getBusinessInfo(businessId);
+  if (shouldSkipChatCheckoutSlots(info)) {
+    await skipToConfirmingWithPrefill({
+      from, session, lang, businessId, basket, businessInfo: info,
+    });
+    return;
+  }
   const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue || 0 });
   await setSession(from, { ...session, pendingDeleteIds: msgId ? [msgId] : [] });
 }
@@ -878,10 +918,14 @@ async function transitionToConfirming(from, session, lang, businessId, basket, n
   const info = await getBusinessInfo(businessId);
   const { subtotal } = orderTotals(basket, session, info);
 
-  // Safety net: the delivery minimum gate normally runs earlier (btn_delivery /
-  // resumeDeliveryCheckout), before the address is even asked. This re-check only
-  // matters if the basket somehow changed after the gate already passed.
-  if (session.orderType === 'delivery' && info.minimumOrderValue && subtotal < info.minimumOrderValue) {
+  // Chat-only safety net. Flow-on restaurants open Prüfen, which blocks a short
+  // Lieferung basket on the review screen. place_order still uses gateDeliverySubmit.
+  if (
+    session.orderType === 'delivery'
+    && info.minimumOrderValue
+    && subtotal < info.minimumOrderValue
+    && !shouldSkipChatCheckoutSlots(info)
+  ) {
     const { msgId } = await sendDeliveryBasketGate({ from, lang, basket, minimumOrderValue: info.minimumOrderValue });
     await setSession(from, { ...session, state: 'browsing', pendingDeleteIds: msgId ? [msgId] : [] });
     return;
@@ -1016,6 +1060,7 @@ async function handleDeliveryMinimumAfterMutation(ctx, session, basket) {
   if (session.orderType !== 'delivery') return false;
 
   const info = await getBusinessInfo(businessId);
+  if (shouldSkipChatCheckoutSlots(info)) return false;
   if (!info.minimumOrderValue) return false;
 
   const subtotal = basketSubtotal(basket);
@@ -1433,6 +1478,23 @@ async function handleAwaitingName({ from, session, lang, businessId, basket, typ
   await sendText(from, t('confirmSummary', lang, buildBasketText(basket, lang), session.prepMins, session.pickupTime));
 }
 
+/** Close checkout and send the menu Flow. Draft choices are copied first so the next Prüfen keeps them. */
+async function resumeMenuAfterCheckoutClose({ from, session, lang, businessId, basket }) {
+  const next = {
+    ...applyConfirmDraftToSession(session),
+    state: 'browsing',
+    basket: Array.isArray(basket) ? basket : [],
+  };
+  await setSession(from, { ...next, pendingDeleteIds: [] });
+  if (session.flow === 'list') {
+    const { menuId, textMenuIndex, textMenuCategory } = await sendMenu(from, lang, businessId);
+    await patchSession(from, { menuId, textMenuIndex, textMenuCategory }, next);
+  } else {
+    const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
+    await patchSession(from, { menuId, textMenuIndex, textMenuCategory }, next);
+  }
+}
+
 async function handleConfirming({
   from, contactName, session, lang, businessId, basket, isMulti, type, id, norm, text, data,
 }) {
@@ -1448,6 +1510,18 @@ async function handleConfirming({
         state: 'browsing',
         pendingDeleteIds: msgId ? [msgId] : [],
       });
+      return;
+    }
+
+    // Mehr hinzufügen and Alles leeren both close Prüfen and send the menu Flow.
+    // Draft choices are copied onto session fields first so the next Prüfen keeps them.
+    if (payload.checkout_action === 'add_more') {
+      await resumeMenuAfterCheckoutClose({ from, session, lang, businessId, basket });
+      return;
+    }
+
+    if (payload.checkout_action === 'cart_emptied') {
+      await resumeMenuAfterCheckoutClose({ from, session, lang, businessId, basket: [] });
       return;
     }
 
@@ -1485,7 +1559,11 @@ async function handleConfirming({
       t,
       profile?.lastDeliveryAddress || '',
     );
-    const validation = validateCheckoutSubmit(payload, { addressLabels });
+    const validation = validateCheckoutSubmit(payload, {
+      addressLabels,
+      savedAddresses: profile?.savedAddresses || [],
+      defaultAddress: profile?.lastDeliveryAddress || '',
+    });
     if (!validation.ok) {
       await sendText(from, t(validation.errorKey, lang));
       await reofferConfirming(
@@ -1658,6 +1736,250 @@ async function handleConfirming({
   await transitionToConfirming(from, session, lang, businessId, basket, session.customerName);
 }
 
+const ORDER_ITEM_TAX_KEYS = new Set(['vatRate', 'net', 'vat', 'gross', 'unitPriceGross', 'kind', '_cents']);
+
+// Bound to the pay bubble so a stale Ändern does not cancel a newer unpaid order.
+// Legacy plain `btn_payment_back` still falls back to session.pendingAmend*.
+const PAYMENT_BACK_BTN_PREFIX = 'btn_payment_back';
+const PAYMENT_BACK_BTN_SEP = '|';
+
+function paymentBackButtonId(businessId, orderId) {
+  return `${PAYMENT_BACK_BTN_PREFIX}${PAYMENT_BACK_BTN_SEP}${businessId}${PAYMENT_BACK_BTN_SEP}${orderId}`;
+}
+
+function parsePaymentBackButtonId(id) {
+  if (!id || typeof id !== 'string') return null;
+  if (id === PAYMENT_BACK_BTN_PREFIX) return { legacy: true };
+  const prefix = `${PAYMENT_BACK_BTN_PREFIX}${PAYMENT_BACK_BTN_SEP}`;
+  if (!id.startsWith(prefix)) return null;
+  const rest = id.slice(prefix.length);
+  const sep = rest.indexOf(PAYMENT_BACK_BTN_SEP);
+  if (sep <= 0 || sep === rest.length - 1) return null;
+  const businessId = rest.slice(0, sep);
+  const orderId = rest.slice(sep + 1);
+  if (!businessId || !orderId || orderId.includes(PAYMENT_BACK_BTN_SEP)) return null;
+  return { businessId, orderId };
+}
+
+function isPaymentBackButtonId(id) {
+  return id === PAYMENT_BACK_BTN_PREFIX || !!parsePaymentBackButtonId(id)?.orderId;
+}
+
+function basketFromOrderItems(items) {
+  return (items || [])
+    .filter((item) => item && item.kind !== 'fee' && item.name && item.qty && item.price != null)
+    .map((item) => {
+      const line = {};
+      for (const [key, val] of Object.entries(item)) {
+        if (ORDER_ITEM_TAX_KEYS.has(key) || val == null) continue;
+        line[key] = val;
+      }
+      return line;
+    });
+}
+
+function postOrderButtons(lang) {
+  return [
+    { id: 'btn_post_cancel', title: t('postCancelBtn', lang) },
+    { id: 'btn_post_reorder', title: t('postReorderBtn', lang) },
+    { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
+  ];
+}
+
+// Payment already landed. Send the same confirmation, action buttons, and Beleg
+// the Stripe webhook sends. A second tap only repeats the three buttons.
+async function showPaidCheckout({ from, businessId, orderId, order, lang, phoneNumberId }) {
+  if (!order.paymentNotifiedAt && order.paymentStripeSessionId) {
+    try {
+      const done = await completePaidCheckoutSession(order.paymentStripeSessionId);
+      if (done) {
+        const latest = await getOrder(businessId, orderId);
+        if (latest?.paymentNotifiedAt) return;
+      }
+    } catch (err) {
+      console.error('[checkout] paid checkout notify failed:', err.message);
+    }
+  }
+  await sendButtonMessage(from, {
+    body: t('postOrderOptions', lang, order.restaurantName || null),
+    buttons: postOrderButtons(lang),
+  }, phoneNumberId);
+}
+
+// Ändern above the pay link. The cta_url bubble can only carry Jetzt zahlen, so
+// this is a second reply button. Unpaid pending orders are withdrawn and Prüfen reopens.
+// Prefer businessId + orderId encoded in the button so a stale bubble does not cancel a newer order.
+async function handlePaymentBack({ from, session, lang, buttonId = null, allowedBusinessIds = null }) {
+  const phoneNumberId = session.whatsappPhoneNumberId || null;
+  const parsed = parsePaymentBackButtonId(buttonId);
+  let businessId;
+  let orderId;
+  if (parsed?.orderId) {
+    businessId = parsed.businessId;
+    orderId = parsed.orderId;
+    if (Array.isArray(allowedBusinessIds) && !allowedBusinessIds.includes(businessId)) {
+      console.warn('[checkout] payment back businessId not on routing');
+      return;
+    }
+  } else {
+    // Legacy plain btn_payment_back (already-sent bubbles) or missing id.
+    businessId = session.pendingAmendBusinessId || session.businessId;
+    orderId = session.pendingAmendOrderId;
+  }
+
+  if (!orderId || !businessId) {
+    if (session.state === 'confirming') return;
+    if (businessId) {
+      const info = await getBusinessInfo(businessId);
+      const phone = info.alertPhone || info.phone || null;
+      await sendText(from, t('postOrderCallRestaurant', lang, info.name, phone), phoneNumberId);
+    }
+    return;
+  }
+
+  const order = await getOrder(businessId, orderId);
+  if (!order) {
+    const info = await getBusinessInfo(businessId);
+    const phone = info.alertPhone || info.phone || null;
+    await sendText(from, t('postOrderCallRestaurant', lang, info.name, phone), phoneNumberId);
+    return;
+  }
+  // Button-encoded ids are client-visible; only the customer who placed the order may withdraw.
+  if (order.customerPhone && order.customerPhone !== from) {
+    console.warn('[checkout] payment back phone mismatch');
+    return;
+  }
+
+  const shortId = orderId.slice(-6).toUpperCase();
+  const paidAndOpen = order.paymentStatus === 'paid'
+    && order.status !== 'cancelled'
+    && order.status !== 'rejected';
+  if (paidAndOpen) {
+    await showPaidCheckout({ from, businessId, orderId, order, lang, phoneNumberId });
+    return;
+  }
+  if (order.paymentStatus === 'refunded') {
+    await sendText(from, t('paymentRefunded', lang, shortId), phoneNumberId);
+    return;
+  }
+  const alreadySettled = order.paymentStatus === 'paid';
+  if (alreadySettled || order.status !== 'pending') {
+    if (alreadySettled) {
+      await sendText(from, t('paymentBackPaid', lang, shortId), phoneNumberId);
+    } else {
+      const info = await getBusinessInfo(businessId);
+      const phone = info.alertPhone || info.phone || null;
+      await sendText(from, t('postOrderCallRestaurant', lang, info.name, phone), phoneNumberId);
+    }
+    return;
+  }
+
+  let release;
+  try {
+    release = await releaseUnpaidCheckoutSession(order.paymentStripeSessionId);
+  } catch (err) {
+    console.error('[checkout] expire unpaid session failed:', err.message);
+    await sendText(from, t('paymentBackFailed', lang), phoneNumberId);
+    return;
+  }
+  if (release.paid) {
+    await showPaidCheckout({ from, businessId, orderId, order, lang, phoneNumberId });
+    return;
+  }
+
+  const fresh = await getOrder(businessId, orderId);
+  if (fresh?.paymentStatus === 'paid') {
+    await showPaidCheckout({ from, businessId, orderId, order: fresh, lang, phoneNumberId });
+    return;
+  }
+
+  let withdrew = false;
+  try {
+    if (fresh?.status === 'pending') {
+      await cancelOrder(businessId, orderId, { skipReentry: true, skipCustomerNotify: true });
+      // Payment can land between the re-read above and this cancel. The webhook
+      // may already have taken the paid path, so refund from here too.
+      const after = await getOrder(businessId, orderId);
+      if (after?.paymentStatus === 'paid') {
+        try {
+          await refundOrderPayment(businessId, orderId, {
+            reason: 'withdrawn_before_payment',
+            actor: 'customer',
+            notifyCustomer: true,
+          });
+        } catch (err) {
+          console.error('[checkout] refund after withdraw failed:', err.message);
+          await sendText(from, t('paymentBackFailed', lang), phoneNumberId);
+          return;
+        }
+      }
+      withdrew = true;
+    } else if (fresh?.status === 'cancelled') {
+      // Another Ändern already withdrew this order. Skip the owner alert and Prüfen.
+      return;
+    } else {
+      const info = await getBusinessInfo(businessId);
+      const phone = info.alertPhone || info.phone || null;
+      await sendText(from, t('postOrderCallRestaurant', lang, info.name, phone), phoneNumberId);
+      return;
+    }
+  } catch (err) {
+    console.error('[checkout] withdraw unpaid order failed:', err.message);
+    const again = await getOrder(businessId, orderId);
+    if (again?.paymentStatus === 'paid' && again.status !== 'cancelled' && again.status !== 'rejected') {
+      await showPaidCheckout({ from, businessId, orderId, order: again, lang, phoneNumberId });
+      return;
+    }
+    if (again?.paymentStatus === 'refunded') {
+      await sendText(from, t('paymentRefunded', lang, shortId), phoneNumberId);
+      return;
+    }
+    if (again?.paymentStatus === 'paid') {
+      await sendText(from, t('paymentBackPaid', lang, shortId), phoneNumberId);
+      return;
+    }
+    if (again?.status !== 'cancelled') {
+      await sendText(from, t('paymentBackFailed', lang), phoneNumberId);
+      return;
+    }
+    return;
+  }
+
+  if (!withdrew) return;
+
+  const info = await getBusinessInfo(businessId);
+  try {
+    if (info.alertPhone) {
+      await sendText(
+        info.alertPhone,
+        `↩️ Order #${shortId} withdrawn before payment\nCustomer: ${order.customerName || 'WhatsApp Customer'} (${order.customerPhone || from})`,
+        phoneNumberId,
+      );
+    }
+  } catch (err) {
+    console.error('[checkout] owner withdraw notify failed:', err.message);
+  }
+
+  const basket = basketFromOrderItems(order.items);
+  const customerName = order.customerName && order.customerName !== 'WhatsApp Customer'
+    ? order.customerName
+    : (session.customerName || '');
+  const next = {
+    ...session,
+    businessId,
+    basket,
+    customerName,
+    orderType: order.orderType || 'pickup',
+    deliveryAddress: order.orderType === 'delivery' ? (order.deliveryAddress || null) : null,
+    specialRequests: order.notes || null,
+    ...recomputePrepFields(info),
+  };
+  delete next.pendingAmendOrderId;
+  delete next.pendingAmendBusinessId;
+  delete next.pendingAmendPlacedAt;
+  await transitionToConfirming(from, next, lang, businessId, basket, customerName);
+}
+
 module.exports = {
   handleAwaitingConfirmNote,
   handleAwaitingOrderType,
@@ -1670,4 +1992,8 @@ module.exports = {
   resumeDeliveryCheckout,
   showDeliveryBasketGate,
   proceedFromConfirmedBasket,
+  handlePaymentBack,
+  paymentBackButtonId,
+  parsePaymentBackButtonId,
+  isPaymentBackButtonId,
 };

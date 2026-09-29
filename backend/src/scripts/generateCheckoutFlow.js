@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
-const { checkoutReviewCopy, checkoutManageCopy } = require('../bot/menuFlowCopy');
+const { checkoutReviewCopy, checkoutManageCopy, checkoutCartCopy, cartRemoveModeOptions } = require('../bot/menuFlowCopy');
 const { ADDRESS_CHOICE_NEW } = require('../bot/checkoutConfirmFlow');
 const { t } = require('../lib/templates');
 const { addressHomeIconBase64, addressNewIconBase64 } = require('../lib/flowImages');
@@ -100,22 +100,20 @@ function reviewFormPayload() {
   };
 }
 
-/** Delivery block on Prüfen: read-only full label (profile link lives outside). */
+/** Delivery street on Prüfen. No separate caption: that gap is Flow's padding between two text components. */
 function deliveryAddressFields() {
   return [
     {
-      type: 'TextCaption',
-      text: `\${data.${F.UI_ADDRESS_CHOICE_LABEL}}`,
-    },
-    {
       type: 'TextBody',
       text: `\${data.${F.DELIVERY_ADDRESS_DISPLAY}}`,
+      visible: `\${data.${F.ADDRESS_FIELDS_VISIBLE}}`,
     },
   ];
 }
 
-async function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
+async function checkoutReviewScreen(id, { includeManageLink = true, includeCartLink = true } = {}) {
   const copy = checkoutReviewCopy(EXAMPLE_LANG);
+  copy[F.UI_REVIEW_INTRO] = 'Demo Kitchen';
   if (!includeManageLink) delete copy[F.UI_MANAGE_ADDRESSES_LINK];
   return {
     id,
@@ -133,8 +131,12 @@ async function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
       [F.ORDER_TYPE_OPTIONS]: {
         ...OPTION_LIST_SCHEMA,
         '__example__': [
-          { id: 'pickup', title: 'Pickup' },
-          { id: 'delivery', title: 'Delivery' },
+          { id: 'pickup', title: 'Pickup', description: 'No delivery fee' },
+          {
+            id: 'delivery',
+            title: 'Delivery',
+            metadata: '€2.00',
+          },
         ],
       },
       [F.ADDRESS_CHOICE]: { type: 'string', '__example__': 'addr_0' },
@@ -154,6 +156,9 @@ async function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
         '__example__': 'Hippgasse 11, Top 14, 1160 Wien',
       },
       [F.CHECKOUT_NOTE]: { type: 'string', '__example__': 'Please ring the bell.' },
+      [F.PLACE_ORDER_ENABLED]: { type: 'boolean', '__example__': true },
+      [F.CHECKOUT_BLOCK_REASON]: { type: 'string', '__example__': '' },
+      [F.CHECKOUT_BLOCK_VISIBLE]: { type: 'boolean', '__example__': false },
     },
     layout: {
       type: 'SingleColumnLayout',
@@ -166,24 +171,8 @@ async function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
         },
         children: [
           {
-            type: 'TextCaption',
+            type: 'TextHeading',
             text: `\${data.${F.UI_REVIEW_INTRO}}`,
-          },
-          {
-            type: 'TextCaption',
-            text: `\${data.${F.UI_REVIEW_SECTION_BASKET}}`,
-          },
-          {
-            type: 'TextBody',
-            text: `\${data.${F.RECEIPT_TEXT}}`,
-          },
-          {
-            type: 'TextCaption',
-            text: `\${data.${F.UI_NAME_LABEL}}`,
-          },
-          {
-            type: 'TextBody',
-            text: `\${data.${F.CUSTOMER_NAME_DISPLAY}}`,
           },
           {
             type: 'RadioButtonsGroup',
@@ -199,17 +188,33 @@ async function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
               },
             },
           },
+          ...deliveryAddressFields(),
           {
-            type: 'If',
-            condition: `\${form.${F.ORDER_TYPE}} == 'delivery'`,
-            then: deliveryAddressFields(),
+            type: 'TextBody',
+            text: `\${data.${F.RECEIPT_TEXT}}`,
           },
           {
-            type: 'TextArea',
+            type: 'TextInput',
             label: `\${data.${F.UI_NOTE_LABEL}}`,
             name: F.CHECKOUT_NOTE,
             required: false,
           },
+          {
+            type: 'TextCaption',
+            text: `\${data.${F.CHECKOUT_BLOCK_REASON}}`,
+            visible: `\${data.${F.CHECKOUT_BLOCK_VISIBLE}}`,
+          },
+          ...(includeCartLink ? [{
+            type: 'EmbeddedLink',
+            text: `\${data.${F.UI_BACK_TO_CART}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: {
+                checkout_action: 'open_cart',
+                ...reviewFormPayload(),
+              },
+            },
+          }] : []),
           ...(includeManageLink ? [{
             type: 'EmbeddedLink',
             text: `\${data.${F.UI_MANAGE_ADDRESSES_LINK}}`,
@@ -222,16 +227,9 @@ async function checkoutReviewScreen(id, { includeManageLink = true } = {}) {
             },
           }] : []),
           {
-            type: 'EmbeddedLink',
-            text: `\${data.${F.UI_BACK_TO_CART}}`,
-            'on-click-action': {
-              name: 'data_exchange',
-              payload: { checkout_action: 'back_to_cart' },
-            },
-          },
-          {
             type: 'Footer',
             label: `\${data.${F.UI_PLACE_ORDER}}`,
+            enabled: `\${data.${F.PLACE_ORDER_ENABLED}}`,
             'on-click-action': {
               name: 'complete',
               payload: {
@@ -273,6 +271,8 @@ async function addressManageScreen(id, exampleOptions) {
       [F.DELIVERY_ADDRESS]: { type: 'string', '__example__': 'Hippgasse 11, 1160 Wien' },
       [F.DELIVERY_APARTMENT]: { type: 'string', '__example__': 'Top 14' },
       [F.MANAGE_UI_MODE]: { type: 'string', '__example__': 'list' },
+      [F.MANAGE_FORM_VISIBLE]: { type: 'boolean', '__example__': true },
+      [F.MANAGE_DELETE_VISIBLE]: { type: 'boolean', '__example__': false },
       [F.MANAGE_CONFIRM_PENDING]: { type: 'string', '__example__': '' },
       [F.MANAGE_CONFIRM_TYPED]: { type: 'string', '__example__': '' },
       [F.MANAGE_CONFIRM_BUILDING]: { type: 'string', '__example__': 'Hippgasse 11' },
@@ -283,6 +283,11 @@ async function addressManageScreen(id, exampleOptions) {
         type: 'string',
         '__example__': await addressHomeIconBase64(),
       },
+      [F.MANAGE_FOUND_LINE]: { type: 'string', '__example__': 'Gefunden' },
+      [F.MANAGE_FOUND_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.MANAGE_FOUND_APPLY]: { type: 'boolean', '__example__': false },
+      [F.MANAGE_EDIT_LINK_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.UI_MANAGE_EDIT_LINK]: { type: 'string', '__example__': 'Löschen' },
       // Manage writes answer on the same screen, so the failure reason needs a visible slot.
       [F.ERROR_MESSAGE]: { type: 'string', '__example__': 'Select a saved address first.' },
       [F.ERROR_VISIBLE]: { type: 'boolean', '__example__': false },
@@ -306,32 +311,40 @@ async function addressManageScreen(id, exampleOptions) {
             visible: `\${data.${F.ERROR_VISIBLE}}`,
           },
           {
-            // Meta: Footer inside If must exist in both then and else; no Footer outside.
-            type: 'If',
-            condition: `\${data.${F.MANAGE_UI_MODE}} == 'confirm'`,
-            then: [
+            type: 'TextInput',
+            label: `\${data.${F.UI_PROFILE_NAME_LABEL}}`,
+            name: F.CUSTOMER_NAME,
+            required: true,
+            visible: `\${data.${F.MANAGE_FORM_VISIBLE}}`,
+            'helper-text': `\${data.${F.UI_PROFILE_NAME_HELPER}}`,
+          },
+          {
+            type: 'RadioButtonsGroup',
+            label: `\${data.${F.UI_MANAGE_HINT}}`,
+            name: F.MANAGE_ADDRESS_CHOICE,
+            required: false,
+            visible: `\${data.${F.MANAGE_FORM_VISIBLE}}`,
+            'data-source': `\${data.${F.MANAGE_ADDRESS_OPTIONS}}`,
+            'media-size': 'regular',
+            'on-select-action': {
+              name: 'data_exchange',
+              payload: {
+                checkout_action: 'select_address',
+                [F.CUSTOMER_NAME]: `\${form.${F.CUSTOMER_NAME}}`,
+                [F.MANAGE_ADDRESS_CHOICE]: `\${form.${F.MANAGE_ADDRESS_CHOICE}}`,
+                [F.MANAGE_SET_AS_DEFAULT]: `\${form.${F.MANAGE_SET_AS_DEFAULT}}`,
+              },
+            },
+          },
+          {
+            // Switch is not an If, so Profil modes do not add another nesting level.
+            type: 'Switch',
+            value: `\${data.${F.MANAGE_UI_MODE}}`,
+            cases: {
+              confirm: [
               {
                 type: 'TextBody',
                 text: `\${data.${F.UI_MANAGE_HINT}}`,
-              },
-              {
-                type: 'Image',
-                src: `\${data.${F.MANAGE_CONFIRM_PIN_IMAGE}}`,
-                width: 64,
-                height: 64,
-                'scale-type': 'contain',
-              },
-              {
-                type: 'TextCaption',
-                text: `\${data.${F.UI_MANAGE_CONFIRM_TYPED}}`,
-              },
-              {
-                type: 'TextBody',
-                text: `\${data.${F.MANAGE_CONFIRM_TYPED}}`,
-              },
-              {
-                type: 'TextCaption',
-                text: `\${data.${F.UI_MANAGE_CONFIRM_FOUND}}`,
               },
               {
                 type: 'TextHeading',
@@ -343,8 +356,12 @@ async function addressManageScreen(id, exampleOptions) {
                 visible: `\${data.${F.MANAGE_CONFIRM_UNIT_VISIBLE}}`,
               },
               {
-                type: 'TextCaption',
+                type: 'TextBody',
                 text: `\${data.${F.MANAGE_CONFIRM_LOCALITY}}`,
+              },
+              {
+                type: 'TextCaption',
+                text: `\${data.${F.MANAGE_CONFIRM_TYPED}}`,
               },
               {
                 type: 'EmbeddedLink',
@@ -374,121 +391,293 @@ async function addressManageScreen(id, exampleOptions) {
                   },
                 },
               },
-            ],
-            else: [
-              {
-                type: 'TextInput',
-                label: `\${data.${F.UI_PROFILE_NAME_LABEL}}`,
-                name: F.CUSTOMER_NAME,
-                required: true,
-                'helper-text': `\${data.${F.UI_PROFILE_NAME_HELPER}}`,
-              },
-              {
-                type: 'RadioButtonsGroup',
-                label: `\${data.${F.UI_MANAGE_HINT}}`,
-                name: F.MANAGE_ADDRESS_CHOICE,
-                // Not required: list opens with no selection; Footer "back" must stay tappable.
-                required: false,
-                'data-source': `\${data.${F.MANAGE_ADDRESS_OPTIONS}}`,
-                'media-size': 'regular',
-                'on-select-action': {
-                  name: 'data_exchange',
-                  payload: {
-                    checkout_action: 'select_address',
-                    [F.MANAGE_ADDRESS_CHOICE]: `\${form.${F.MANAGE_ADDRESS_CHOICE}}`,
-                    [F.MANAGE_SET_AS_DEFAULT]: `\${form.${F.MANAGE_SET_AS_DEFAULT}}`,
+              ],
+              edit: [
+                {
+                  type: 'TextCaption',
+                  text: `\${data.${F.UI_MANAGE_EDIT_CAPTION}}`,
+                },
+                {
+                  type: 'TextInput',
+                  label: `\${data.${F.UI_ADDRESS_LABEL}}`,
+                  name: F.DELIVERY_ADDRESS,
+                  required: true,
+                  'helper-text': `\${data.${F.UI_ADDRESS_HELPER}}`,
+                },
+                {
+                  type: 'TextInput',
+                  label: `\${data.${F.UI_APARTMENT_LABEL}}`,
+                  name: F.DELIVERY_APARTMENT,
+                  required: true,
+                  'helper-text': `\${data.${F.UI_APARTMENT_HELPER}}`,
+                },
+                {
+                  type: 'OptIn',
+                  label: `\${data.${F.UI_MANAGE_SET_DEFAULT}}`,
+                  name: F.MANAGE_SET_AS_DEFAULT,
+                  required: false,
+                },
+                {
+                  // No on-click-action: Meta turns that into a "Read more" link.
+                  // Required so the footer stays off until this find is accepted.
+                  type: 'OptIn',
+                  label: `\${data.${F.MANAGE_FOUND_LINE}}`,
+                  name: F.MANAGE_FOUND_APPLY,
+                  required: true,
+                  visible: `\${data.${F.MANAGE_FOUND_VISIBLE}}`,
+                },
+                {
+                  // Same slot as Löschen. While a find is showing, the label is
+                  // Andere Adresse eingeben and the server clears the form.
+                  type: 'EmbeddedLink',
+                  text: `\${data.${F.UI_MANAGE_EDIT_LINK}}`,
+                  visible: `\${data.${F.MANAGE_EDIT_LINK_VISIBLE}}`,
+                  'on-click-action': {
+                    name: 'data_exchange',
+                    payload: {
+                      checkout_action: 'manage_edit_link',
+                      ...formPayload,
+                    },
                   },
                 },
-              },
-              {
-                type: 'If',
-                condition: `\${data.${F.MANAGE_UI_MODE}} == 'edit'`,
-                then: [
-                  {
-                    type: 'TextCaption',
-                    text: `\${data.${F.UI_MANAGE_EDIT_CAPTION}}`,
-                  },
-                  {
-                    type: 'TextInput',
-                    label: `\${data.${F.UI_ADDRESS_LABEL}}`,
-                    name: F.DELIVERY_ADDRESS,
-                    required: true,
-                    'helper-text': `\${data.${F.UI_ADDRESS_HELPER}}`,
-                  },
-                  {
-                    type: 'TextInput',
-                    label: `\${data.${F.UI_APARTMENT_LABEL}}`,
-                    name: F.DELIVERY_APARTMENT,
-                    required: true,
-                    'helper-text': `\${data.${F.UI_APARTMENT_HELPER}}`,
-                  },
-                  {
-                    type: 'OptIn',
-                    label: `\${data.${F.UI_MANAGE_SET_DEFAULT}}`,
-                    name: F.MANAGE_SET_AS_DEFAULT,
-                    required: false,
-                  },
-                  {
-                    type: 'If',
-                    condition: `\${form.${F.MANAGE_ADDRESS_CHOICE}} != '${ADDRESS_CHOICE_NEW}'`,
-                    then: [{
-                      type: 'EmbeddedLink',
-                      text: `\${data.${F.UI_MANAGE_DELETE}}`,
-                      'on-click-action': {
-                        name: 'data_exchange',
-                        payload: {
-                          checkout_action: 'manage_delete',
-                          ...formPayload,
-                        },
-                      },
-                    }],
-                  },
-                  {
-                    type: 'EmbeddedLink',
-                    text: `\${data.${F.UI_MANAGE_BACK}}`,
-                    'on-click-action': {
-                      name: 'data_exchange',
-                      payload: {
-                        checkout_action: 'manage_back',
-                        ...formPayload,
-                      },
+                {
+                  type: 'EmbeddedLink',
+                  text: `\${data.${F.UI_MANAGE_BACK}}`,
+                  'on-click-action': {
+                    name: 'data_exchange',
+                    payload: {
+                      checkout_action: 'manage_back',
+                      ...formPayload,
                     },
                   },
-                  {
-                    type: 'Footer',
-                    label: `\${data.${F.UI_MANAGE_SAVE}}`,
-                    'on-click-action': {
-                      name: 'data_exchange',
-                      payload: {
-                        checkout_action: 'manage_save',
-                        ...formPayload,
-                      },
+                },
+                {
+                  type: 'Footer',
+                  label: `\${data.${F.UI_MANAGE_SAVE}}`,
+                  'on-click-action': {
+                    name: 'data_exchange',
+                    payload: {
+                      checkout_action: 'manage_save',
+                      ...formPayload,
+                      [F.MANAGE_FOUND_APPLY]: `\${form.${F.MANAGE_FOUND_APPLY}}`,
                     },
                   },
-                ],
-                else: [
-                  {
-                    type: 'TextCaption',
-                    text: `\${data.${F.UI_MANAGE_SELECT_HINT}}`,
-                  },
-                  {
-                    // List mode: primary action is return (tap a row to open the form).
-                    // Include name so Profil edits persist on Siparişe dön.
-                    type: 'Footer',
-                    label: `\${data.${F.UI_MANAGE_BACK}}`,
-                    'on-click-action': {
-                      name: 'data_exchange',
-                      payload: {
-                        checkout_action: 'manage_back',
-                        ...formPayload,
-                      },
+                },
+              ],
+              list: [
+                {
+                  type: 'TextCaption',
+                  text: `\${data.${F.UI_MANAGE_SELECT_HINT}}`,
+                },
+                {
+                  // List mode: primary action is return (tap a row to open the form).
+                  type: 'Footer',
+                  label: `\${data.${F.UI_MANAGE_BACK}}`,
+                  'on-click-action': {
+                    name: 'data_exchange',
+                    payload: {
+                      checkout_action: 'manage_back',
+                      ...formPayload,
                     },
                   },
-                ],
-              },
-            ],
+                },
+              ],
+            },
           },
         ],
+      }],
+    },
+  };
+}
+
+const CART_OPTION_PROPS = {
+  id: { type: 'string' },
+  title: { type: 'string' },
+  description: { type: 'string' },
+  metadata: { type: 'string' },
+  image: { type: 'string' },
+  'alt-text': { type: 'string' },
+};
+
+/** Same remove UI as the menu cart. Footer returns to the next Prüfen clone. No Bearbeiten. */
+function checkoutCartScreen(id) {
+  const copy = checkoutCartCopy(EXAMPLE_LANG, t);
+  return {
+    id,
+    title: `\${data.${F.UI_SCREEN_TITLE}}`,
+    refresh_on_back: true,
+    data: {
+      ...uiSchema(copy),
+      [F.SUBTOTAL_LABEL]: { type: 'string', '__example__': 'Subtotal: €15.40' },
+      [F.DISCOUNT_LABEL]: { type: 'string', '__example__': '' },
+      [F.DISCOUNT_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.DELIVERY_LABEL]: { type: 'string', '__example__': '' },
+      [F.DELIVERY_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.TOTAL_LABEL]: { type: 'string', '__example__': 'Total: €15.40' },
+      [F.BASKET_ITEMS]: {
+        type: 'array',
+        items: { type: 'object', properties: CART_OPTION_PROPS },
+        '__example__': [
+          {
+            id: '0',
+            title: '1x Dürüm Huhn',
+            description: 'Tomaten, Salat',
+            metadata: '€8.50',
+            image: 'AA==',
+            'alt-text': '1x Dürüm Huhn',
+          },
+        ],
+      },
+      [F.REMOVE_MODE_OPTIONS]: {
+        type: 'array',
+        items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } } },
+        '__example__': cartRemoveModeOptions(EXAMPLE_LANG, t, { allowEdit: false }),
+      },
+      [F.FORM_INIT_VALUES]: {
+        type: 'object',
+        properties: { [F.REMOVE_MODE]: { type: 'string' } },
+        '__example__': { [F.REMOVE_MODE]: 'one' },
+      },
+      [F.ERROR_MESSAGE]: { type: 'string', '__example__': '' },
+      [F.ERROR_VISIBLE]: { type: 'boolean', '__example__': false },
+    },
+    layout: {
+      type: 'SingleColumnLayout',
+      children: [{
+        type: 'Form',
+        name: 'checkout_cart_form',
+        'init-values': `\${data.${F.FORM_INIT_VALUES}}`,
+        children: [
+          { type: 'TextCaption', text: `\${data.${F.UI_CART_HINT}}` },
+          {
+            type: 'TextBody',
+            text: `\${data.${F.ERROR_MESSAGE}}`,
+            visible: `\${data.${F.ERROR_VISIBLE}}`,
+          },
+          {
+            type: 'CheckboxGroup',
+            label: `\${data.${F.UI_REMOVE_LABEL}}`,
+            name: F.REMOVE_ITEMS,
+            required: false,
+            'media-size': 'large',
+            'data-source': `\${data.${F.BASKET_ITEMS}}`,
+          },
+          { type: 'TextBody', text: `\${data.${F.SUBTOTAL_LABEL}}` },
+          { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
+          {
+            type: 'RadioButtonsGroup',
+            label: `\${data.${F.UI_REMOVE_MODE_LABEL}}`,
+            name: F.REMOVE_MODE,
+            required: true,
+            'data-source': `\${data.${F.REMOVE_MODE_OPTIONS}}`,
+          },
+          {
+            type: 'EmbeddedLink',
+            text: `\${data.${F.UI_REMOVE_SELECTED}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: {
+                checkout_action: 'cart_remove',
+                [F.REMOVE_ITEMS]: `\${form.${F.REMOVE_ITEMS}}`,
+                [F.REMOVE_MODE]: `\${form.${F.REMOVE_MODE}}`,
+              },
+            },
+          },
+          {
+            type: 'EmbeddedLink',
+            text: `\${data.${F.UI_ADD_MORE}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: { checkout_action: 'add_more' },
+            },
+          },
+          {
+            type: 'Footer',
+            label: `\${data.${F.UI_RETURN_TO_REVIEW}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: { checkout_action: 'return_to_review' },
+            },
+          },
+        ],
+      }],
+    },
+  };
+}
+
+function formChildren(screen) {
+  return screen.layout.children[0].children;
+}
+
+function tagSingleLayout(node) {
+  if (Array.isArray(node)) {
+    node.forEach(tagSingleLayout);
+    return;
+  }
+  if (!node || typeof node !== 'object') return;
+  for (const key of ['on-click-action', 'on-select-action']) {
+    const action = node[key];
+    if (action?.name === 'data_exchange' && action.payload) {
+      action.payload.checkout_layout = 'single';
+      action.payload[F.CHECKOUT_UI_MODE] = `\${data.${F.CHECKOUT_UI_MODE}}`;
+    }
+  }
+  Object.values(node).forEach(tagSingleLayout);
+}
+
+/**
+ * One screen. Profil and Warenkorb are modes, not routing steps.
+ * Meta's progress bar advances on every new screen id, and the old clone chain
+ * (review → manage → review return → manage again → review done) filled the bar
+ * and then had nowhere left to go.
+ */
+async function unifiedCheckoutScreen(exampleOptions) {
+  const review = await checkoutReviewScreen(S.CHECKOUT_REVIEW);
+  const manage = await addressManageScreen(S.ADDRESS_MANAGE, exampleOptions);
+  const cart = checkoutCartScreen(S.CHECKOUT_CART);
+  const children = [
+    {
+      type: 'If',
+      condition: `\${data.${F.CHECKOUT_UI_MODE}} == 'manage'`,
+      then: formChildren(manage),
+      else: [{
+        type: 'If',
+        condition: `\${data.${F.CHECKOUT_UI_MODE}} == 'cart'`,
+        then: formChildren(cart),
+        else: formChildren(review),
+      }],
+    },
+  ];
+  tagSingleLayout(children);
+  return {
+    id: S.CHECKOUT_REVIEW,
+    title: `\${data.${F.UI_SCREEN_TITLE}}`,
+    terminal: true,
+    data: {
+      ...review.data,
+      ...manage.data,
+      ...cart.data,
+      [F.CHECKOUT_UI_MODE]: strField('review'),
+      // Manage copy spreads the static intro. The review heading example is the restaurant.
+      [F.UI_REVIEW_INTRO]: strField('Demo Kitchen'),
+    },
+    layout: {
+      type: 'SingleColumnLayout',
+      children: [{
+        type: 'Form',
+        name: 'checkout_form',
+        'init-values': {
+          [F.ORDER_TYPE]: `\${data.${F.ORDER_TYPE}}`,
+          [F.CHECKOUT_NOTE]: `\${data.${F.CHECKOUT_NOTE}}`,
+          [F.CUSTOMER_NAME]: `\${data.${F.CUSTOMER_NAME}}`,
+          [F.MANAGE_ADDRESS_CHOICE]: `\${data.${F.MANAGE_ADDRESS_CHOICE}}`,
+          [F.DELIVERY_ADDRESS]: `\${data.${F.DELIVERY_ADDRESS}}`,
+          [F.DELIVERY_APARTMENT]: `\${data.${F.DELIVERY_APARTMENT}}`,
+          [F.MANAGE_SET_AS_DEFAULT]: false,
+          [F.MANAGE_FOUND_APPLY]: `\${data.${F.MANAGE_FOUND_APPLY}}`,
+          [F.REMOVE_MODE]: `\${data.${F.FORM_INIT_VALUES}.${F.REMOVE_MODE}}`,
+        },
+        children,
       }],
     },
   };
@@ -500,20 +689,10 @@ async function main() {
     version: '7.3',
     data_api_version: '3.0',
     routing_model: {
-      [S.CHECKOUT_REVIEW]: [S.ADDRESS_MANAGE],
-      [S.ADDRESS_MANAGE]: [S.ADDRESS_MANAGE_UPDATED, S.CHECKOUT_REVIEW_RETURN],
-      [S.ADDRESS_MANAGE_UPDATED]: [S.CHECKOUT_REVIEW_RETURN],
-      [S.CHECKOUT_REVIEW_RETURN]: [S.ADDRESS_MANAGE_AGAIN],
-      [S.ADDRESS_MANAGE_AGAIN]: [S.CHECKOUT_REVIEW_DONE],
-      [S.CHECKOUT_REVIEW_DONE]: [],
+      [S.CHECKOUT_REVIEW]: [],
     },
     screens: [
-      await checkoutReviewScreen(S.CHECKOUT_REVIEW),
-      await addressManageScreen(S.ADDRESS_MANAGE, exampleOptions),
-      await addressManageScreen(S.ADDRESS_MANAGE_UPDATED, exampleOptions),
-      await checkoutReviewScreen(S.CHECKOUT_REVIEW_RETURN),
-      await addressManageScreen(S.ADDRESS_MANAGE_AGAIN, exampleOptions),
-      await checkoutReviewScreen(S.CHECKOUT_REVIEW_DONE, { includeManageLink: true }),
+      await unifiedCheckoutScreen(exampleOptions),
     ],
   };
 

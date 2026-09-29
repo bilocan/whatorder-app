@@ -66,6 +66,19 @@ function cartRemoveModeOptions(lang, t = defaultT, { allowEdit = true } = {}) {
   return opts;
 }
 
+/** Checkout Flow cart: same remove chrome as the menu cart, footer returns to Prüfen. */
+function checkoutCartCopy(lang, t = defaultT) {
+  return {
+    [F.UI_SCREEN_TITLE]: t('menuFlowCartTitle', lang),
+    [F.UI_CART_HINT]: t('menuFlowCartHint', lang),
+    [F.UI_REMOVE_LABEL]: t('menuFlowRemoveLabel', lang),
+    [F.UI_REMOVE_MODE_LABEL]: t('menuFlowRemoveModeLabel', lang),
+    [F.UI_REMOVE_SELECTED]: t('menuFlowRemoveSelected', lang),
+    [F.UI_ADD_MORE]: t('menuFlowAddMore', lang),
+    [F.UI_RETURN_TO_REVIEW]: t('confirmFlowReturnToReview', lang),
+  };
+}
+
 function cartDoneCopy(lang, t = defaultT) {
   return {
     [F.UI_SCREEN_TITLE]: t('menuFlowCartTitle', lang),
@@ -77,6 +90,7 @@ function cartDoneCopy(lang, t = defaultT) {
 function checkoutReviewCopy(lang, t = defaultT) {
   return {
     [F.UI_SCREEN_TITLE]: t('confirmListHeader', lang),
+    // Runtime fills the heading with the restaurant name. The static copy is only a schema placeholder.
     [F.UI_REVIEW_INTRO]: t('confirmFlowReviewIntro', lang),
     [F.UI_REVIEW_SECTION_BASKET]: t('confirmFlowReviewSectionBasket', lang),
     [F.UI_NAME_LABEL]: t('confirmFlowNameLabel', lang),
@@ -112,6 +126,7 @@ function checkoutManageCopy(lang, t = defaultT, { savedCount = 0, maxSaved = DEF
     [F.UI_MANAGE_CONFIRM_EDIT]: t('confirmFlowManageConfirmEdit', lang),
     [F.UI_MANAGE_CONFIRM_TYPED]: t('confirmFlowManageConfirmTyped', lang),
     [F.UI_MANAGE_CONFIRM_FOUND]: t('confirmFlowManageConfirmFound', lang),
+    [F.UI_MANAGE_FOUND_LABEL]: t('confirmFlowManageFoundLabel', lang),
     [F.UI_PROFILE_NAME_LABEL]: t('confirmFlowProfileNameLabel', lang),
     [F.UI_PROFILE_NAME_HELPER]: t('confirmFlowProfileNameHelper', lang),
   };
@@ -128,6 +143,7 @@ module.exports = {
   orderItemCopy,
   cartEditCopy,
   cartRemoveModeOptions,
+  checkoutCartCopy,
   cartDoneCopy,
   checkoutReviewCopy,
   checkoutManageCopy,

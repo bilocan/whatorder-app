@@ -209,6 +209,34 @@ describe('Checkout confirm Flow: chat slot short-circuit', () => {
     }));
   });
 
+  test('delivery below minimum opens Prüfen instead of the chat gate', async () => {
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      checkoutConfirmFlow: true,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+      minimumOrderValue: 50,
+    });
+    sendFlowMessage.mockResolvedValue('confirm_flow_msg_id');
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'browsing',
+      orderType: 'delivery',
+      deliveryAddress: null,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_confirm' }));
+
+    expect(sendFlowMessage).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      orderType: 'delivery',
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/minimum order|Mindestbestellwert/i),
+    }));
+  });
+
   test('pickup selection skips awaiting_name', async () => {
     getBusinessInfo.mockResolvedValue({
       ...BIZ_INFO,
@@ -590,7 +618,7 @@ describe('Delivery flow: awaiting_delivery_address', () => {
     }));
   });
 
-  test('street without city always shows confirm (ambiguous Hauptstraße)', async () => {
+  test('street without PLZ shows confirm so the district can be checked', async () => {
     const { validateDeliveryAddress } = require('../../lib/geocode');
     validateDeliveryAddress.mockResolvedValue({
       formattedAddress: 'Hauptstraße 4, 1140 Wien',

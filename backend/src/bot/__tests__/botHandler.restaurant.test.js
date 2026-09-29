@@ -686,6 +686,89 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
     }));
   });
 
+  test('paused restaurant re-shows the other open restaurants', async () => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a'
+        ? BIZ_A_INFO
+        : { ...BIZ_B_INFO, ordersOpen: false, isOnline: true }),
+    );
+    getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_biz_b' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/choose another restaurant/i));
+    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      sections: [expect.objectContaining({
+        rows: [expect.objectContaining({ id: 'restaurant_biz_a' })],
+      })],
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'selecting_restaurant',
+      businessId: null,
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+  });
+
+  test('closed hours re-shows the other open restaurants', async () => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a'
+        ? BIZ_A_INFO
+        : {
+          ...BIZ_B_INFO,
+          timezone: 'Europe/Vienna',
+          schedule: { '9': { firstOrderTime: '10:00', lastOrderTime: '22:00' } },
+        }),
+    );
+    getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_biz_b' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/choose another restaurant/i));
+    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
+    expect(rows.map(r => r.id)).toEqual(['restaurant_biz_a']);
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'selecting_restaurant',
+      businessId: null,
+    }));
+  });
+
+  test('paused restaurant with no other open venue keeps the try-later message', async () => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve({
+        ...(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO),
+        ordersOpen: false,
+        isOnline: true,
+      }),
+    );
+    getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_biz_b' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/try again later/i));
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(setSession).not.toHaveBeenCalled();
+  });
+
+  test('ORDER deep link to a paused restaurant returns to the other open restaurants', async () => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a'
+        ? BIZ_A_INFO
+        : { ...BIZ_B_INFO, ordersOpen: false, isOnline: true }),
+    );
+    getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null, language: 'en' }));
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'ORDER+biz_b' }));
+
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/choose another restaurant/i));
+    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
+    expect(rows.map(r => r.id)).toEqual(['restaurant_biz_a']);
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'selecting_restaurant',
+      businessId: null,
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+  });
+
   test('non-list_reply input while selecting_restaurant → re-shows picker', async () => {
     getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
 

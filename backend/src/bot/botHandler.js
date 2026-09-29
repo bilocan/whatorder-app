@@ -12,8 +12,8 @@ const { t } = require('./templates');
 const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { isAcceptingOrders } = require('../lib/presence');
 const { getBusinessesInfo, sendRestaurantPicker, presentRestaurantPickerForLocation } = require('./botHelpers');
-const { handleAwaitingLocation, handleSelectingRestaurant } = require('./states/restaurant');
-const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingDeliveryAddressConfirm, handleAwaitingDeliveryAddressUnit, handleAwaitingName, handleConfirming } = require('./states/checkout');
+const { handleAwaitingLocation, handleSelectingRestaurant, refuseClosedRestaurant } = require('./states/restaurant');
+const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingDeliveryAddressConfirm, handleAwaitingDeliveryAddressUnit, handleAwaitingName, handleConfirming, handlePaymentBack, isPaymentBackButtonId } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
 const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
@@ -69,18 +69,25 @@ async function deleteStale(phone, session) {
   if (ids.length) await Promise.allSettled(ids.map(id => deleteMessage(id)));
 }
 
-async function enterRestaurantDirect(from, bid, lang) {
+async function enterRestaurantDirect(from, bid, lang, session, routing) {
   const bidInfo = await getBusinessInfo(bid);
   applyBusinessInfoIdentity(bidInfo);
   if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
-    const window = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
-    await sendText(from, t('restaurantClosed', lang, bidInfo.name, window?.firstOrderTime ?? null, window?.lastOrderTime ?? null));
-    await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
+    const continued = await refuseClosedRestaurant({
+      from, session, lang, routing, selectedBid: bid, selectedInfo: bidInfo, gate: 'hours',
+    });
+    if (!continued) {
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
+    }
     return;
   }
   if (!isAcceptingOrders(bidInfo)) {
-    await sendText(from, t('ordersClosedByOwner', lang, bidInfo.name));
-    await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
+    const continued = await refuseClosedRestaurant({
+      from, session, lang, routing, selectedBid: bid, selectedInfo: bidInfo, gate: 'orders',
+    });
+    if (!continued) {
+      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
+    }
     return;
   }
   const freshSession = { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] };
@@ -109,7 +116,7 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
     const deepBid = parseOrderDeepLink(text, routing.businessIds);
     if (deepBid) {
       const lang = session.language || detectLanguage(text) || 'de';
-      await enterRestaurantDirect(from, deepBid, lang);
+      await enterRestaurantDirect(from, deepBid, lang, session, routing);
       return;
     }
   }
@@ -166,6 +173,20 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
   const sessionExpiredForPicker = isMulti && isIdleBrowsing && lastActive
     && (Date.now() - lastActive.getTime() > SESSION_TTL_MS);
 
+  // Ändern above an unpaid card pay link. Button id carries businessId|orderId so a
+  // stale bubble withdraws that order. Legacy plain btn_payment_back uses pendingAmend*.
+  if (type === 'button_reply' && isPaymentBackButtonId(id)) {
+    const postLang = session.language || 'de';
+    await handlePaymentBack({
+      from,
+      session,
+      lang: postLang,
+      buttonId: id,
+      allowedBusinessIds: routing.businessIds,
+    });
+    return;
+  }
+
   // Post-order action buttons must work even in multi-restaurant mode where session.businessId
   // is null after order placement. Intercept before the restaurant-picker early return.
   // Same for typed "Stornieren" / "iptal" (quote-reply or free text).
@@ -213,7 +234,7 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
     if (type === 'text') {
       const deepBid = parseOrderDeepLink(text, routing.businessIds);
       if (deepBid) {
-        await enterRestaurantDirect(from, deepBid, lang || 'de');
+        await enterRestaurantDirect(from, deepBid, lang || 'de', session, routing);
         return;
       }
     }

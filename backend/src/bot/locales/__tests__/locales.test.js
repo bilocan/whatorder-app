@@ -179,5 +179,14 @@ for (const [name, locale] of Object.entries({ de, tr, en })) {
     test('restaurantClosed without order window', () => {
       expect(str(locale.restaurantClosed('Bistro', null, null))).toBe(true);
     });
+
+    test('restaurantClosedPickOther with and without order window', () => {
+      expect(str(locale.restaurantClosedPickOther('Bistro', '10:00', '22:00'))).toBe(true);
+      expect(str(locale.restaurantClosedPickOther('Bistro', null, null))).toBe(true);
+    });
+
+    test('ordersClosedByOwnerPickOther', () => {
+      expect(str(locale.ordersClosedByOwnerPickOther('Bistro'))).toBe(true);
+    });
   });
 }

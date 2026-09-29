@@ -1,6 +1,6 @@
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
 const { formatBasketItemsText } = require('./botHelpers');
-const { orderTotals } = require('./orderTotals');
+const { orderTotals, basketSubtotal } = require('./orderTotals');
 const { isDeliveryOffered } = require('./checkoutSlots');
 const { isPaymentEnabled } = require('./paymentGate');
 const { checkoutReviewCopy } = require('./menuFlowCopy');
@@ -10,6 +10,8 @@ const {
   composeDeliveryLabel,
   hasUnitPattern,
   normalizeBuildingLabel,
+  addressKey,
+  isHausSkip,
 } = require('./deliveryAddress');
 
 const CHECKOUT_TOKEN_MARKER = 'checkout';
@@ -17,6 +19,51 @@ const ORDER_TYPES = new Set(['delivery', 'pickup']);
 
 function trimmed(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function isBuildingOnlyLabel(label) {
+  const text = trimmed(label);
+  if (!text || hasUnitPattern(text)) return false;
+  return !trimmed(splitDeliveryAddressFields(text).apartment);
+}
+
+function sameBuilding(left, right) {
+  const a = addressKey(splitDeliveryAddressFields(left).street || left);
+  const b = addressKey(splitDeliveryAddressFields(right).street || right);
+  return Boolean(a) && a === b;
+}
+
+function apartmentBlankOrHaus(value) {
+  const apartment = trimmed(value);
+  return !apartment || isHausSkip(apartment.toLowerCase());
+}
+
+/**
+ * A saved building-only label is Haus. Stiege and Top are not required.
+ * An empty Wohnung on that row must not block Bestellung aufgeben.
+ */
+function savedHausLabelForSubmit(
+  payload = {},
+  addressLabels = {},
+  savedAddresses = [],
+  defaultAddress = '',
+) {
+  if (!apartmentBlankOrHaus(payload[F.DELIVERY_APARTMENT])) return '';
+  const street = trimmed(payload[F.DELIVERY_ADDRESS]);
+  const choice = trimmed(payload[F.ADDRESS_CHOICE]);
+  const selected = (choice && choice !== ADDRESS_CHOICE_NEW)
+    ? trimmed(addressLabels[choice] || '')
+    : '';
+  const knownHaus = (label) => isBuildingOnlyLabel(label)
+    && isKnownSavedLabel(label, savedAddresses, defaultAddress);
+  if (selected && knownHaus(selected) && (!street || sameBuilding(street, selected))) {
+    return selected;
+  }
+  if (!street) return '';
+  const match = Object.values(addressLabels).find((label) => (
+    knownHaus(label) && addressKey(label) === addressKey(street)
+  ));
+  return trimmed(match || '');
 }
 
 /**
@@ -53,21 +100,30 @@ function buildReceiptText({
   if (resolved.isDelivery && Number(resolved.deliveryFee) > 0) {
     money.push(t('checkoutDeliveryFee', lang, Number(resolved.deliveryFee).toFixed(2)));
   }
-  money.push(t('orderTotal', lang, Number(total || 0).toFixed(2)));
+  let totalLine = `*${t('orderTotal', lang, Number(total || 0).toFixed(2))}*`;
   if (paymentEnabled) {
-    money.push(t('confirmFlowPaymentCard', lang));
+    totalLine = `${totalLine} · ${t('confirmFlowPaymentCard', lang)}`;
   }
+  money.push(totalLine);
 
   const items = formatBasketItemsText(basket, { numbered: false, mergeIdentical: true });
-  return [trimmed(businessName), items, money.join('\n')].filter(Boolean).join('\n\n');
+  const knownName = trimmed(session.customerName);
+  const nameLine = knownName.length >= 2
+    ? t('confirmFlowNameLine', lang, knownName)
+    : t('confirmFlowNameEmpty', lang);
+  // Restaurant name is the screen heading, not a line in this bill.
+  void businessName;
+  const body = [items, money.join('\n'), nameLine].filter(Boolean).join('\n\n');
+  // Leading blank line renders. A trailing blank on the address body does not.
+  if (session.orderType === 'delivery') return `\n${body}`;
+  return body;
 }
 
 /**
  * Delivery is offered on the confirm screen when enabled and not paused by the owner.
- * Mindestbestellwert is enforced on place (and on chat btn_delivery), not by hiding the
- * Lieferung option — customers default to Abholung and only hit the gate after choosing
- * delivery. Pickup ↔ delivery taps refresh the screen (`select_order_type`) so the
- * receipt re-prices.
+ * Mindestbestellwert does not hide Lieferung. Choosing it stays on this screen, shows
+ * the shortfall, and leaves Bestellung aufgeben off. place_order still runs the gate.
+ * Pickup and delivery taps refresh the screen (`select_order_type`) so the receipt re-prices.
  */
 function isDeliverySelectableInReview(info = {}, _basket = []) {
   if (!isDeliveryOffered(info)) return false;
@@ -449,23 +505,63 @@ async function buildCheckoutReviewData({
     }
   }
 
+  const selectedLabel = addressState.addressChoice !== ADDRESS_CHOICE_NEW
+    ? trimmed(addressState.labelsByChoice[addressState.addressChoice] || '')
+    : '';
+  if (
+    selectedLabel
+    && isKnownSavedLabel(selectedLabel, savedAddresses, defaultAddress)
+    && isBuildingOnlyLabel(selectedLabel)
+    && apartmentBlankOrHaus(deliveryApartment)
+    && (!trimmed(deliveryAddress) || sameBuilding(deliveryAddress, selectedLabel))
+  ) {
+    deliveryApartment = 'Haus';
+    if (!trimmed(deliveryAddress)) deliveryAddress = selectedLabel;
+  }
+
   const specialRequests = draft.specialRequests ?? trimmed(session.specialRequests);
 
   const reviewSession = {
     ...session, orderType, customerName, deliveryAddress: reviewDeliveryAddress, specialRequests,
   };
   const totals = orderTotals(basket, reviewSession, info, deal || null);
-  const options = [
-    { id: 'pickup', title: t('confirmFlowTypePickup', lang) },
-  ];
-  if (deliverySelectable) {
-    options.push({ id: 'delivery', title: t('confirmFlowTypeDelivery', lang) });
-  }
-
   const displayAddress = normalizeBuildingLabel(
     trimmed(deliveryAddress) || trimmed(reviewDeliveryAddress) || '',
   );
-  const addressDisplay = displayAddress || t('confirmFlowAddressEmpty', lang);
+  const addressLine = displayAddress || t('confirmFlowAddressEmpty', lang);
+  // Pickup sends an empty body so the hidden address row does not keep a gap.
+  const addressDisplay = orderType === 'delivery' ? addressLine : '';
+  const subtotal = basketSubtotal(basket);
+  const minimumOrderValue = Number(info.minimumOrderValue) || 0;
+  const deliveryBelowMinimum = minimumOrderValue > 0 && subtotal < minimumOrderValue;
+  const minimumLabel = minimumOrderValue.toFixed(2);
+  const remainingLabel = Math.max(0, minimumOrderValue - subtotal).toFixed(2);
+  const blockReason = reviewBlockReason({
+    customerName,
+    orderType,
+    deliveryAddress: displayAddress,
+    deliveryBelowMinimum,
+    minimumLabel,
+    remainingLabel,
+    lang,
+    t,
+  });
+  const options = buildOrderTypeOptions({
+    deliverySelectable,
+    deliveryFee: info.deliveryFee,
+    address: displayAddress,
+    deliveryBelowMinimum,
+    minimumLabel,
+    remainingLabel,
+    lang,
+    t,
+  });
+  const placeOrderEnabled = canPlaceCheckoutOrder({
+    customerName,
+    orderType,
+    deliveryAddress: displayAddress,
+    belowMinimum: orderType === 'delivery' && deliveryBelowMinimum,
+  });
 
   return {
     [F.RECEIPT_TEXT]: buildReceiptText({
@@ -489,8 +585,19 @@ async function buildCheckoutReviewData({
     [F.DELIVERY_ADDRESS]: deliveryAddress,
     [F.DELIVERY_APARTMENT]: deliveryApartment,
     [F.DELIVERY_ADDRESS_DISPLAY]: addressDisplay,
+    [F.PLACE_ORDER_ENABLED]: placeOrderEnabled,
     [F.CHECKOUT_NOTE]: specialRequests,
     ...checkoutReviewCopy(lang, t),
+    [F.UI_REVIEW_INTRO]: trimmed(info.name),
+    [F.UI_MANAGE_ADDRESSES_LINK]: profileManageLink({
+      customerName,
+      orderType,
+      deliveryAddress: displayAddress,
+      lang,
+      t,
+    }),
+    [F.CHECKOUT_BLOCK_REASON]: blockReason,
+    [F.CHECKOUT_BLOCK_VISIBLE]: Boolean(blockReason),
   };
 }
 
@@ -574,7 +681,19 @@ function composeDeliveryAddressFromFields(streetValue, apartmentValue) {
  * @param {object} payload
  * @param {Record<string, string>} [addressLabels] id → exact stored label
  */
-function resolveDeliveryAddressForSubmit(payload = {}, addressLabels = {}) {
+function resolveDeliveryAddressForSubmit(
+  payload = {},
+  addressLabels = {},
+  { savedAddresses = [], defaultAddress = '' } = {},
+) {
+  const savedHaus = savedHausLabelForSubmit(
+    payload,
+    addressLabels,
+    savedAddresses,
+    defaultAddress,
+  );
+  if (savedHaus) return { ok: true, deliveryAddress: savedHaus };
+
   const choice = trimmed(payload[F.ADDRESS_CHOICE]);
   const selectedExact = (choice && choice !== ADDRESS_CHOICE_NEW)
     ? trimmed(addressLabels[choice] || '')
@@ -611,7 +730,89 @@ function resolveDeliveryAddressForSubmit(payload = {}, addressLabels = {}) {
   return composed;
 }
 
-function validateCheckoutSubmit(payload = {}, { addressLabels = {} } = {}) {
+function profileManageLink({
+  customerName = '',
+  orderType = 'pickup',
+  deliveryAddress = '',
+  lang,
+  t,
+}) {
+  const nameMissing = trimmed(customerName).length < 2;
+  const addressMissing = orderType === 'delivery' && !trimmed(deliveryAddress);
+  if (!addressMissing && !nameMissing) {
+    return orderType === 'delivery'
+      ? t('confirmFlowProfileLink', lang)
+      : t('confirmFlowProfileLinkPickup', lang);
+  }
+  if (nameMissing && addressMissing) return t('confirmFlowProfileLinkAddBoth', lang);
+  if (addressMissing) return t('confirmFlowProfileLinkAddAddress', lang);
+  return t('confirmFlowProfileLinkAddName', lang);
+}
+
+/** Name is always required. Lieferung also needs an address and the minimum subtotal. */
+function canPlaceCheckoutOrder({
+  customerName = '',
+  orderType = 'pickup',
+  deliveryAddress = '',
+  belowMinimum = false,
+} = {}) {
+  if (trimmed(customerName).length < 2) return false;
+  if (orderType === 'delivery' && !trimmed(deliveryAddress)) return false;
+  if (orderType === 'delivery' && belowMinimum) return false;
+  return true;
+}
+
+function reviewBlockReason({
+  customerName,
+  orderType,
+  deliveryAddress,
+  deliveryBelowMinimum,
+  minimumLabel,
+  remainingLabel,
+  lang,
+  t,
+}) {
+  if (trimmed(customerName).length < 2) return t('confirmFlowBlockName', lang);
+  if (orderType === 'delivery' && !trimmed(deliveryAddress)) return t('confirmFlowBlockAddress', lang);
+  if (orderType === 'delivery' && deliveryBelowMinimum) {
+    return t('confirmFlowBelowMinimum', lang, minimumLabel, remainingLabel);
+  }
+  return '';
+}
+
+function buildOrderTypeOptions({
+  deliverySelectable,
+  deliveryFee,
+  address,
+  deliveryBelowMinimum,
+  minimumLabel,
+  remainingLabel,
+  lang,
+  t,
+}) {
+  const pickup = { id: 'pickup', title: t('confirmFlowTypePickup', lang) };
+  if (!deliverySelectable) return [pickup];
+  pickup.description = t('confirmFlowPickupNoFee', lang);
+
+  const delivery = { id: 'delivery', title: t('confirmFlowTypeDelivery', lang) };
+  // The full address is the Lieferadresse line. Repeating it here wraps the row.
+  if (deliveryBelowMinimum) {
+    delivery.description = clipFlowOption(
+      t('confirmFlowBelowMinimum', lang, minimumLabel, remainingLabel),
+      300,
+    );
+  } else if (!trimmed(address)) {
+    delivery.description = t('confirmFlowDeliveryNeedsAddress', lang);
+  }
+  const fee = Number(deliveryFee) || 0;
+  if (fee > 0) delivery.metadata = clipFlowOption(`€${fee.toFixed(2)}`, 20);
+  return [pickup, delivery];
+}
+
+function validateCheckoutSubmit(
+  payload = {},
+  { addressLabels = {}, savedAddresses = [], defaultAddress = '' } = {},
+) {
   if (payload.checkout_action === 'back_to_cart') {
     return { ok: true, values: null };
   }
@@ -628,7 +829,10 @@ function validateCheckoutSubmit(payload = {}, { addressLabels = {} } = {}) {
 
   let deliveryAddress = null;
   if (orderType === 'delivery') {
-    const resolved = resolveDeliveryAddressForSubmit(payload, addressLabels);
+    const resolved = resolveDeliveryAddressForSubmit(payload, addressLabels, {
+      savedAddresses,
+      defaultAddress,
+    });
     if (!resolved.ok) return resolved;
     deliveryAddress = resolved.deliveryAddress;
   }
@@ -642,6 +846,30 @@ function validateCheckoutSubmit(payload = {}, { addressLabels = {} } = {}) {
       specialRequests: trimmed(payload[F.CHECKOUT_NOTE]),
     },
   };
+}
+
+/**
+ * Copy Prüfen choices onto session fields before leaving for the menu Flow.
+ * confirmFlowDraft is dropped by the next patchSession, so order type, name, note,
+ * and address have to live on the whitelisted fields.
+ */
+function applyConfirmDraftToSession(session = {}) {
+  const draft = session.confirmFlowDraft;
+  if (!draft || typeof draft !== 'object') return session;
+  const next = { ...session };
+  if (draft.orderType === 'pickup' || draft.orderType === 'delivery') {
+    next.orderType = draft.orderType;
+  }
+  const name = trimmed(draft.customerName);
+  if (name.length >= 2) next.customerName = name;
+  if (Object.prototype.hasOwnProperty.call(draft, 'specialRequests')) {
+    next.specialRequests = draft.specialRequests;
+  }
+  if (next.orderType === 'delivery' && trimmed(draft.deliveryAddress)) {
+    const composed = composeDeliveryAddressFromFields(draft.deliveryAddress, draft.deliveryApartment);
+    if (composed.ok) next.deliveryAddress = composed.deliveryAddress;
+  }
+  return next;
 }
 
 function applyCheckoutSubmitToSession(session, values) {
@@ -730,8 +958,10 @@ module.exports = {
   buildCheckoutSubmitPayloadFromSession,
   isDeliverySelectableInReview,
   composeDeliveryAddressFromFields,
+  canPlaceCheckoutOrder,
   validateCheckoutSubmit,
   applyCheckoutSubmitToSession,
+  applyConfirmDraftToSession,
   nextScreenAfterManageWrite,
   manageScreenForReview,
   returnReviewScreenForManage,

@@ -67,7 +67,7 @@ module.exports = {
       : `⏱️ Hazır saat: ~${pickupTime}`;
     const notesLine = notes ? `\n📝 Not: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Ödeme: Kart' : '';
-    return `✅ Neredeyse bitti!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nOnaylamak veya düzenlemek için aşağıya dokunun.`;
+    return `✅ Neredeyse bitti!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nAşağıdan Kontrol’a dokunun.`;
   },
   confirmListHeader: () => 'Siparişi kontrol et',
   confirmListBtn: () => 'Onayla / düzenle',
@@ -83,22 +83,33 @@ module.exports = {
   confirmGateContinue: () => 'Devam',
   confirmFlowFooter: () => 'Siparişi ver',
   confirmFlowBackToCart: () => 'Sepete dön',
+  confirmFlowReturnToReview: () => 'Kontrole dön',
   confirmFlowReviewIntro: () => 'Neredeyse bitti!',
   confirmFlowReviewSectionBasket: () => 'Siparişin',
   confirmFlowReviewSectionDetails: () => 'Bilgilerin',
-  confirmFlowPaymentCard: () => '💳 Ödeme: Kart',
+  confirmFlowPaymentCard: () => 'Kart',
   confirmFlowNameLabel: () => 'Ad',
-  confirmFlowNameEmpty: () => 'Henüz ad yok — Adres ve profil’e dokun.',
-  confirmFlowProfileLink: () => 'Adres ve profil',
+  confirmFlowNameLine: (name) => `${name} için`,
+  confirmFlowNameEmpty: () => 'Henüz ad yok.',
+  confirmFlowProfileLink: () => 'Ad veya adres değiştir',
+  confirmFlowProfileLinkPickup: () => 'Adı değiştir',
+  confirmFlowProfileLinkAddName: () => 'Ad ekle',
+  confirmFlowProfileLinkAddAddress: () => 'Adres ekle',
+  confirmFlowProfileLinkAddBoth: () => 'Ad veya adres ekle',
+  confirmFlowPickupNoFee: () => 'Teslimat ücreti yok',
+  confirmFlowDeliveryNeedsAddress: () => 'Adres yok',
+  confirmFlowBlockName: () => 'Sipariş için ad gerekli.',
+  confirmFlowBlockAddress: () => 'Teslimat için adres gerekli.',
+  confirmFlowBelowMinimum: (min, more) => `Minimum sipariş €${min}. €${more} daha.`,
   confirmFlowProfileNameLabel: () => 'Adın',
   confirmFlowProfileNameHelper: () => 'Siparişte böyle görünür',
-  confirmFlowTypeLabel: () => 'Siparişinizi nasıl almak istersiniz?',
+  confirmFlowTypeLabel: () => 'Nasıl almak istersin?',
   confirmFlowAddressChoiceLabel: () => 'Teslimat adresi',
   confirmFlowAddressNew: () => 'Yeni adres',
   confirmFlowAddressNewDesc: () => 'Aşağıya yazın',
   confirmFlowAddressLabel: () => 'Sokak',
   confirmFlowAddressHelper: () => 'Sokak ve kapı no (örn. Lavaterstrasse 3)',
-  confirmFlowAddressEmpty: () => 'Adres yok — Adres ve profil’e dokun.',
+  confirmFlowAddressEmpty: () => 'Henüz adres yok.',
   confirmFlowApartmentLabel: () => 'Daire',
   confirmFlowApartmentHelper: () => 'Stiege / Tür / Top, yoksa Haus',
   confirmFlowNoteLabel: () => 'Not',
@@ -120,9 +131,14 @@ module.exports = {
   confirmFlowManageBack: () => 'Siparişe dön',
   confirmFlowManageConfirmHint: () => 'Bu adresi mi demek istedin?',
   confirmFlowManageConfirmTyped: () => 'Sen yazdın',
+  confirmFlowManageConfirmTypedLine: (typed) => `Yazdığın: ${typed}`,
   confirmFlowManageConfirmFound: () => 'Biz bulduk',
-  confirmFlowManageConfirmYes: () => 'Evet',
-  confirmFlowManageConfirmEdit: () => 'Düzenle',
+  confirmFlowManageConfirmYes: () => 'Kaydet',
+  confirmFlowManageConfirmEdit: () => 'Yeniden yaz',
+  confirmFlowManageFoundLine: (label) => `Bulunan: ${label}`,
+  confirmFlowManageFoundSave: () => 'Bu adresi kaydet',
+  confirmFlowManageFoundRetry: () => 'Başka adres gir',
+  confirmFlowManageFoundLabel: () => 'Bulunan',
   confirmFlowErrorAddressInvalid: () => 'Bu adresi doğrulayamadık. Lütfen sokak ve kapı numarasını kontrol edin.',
   confirmFlowErrorManageSelect: () => 'Önce kayıtlı bir adres seçin.',
   confirmFlowErrorManageCap: () => 'Yeni adres kaydetmeden önce bir adres silin (en fazla 5).',
@@ -182,6 +198,10 @@ module.exports = {
   checkoutBasketUpdated: (basketText) => `✅ Sepet güncellendi.\n\n${basketText}`,
   checkoutAddressNotOrder: () => 'Bu bir sipariş gibi görünüyor. Lütfen teslimat adresinizi girin veya önce sepete ürün ekleyin.',
   payNowBtn: () => 'Ödeme yap 💳',
+  paymentBackPrompt: () => 'Ödemeden önce bir şey değiştirmek ister misin?',
+  paymentBackBtn: () => 'Değiştir',
+  paymentBackPaid: (shortId) => `Sipariş #${shortId} için ödeme zaten alındı.`,
+  paymentBackFailed: () => 'Sipariş şu an değiştirilemiyor. Butonla öde veya restoranla iletişime geç.',
   paymentLink: (shortId, itemLines, total, restaurantName, alertPhone, address, deliveryAddress, discountLine) => {
     const contactLines = [alertPhone ? `📞 ${alertPhone}` : null, address ? `📍 ${address}` : null].filter(Boolean).join('\n');
     const restaurantBlock = contactLines ? `${restaurantName}\n${contactLines}` : restaurantName;
@@ -309,9 +329,14 @@ module.exports = {
     firstOrderTime && lastOrderTime
       ? `🔒 ${name} şu an kapalı.\n\nSipariş saatleri: ${firstOrderTime} – ${lastOrderTime}. Sizi bekleriz! 🙏`
       : `🔒 ${name} şu an kapalı. Lütfen daha sonra tekrar deneyin! 🙏`,
+  restaurantClosedPickOther: (name, firstOrderTime, lastOrderTime) =>
+    firstOrderTime && lastOrderTime
+      ? `🔒 ${name} şu an kapalı.\n\nSipariş saatleri: ${firstOrderTime} – ${lastOrderTime}.\n\nLütfen başka bir restoran seçin.`
+      : `🔒 ${name} şu an kapalı. Lütfen başka bir restoran seçin.`,
   closedLabel: () => '🔒 Kapalı',
 
   ordersClosedByOwner: (name) => `⏸️ ${name} şu an sipariş almıyor. Lütfen daha sonra tekrar deneyin! 🙏`,
+  ordersClosedByOwnerPickOther: (name) => `⏸️ ${name} şu an sipariş almıyor. Lütfen başka bir restoran seçin.`,
   deliveryClosedByOwner: () => '🚫 Teslimat şu an mevcut değil. Lütfen gel-al seçeneğini seçin.',
 
   intentConfirmHeader: () => 'Anladım:',

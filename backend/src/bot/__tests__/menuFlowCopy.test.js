@@ -6,6 +6,7 @@ const {
   clearCartTitle,
 } = require('../menuFlowCopy');
 const { FIELDS: F } = require('../../flows/fields');
+const { t } = require('../templates');
 
 describe('menuFlowCopy', () => {
   test('resolveFlowLang defaults to de and accepts de/en/tr', () => {
@@ -28,10 +29,27 @@ describe('menuFlowCopy', () => {
     expect(clearCartTitle('tr')).toContain('Sepeti');
   });
 
-  test('checkoutReviewCopy includes profile edit link', () => {
-    expect(checkoutReviewCopy('en')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Address & profile');
-    expect(checkoutReviewCopy('de')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Adresse & Profil');
-    expect(checkoutReviewCopy('tr')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Adres ve profil');
+  test('checkout review links stay within the EmbeddedLink character cap', () => {
+    expect(checkoutReviewCopy('en')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Change name or address');
+    expect(checkoutReviewCopy('de')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Name oder Adresse ändern');
+    expect(checkoutReviewCopy('tr')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Ad veya adres değiştir');
+    expect(checkoutReviewCopy('en')[F.UI_BACK_TO_CART]).toBe('Back to cart');
+    expect(checkoutReviewCopy('de')[F.UI_BACK_TO_CART]).toBe('Zum Warenkorb');
+    expect(checkoutReviewCopy('tr')[F.UI_BACK_TO_CART]).toBe('Sepete dön');
+    for (const lang of ['de', 'en', 'tr']) {
+      const copy = checkoutReviewCopy(lang);
+      expect(copy[F.UI_MANAGE_ADDRESSES_LINK].length).toBeLessThanOrEqual(25);
+      expect(copy[F.UI_BACK_TO_CART].length).toBeLessThanOrEqual(25);
+      for (const key of [
+        'confirmFlowProfileLink',
+        'confirmFlowProfileLinkPickup',
+        'confirmFlowProfileLinkAddName',
+        'confirmFlowProfileLinkAddAddress',
+        'confirmFlowProfileLinkAddBoth',
+      ]) {
+        expect(t(key, lang).length).toBeLessThanOrEqual(25);
+      }
+    }
   });
 
   test('checkoutManageCopy returns localized manage chrome', () => {
@@ -44,8 +62,8 @@ describe('menuFlowCopy', () => {
       .toBe('Gespeicherte Adressen (3/5)');
     expect(checkoutManageCopy('en')[F.UI_MANAGE_EDIT_CAPTION]).toBe('Edit the selected address');
     expect(checkoutManageCopy('de')[F.UI_MANAGE_SET_DEFAULT]).toBe('Als Standardadresse speichern');
-    expect(checkoutManageCopy('de')[F.UI_MANAGE_CONFIRM_YES]).toBe('Ja');
-    expect(checkoutManageCopy('tr')[F.UI_MANAGE_CONFIRM_EDIT]).toBe('Düzenle');
+    expect(checkoutManageCopy('de')[F.UI_MANAGE_CONFIRM_YES]).toBe('Speichern');
+    expect(checkoutManageCopy('tr')[F.UI_MANAGE_CONFIRM_EDIT]).toBe('Yeniden yaz');
     expect(checkoutReviewCopy('de')[F.UI_ADDRESS_HELPER])
       .toBe('Straße und Hausnummer (z. B. Lavaterstrasse 3)');
   });

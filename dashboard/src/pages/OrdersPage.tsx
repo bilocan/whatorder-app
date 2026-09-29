@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
@@ -8,6 +8,7 @@ import type { Order, OrderStatus } from '../types';
 import { toDate } from '../types';
 import { paymentBadge } from '../lib/paymentBadge';
 import { shortId } from '../lib/shortId';
+import { belegPaymentLine, printOrderBeleg, restaurantSlipLines } from '../lib/printOrderBeleg';
 import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
 import { getActivePhoneNumberId } from '../lib/activePhoneNumberId';
 import {
@@ -16,6 +17,7 @@ import {
   getPrimaryAction,
   isKitchenAdvanceAction,
   isKitchenPaymentBlocked,
+  showKitchenPaymentHint,
   postOrderAction,
 } from '../lib/orderActions';
 import { orderElapsed } from '../lib/orderElapsed';
@@ -42,6 +44,7 @@ export default function OrdersPage() {
   const { businessId } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [restaurant, setRestaurant] = useState<{ name?: string; address?: string; phone?: string } | null>(null);
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
   const [loadingIds, setLoadingIds] = useState<Set<string>>(() => new Set());
   const [actionError, setActionError] = useState('');
@@ -71,6 +74,21 @@ export default function OrdersPage() {
     const id = window.setInterval(() => setNowMs(Date.now()), 30_000);
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!businessId) {
+      setRestaurant(null);
+      return;
+    }
+    let cancelled = false;
+    getDoc(doc(db, 'businesses', businessId)).then((snap) => {
+      if (cancelled || !snap.exists()) return;
+      setRestaurant(restaurantSlipLines(snap.data()));
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId]);
 
   useEffect(() => {
     if (!isActiveBoard) setOpenOrderId(null);
@@ -317,6 +335,7 @@ export default function OrdersPage() {
                     const pay = paymentBadge(order, t);
                     const loading = loadingIds.has(order.id);
                     const paymentBlocked = isKitchenPaymentBlocked(order);
+                    const paymentHint = showKitchenPaymentHint(order);
                     return (
                       <div
                         key={order.id}
@@ -353,7 +372,7 @@ export default function OrdersPage() {
                           <PaymentBadge kind={pay.kind} label={pay.label} />
                           <StatusBadge status={order.status} label={statusLabel(order.status)} />
                         </div>
-                        {paymentBlocked && (
+                        {paymentHint && (
                           <p className="kitchen-payment-hint">{t('orderDetail.paymentRequiredHint')}</p>
                         )}
                         {primary && (
@@ -590,16 +609,77 @@ export default function OrdersPage() {
                 )}
               </div>
             )}
-            {isKitchenPaymentBlocked(openOrder) && (
+            {showKitchenPaymentHint(openOrder) && (
               <p className="order-detail-error">{t('orderDetail.paymentRequiredHint')}</p>
             )}
-            <Link
-              className="kitchen-modal-full"
-              to={orderHref(openOrder.id)}
-              onClick={() => setOpenOrderId(null)}
-            >
-              {t('orders.board.openFull')}
-            </Link>
+            <div className="kitchen-modal-footer">
+              <button
+                type="button"
+                className="kitchen-beleg-print"
+                onClick={() => {
+                  const adjustments: string[] = [];
+                  if (Number(openOrder.discount) > 0) {
+                    adjustments.push(t('orderDetail.discount', {
+                      label: openOrder.discountLabel || t('orderDetail.discountFallback'),
+                      amount: Number(openOrder.discount).toFixed(2),
+                    }));
+                  }
+                  if (openOrder.orderType === 'delivery' && openOrder.deliveryFee) {
+                    adjustments.push(t('orderDetail.deliveryFee', {
+                      fee: openOrder.deliveryFee.toFixed(2),
+                    }));
+                  }
+                  printOrderBeleg({
+                    code: shortId(openOrder.id),
+                    restaurantName: restaurant?.name,
+                    restaurantAddress: restaurant?.address,
+                    restaurantPhone: restaurant?.phone,
+                    customerName: openOrder.customerName,
+                    customerPhone: openOrder.customerPhone,
+                    orderedAt: toDate(openOrder.createdAt).toLocaleString('de-AT', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }),
+                    fulfillment: openOrder.orderType === 'delivery' ? t('orders.delivery') : undefined,
+                    address: openOrder.orderType === 'delivery' ? openOrder.deliveryAddress : undefined,
+                    lines: openOrder.items.map((item) => ({
+                      label: `${item.qty}× ${item.name}`,
+                      amount: `€${(item.price * item.qty).toFixed(2)}`,
+                    })),
+                    adjustments,
+                    totalLabel: t('orders.col.total'),
+                    totalAmount: `€${openOrder.total.toFixed(2)}`,
+                    notes: openOrder.notes
+                      ? t('orderDetail.note', { note: openOrder.notes })
+                      : undefined,
+                    payment: belegPaymentLine(openOrder, {
+                      cash: t('orders.payment.cash'),
+                      card: t('orders.board.paidViaCard'),
+                      pending: t('orders.payment.pending'),
+                      failed: t('orders.payment.failed'),
+                      refunded: t('orders.payment.refunded'),
+                    }),
+                  });
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 8V3.5h10V8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M7 17H5.5A2.5 2.5 0 0 1 3 14.5v-4A2.5 2.5 0 0 1 5.5 8h13A2.5 2.5 0 0 1 21 10.5v4a2.5 2.5 0 0 1-2.5 2.5H17" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M7 13.5h10V21H7z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {t('orders.board.printBeleg')}
+              </button>
+              <Link
+                className="kitchen-modal-full"
+                to={orderHref(openOrder.id)}
+                onClick={() => setOpenOrderId(null)}
+              >
+                {t('orders.board.openFull')}
+              </Link>
+            </div>
           </div>
         </div>
       )}

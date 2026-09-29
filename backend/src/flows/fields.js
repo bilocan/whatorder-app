@@ -19,6 +19,9 @@ const SCREENS = {
   CHECKOUT_REVIEW_RETURN: 'CHECKOUT_REVIEW_RETURN',
   // Meta screen ids: letters + underscores only (no digits). Mirrors CART_DONE.
   CHECKOUT_REVIEW_DONE: 'CHECKOUT_REVIEW_DONE',
+  // In-flow cart from Prüfen. Forward-only: review → cart → next review clone.
+  CHECKOUT_CART: 'CHECKOUT_CART',
+  CHECKOUT_CART_AGAIN: 'CHECKOUT_CART_AGAIN',
   ADDRESS_MANAGE: 'ADDRESS_MANAGE',
   ADDRESS_MANAGE_UPDATED: 'ADDRESS_MANAGE_UPDATED',
   ADDRESS_MANAGE_AGAIN: 'ADDRESS_MANAGE_AGAIN',
@@ -100,6 +103,11 @@ const FIELDS = {
   UI_REMOVE_SELECTED:  'ui_remove_selected',
   UI_ADD_MORE:         'ui_add_more',
   UI_PLACE_ORDER:      'ui_place_order',
+  // Bestellung aufgeben stays off until name is set, and for Lieferung an address
+  // and the minimum order value. checkout_block_* explains why, above the footer.
+  PLACE_ORDER_ENABLED: 'place_order_enabled',
+  CHECKOUT_BLOCK_REASON: 'checkout_block_reason',
+  CHECKOUT_BLOCK_VISIBLE: 'checkout_block_visible',
 
   // CHECKOUT_REVIEW
   RECEIPT_TEXT:       'receipt_text',
@@ -120,6 +128,8 @@ const FIELDS = {
   DELIVERY_ADDRESS_UNIT_VISIBLE: 'delivery_address_unit_visible',
   REVIEW_PIN_IMAGE: 'review_pin_image',
   CHECKOUT_NOTE:      'note',
+  // review | manage | cart. Same screen, so repeated Profil / Warenkorb opens do not advance the progress bar.
+  CHECKOUT_UI_MODE:   'checkout_ui_mode',
   UI_REVIEW_INTRO:    'ui_review_intro',
   UI_REVIEW_SECTION_BASKET: 'ui_review_section_basket',
   UI_NAME_LABEL:      'ui_name_label',
@@ -135,6 +145,7 @@ const FIELDS = {
   UI_DELIVERY_ADDRESS_EMPTY: 'ui_delivery_address_empty',
   UI_NOTE_LABEL:      'ui_note_label',
   UI_BACK_TO_CART:    'ui_back_to_cart',
+  UI_RETURN_TO_REVIEW: 'ui_return_to_review',
   UI_BACK_TO_CART_VISIBLE: 'ui_back_to_cart_visible',
   UI_MANAGE_ADDRESSES_LINK: 'ui_manage_addresses_link',
 
@@ -158,6 +169,9 @@ const FIELDS = {
   UI_MANAGE_CONFIRM_FOUND: 'ui_manage_confirm_found',
   // 'list' | 'edit' | 'confirm' — string (not boolean): Meta If is unreliable with boolean false.
   MANAGE_UI_MODE:         'manage_ui_mode',
+  // Booleans: Flow `visible` rejects comparisons (those are strings to the schema).
+  MANAGE_FORM_VISIBLE:    'manage_form_visible',
+  MANAGE_DELETE_VISIBLE:  'manage_delete_visible',
   // Normalized candidate shown on confirm; also echoed in accept payload if session is missing.
   MANAGE_CONFIRM_PENDING: 'manage_confirm_pending',
   MANAGE_CONFIRM_TYPED:   'manage_confirm_typed',
@@ -166,6 +180,13 @@ const FIELDS = {
   MANAGE_CONFIRM_LOCALITY: 'manage_confirm_locality',
   MANAGE_CONFIRM_UNIT_VISIBLE: 'manage_confirm_unit_visible',
   MANAGE_CONFIRM_PIN_IMAGE: 'manage_confirm_pin_image',
+  // Found address on the edit form. OptIn is consent only. Speichern commits it when checked.
+  MANAGE_FOUND_LINE:      'manage_found_line',
+  MANAGE_FOUND_VISIBLE:   'manage_found_visible',
+  MANAGE_FOUND_APPLY:     'manage_found_apply',
+  MANAGE_EDIT_LINK_VISIBLE: 'manage_edit_link_visible',
+  UI_MANAGE_FOUND_LABEL:  'ui_manage_found_label',
+  UI_MANAGE_EDIT_LINK:    'ui_manage_edit_link',
   ERROR_MESSAGE:          'error_message',
   ERROR_VISIBLE:          'error_visible',
 };

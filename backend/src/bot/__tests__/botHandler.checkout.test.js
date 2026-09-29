@@ -872,7 +872,9 @@ describe('Checkout confirm Flow', () => {
         customer_name: 'Ahmet',
         order_type: 'pickup',
         order_type_options: [expect.objectContaining({ id: 'pickup' })],
-        receipt_text: expect.stringContaining('Döner Palace'),
+        ui_review_intro: 'Döner Palace',
+        ui_manage_addresses_link: 'Change name',
+        receipt_text: expect.stringContaining('For Ahmet'),
       }),
     }));
     expect(patchSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
@@ -1350,6 +1352,82 @@ describe('Checkout confirm Flow', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'browsing',
       basket: [],
+    }));
+  });
+
+  test('add_more Flow completion sends the menu and keeps Prüfen choices on the session', async () => {
+    const basket = [{ name: 'Döner', qty: 1, price: 8.50 }];
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'confirming',
+      businessId: BIZ,
+      basket,
+      customerName: 'Alex',
+      orderType: 'pickup',
+      confirmFlowDraft: {
+        orderType: 'delivery',
+        customerName: 'Alex',
+        specialRequests: 'ohne Zwiebel',
+        deliveryAddress: 'Hippgasse 11',
+        deliveryApartment: 'Top 14',
+      },
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'flow_completion',
+      data: { checkout_action: 'add_more' },
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowAction: 'data_exchange',
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket,
+      orderType: 'delivery',
+      customerName: 'Alex',
+      specialRequests: 'ohne Zwiebel',
+      deliveryAddress: expect.stringContaining('Top 14'),
+    }));
+  });
+
+  test('cart_emptied Flow completion sends the menu and keeps Prüfen choices', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'confirming',
+      businessId: BIZ,
+      basket: [],
+      customerName: 'Alex',
+      orderType: 'pickup',
+      confirmFlowDraft: {
+        orderType: 'delivery',
+        customerName: 'Alex',
+        specialRequests: 'ohne Zwiebel',
+        deliveryAddress: 'Hippgasse 11',
+        deliveryApartment: 'Top 14',
+      },
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'flow_completion',
+      data: { checkout_action: 'cart_emptied' },
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowAction: 'data_exchange',
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      basket: [],
+      orderType: 'delivery',
+      customerName: 'Alex',
+      specialRequests: 'ohne Zwiebel',
+      deliveryAddress: expect.stringContaining('Top 14'),
     }));
   });
 

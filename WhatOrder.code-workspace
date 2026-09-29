@@ -7,6 +7,10 @@
     {
       "name": "whatorder-vault",
       "path": "../whatorder-vault"
+    },
+    {
+      "name": "whatorder-wallboard",
+      "path": "../whatorder-wallboard"
     }
   ],
   "settings": {

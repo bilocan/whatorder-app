@@ -501,13 +501,17 @@ router.post('/flow/exchange', async (req, res) => {
 
     // Checkout screens identify the Flow (Flow Tester often uses phone|biz without |checkout).
     // Menu screens never send CHECKOUT_* / ADDRESS_MANAGE_* ids.
+    const checkoutCartBack = action === 'BACK'
+      && (screen === S.CHECKOUT_CART || screen === S.CHECKOUT_CART_AGAIN);
     if (
-      action === 'data_exchange'
-      && CHECKOUT_EXCHANGE_SCREENS.has(screen)
+      (action === 'data_exchange' && CHECKOUT_EXCHANGE_SCREENS.has(screen))
+      || checkoutCartBack
     ) {
       return reply(await buildCheckoutDataExchangeResponse({
         screen,
-        payload,
+        payload: checkoutCartBack
+          ? { ...payload, checkout_action: 'return_to_review' }
+          : payload,
         flow_token,
         version,
         phone,

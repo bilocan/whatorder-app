@@ -13,6 +13,7 @@ import {
   getActionButtons,
   isKitchenAdvanceAction,
   isKitchenPaymentBlocked,
+  showKitchenPaymentHint,
   canManualRefund,
   postOrderAction,
   postOrderRefund,
@@ -379,7 +380,7 @@ export default function OrderDetailPage() {
           ))}
         </div>
       )}
-      {paymentBlocked && (
+      {showKitchenPaymentHint(order) && (
         <p className="order-detail-error">{t('orderDetail.paymentRequiredHint')}</p>
       )}
       {actionError && <p className="order-detail-error">{actionError}</p>}
