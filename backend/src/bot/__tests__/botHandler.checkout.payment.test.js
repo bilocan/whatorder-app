@@ -58,6 +58,7 @@ const {
 const { reverseGeocode } = require('../../lib/geocode');
 const { customersRef, menuRef } = require('../../lib/collections');
 const { createCheckoutSessionForOrder, releaseUnpaidCheckoutSession, completePaidCheckoutSession, refundOrderPayment } = require('../../lib/paymentService');
+const { paymentBackButtonId } = require('../states/checkout');
 const { t } = require('../templates');
 
 const BIZ = 'biz_test';
@@ -187,7 +188,7 @@ describe('Stripe checkout gates on legal profile and VAT', () => {
     ]);
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: t('paymentBackPrompt', 'en'),
-      buttons: [{ id: 'btn_payment_back', title: t('paymentBackBtn', 'en') }],
+      buttons: [{ id: paymentBackButtonId(BIZ, 'order_abc123'), title: t('paymentBackBtn', 'en') }],
     }), 'test_phone_id');
     expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       url: 'https://checkout.stripe.com/pay/cs_1',
@@ -334,19 +335,21 @@ describe('unpaid payment back button', () => {
     ],
   };
 
+  const paymentBackMsg = (orderId = 'order_abc123', businessId = BIZ) => ({
+    from: FROM,
+    contactName: 'Test User',
+    type: 'button_reply',
+    id: paymentBackButtonId(businessId, orderId),
+    title: 'Change',
+    text: '',
+    items: null,
+  });
+
   test('withdraws the unpaid order and reopens Bestellung prüfen', async () => {
     getSession.mockResolvedValue(placedSession);
     getOrder.mockResolvedValue(unpaidOrder);
 
-    await handleMessage(ROUTING, {
-      from: FROM,
-      contactName: 'Test User',
-      type: 'button_reply',
-      id: 'btn_payment_back',
-      title: 'Back',
-      text: '',
-      items: null,
-    });
+    await handleMessage(ROUTING, paymentBackMsg());
 
     expect(releaseUnpaidCheckoutSession).toHaveBeenCalledWith('cs_1');
     expect(cancelOrder).toHaveBeenCalledWith(BIZ, 'order_abc123', {
@@ -375,11 +378,58 @@ describe('unpaid payment back button', () => {
     expect(sendCtaUrlMessage).not.toHaveBeenCalled();
   });
 
-  test('a second Ändern on an already withdrawn order stays quiet', async () => {
+  test('a stale Ändern withdraws that bubble order, not the newer unpaid one', async () => {
+    const olderOrder = {
+      ...unpaidOrder,
+      id: 'order_old111',
+      paymentStripeSessionId: 'cs_old',
+      items: [{ name: 'Dürüm', qty: 1, price: 7, vatRate: 10, net: 6.36, vat: 0.64, gross: 7 }],
+    };
+    getSession.mockResolvedValue({
+      ...placedSession,
+      pendingAmendOrderId: 'order_new222',
+      pendingAmendBusinessId: BIZ,
+    });
+    getOrder.mockImplementation(async (_bid, oid) => {
+      if (oid === 'order_old111') return olderOrder;
+      if (oid === 'order_new222') {
+        return {
+          ...unpaidOrder,
+          id: 'order_new222',
+          paymentStripeSessionId: 'cs_new',
+        };
+      }
+      return null;
+    });
+
+    await handleMessage(ROUTING, paymentBackMsg('order_old111'));
+
+    expect(getOrder).toHaveBeenCalledWith(BIZ, 'order_old111');
+    expect(releaseUnpaidCheckoutSession).toHaveBeenCalledWith('cs_old');
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, 'order_old111', {
+      skipReentry: true,
+      skipCustomerNotify: true,
+    });
+    expect(cancelOrder).not.toHaveBeenCalledWith(BIZ, 'order_new222', expect.anything());
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'confirming',
+      basket: [expect.objectContaining({ name: 'Dürüm', qty: 1, price: 7 })],
+    }));
+  });
+
+  test('ignores a payment-back button whose businessId is not on this line', async () => {
     getSession.mockResolvedValue(placedSession);
-    getOrder
-      .mockResolvedValueOnce(unpaidOrder)
-      .mockResolvedValueOnce({ ...unpaidOrder, status: 'cancelled' });
+
+    await handleMessage(ROUTING, paymentBackMsg('order_abc123', 'biz_other'));
+
+    expect(getOrder).not.toHaveBeenCalled();
+    expect(cancelOrder).not.toHaveBeenCalled();
+    expect(setSession).not.toHaveBeenCalled();
+  });
+
+  test('legacy plain btn_payment_back still uses session pendingAmend', async () => {
+    getSession.mockResolvedValue(placedSession);
+    getOrder.mockResolvedValue(unpaidOrder);
 
     await handleMessage(ROUTING, {
       from: FROM,
@@ -390,6 +440,20 @@ describe('unpaid payment back button', () => {
       text: '',
       items: null,
     });
+
+    expect(cancelOrder).toHaveBeenCalledWith(BIZ, 'order_abc123', {
+      skipReentry: true,
+      skipCustomerNotify: true,
+    });
+  });
+
+  test('a second Ändern on an already withdrawn order stays quiet', async () => {
+    getSession.mockResolvedValue(placedSession);
+    getOrder
+      .mockResolvedValueOnce(unpaidOrder)
+      .mockResolvedValueOnce({ ...unpaidOrder, status: 'cancelled' });
+
+    await handleMessage(ROUTING, paymentBackMsg());
 
     expect(cancelOrder).not.toHaveBeenCalled();
     expect(sendText).not.toHaveBeenCalled();
@@ -404,15 +468,7 @@ describe('unpaid payment back button', () => {
       .mockResolvedValueOnce({ ...unpaidOrder, status: 'cancelled' });
     cancelOrder.mockRejectedValue(new Error('Invalid transition: cancelled → cancelled'));
 
-    await handleMessage(ROUTING, {
-      from: FROM,
-      contactName: 'Test User',
-      type: 'button_reply',
-      id: 'btn_payment_back',
-      title: 'Change',
-      text: '',
-      items: null,
-    });
+    await handleMessage(ROUTING, paymentBackMsg());
 
     expect(sendText).not.toHaveBeenCalled();
     expect(setSession).not.toHaveBeenCalled();
@@ -422,15 +478,7 @@ describe('unpaid payment back button', () => {
     getSession.mockResolvedValue(placedSession);
     getOrder.mockResolvedValue({ ...unpaidOrder, status: 'cancelled', paymentStatus: 'refunded' });
 
-    await handleMessage(ROUTING, {
-      from: FROM,
-      contactName: 'Test User',
-      type: 'button_reply',
-      id: 'btn_payment_back',
-      title: 'Change',
-      text: '',
-      items: null,
-    });
+    await handleMessage(ROUTING, paymentBackMsg());
 
     expect(cancelOrder).not.toHaveBeenCalled();
     expect(setSession).not.toHaveBeenCalled();
@@ -448,15 +496,7 @@ describe('unpaid payment back button', () => {
         paymentNotifiedAt: 'TS',
       });
 
-    await handleMessage(ROUTING, {
-      from: FROM,
-      contactName: 'Test User',
-      type: 'button_reply',
-      id: 'btn_payment_back',
-      title: 'Change',
-      text: '',
-      items: null,
-    });
+    await handleMessage(ROUTING, paymentBackMsg());
 
     expect(cancelOrder).not.toHaveBeenCalled();
     expect(releaseUnpaidCheckoutSession).not.toHaveBeenCalled();
@@ -474,15 +514,7 @@ describe('unpaid payment back button', () => {
       restaurantName: 'enes kebap',
     });
 
-    await handleMessage(ROUTING, {
-      from: FROM,
-      contactName: 'Test User',
-      type: 'button_reply',
-      id: 'btn_payment_back',
-      title: 'Change',
-      text: '',
-      items: null,
-    });
+    await handleMessage(ROUTING, paymentBackMsg());
 
     expect(completePaidCheckoutSession).not.toHaveBeenCalled();
     expect(cancelOrder).not.toHaveBeenCalled();
@@ -503,15 +535,7 @@ describe('unpaid payment back button', () => {
       .mockResolvedValueOnce({ ...unpaidOrder, paymentStatus: 'paid', paymentNotifiedAt: 'TS' });
     releaseUnpaidCheckoutSession.mockResolvedValue({ paid: true, released: false });
 
-    await handleMessage(ROUTING, {
-      from: FROM,
-      contactName: 'Test User',
-      type: 'button_reply',
-      id: 'btn_payment_back',
-      title: 'Change',
-      text: '',
-      items: null,
-    });
+    await handleMessage(ROUTING, paymentBackMsg());
 
     expect(cancelOrder).not.toHaveBeenCalled();
     expect(completePaidCheckoutSession).toHaveBeenCalledWith('cs_1');
@@ -531,15 +555,7 @@ describe('unpaid payment back button', () => {
         paymentMethod: 'stripe',
       });
 
-    await handleMessage(ROUTING, {
-      from: FROM,
-      contactName: 'Test User',
-      type: 'button_reply',
-      id: 'btn_payment_back',
-      title: 'Change',
-      text: '',
-      items: null,
-    });
+    await handleMessage(ROUTING, paymentBackMsg());
 
     expect(cancelOrder).toHaveBeenCalledWith(BIZ, 'order_abc123', {
       skipReentry: true,
@@ -561,15 +577,7 @@ describe('unpaid payment back button', () => {
       .mockResolvedValueOnce({ ...unpaidOrder, status: 'cancelled', paymentStatus: 'paid' });
     refundOrderPayment.mockRejectedValue(new Error('stripe down'));
 
-    await handleMessage(ROUTING, {
-      from: FROM,
-      contactName: 'Test User',
-      type: 'button_reply',
-      id: 'btn_payment_back',
-      title: 'Change',
-      text: '',
-      items: null,
-    });
+    await handleMessage(ROUTING, paymentBackMsg());
 
     expect(sendText).toHaveBeenCalledWith(FROM, t('paymentBackFailed', 'en'), 'test_phone_id');
     expect(setSession).not.toHaveBeenCalled();

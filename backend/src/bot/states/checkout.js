@@ -252,9 +252,10 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
       console.error('[payment] checkout session failed:', err.message);
     }
     // Ändern goes out first so Jetzt zahlen stays the bottom bubble, next to the thumb.
+    // Button id carries businessId + orderId so a stale bubble withdraws that order only.
     await sendButtonMessage(from, {
       body: t('paymentBackPrompt', lang),
-      buttons: [{ id: 'btn_payment_back', title: t('paymentBackBtn', lang) }],
+      buttons: [{ id: paymentBackButtonId(businessId, orderId), title: t('paymentBackBtn', lang) }],
     }, phoneNumberId);
     if (!payUrl) {
       await sendText(from, t('paymentLinkFailed', lang, shortId), phoneNumberId);
@@ -1737,6 +1738,33 @@ async function handleConfirming({
 
 const ORDER_ITEM_TAX_KEYS = new Set(['vatRate', 'net', 'vat', 'gross', 'unitPriceGross', 'kind', '_cents']);
 
+// Bound to the pay bubble so a stale Ändern does not cancel a newer unpaid order.
+// Legacy plain `btn_payment_back` still falls back to session.pendingAmend*.
+const PAYMENT_BACK_BTN_PREFIX = 'btn_payment_back';
+const PAYMENT_BACK_BTN_SEP = '|';
+
+function paymentBackButtonId(businessId, orderId) {
+  return `${PAYMENT_BACK_BTN_PREFIX}${PAYMENT_BACK_BTN_SEP}${businessId}${PAYMENT_BACK_BTN_SEP}${orderId}`;
+}
+
+function parsePaymentBackButtonId(id) {
+  if (!id || typeof id !== 'string') return null;
+  if (id === PAYMENT_BACK_BTN_PREFIX) return { legacy: true };
+  const prefix = `${PAYMENT_BACK_BTN_PREFIX}${PAYMENT_BACK_BTN_SEP}`;
+  if (!id.startsWith(prefix)) return null;
+  const rest = id.slice(prefix.length);
+  const sep = rest.indexOf(PAYMENT_BACK_BTN_SEP);
+  if (sep <= 0 || sep === rest.length - 1) return null;
+  const businessId = rest.slice(0, sep);
+  const orderId = rest.slice(sep + 1);
+  if (!businessId || !orderId || orderId.includes(PAYMENT_BACK_BTN_SEP)) return null;
+  return { businessId, orderId };
+}
+
+function isPaymentBackButtonId(id) {
+  return id === PAYMENT_BACK_BTN_PREFIX || !!parsePaymentBackButtonId(id)?.orderId;
+}
+
 function basketFromOrderItems(items) {
   return (items || [])
     .filter((item) => item && item.kind !== 'fee' && item.name && item.qty && item.price != null)
@@ -1780,10 +1808,24 @@ async function showPaidCheckout({ from, businessId, orderId, order, lang, phoneN
 
 // Ändern above the pay link. The cta_url bubble can only carry Jetzt zahlen, so
 // this is a second reply button. Unpaid pending orders are withdrawn and Prüfen reopens.
-async function handlePaymentBack({ from, session, lang }) {
+// Prefer businessId + orderId encoded in the button so a stale bubble does not cancel a newer order.
+async function handlePaymentBack({ from, session, lang, buttonId = null, allowedBusinessIds = null }) {
   const phoneNumberId = session.whatsappPhoneNumberId || null;
-  const businessId = session.pendingAmendBusinessId || session.businessId;
-  const orderId = session.pendingAmendOrderId;
+  const parsed = parsePaymentBackButtonId(buttonId);
+  let businessId;
+  let orderId;
+  if (parsed?.orderId) {
+    businessId = parsed.businessId;
+    orderId = parsed.orderId;
+    if (Array.isArray(allowedBusinessIds) && !allowedBusinessIds.includes(businessId)) {
+      console.warn('[checkout] payment back businessId not on routing');
+      return;
+    }
+  } else {
+    // Legacy plain btn_payment_back (already-sent bubbles) or missing id.
+    businessId = session.pendingAmendBusinessId || session.businessId;
+    orderId = session.pendingAmendOrderId;
+  }
 
   if (!orderId || !businessId) {
     if (session.state === 'confirming') return;
@@ -1800,6 +1842,11 @@ async function handlePaymentBack({ from, session, lang }) {
     const info = await getBusinessInfo(businessId);
     const phone = info.alertPhone || info.phone || null;
     await sendText(from, t('postOrderCallRestaurant', lang, info.name, phone), phoneNumberId);
+    return;
+  }
+  // Button-encoded ids are client-visible; only the customer who placed the order may withdraw.
+  if (order.customerPhone && order.customerPhone !== from) {
+    console.warn('[checkout] payment back phone mismatch');
     return;
   }
 
@@ -1946,4 +1993,7 @@ module.exports = {
   showDeliveryBasketGate,
   proceedFromConfirmedBasket,
   handlePaymentBack,
+  paymentBackButtonId,
+  parsePaymentBackButtonId,
+  isPaymentBackButtonId,
 };
