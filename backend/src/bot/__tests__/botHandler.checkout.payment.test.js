@@ -521,9 +521,9 @@ describe('unpaid payment back button', () => {
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, {
       body: t('postOrderOptions', 'en', 'enes kebap'),
       buttons: [
-        { id: 'btn_post_cancel', title: t('postCancelBtn', 'en') },
         { id: 'btn_post_reorder', title: t('postReorderBtn', 'en') },
         { id: 'btn_post_restaurant', title: t('postRestaurantBtn', 'en') },
+        { id: 'btn_post_cancel', title: t('postCancelBtn', 'en') },
       ],
     }, 'test_phone_id');
   });

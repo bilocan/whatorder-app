@@ -269,14 +269,18 @@ describe('completePaidCheckoutSession', () => {
     await expect(completePaidCheckoutSession('cs_1')).resolves.toBe(true);
 
     expect(sendText).toHaveBeenCalledWith('+431234', 'paymentConfirmed:ABC123', 'prod_phone_id');
-    expect(sendButtonMessage).toHaveBeenCalledWith('+431234', expect.objectContaining({
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_post_cancel' }),
+    expect(sendDocument).toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith('+431234', {
+      body: expect.any(String),
+      buttons: [
         expect.objectContaining({ id: 'btn_post_reorder' }),
         expect.objectContaining({ id: 'btn_post_restaurant' }),
-      ]),
-    }), 'prod_phone_id');
-    expect(sendDocument).toHaveBeenCalled();
+        expect.objectContaining({ id: 'btn_post_cancel' }),
+      ],
+    }, 'prod_phone_id');
+    const docOrder = sendDocument.mock.invocationCallOrder[0];
+    const btnOrder = sendButtonMessage.mock.invocationCallOrder[0];
+    expect(docOrder).toBeLessThan(btnOrder);
   });
 
   test('does nothing when the session is still unpaid', async () => {
@@ -321,14 +325,22 @@ describe('handleCheckoutSessionCompleted', () => {
       settlementStatus: 'pending',
     }));
     expect(sendText).toHaveBeenCalledWith('+431234', 'paymentConfirmed:ABC123', 'prod_phone_id');
-    expect(sendButtonMessage).toHaveBeenCalledWith('+431234', expect.objectContaining({
-      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_post_cancel' })]),
-    }), 'prod_phone_id');
     expect(issueCustomerBeleg).toHaveBeenCalledWith('biz1', 'order_abc123', expect.objectContaining({ id: 'cs_1' }));
     expect(uploadMedia).toHaveBeenCalled();
     expect(sendDocument).toHaveBeenCalledWith('+431234', expect.objectContaining({
       filename: 'WO-2026-000001.pdf',
     }), 'prod_phone_id');
+    expect(sendButtonMessage).toHaveBeenCalledWith('+431234', {
+      body: expect.any(String),
+      buttons: [
+        expect.objectContaining({ id: 'btn_post_reorder' }),
+        expect.objectContaining({ id: 'btn_post_restaurant' }),
+        expect.objectContaining({ id: 'btn_post_cancel' }),
+      ],
+    }, 'prod_phone_id');
+    const docOrder = sendDocument.mock.invocationCallOrder[0];
+    const btnOrder = sendButtonMessage.mock.invocationCallOrder[0];
+    expect(docOrder).toBeLessThan(btnOrder);
     expect(mockOrderUpdate).toHaveBeenCalledTimes(2);
     expect(mockOrderUpdate.mock.calls[1][0]).toEqual({ paymentNotifiedAt: 'TS' });
   });

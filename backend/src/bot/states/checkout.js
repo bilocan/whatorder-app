@@ -281,11 +281,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
   await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, paymentMethod, info.alertPhone || null, info.address || null, checkoutDealLines(t, lang, totals)), phoneNumberId);
   await sendButtonMessage(from, {
     body: t('postOrderOptions', lang, info.name),
-    buttons: [
-      { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
-      { id: 'btn_post_reorder',    title: t('postReorderBtn', lang) },
-      { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
-    ],
+    buttons: postOrderButtons(lang),
   }, phoneNumberId);
 }
 
@@ -1780,9 +1776,9 @@ function basketFromOrderItems(items) {
 
 function postOrderButtons(lang) {
   return [
-    { id: 'btn_post_cancel', title: t('postCancelBtn', lang) },
     { id: 'btn_post_reorder', title: t('postReorderBtn', lang) },
     { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
+    { id: 'btn_post_cancel', title: t('postCancelBtn', lang) },
   ];
 }
 
