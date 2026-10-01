@@ -90,6 +90,7 @@ const {
   mockCustomerProfile,
   msg,
   expectOrderEntryPrompt,
+  expectCatalogPrompt,
   makeUpdatedAt,
   multiSession,
   resetBotHandlerMocks,
@@ -625,7 +626,7 @@ describe('Confirming state: ambiguous input', () => {
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('YES'));
-    expectOrderEntryPrompt();
+    expectCatalogPrompt();
   });
 
   test('text "yes" confirms order (text-path CONFIRM keyword)', async () => {

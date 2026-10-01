@@ -87,6 +87,7 @@ const {
   mockCustomerProfile,
   msg,
   expectOrderEntryPrompt,
+  expectCatalogPrompt,
   makeUpdatedAt,
   multiSession,
   resetBotHandlerMocks,
@@ -164,15 +165,13 @@ describe('Deep link: returning customer (single restaurant)', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('No results'));
   });
 
-  test('QR deep link entry shows restaurant-branded order entry prompt', async () => {
+  test('QR deep link entry shows restaurant catalog', async () => {
     getSession.mockResolvedValue({});
     getLastOrderForCustomer.mockResolvedValue(null);
 
     await handleMessage(ROUTING, msg({ text: `ORDER ${BIZ}` }));
 
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      body: expect.stringContaining(BIZ_INFO.name),
-    }));
+    expectCatalogPrompt();
   });
 });
 
@@ -618,7 +617,7 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expectOrderEntryPrompt();
+    expectCatalogPrompt();
   });
 
   test('9h idle + browsing with no updatedAt → does NOT show picker (no timestamp = no TTL)', async () => {
@@ -626,7 +625,7 @@ describe('Multi-restaurant: TTL safety net (8h idle, browsing, empty basket)', (
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
-    expectOrderEntryPrompt();
+    expectCatalogPrompt();
   });
 });
 
@@ -640,7 +639,7 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
     );
   });
 
-  test('valid restaurant list_reply → browsing state and order entry for selected restaurant', async () => {
+  test('valid restaurant list_reply → browsing state and catalog for selected restaurant', async () => {
     getLastOrderForCustomer.mockResolvedValue(null);
     getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
 
@@ -650,10 +649,7 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
       state: 'browsing',
       businessId: 'biz_b',
     }));
-    expectOrderEntryPrompt();
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      body: expect.stringContaining(BIZ_B_INFO.name),
-    }));
+    expectCatalogPrompt();
   });
 
   test('valid restaurant list_reply → reorder prompt when order history exists', async () => {
@@ -809,7 +805,7 @@ describe('Multi-restaurant: newly added restaurant appears in picker', () => {
     expect(rows).toHaveLength(3);
   });
 
-  test('newly added restaurant (biz_c) is selectable and shows order entry', async () => {
+  test('newly added restaurant (biz_c) is selectable and shows catalog', async () => {
     getLastOrderForCustomer.mockResolvedValue(null);
     getSession.mockResolvedValue({ state: 'selecting_restaurant', language: 'en', basket: [], businessId: null });
 
@@ -819,7 +815,7 @@ describe('Multi-restaurant: newly added restaurant appears in picker', () => {
       state: 'browsing',
       businessId: 'biz_c',
     }));
-    expectOrderEntryPrompt();
+    expectCatalogPrompt();
   });
 
   test('picker row title shows newly added restaurant name', async () => {

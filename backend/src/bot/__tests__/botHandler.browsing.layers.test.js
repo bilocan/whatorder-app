@@ -76,6 +76,7 @@ const {
   mockCustomerProfile,
   msg,
   expectOrderEntryPrompt,
+  expectCatalogPrompt,
   makeUpdatedAt,
   multiSession,
   resetBotHandlerMocks,
@@ -640,7 +641,7 @@ describe('Layer 1: disambiguation for ambiguous item names', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
-  test('start during disambiguation clears to order entry', async () => {
+  test('start during disambiguation clears to catalog', async () => {
     getSession.mockResolvedValue({
       language: 'de',
       state: 'disambiguating_intent',
@@ -661,7 +662,7 @@ describe('Layer 1: disambiguation for ambiguous item names', () => {
     await handleMessage(ROUTING, msg({ text: 'start' }));
 
     // botHandler GREETING_FRESH_START_STATES exits disambiguation before the state handler.
-    expectOrderEntryPrompt();
+    expectCatalogPrompt();
     expect(sendListMessage).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(
       FROM,

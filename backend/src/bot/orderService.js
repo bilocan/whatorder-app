@@ -52,8 +52,10 @@ const STATUS_TS_FIELD = {
 };
 
 const EXCLUDED_REORDER_STATUSES = new Set(['cancelled', 'rejected']);
-/** Newest docs to scan (skip cancelled / unpaid Stripe noise near the top). */
-const REORDER_CANDIDATE_LIMIT = 15;
+/** Page size per Firestore query while skipping cancelled / unpaid Stripe noise. */
+const REORDER_PAGE_SIZE = 15;
+/** Max docs to scan across pages (pilot phones can have dozens of abandoned checkouts). */
+const REORDER_MAX_SCAN = 75;
 
 function isEligibleReorderOrder(order) {
   if (!order?.items?.length) return false;
@@ -69,8 +71,8 @@ function isEligibleReorderOrder(order) {
 }
 
 /**
- * Latest eligible order for reorder. Uses orderBy(createdAt desc) so we never miss
- * the true latest among large histories. Stops at the first eligible hit.
+ * Latest eligible order for reorder. Pages orderBy(createdAt desc) so abandoned
+ * Stripe/cancelled noise near the top cannot hide a real paid/completed order.
  */
 async function getLastOrderForCustomer(businessId, customerPhone) {
   const digits = normalizeCustomerPhone(customerPhone);
@@ -84,23 +86,36 @@ async function getLastOrderForCustomer(businessId, customerPhone) {
 
   for (const variant of variants) {
     for (const field of fields) {
-      let snap;
-      try {
-        snap = await ordersRef(businessId)
+      let scanned = 0;
+      let lastDoc = null;
+      while (scanned < REORDER_MAX_SCAN) {
+        let query = ordersRef(businessId)
           .where(field, '==', variant)
-          .orderBy('createdAt', 'desc')
-          .limit(REORDER_CANDIDATE_LIMIT)
-          .get();
-      } catch (err) {
-        if (!failedFields.has(field)) {
-          failedFields.add(field);
-          console.warn(`[orderService] getLastOrderForCustomer ${field} query failed:`, err.message);
+          .orderBy('createdAt', 'desc');
+        if (lastDoc) query = query.startAfter(lastDoc);
+        query = query.limit(REORDER_PAGE_SIZE);
+
+        let snap;
+        try {
+          snap = await query.get();
+        } catch (err) {
+          if (!failedFields.has(field)) {
+            failedFields.add(field);
+            console.warn(`[orderService] getLastOrderForCustomer ${field} query failed:`, err.message);
+          }
+          break;
         }
-        continue;
-      }
-      for (const doc of snap.docs) {
-        const order = doc.data();
-        if (isEligibleReorderOrder(order)) return order;
+        if (snap.empty) break;
+
+        for (const doc of snap.docs) {
+          scanned += 1;
+          const order = doc.data();
+          if (isEligibleReorderOrder(order)) return order;
+          if (scanned >= REORDER_MAX_SCAN) break;
+        }
+
+        if (snap.docs.length < REORDER_PAGE_SIZE) break;
+        lastDoc = snap.docs[snap.docs.length - 1];
       }
     }
   }
