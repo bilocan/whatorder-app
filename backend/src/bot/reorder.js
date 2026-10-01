@@ -130,7 +130,33 @@ async function handleReorderButtons({ from, session, lang, businessId, basket, i
   return false;
 }
 
-// Layer 0–1 entry: menu keyword → catalog; intent → disambiguate/confirm; reorder → offer; else order entry prompt.
+// First visit / no reorder history: open catalog (Menü anzeigen), not Suche / Volles Menü.
+async function openFreshCatalog(from, lang, businessId) {
+  const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
+  // Empty-basket menu reopen is a fresh order: drop sticky Lieferung / address so
+  // Mindestbestellwert does not fire before Prüfen (Profil / prior gate leftover).
+  await patchSession(from, {
+    state: 'browsing',
+    language: lang,
+    businessId,
+    basket: [],
+    textMenuIndex,
+    textMenuCategory,
+    menuId,
+    specialRequests: undefined,
+    orderType: undefined,
+    deliveryAddress: undefined,
+    pendingPaymentMethod: undefined,
+    confirmFlowDraft: undefined,
+    pendingAmendOrderId: undefined,
+    pendingAmendBusinessId: undefined,
+    pendingAmendPlacedAt: undefined,
+    pendingReorderItems: undefined,
+    pendingReorderUnmatched: undefined,
+  });
+}
+
+// Layer 0–1 entry: menu keyword → catalog; intent → disambiguate/confirm; reorder → offer; else catalog.
 async function startRestaurantBrowsing({ from, session, lang, businessId, type, text, norm, businessName }) {
   applyBusinessInfoIdentity(await getBusinessInfo(businessId));
   // Any fresh browse clears the post-order amend context so subsequent food text is treated as a new order.
@@ -152,23 +178,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
   const greetingPrefix = businessName ? t('greeting', lang, businessName) + '\n\n' : '';
 
   if (type === 'text' && isMenuRequest(norm)) {
-    const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
-    // Empty-basket menu reopen is a fresh order: drop sticky Lieferung / address so
-    // Mindestbestellwert does not fire before Prüfen (Profil / prior gate leftover).
-    await patchSession(from, {
-      state: 'browsing',
-      language: lang,
-      businessId,
-      basket: [],
-      textMenuIndex,
-      textMenuCategory,
-      menuId,
-      specialRequests: undefined,
-      orderType: undefined,
-      deliveryAddress: undefined,
-      pendingPaymentMethod: undefined,
-      confirmFlowDraft: undefined,
-    });
+    await openFreshCatalog(from, lang, businessId);
     return;
   }
 
@@ -179,10 +189,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
 
   if (type === 'text' && isFreshStartCommand(norm)) {
     if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName })) return;
-    await sendOrderEntryPrompt({
-      from, session: freshSession, lang, businessId, basket: [], fresh: true,
-      ...(businessName ? { bodyOverride: greetingPrefix + t('orderEntryBody', lang) } : {}),
-    });
+    await openFreshCatalog(from, lang, businessId);
     return;
   }
 
@@ -207,10 +214,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
 
   if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName })) return;
 
-  await sendOrderEntryPrompt({
-    from, session: freshSession, lang, businessId, basket: [], fresh: true,
-    ...(businessName ? { bodyOverride: greetingPrefix + t('orderEntryBody', lang) } : {}),
-  });
+  await openFreshCatalog(from, lang, businessId);
 }
 
 module.exports = {

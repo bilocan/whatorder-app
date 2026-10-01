@@ -87,6 +87,7 @@ const {
   mockCustomerProfile,
   msg,
   expectOrderEntryPrompt,
+  expectCatalogPrompt,
   makeUpdatedAt,
   multiSession,
   resetBotHandlerMocks,
@@ -104,13 +105,13 @@ afterEach(clearBotHandlerEnv);
 
 describe('Full flow: language detection → catalog → cart → name → confirm → order', () => {
 
-  test('Step 1: first message triggers language detection and shows order entry prompt', async () => {
+  test('Step 1: first message triggers language detection and shows catalog', async () => {
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'tr', state: 'browsing' }));
-    expectOrderEntryPrompt();
+    expectCatalogPrompt();
   });
 
   test('Step 2: cart_submitted skips notes and moves straight to awaiting_name (no known name)', async () => {
@@ -319,15 +320,20 @@ describe('Edge cases', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
-  test('no WHATSAPP_MENU_FLOW_ID falls back to order entry on first message', async () => {
+  test('no WHATSAPP_MENU_FLOW_ID falls back to list menu on first message', async () => {
     delete process.env.WHATSAPP_MENU_FLOW_ID;
     delete process.env.WHATSAPP_FLOW_ID;
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Hello' }));
 
-    expectOrderEntryPrompt();
+    expect(sendListMessage).toHaveBeenCalled();
     expect(sendFlowMessage).not.toHaveBeenCalled();
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_search' }),
+      ]),
+    }));
   });
 
   test('unknown productId falls back to productId as name', async () => {
@@ -351,13 +357,18 @@ describe('Edge cases', () => {
     expectOrderEntryPrompt();
   });
 
-  test('flow failure falls back to order entry on first message', async () => {
+  test('flow failure falls back to list menu on first message', async () => {
     sendFlowMessage.mockRejectedValue(new Error('API error'));
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Hello' }));
 
-    expectOrderEntryPrompt();
+    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_search' }),
+      ]),
+    }));
   });
 });
 
@@ -372,15 +383,13 @@ describe('Deep link: returning customer (single restaurant)', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('No results'));
   });
 
-  test('QR deep link entry shows restaurant-branded order entry prompt', async () => {
+  test('QR deep link entry shows restaurant catalog', async () => {
     getSession.mockResolvedValue({});
     getLastOrderForCustomer.mockResolvedValue(null);
 
     await handleMessage(ROUTING, msg({ text: `ORDER ${BIZ}` }));
 
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      body: expect.stringContaining(BIZ_INFO.name),
-    }));
+    expectCatalogPrompt();
   });
 });
 

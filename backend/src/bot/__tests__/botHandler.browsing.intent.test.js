@@ -76,6 +76,7 @@ const {
   mockCustomerProfile,
   msg,
   expectOrderEntryPrompt,
+  expectCatalogPrompt,
   makeUpdatedAt,
   multiSession,
   resetBotHandlerMocks,
@@ -632,13 +633,13 @@ describe('Intent ordering (Tier A)', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
-  test('greeting first message shows order entry prompt', async () => {
+  test('greeting first message shows catalog', async () => {
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
-    expectOrderEntryPrompt();
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+    expectCatalogPrompt();
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining(BIZ_INFO.name),
     }));
   });
@@ -672,7 +673,7 @@ describe('Intent ordering (Tier A)', () => {
 
       await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
-      expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
         body: expect.stringContaining('🏷️ 10% Rabatt'),
       }));
     });

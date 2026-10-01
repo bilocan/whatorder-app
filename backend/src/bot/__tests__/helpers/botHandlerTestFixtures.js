@@ -200,6 +200,13 @@ function expectOrderEntryPrompt() {
   }));
 }
 
+function expectCatalogPrompt() {
+  expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+    flowId: 'flow_test_id',
+    flowAction: 'data_exchange',
+  }));
+}
+
 module.exports = {
   handleMessage,
   getSession,
@@ -241,6 +248,7 @@ module.exports = {
   mockCustomerProfile,
   msg,
   expectOrderEntryPrompt,
+  expectCatalogPrompt,
   makeUpdatedAt,
   multiSession,
   resetBotHandlerMocks,
