@@ -122,7 +122,7 @@ function orderItemFormInit({
  * @param {'add'|'save'|'view_cart'} footerMode
  *   add — from menu: Footer adds the line.
  *   save — from cart Bearbeiten: Footer saves/replaces the line.
- *   view_cart — system back from cart: Footer returns without adding.
+ *   view_cart — system back from cart: Footer returns without adding; form read-only.
  */
 function buildOrderItemScreenData(item, lang, {
   qtyInit = 1,
@@ -137,12 +137,25 @@ function buildOrderItemScreenData(item, lang, {
   const description = String(item.description || '').trim();
   const price = `€${Number(item.price).toFixed(2)}`;
   const copy = orderItemCopy(lang);
+  const formEditable = footerMode !== 'view_cart';
   if (footerMode === 'view_cart') {
     copy[F.UI_ADD_TO_CART] = t('confirmFlowBackToCart', lang);
   } else if (footerMode === 'save') {
     copy[F.UI_ADD_TO_CART] = t('menuFlowSave', lang);
   }
   const multiInit = normalizeMultiInit(multiValue);
+  const toggle = multiToggleCopy(item, multiInit, lang);
+  // Read-only: hide Alle wählen / Alle abwählen (no edits from this screen).
+  if (!formEditable) toggle[F.UI_MULTI_TOGGLE_VISIBLE] = false;
+  const slots = mapOptionSlots(item.optionGroups);
+  // Disabled required radios can still block Footer; relax required in view_cart.
+  if (!formEditable) {
+    for (const n of [1, 2, 3]) slots[F[`SLOT${n}_REQUIRED`]] = false;
+  }
+  const qtyNum = Number(qtyInit);
+  const qtyForSummary = Number.isFinite(qtyNum) && qtyNum >= 1
+    ? Math.min(FLOW_QTY_MAX, qtyNum)
+    : 1;
   return {
     ...copy,
     [F.ITEM_ID]: item.id,
@@ -150,13 +163,15 @@ function buildOrderItemScreenData(item, lang, {
     [F.ITEM_DESCRIPTION]: description,
     [F.ITEM_DESCRIPTION_VISIBLE]: !!description,
     [F.ITEM_PRICE]: price,
+    [F.FORM_EDITABLE]: formEditable,
+    [F.UI_QTY_SUMMARY]: `${t('menuFlowQtyLabel', lang)}: ${qtyForSummary}`,
     [F.UI_ORDER_FOOTER_ACTION]: footerMode === 'view_cart' ? 'back_to_cart' : 'add_item',
-    ...multiToggleCopy(item, multiInit, lang),
+    ...toggle,
     [F.FORM_INIT_VALUES]: orderItemFormInit({
       qtyInit, notes, multiValue: multiInit, slot1, slot2, slot3,
     }),
     [F.ERROR_MESSAGES]: qtyError ? { [F.QTY]: qtyError } : {},
-    ...mapOptionSlots(item.optionGroups),
+    ...slots,
   };
 }
 
@@ -372,6 +387,17 @@ function basketLineMenuId(line) {
   return line?.itemId || line?.menuItemId || null;
 }
 
+/** Most recent basket line for this menu item (system-back prefill). */
+function findLastBasketLineForItem(basket, item) {
+  if (!item || !Array.isArray(basket) || !basket.length) return null;
+  for (let i = basket.length - 1; i >= 0; i--) {
+    const line = basket[i];
+    if (basketLineMenuId(line) === item.id) return line;
+    if (String(line?.baseName || '').trim() === item.name) return line;
+  }
+  return null;
+}
+
 function resolveMenuItemForBasketLine(line, menu = []) {
   const id = basketLineMenuId(line);
   if (id) {
@@ -520,7 +546,8 @@ router.post('/flow/exchange', async (req, res) => {
     }
 
     // ── BACK (refresh_on_back on cart screens) → ORDER_ITEM* ────────────────
-    // Footer = Zum Warenkorb (no EmbeddedLink). Menu browse always uses add.
+    // Footer = Zum Warenkorb; form read-only with last line prefill.
+    // Menu browse always uses add (editable).
     const CART_BACK_SCREENS = new Set([
       S.CART_REVIEW, S.CART_UPDATED, S.CART_EDITED, S.CART_EDITED_AGAIN,
     ]);
@@ -546,17 +573,22 @@ router.post('/flow/exchange', async (req, res) => {
           },
         });
       }
+      const line = findLastBasketLineForItem(session.basket ?? [], item);
+      const prefill = line
+        ? prefillFromBasketLine(item, line)
+        : { multiValue: defaultMultiValueForItem(item) };
       console.log(
-        '[flow/exchange] BACK cart→%s item=%s footer=view_cart',
+        '[flow/exchange] BACK cart→%s item=%s footer=view_cart editable=false line=%s',
         orderScreen,
         itemId,
+        line ? 'prefill' : 'defaults',
       );
       return reply({
         version,
         screen: orderScreen,
         data: buildOrderItemScreenData(item, lang, {
+          ...prefill,
           footerMode: 'view_cart',
-          multiValue: defaultMultiValueForItem(item),
         }),
       });
     }
@@ -666,7 +698,6 @@ router.post('/flow/exchange', async (req, res) => {
         const menu = await getMenu(businessId);
         const item = menu.find(m => m.id === itemId);
         if (!item) throw new Error(`Item not found: ${itemId}`);
-        const nextMulti = toggleMultiSelection(item, payload[F.MULTI_VALUE]);
         const footerMode = payload[F.UI_ORDER_FOOTER_ACTION] === 'back_to_cart'
           ? 'view_cart'
           : (screen === S.ORDER_ITEM ? 'add' : 'save');
@@ -675,18 +706,23 @@ router.post('/flow/exchange', async (req, res) => {
         const qtyInit = Number.isFinite(qtyParsed) && qtyParsed >= 1
           ? Math.min(FLOW_QTY_MAX, qtyParsed)
           : 1;
+        const formState = {
+          qtyInit,
+          notes: payload[F.NOTES] ?? '',
+          multiValue: payload[F.MULTI_VALUE],
+          slot1: payload[F.SLOT1_VALUE] ?? '',
+          slot2: payload[F.SLOT2_VALUE] ?? '',
+          slot3: payload[F.SLOT3_VALUE] ?? '',
+          footerMode,
+        };
+        // view_cart is read-only: ignore toggle (link is hidden; defense in depth).
+        if (footerMode !== 'view_cart') {
+          formState.multiValue = toggleMultiSelection(item, payload[F.MULTI_VALUE]);
+        }
         return reply({
           version,
           screen,
-          data: buildOrderItemScreenData(item, lang, {
-            qtyInit,
-            notes: payload[F.NOTES] ?? '',
-            multiValue: nextMulti,
-            slot1: payload[F.SLOT1_VALUE] ?? '',
-            slot2: payload[F.SLOT2_VALUE] ?? '',
-            slot3: payload[F.SLOT3_VALUE] ?? '',
-            footerMode,
-          }),
+          data: buildOrderItemScreenData(item, lang, formState),
         });
       }
 

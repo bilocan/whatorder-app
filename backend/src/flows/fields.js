@@ -87,6 +87,9 @@ const FIELDS = {
   UI_CUSTOMISE:        'ui_customise',
   UI_QTY_LABEL:        'ui_qty_label',
   UI_QTY_HELPER:       'ui_qty_helper',
+  // Read-only Anpassen after system back from cart (TextInput has no enabled).
+  UI_QTY_SUMMARY:      'ui_qty_summary',
+  FORM_EDITABLE:       'form_editable',
   FORM_INIT_VALUES:    'form_init_values',
   ERROR_MESSAGES:      'error_messages',
   UI_NOTES_LABEL:      'ui_notes_label',

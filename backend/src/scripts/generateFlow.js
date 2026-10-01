@@ -198,6 +198,7 @@ function radioSlot(n) {
     name: F[`SLOT${n}_VALUE`],
     required: `\${data.${F[`SLOT${n}_REQUIRED`]}}`,
     visible: `\${data.${F[`SLOT${n}_VISIBLE`]}}`,
+    enabled: `\${data.${F.FORM_EDITABLE}}`,
     'data-source': `\${data.${F[`SLOT${n}_OPTIONS`]}}`,
   };
 }
@@ -217,6 +218,8 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
       [F.ITEM_DESCRIPTION_VISIBLE]: { type: 'boolean', '__example__': !!exampleDesc },
       [F.ITEM_PRICE]:       { type: 'string', '__example__': examplePrice },
       [F.UI_ORDER_FOOTER_ACTION]: { type: 'string', '__example__': 'add_item' },
+      [F.FORM_EDITABLE]: { type: 'boolean', '__example__': true },
+      [F.UI_QTY_SUMMARY]: { type: 'string', '__example__': `${t('menuFlowQtyLabel', EXAMPLE_LANG)}: 1` },
       [F.UI_MULTI_TOGGLE]: { type: 'string', '__example__': t('menuFlowMultiClearAll', EXAMPLE_LANG) },
       [F.UI_MULTI_TOGGLE_VISIBLE]: { type: 'boolean', '__example__': true },
       [F.FORM_INIT_VALUES]: {
@@ -280,15 +283,24 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
             then: [{ type: 'TextCaption', text: `\${data.${F.ITEM_DESCRIPTION}}` }],
           },
           {
-            type: 'TextInput',
-            label: `\${data.${F.UI_QTY_LABEL}}`,
-            name: F.QTY,
-            required: true,
-            'input-type': 'number',
-            'max-chars': 2,
-            // Anchored: unanchored (10|[1-9]) wrongly accepts "11".
-            pattern: '^(10|[1-9])$',
-            'helper-text': `\${data.${F.UI_QTY_HELPER}}`,
+            // TextInput has no enabled; view_cart shows a summary instead.
+            type: 'If',
+            condition: `\${data.${F.FORM_EDITABLE}}`,
+            then: [{
+              type: 'TextInput',
+              label: `\${data.${F.UI_QTY_LABEL}}`,
+              name: F.QTY,
+              required: true,
+              'input-type': 'number',
+              'max-chars': 2,
+              // Anchored: unanchored (10|[1-9]) wrongly accepts "11".
+              pattern: '^(10|[1-9])$',
+              'helper-text': `\${data.${F.UI_QTY_HELPER}}`,
+            }],
+            else: [{
+              type: 'TextBody',
+              text: `\${data.${F.UI_QTY_SUMMARY}}`,
+            }],
           },
           radioSlot(1),
           radioSlot(2),
@@ -299,6 +311,7 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
             name: F.MULTI_VALUE,
             required: false,
             visible: `\${data.${F.MULTI_VISIBLE}}`,
+            enabled: `\${data.${F.FORM_EDITABLE}}`,
             'data-source': `\${data.${F.MULTI_OPTIONS}}`,
           },
           {
@@ -325,6 +338,7 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
             label: `\${data.${F.UI_NOTES_LABEL}}`,
             name: F.NOTES,
             required: false,
+            enabled: `\${data.${F.FORM_EDITABLE}}`,
             'helper-text': `\${data.${F.UI_NOTES_HELPER}}`,
           },
           {

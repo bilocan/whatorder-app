@@ -790,6 +790,51 @@ test('BACK from CART_REVIEW refreshes ORDER_ITEM with view-cart footer', async (
   expect(body.data[F.ITEM_ID]).toBe('b1');
   expect(body.data[F.UI_ORDER_FOOTER_ACTION]).toBe('back_to_cart');
   expect(body.data[F.UI_ADD_TO_CART]).toMatch(/Warenkorb|cart|Sepete/i);
+  expect(body.data[F.FORM_EDITABLE]).toBe(false);
+  expect(body.data[F.UI_MULTI_TOGGLE_VISIBLE]).toBe(false);
+  expect(body.data[F.UI_QTY_SUMMARY]).toMatch(/1/);
+});
+
+test('BACK from CART_REVIEW prefills last line selections read-only', async () => {
+  mockSession(
+    [{
+      name: 'Pizza — Large, Cheese',
+      baseName: 'Pizza',
+      detail: 'Large, Cheese',
+      itemId: 'p1',
+      qty: 3,
+      price: 17.5,
+      notes: 'extra hot',
+      flowSelections: { size: 'l', extras: ['cheese'] },
+    }],
+    { flowLastOrderItemId: 'p1', flowLastOrderScreen: S.ORDER_ITEM },
+  );
+  const res = await post({
+    action: 'BACK', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: {},
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.FORM_EDITABLE]).toBe(false);
+  expect(body.data[F.SLOT1_REQUIRED]).toBe(false);
+  expect(body.data[F.FORM_INIT_VALUES]).toMatchObject({
+    [F.QTY]: 3,
+    [F.NOTES]: 'extra hot',
+    [F.SLOT1_VALUE]: 'l',
+    [F.MULTI_VALUE]: ['cheese'],
+  });
+  expect(body.data[F.UI_QTY_SUMMARY]).toMatch(/3/);
+});
+
+test('MENU_BROWSE → ORDER_ITEM stays editable', async () => {
+  const res = await post({
+    action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'b1' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.FORM_EDITABLE]).toBe(true);
+  expect(body.data[F.UI_ORDER_FOOTER_ACTION]).toBe('add_item');
 });
 
 test('BACK from cart without last item → category select', async () => {
