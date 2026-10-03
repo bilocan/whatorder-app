@@ -88,22 +88,33 @@ function formatFlowOptionTitle(label, price, id = '') {
   return `${named.slice(0, maxLabel - 1)}…${suffix}`;
 }
 
+function normalizeMultiPayload(raw) {
+  if (Array.isArray(raw)) return raw.filter(Boolean).map(String);
+  if (raw) return [String(raw)];
+  return [];
+}
+
+/** First N multi option groups on the item (Flow supports 2). */
+function multiGroupsFromItem(item, limit = 2) {
+  return (item?.optionGroups ?? []).filter(g => g.type === 'multi').slice(0, limit);
+}
+
 function selectionsFromOrderItemPayload(item, payload, fields) {
   const F = fields;
   const selections = {};
   const singles = (item.optionGroups ?? []).filter(g => g.type === 'single').slice(0, 3);
-  const multi = (item.optionGroups ?? []).find(g => g.type === 'multi') ?? null;
+  const multis = multiGroupsFromItem(item, 2);
 
   singles.forEach((group, i) => {
     const val = payload[F[`SLOT${i + 1}_VALUE`]];
     if (val) selections[group.id] = val;
   });
 
-  const multiRaw = payload[F.MULTI_VALUE];
-  const multiVals = Array.isArray(multiRaw)
-    ? multiRaw
-    : (multiRaw ? [multiRaw] : []);
-  if (multi && multiVals.length) selections[multi.id] = multiVals;
+  const multiVals = normalizeMultiPayload(payload[F.MULTI_VALUE]);
+  if (multis[0] && multiVals.length) selections[multis[0].id] = multiVals;
+
+  const multi2Vals = normalizeMultiPayload(payload[F.MULTI2_VALUE]);
+  if (multis[1] && multi2Vals.length) selections[multis[1].id] = multi2Vals;
 
   return selections;
 }
@@ -115,5 +126,7 @@ module.exports = {
   linePriceForItem,
   optionLabelEmoji,
   formatFlowOptionTitle,
+  normalizeMultiPayload,
+  multiGroupsFromItem,
   selectionsFromOrderItemPayload,
 };

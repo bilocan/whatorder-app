@@ -121,6 +121,23 @@ describe('selectionsFromOrderItemPayload', () => {
       extras: ['cheese'],
     });
   });
+
+  test('maps second multi payload to second multi group', () => {
+    const dual = {
+      optionGroups: [
+        { id: 'beilage', type: 'multi', options: [{ id: 'ananas', label: 'Ananas', price: 1.5 }] },
+        { id: 'sonder', type: 'multi', options: [{ id: 'kaserand', label: 'Käserand', price: 2.5 }] },
+      ],
+    };
+    const payload = {
+      [F.MULTI_VALUE]: ['ananas'],
+      [F.MULTI2_VALUE]: ['kaserand'],
+    };
+    expect(selectionsFromOrderItemPayload(dual, payload, F)).toEqual({
+      beilage: ['ananas'],
+      sonder: ['kaserand'],
+    });
+  });
 });
 
 describe('sumSelectedOptionPrices', () => {

@@ -8,6 +8,8 @@ const {
   formatFlowOptionTitle,
   computeLinePrice,
   selectionsFromOrderItemPayload,
+  multiGroupsFromItem,
+  normalizeMultiPayload,
 } = require('../lib/optionPricing');
 const {
   attachCategoryImages,
@@ -60,41 +62,61 @@ const FLOW_QTY_MAX = 10;
 
 /** Owner multiDefault (all/none/custom) → CheckboxGroup init ids. Same as chat intent. */
 function defaultMultiValueForItem(item) {
-  const multi = (item?.optionGroups ?? []).find(g => g.type === 'multi');
+  const multi = multiGroupsFromItem(item, 1)[0];
   return multi ? getDefaultMultiSelection(multi) : [];
 }
 
-function normalizeMultiInit(multiValue) {
-  if (Array.isArray(multiValue)) return multiValue.filter(Boolean).map(String);
-  if (multiValue) return [String(multiValue)];
-  return [];
+function defaultMulti2ValueForItem(item) {
+  const multi2 = multiGroupsFromItem(item, 2)[1];
+  return multi2 ? getDefaultMultiSelection(multi2) : [];
 }
 
-/** Ids for the item's multi (Beilagen) group, or []. */
-function multiOptionIds(item) {
-  const multi = (item?.optionGroups ?? []).find(g => g.type === 'multi');
+function normalizeMultiInit(multiValue) {
+  return normalizeMultiPayload(multiValue);
+}
+
+/** Ids for the item's Nth multi group (0 = Beilagen, 1 = Sonderwunsch), or []. */
+function multiOptionIds(item, index = 0) {
+  const multi = multiGroupsFromItem(item, 2)[index];
   return (multi?.options ?? []).map(o => String(o.id));
 }
 
 /** If every option is selected → clear; otherwise select all. */
-function toggleMultiSelection(item, currentValue) {
-  const allIds = multiOptionIds(item);
+function toggleMultiSelection(item, currentValue, index = 0) {
+  const allIds = multiOptionIds(item, index);
   if (!allIds.length) return [];
   const selected = new Set(normalizeMultiInit(currentValue));
   const allOn = allIds.every(id => selected.has(id));
   return allOn ? [] : allIds;
 }
 
-function multiToggleCopy(item, multiValue, lang) {
-  const allIds = multiOptionIds(item);
+function multiToggleFields(item, multiValue, lang, {
+  visibleKey, labelKey, index = 0,
+} = {}) {
+  const allIds = multiOptionIds(item, index);
   if (!allIds.length) {
-    return { [F.UI_MULTI_TOGGLE_VISIBLE]: false, [F.UI_MULTI_TOGGLE]: '' };
+    return { [visibleKey]: false, [labelKey]: '' };
   }
   const selected = new Set(normalizeMultiInit(multiValue));
   const allOn = allIds.every(id => selected.has(id));
   return {
-    [F.UI_MULTI_TOGGLE_VISIBLE]: true,
-    [F.UI_MULTI_TOGGLE]: t(allOn ? 'menuFlowMultiClearAll' : 'menuFlowMultiSelectAll', lang),
+    [visibleKey]: true,
+    [labelKey]: t(allOn ? 'menuFlowMultiClearAll' : 'menuFlowMultiSelectAll', lang),
+  };
+}
+
+function multiToggleCopy(item, multiValue, multi2Value, lang) {
+  return {
+    ...multiToggleFields(item, multiValue, lang, {
+      visibleKey: F.UI_MULTI_TOGGLE_VISIBLE,
+      labelKey: F.UI_MULTI_TOGGLE,
+      index: 0,
+    }),
+    ...multiToggleFields(item, multi2Value, lang, {
+      visibleKey: F.UI_MULTI2_TOGGLE_VISIBLE,
+      labelKey: F.UI_MULTI2_TOGGLE,
+      index: 1,
+    }),
   };
 }
 
@@ -104,6 +126,7 @@ function orderItemFormInit({
   qtyInit = 1,
   notes = '',
   multiValue = [],
+  multi2Value = [],
   slot1 = '',
   slot2 = '',
   slot3 = '',
@@ -112,6 +135,7 @@ function orderItemFormInit({
     [F.QTY]: qtyInit,
     [F.NOTES]: notes == null ? '' : String(notes),
     [F.MULTI_VALUE]: normalizeMultiInit(multiValue),
+    [F.MULTI2_VALUE]: normalizeMultiInit(multi2Value),
     [F.SLOT1_VALUE]: slot1 == null ? '' : String(slot1),
     [F.SLOT2_VALUE]: slot2 == null ? '' : String(slot2),
     [F.SLOT3_VALUE]: slot3 == null ? '' : String(slot3),
@@ -129,6 +153,7 @@ function buildOrderItemScreenData(item, lang, {
   qtyError = null,
   notes = '',
   multiValue = [],
+  multi2Value = [],
   slot1 = '',
   slot2 = '',
   slot3 = '',
@@ -144,9 +169,13 @@ function buildOrderItemScreenData(item, lang, {
     copy[F.UI_ADD_TO_CART] = t('menuFlowSave', lang);
   }
   const multiInit = normalizeMultiInit(multiValue);
-  const toggle = multiToggleCopy(item, multiInit, lang);
+  const multi2Init = normalizeMultiInit(multi2Value);
+  const toggle = multiToggleCopy(item, multiInit, multi2Init, lang);
   // Read-only: hide Alle wählen / Alle abwählen (no edits from this screen).
-  if (!formEditable) toggle[F.UI_MULTI_TOGGLE_VISIBLE] = false;
+  if (!formEditable) {
+    toggle[F.UI_MULTI_TOGGLE_VISIBLE] = false;
+    toggle[F.UI_MULTI2_TOGGLE_VISIBLE] = false;
+  }
   const slots = mapOptionSlots(item.optionGroups);
   // Disabled required radios can still block Footer; relax required in view_cart.
   if (!formEditable) {
@@ -168,7 +197,7 @@ function buildOrderItemScreenData(item, lang, {
     [F.UI_ORDER_FOOTER_ACTION]: footerMode === 'view_cart' ? 'back_to_cart' : 'add_item',
     ...toggle,
     [F.FORM_INIT_VALUES]: orderItemFormInit({
-      qtyInit, notes, multiValue: multiInit, slot1, slot2, slot3,
+      qtyInit, notes, multiValue: multiInit, multi2Value: multi2Init, slot1, slot2, slot3,
     }),
     [F.ERROR_MESSAGES]: qtyError ? { [F.QTY]: qtyError } : {},
     ...slots,
@@ -234,7 +263,7 @@ async function menuBrowseData(menu, categoryId, lang) {
 // Map item.optionGroups to flat top-level fields (nested object binding is unreliable in Flows).
 function mapOptionSlots(optionGroups = []) {
   const singles = optionGroups.filter(g => g.type === 'single').slice(0, 3);
-  const multi   = optionGroups.find(g => g.type === 'multi') || null;
+  const multis = optionGroups.filter(g => g.type === 'multi').slice(0, 2);
 
   function slotFields(n, group) {
     if (!group) return {
@@ -254,18 +283,30 @@ function mapOptionSlots(optionGroups = []) {
     };
   }
 
+  function multiFields(group, visibleKey, labelKey, optionsKey) {
+    if (!group) {
+      return {
+        [visibleKey]: false,
+        [labelKey]: '',
+        [optionsKey]: [],
+      };
+    }
+    return {
+      [visibleKey]: true,
+      [labelKey]: group.label,
+      [optionsKey]: group.options.map(o => ({
+        id: o.id,
+        title: formatFlowOptionTitle(o.label || o.name, o.price, o.id),
+      })),
+    };
+  }
+
   return {
     ...slotFields(1, singles[0] ?? null),
     ...slotFields(2, singles[1] ?? null),
     ...slotFields(3, singles[2] ?? null),
-    [F.MULTI_VISIBLE]: !!multi,
-    [F.MULTI_LABEL]:   multi?.label ?? '',
-    [F.MULTI_OPTIONS]: multi
-      ? multi.options.map(o => ({
-        id: o.id,
-        title: formatFlowOptionTitle(o.label || o.name, o.price, o.id),
-      }))
-      : [],
+    ...multiFields(multis[0] ?? null, F.MULTI_VISIBLE, F.MULTI_LABEL, F.MULTI_OPTIONS),
+    ...multiFields(multis[1] ?? null, F.MULTI2_VISIBLE, F.MULTI2_LABEL, F.MULTI2_OPTIONS),
   };
 }
 
@@ -457,18 +498,31 @@ function prefillFromBasketLine(item, line) {
     ? line.flowSelections
     : {};
   const singles = (item?.optionGroups ?? []).filter(g => g.type === 'single').slice(0, 3);
-  const multi = (item?.optionGroups ?? []).find(g => g.type === 'multi') ?? null;
-  const multiSel = multi ? selections[multi.id] : null;
+  const multis = multiGroupsFromItem(item, 2);
+  const multiSel = multis[0] ? selections[multis[0].id] : null;
+  const multi2Sel = multis[1] ? selections[multis[1].id] : null;
   return {
     qtyInit: Math.min(FLOW_QTY_MAX, Math.max(1, Number(line?.qty) || 1)),
     notes: notesFromBasketLine(line),
     slot1: singles[0] && selections[singles[0].id] != null ? String(selections[singles[0].id]) : '',
     slot2: singles[1] && selections[singles[1].id] != null ? String(selections[singles[1].id]) : '',
     slot3: singles[2] && selections[singles[2].id] != null ? String(selections[singles[2].id]) : '',
-    multiValue: multi
+    multiValue: multis[0]
       ? (multiSel != null ? normalizeMultiInit(multiSel) : defaultMultiValueForItem(item))
       : [],
+    multi2Value: multis[1]
+      ? (multi2Sel != null ? normalizeMultiInit(multi2Sel) : defaultMulti2ValueForItem(item))
+      : [],
   };
+}
+
+function appendMultiPartLabels(parts, payload, slots, valueKey, visibleKey, optionsKey) {
+  const multiVals = normalizeMultiInit(payload[valueKey]);
+  if (!slots[visibleKey] || !multiVals.length) return;
+  const labels = multiVals
+    .map(v => slots[optionsKey].find(o => o.id === v)?.title ?? v)
+    .join(', ');
+  parts.push(labels);
 }
 
 // Build a readable label from submitted slot values + the flat slots data returned by mapOptionSlots.
@@ -481,15 +535,8 @@ function buildCustomParts(item, payload, slots) {
     const opt = slots[F[`SLOT${n}_OPTIONS`]].find(o => o.id === val);
     parts.push(opt ? opt.title : val);
   }
-  const multiVals = Array.isArray(payload[F.MULTI_VALUE])
-    ? payload[F.MULTI_VALUE]
-    : (payload[F.MULTI_VALUE] ? [payload[F.MULTI_VALUE]] : []);
-  if (slots[F.MULTI_VISIBLE] && multiVals.length) {
-    const labels = multiVals
-      .map(v => slots[F.MULTI_OPTIONS].find(o => o.id === v)?.title ?? v)
-      .join(', ');
-    parts.push(labels);
-  }
+  appendMultiPartLabels(parts, payload, slots, F.MULTI_VALUE, F.MULTI_VISIBLE, F.MULTI_OPTIONS);
+  appendMultiPartLabels(parts, payload, slots, F.MULTI2_VALUE, F.MULTI2_VISIBLE, F.MULTI2_OPTIONS);
   const detail = parts.join(', ');
   const displayName = detail ? `${item.name} — ${detail}` : item.name;
   return { baseName: item.name, detail, displayName };
@@ -576,7 +623,10 @@ router.post('/flow/exchange', async (req, res) => {
       const line = findLastBasketLineForItem(session.basket ?? [], item);
       const prefill = line
         ? prefillFromBasketLine(item, line)
-        : { multiValue: defaultMultiValueForItem(item) };
+        : {
+          multiValue: defaultMultiValueForItem(item),
+          multi2Value: defaultMulti2ValueForItem(item),
+        };
       console.log(
         '[flow/exchange] BACK cart→%s item=%s footer=view_cart editable=false line=%s',
         orderScreen,
@@ -650,6 +700,7 @@ router.post('/flow/exchange', async (req, res) => {
         data: buildOrderItemScreenData(item, lang, {
           footerMode: 'add',
           multiValue: defaultMultiValueForItem(item),
+          multi2Value: defaultMulti2ValueForItem(item),
         }),
       });
     }
@@ -692,8 +743,8 @@ router.post('/flow/exchange', async (req, res) => {
         });
       }
 
-      // Beilagen: one EmbeddedLink toggles all ↔ none from current form selection.
-      if (payload.multi_action === 'toggle') {
+      // Beilagen / Sonderwunsch: EmbeddedLink toggles all ↔ none per multi slot.
+      if (payload.multi_action === 'toggle' || payload.multi_action === 'toggle2') {
         const itemId = payload[F.ITEM_ID];
         const menu = await getMenu(businessId);
         const item = menu.find(m => m.id === itemId);
@@ -710,6 +761,7 @@ router.post('/flow/exchange', async (req, res) => {
           qtyInit,
           notes: payload[F.NOTES] ?? '',
           multiValue: payload[F.MULTI_VALUE],
+          multi2Value: payload[F.MULTI2_VALUE],
           slot1: payload[F.SLOT1_VALUE] ?? '',
           slot2: payload[F.SLOT2_VALUE] ?? '',
           slot3: payload[F.SLOT3_VALUE] ?? '',
@@ -717,7 +769,11 @@ router.post('/flow/exchange', async (req, res) => {
         };
         // view_cart is read-only: ignore toggle (link is hidden; defense in depth).
         if (footerMode !== 'view_cart') {
-          formState.multiValue = toggleMultiSelection(item, payload[F.MULTI_VALUE]);
+          if (payload.multi_action === 'toggle') {
+            formState.multiValue = toggleMultiSelection(item, payload[F.MULTI_VALUE], 0);
+          } else {
+            formState.multi2Value = toggleMultiSelection(item, payload[F.MULTI2_VALUE], 1);
+          }
         }
         return reply({
           version,
@@ -748,6 +804,7 @@ router.post('/flow/exchange', async (req, res) => {
             // Keep the user's other inputs while correcting qty.
             notes,
             multiValue: payload[F.MULTI_VALUE],
+            multi2Value: payload[F.MULTI2_VALUE],
             slot1: payload[F.SLOT1_VALUE] ?? '',
             slot2: payload[F.SLOT2_VALUE] ?? '',
             slot3: payload[F.SLOT3_VALUE] ?? '',

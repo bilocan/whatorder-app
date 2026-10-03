@@ -79,6 +79,25 @@ const MENU = [
       },
     ],
   },
+  {
+    id: 'p3', name: 'Pizza Dual Multi', price: 14, category: 'mains',
+    optionGroups: [
+      {
+        id: 'beilage', type: 'multi', label: 'Beilage', required: false, multiDefault: 'none',
+        options: [
+          { id: 'ananas', label: 'Ananas', price: 1.5 },
+          { id: 'mais', label: 'Mais', price: 1.5 },
+        ],
+      },
+      {
+        id: 'sonder', type: 'multi', label: 'Sonderwunsch', required: false, multiDefault: 'none',
+        options: [
+          { id: 'kaserand', label: 'Käserand', price: 2.5 },
+          { id: 'doppel', label: 'doppelter Boden' },
+        ],
+      },
+    ],
+  },
 ];
 
 function mockSession(basket = [], extras = {}) {
@@ -698,7 +717,7 @@ test('CATEGORY_SELECT → MENU_BROWSE filters by category', async () => {
   });
   const body = parsed(res);
   expect(body.screen).toBe(S.MENU_BROWSE);
-  expect(body.data[F.MENU_ITEMS]).toHaveLength(3);
+  expect(body.data[F.MENU_ITEMS]).toHaveLength(4);
   expect(attachMenuItemImages).toHaveBeenCalled();
   // item with description uses "— description" format; item without does not
   const burger = body.data[F.MENU_ITEMS].find(i => i.id === 'b1');
@@ -727,6 +746,7 @@ test('MENU_BROWSE → ORDER_ITEM with no option groups', async () => {
     [F.QTY]: 1,
     [F.NOTES]: '',
     [F.MULTI_VALUE]: [],
+    [F.MULTI2_VALUE]: [],
     [F.SLOT1_VALUE]: '',
     [F.SLOT2_VALUE]: '',
     [F.SLOT3_VALUE]: '',
@@ -736,6 +756,7 @@ test('MENU_BROWSE → ORDER_ITEM with no option groups', async () => {
   expect(body.data[F.UI_ADD_TO_CART]).toBeTruthy();
   expect(body.data[F.SLOT1_VISIBLE]).toBe(false);
   expect(body.data[F.MULTI_VISIBLE]).toBe(false);
+  expect(body.data[F.MULTI2_VISIBLE]).toBe(false);
 });
 
 test('MENU_BROWSE → ORDER_ITEM keeps add footer when basket has items', async () => {
@@ -870,6 +891,28 @@ test('MENU_BROWSE → ORDER_ITEM with single + multi option groups', async () =>
   expect(body.data[F.SLOT2_VISIBLE]).toBe(false);
   expect(body.data[F.MULTI_VISIBLE]).toBe(true);
   expect(body.data[F.MULTI_LABEL]).toBe('Extras');
+  expect(body.data[F.MULTI2_VISIBLE]).toBe(false);
+  expect(body.data[F.UI_MULTI2_TOGGLE_VISIBLE]).toBe(false);
+});
+
+test('MENU_BROWSE → ORDER_ITEM maps second multi group to multi2 slot', async () => {
+  const res = await post({
+    action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'p3' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.MULTI_VISIBLE]).toBe(true);
+  expect(body.data[F.MULTI_LABEL]).toBe('Beilage');
+  expect(body.data[F.MULTI2_VISIBLE]).toBe(true);
+  expect(body.data[F.MULTI2_LABEL]).toBe('Sonderwunsch');
+  expect(body.data[F.MULTI2_OPTIONS]).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ id: 'kaserand' }),
+    ]),
+  );
+  expect(body.data[F.UI_MULTI2_TOGGLE_VISIBLE]).toBe(true);
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI2_VALUE]).toEqual([]);
 });
 
 test('MENU_BROWSE unknown item → 500', async () => {
@@ -948,6 +991,47 @@ test('ORDER_ITEM with slot value + multi value + notes builds custom name', asyn
   });
   expect(saved.basket[0].detail).toContain('Large');
   expect(saved.basket[0].detail).not.toContain('extra crispy');
+  expect(saved.basket[0].flowSelections).toEqual({ size: 'l', extras: ['cheese'] });
+});
+
+test('ORDER_ITEM with two multi groups prices and labels both', async () => {
+  const ref = mockSession([]);
+  await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      [F.ITEM_ID]: 'p3',
+      [F.QTY]: '1',
+      [F.MULTI_VALUE]: ['ananas'],
+      [F.MULTI2_VALUE]: ['kaserand'],
+    },
+  });
+  const [saved] = ref.set.mock.calls[0];
+  expect(saved.basket[0].price).toBe(18); // 14 + 1.5 + 2.5
+  expect(saved.basket[0].detail).toContain('Ananas');
+  expect(saved.basket[0].detail).toContain('Käserand');
+  expect(saved.basket[0].flowSelections).toEqual({
+    beilage: ['ananas'],
+    sonder: ['kaserand'],
+  });
+});
+
+test('ORDER_ITEM multi_action toggle2 flips second multi only', async () => {
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      [F.ITEM_ID]: 'p3',
+      [F.QTY]: '1',
+      multi_action: 'toggle2',
+      [F.UI_ORDER_FOOTER_ACTION]: 'add_item',
+      [F.MULTI_VALUE]: ['ananas'],
+      [F.MULTI2_VALUE]: [],
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI_VALUE]).toEqual(['ananas']);
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI2_VALUE]).toEqual(['kaserand', 'doppel']);
+  expect(body.data[F.UI_MULTI2_TOGGLE]).toBe('Alle abwählen');
 });
 
 test('ORDER_ITEM → CART_REVIEW row uses baseName, detail, metadata, image', async () => {
@@ -998,6 +1082,7 @@ test('ORDER_ITEM rejects qty over 10 with field error', async () => {
     [F.QTY]: 11,
     [F.NOTES]: 'keep me',
     [F.MULTI_VALUE]: ['x'],
+    [F.MULTI2_VALUE]: [],
     [F.SLOT1_VALUE]: 's1',
     [F.SLOT2_VALUE]: '',
     [F.SLOT3_VALUE]: '',
