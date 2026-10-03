@@ -203,6 +203,52 @@ function radioSlot(n) {
   };
 }
 
+/** Payload shared by multi toggles / page flip / footer. */
+function multiFormPayload(extra = {}) {
+  return {
+    ...extra,
+    [F.UI_ORDER_FOOTER_ACTION]: `\${data.${F.UI_ORDER_FOOTER_ACTION}}`,
+    [F.ITEM_ID]:     `\${data.${F.ITEM_ID}}`,
+    [F.QTY]:         `\${form.${F.QTY}}`,
+    [F.SLOT1_VALUE]: `\${form.${F.SLOT1_VALUE}}`,
+    [F.SLOT2_VALUE]: `\${form.${F.SLOT2_VALUE}}`,
+    [F.SLOT3_VALUE]: `\${form.${F.SLOT3_VALUE}}`,
+    [F.MULTI_VALUE]: `\${form.${F.MULTI_VALUE}}`,
+    [F.MULTI2_VALUE]: `\${form.${F.MULTI2_VALUE}}`,
+    [F.MULTI3_VALUE]: `\${form.${F.MULTI3_VALUE}}`,
+    [F.MULTI_ONE_VALUE]: `\${form.${F.MULTI_ONE_VALUE}}`,
+    [F.MULTI2_ONE_VALUE]: `\${form.${F.MULTI2_ONE_VALUE}}`,
+    [F.MULTI_PAGE]:  `\${data.${F.MULTI_PAGE}}`,
+    [F.MULTI_PARKED]: `\${data.${F.MULTI_PARKED}}`,
+    [F.MULTI2_PAGE]: `\${data.${F.MULTI2_PAGE}}`,
+    [F.MULTI2_PARKED]: `\${data.${F.MULTI2_PARKED}}`,
+    [F.NOTES]:       `\${form.${F.NOTES}}`,
+  };
+}
+
+/**
+ * One CheckboxGroup per multi slot (Meta forbids duplicate form names across If branches).
+ * Always bind max-selected-items: at-most-N / exact uses owner cap; unlimited uses 20 (Meta max).
+ * Exact minimum is enforced server-side (min-selected-items would force ≥1 on optional groups).
+ * Do NOT use on-select-action data_exchange here: Meta requires max-selected-items > 1, so
+ * remaining 0 → max 2 + disable; remaining 1 → RadioButtonsGroup (MULTI_ONE_*).
+ * Per-tick exchange lags on fast taps. Lists >20 paginate; shared max uses multi_parked.
+ */
+function multiCheckboxSlot({
+  labelKey, name, visibleKey, optionsKey, maxKey, enabledKey,
+}) {
+  return {
+    type: 'CheckboxGroup',
+    label: `\${data.${labelKey}}`,
+    name,
+    required: false,
+    visible: `\${data.${visibleKey}}`,
+    enabled: `\${data.${enabledKey}}`,
+    'data-source': `\${data.${optionsKey}}`,
+    'max-selected-items': `\${data.${maxKey}}`,
+  };
+}
+
 async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
   const copy = orderItemCopy(EXAMPLE_LANG);
   const exampleDesc = exampleItem.description || '';
@@ -222,8 +268,14 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
       [F.UI_QTY_SUMMARY]: { type: 'string', '__example__': `${t('menuFlowQtyLabel', EXAMPLE_LANG)}: 1` },
       [F.UI_MULTI_TOGGLE]: { type: 'string', '__example__': t('menuFlowMultiClearAll', EXAMPLE_LANG) },
       [F.UI_MULTI_TOGGLE_VISIBLE]: { type: 'boolean', '__example__': true },
+      [F.UI_MULTI_LINK_ACTION]: { type: 'string', '__example__': 'toggle' },
       [F.UI_MULTI2_TOGGLE]: { type: 'string', '__example__': t('menuFlowMultiSelectAll', EXAMPLE_LANG) },
       [F.UI_MULTI2_TOGGLE_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.UI_MULTI2_LINK_ACTION]: { type: 'string', '__example__': 'toggle2' },
+      [F.MULTI_PAGE]: { type: 'number', '__example__': 1 },
+      [F.MULTI_PARKED]: { type: 'array', items: { type: 'string' }, '__example__': [] },
+      [F.MULTI2_PAGE]: { type: 'number', '__example__': 1 },
+      [F.MULTI2_PARKED]: { type: 'array', items: { type: 'string' }, '__example__': [] },
       [F.FORM_INIT_VALUES]: {
         type: 'object',
         properties: {
@@ -231,6 +283,9 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
           [F.NOTES]: { type: 'string' },
           [F.MULTI_VALUE]: { type: 'array', items: { type: 'string' } },
           [F.MULTI2_VALUE]: { type: 'array', items: { type: 'string' } },
+          [F.MULTI3_VALUE]: { type: 'array', items: { type: 'string' } },
+          [F.MULTI_ONE_VALUE]: { type: 'string' },
+          [F.MULTI2_ONE_VALUE]: { type: 'string' },
           [F.SLOT1_VALUE]: { type: 'string' },
           [F.SLOT2_VALUE]: { type: 'string' },
           [F.SLOT3_VALUE]: { type: 'string' },
@@ -241,6 +296,9 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
           [F.NOTES]: '',
           [F.MULTI_VALUE]: [],
           [F.MULTI2_VALUE]: [],
+          [F.MULTI3_VALUE]: [],
+          [F.MULTI_ONE_VALUE]: '',
+          [F.MULTI2_ONE_VALUE]: '',
           [F.SLOT1_VALUE]: '',
           [F.SLOT2_VALUE]: '',
           [F.SLOT3_VALUE]: '',
@@ -248,7 +306,14 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
       },
       [F.ERROR_MESSAGES]: {
         type: 'object',
-        properties: { [F.QTY]: { type: 'string' } },
+        properties: {
+          [F.QTY]: { type: 'string' },
+          [F.MULTI_VALUE]: { type: 'string' },
+          [F.MULTI2_VALUE]: { type: 'string' },
+          [F.MULTI3_VALUE]: { type: 'string' },
+          [F.MULTI_ONE_VALUE]: { type: 'string' },
+          [F.MULTI2_ONE_VALUE]: { type: 'string' },
+        },
         '__example__': {},
       },
       // Slot 1 (single-select) — flat fields so visible/data-source binding works
@@ -270,9 +335,26 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
       [F.MULTI_VISIBLE]:  { type: 'boolean', '__example__': true },
       [F.MULTI_LABEL]:    { type: 'string',  '__example__': 'Extras' },
       [F.MULTI_OPTIONS]:  { ...OPTS_SCHEMA,  '__example__': [{ id: 'kaese', title: 'Käse' }, { id: 'pommes', title: 'Pommes' }] },
+      [F.MULTI_MAX]:      { type: 'number',  '__example__': 20 },
+      [F.MULTI_ENABLED]:  { type: 'boolean', '__example__': true },
+      [F.MULTI_ONE_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.MULTI_ONE_LABEL]:   { type: 'string',  '__example__': 'Extras' },
+      [F.MULTI_ONE_OPTIONS]: { ...OPTS_SCHEMA,  '__example__': [{ id: 'kaese', title: 'Käse' }] },
+      [F.MULTI_ONE_ENABLED]: { type: 'boolean', '__example__': false },
       [F.MULTI2_VISIBLE]: { type: 'boolean', '__example__': false },
       [F.MULTI2_LABEL]:   { type: 'string',  '__example__': 'Sonderwunsch' },
       [F.MULTI2_OPTIONS]: { ...OPTS_SCHEMA,  '__example__': [{ id: 'kaserand', title: 'Käserand' }] },
+      [F.MULTI2_MAX]:     { type: 'number',  '__example__': 20 },
+      [F.MULTI2_ENABLED]: { type: 'boolean', '__example__': false },
+      [F.MULTI2_ONE_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.MULTI2_ONE_LABEL]:   { type: 'string',  '__example__': 'Sonderwunsch' },
+      [F.MULTI2_ONE_OPTIONS]: { ...OPTS_SCHEMA,  '__example__': [{ id: 'kaserand', title: 'Käserand' }] },
+      [F.MULTI2_ONE_ENABLED]: { type: 'boolean', '__example__': false },
+      [F.MULTI3_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.MULTI3_LABEL]:   { type: 'string',  '__example__': 'More extras' },
+      [F.MULTI3_OPTIONS]: { ...OPTS_SCHEMA,  '__example__': [{ id: 'oliven', title: 'Oliven' }] },
+      [F.MULTI3_MAX]:     { type: 'number',  '__example__': 20 },
+      [F.MULTI3_ENABLED]: { type: 'boolean', '__example__': false },
     },
     layout: {
       type: 'SingleColumnLayout',
@@ -312,43 +394,53 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
           radioSlot(1),
           radioSlot(2),
           radioSlot(3),
-          {
-            type: 'CheckboxGroup',
-            label: `\${data.${F.MULTI_LABEL}}`,
+          multiCheckboxSlot({
+            labelKey: F.MULTI_LABEL,
             name: F.MULTI_VALUE,
+            visibleKey: F.MULTI_VISIBLE,
+            optionsKey: F.MULTI_OPTIONS,
+            maxKey: F.MULTI_MAX,
+            enabledKey: F.MULTI_ENABLED,
+          }),
+          {
+            // Meta forbids CheckboxGroup max-selected-items of 1; last remaining pick uses radio.
+            type: 'RadioButtonsGroup',
+            label: `\${data.${F.MULTI_ONE_LABEL}}`,
+            name: F.MULTI_ONE_VALUE,
             required: false,
-            visible: `\${data.${F.MULTI_VISIBLE}}`,
-            enabled: `\${data.${F.FORM_EDITABLE}}`,
-            'data-source': `\${data.${F.MULTI_OPTIONS}}`,
+            visible: `\${data.${F.MULTI_ONE_VISIBLE}}`,
+            enabled: `\${data.${F.MULTI_ONE_ENABLED}}`,
+            'data-source': `\${data.${F.MULTI_ONE_OPTIONS}}`,
           },
           {
+            // Alle wählen, or Weitere/Zurück for capped lists paginated past Meta's 20-option cap.
             type: 'EmbeddedLink',
             text: `\${data.${F.UI_MULTI_TOGGLE}}`,
             visible: `\${data.${F.UI_MULTI_TOGGLE_VISIBLE}}`,
             'on-click-action': {
               name: 'data_exchange',
-              payload: {
-                multi_action: 'toggle',
-                [F.UI_ORDER_FOOTER_ACTION]: `\${data.${F.UI_ORDER_FOOTER_ACTION}}`,
-                [F.ITEM_ID]:     `\${data.${F.ITEM_ID}}`,
-                [F.QTY]:         `\${form.${F.QTY}}`,
-                [F.SLOT1_VALUE]: `\${form.${F.SLOT1_VALUE}}`,
-                [F.SLOT2_VALUE]: `\${form.${F.SLOT2_VALUE}}`,
-                [F.SLOT3_VALUE]: `\${form.${F.SLOT3_VALUE}}`,
-                [F.MULTI_VALUE]: `\${form.${F.MULTI_VALUE}}`,
-                [F.MULTI2_VALUE]: `\${form.${F.MULTI2_VALUE}}`,
-                [F.NOTES]:       `\${form.${F.NOTES}}`,
-              },
+              payload: multiFormPayload({
+                multi_action: `\${data.${F.UI_MULTI_LINK_ACTION}}`,
+              }),
             },
           },
-          {
-            type: 'CheckboxGroup',
-            label: `\${data.${F.MULTI2_LABEL}}`,
+          multiCheckboxSlot({
+            labelKey: F.MULTI2_LABEL,
             name: F.MULTI2_VALUE,
+            visibleKey: F.MULTI2_VISIBLE,
+            optionsKey: F.MULTI2_OPTIONS,
+            maxKey: F.MULTI2_MAX,
+            enabledKey: F.MULTI2_ENABLED,
+          }),
+          {
+            // Same Meta max=1 workaround for the second multi slot.
+            type: 'RadioButtonsGroup',
+            label: `\${data.${F.MULTI2_ONE_LABEL}}`,
+            name: F.MULTI2_ONE_VALUE,
             required: false,
-            visible: `\${data.${F.MULTI2_VISIBLE}}`,
-            enabled: `\${data.${F.FORM_EDITABLE}}`,
-            'data-source': `\${data.${F.MULTI2_OPTIONS}}`,
+            visible: `\${data.${F.MULTI2_ONE_VISIBLE}}`,
+            enabled: `\${data.${F.MULTI2_ONE_ENABLED}}`,
+            'data-source': `\${data.${F.MULTI2_ONE_OPTIONS}}`,
           },
           {
             // Meta max 2 EmbeddedLinks/screen — this is the second (with multi toggle above).
@@ -357,20 +449,19 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
             visible: `\${data.${F.UI_MULTI2_TOGGLE_VISIBLE}}`,
             'on-click-action': {
               name: 'data_exchange',
-              payload: {
-                multi_action: 'toggle2',
-                [F.UI_ORDER_FOOTER_ACTION]: `\${data.${F.UI_ORDER_FOOTER_ACTION}}`,
-                [F.ITEM_ID]:     `\${data.${F.ITEM_ID}}`,
-                [F.QTY]:         `\${form.${F.QTY}}`,
-                [F.SLOT1_VALUE]: `\${form.${F.SLOT1_VALUE}}`,
-                [F.SLOT2_VALUE]: `\${form.${F.SLOT2_VALUE}}`,
-                [F.SLOT3_VALUE]: `\${form.${F.SLOT3_VALUE}}`,
-                [F.MULTI_VALUE]: `\${form.${F.MULTI_VALUE}}`,
-                [F.MULTI2_VALUE]: `\${form.${F.MULTI2_VALUE}}`,
-                [F.NOTES]:       `\${form.${F.NOTES}}`,
-              },
+              payload: multiFormPayload({
+                multi_action: `\${data.${F.UI_MULTI2_LINK_ACTION}}`,
+              }),
             },
           },
+          multiCheckboxSlot({
+            labelKey: F.MULTI3_LABEL,
+            name: F.MULTI3_VALUE,
+            visibleKey: F.MULTI3_VISIBLE,
+            optionsKey: F.MULTI3_OPTIONS,
+            maxKey: F.MULTI3_MAX,
+            enabledKey: F.MULTI3_ENABLED,
+          }),
           {
             type: 'TextArea',
             label: `\${data.${F.UI_NOTES_LABEL}}`,
@@ -387,18 +478,10 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
             'right-caption': `\${data.${F.ITEM_PRICE}}`,
             'on-click-action': {
               name: 'data_exchange',
-              payload: {
+              payload: multiFormPayload({
                 // add_item | back_to_cart — set by exchange (menu vs system back).
                 cart_action: `\${data.${F.UI_ORDER_FOOTER_ACTION}}`,
-                [F.ITEM_ID]:    `\${data.${F.ITEM_ID}}`,
-                [F.QTY]:        `\${form.${F.QTY}}`,
-                [F.SLOT1_VALUE]: `\${form.${F.SLOT1_VALUE}}`,
-                [F.SLOT2_VALUE]: `\${form.${F.SLOT2_VALUE}}`,
-                [F.SLOT3_VALUE]: `\${form.${F.SLOT3_VALUE}}`,
-                [F.MULTI_VALUE]: `\${form.${F.MULTI_VALUE}}`,
-                [F.MULTI2_VALUE]: `\${form.${F.MULTI2_VALUE}}`,
-                [F.NOTES]:       `\${form.${F.NOTES}}`,
-              },
+              }),
             },
           },
         ],

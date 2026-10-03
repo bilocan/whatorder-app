@@ -138,6 +138,143 @@ describe('selectionsFromOrderItemPayload', () => {
       sonder: ['kaserand'],
     });
   });
+
+  test('merges paginated parked ids into one group selection', () => {
+    const options = Array.from({ length: 36 }, (_, i) => ({
+      id: `t${i + 1}`,
+      label: `Topping ${i + 1}`,
+    }));
+    const item = {
+      optionGroups: [{ id: 'zutaten', type: 'multi', maxSelect: 4, options }],
+    };
+    const payload = {
+      [F.MULTI_VALUE]: ['t21'],
+      [F.MULTI2_VALUE]: [],
+      [F.MULTI3_VALUE]: [],
+      [F.MULTI_PAGE]: 2,
+      [F.MULTI_PARKED]: ['t1', 't2'],
+    };
+    expect(selectionsFromOrderItemPayload(item, payload, F)).toEqual({
+      zutaten: ['t21', 't1', 't2'],
+    });
+  });
+
+  test('merges multi_one_value radio pick with parked ids', () => {
+    const options = Array.from({ length: 36 }, (_, i) => ({
+      id: `t${i + 1}`,
+      label: `Topping ${i + 1}`,
+    }));
+    const item = {
+      optionGroups: [{ id: 'zutaten', type: 'multi', maxSelect: 4, options }],
+    };
+    const payload = {
+      [F.MULTI_VALUE]: [],
+      [F.MULTI2_VALUE]: [],
+      [F.MULTI3_VALUE]: [],
+      [F.MULTI_ONE_VALUE]: 't21',
+      [F.MULTI_PAGE]: 2,
+      [F.MULTI_PARKED]: ['t1', 't2', 't3'],
+    };
+    expect(selectionsFromOrderItemPayload(item, payload, F)).toEqual({
+      zutaten: ['t21', 't1', 't2', 't3'],
+    });
+  });
+
+  test('ignores stale multi_one_value when remaining is not 1', () => {
+    const options = Array.from({ length: 36 }, (_, i) => ({
+      id: `t${i + 1}`,
+      label: `Topping ${i + 1}`,
+    }));
+    const item = {
+      optionGroups: [{ id: 'zutaten', type: 'multi', maxSelect: 4, options }],
+    };
+    const payload = {
+      [F.MULTI_VALUE]: ['t1', 't2'],
+      [F.MULTI2_VALUE]: [],
+      [F.MULTI3_VALUE]: [],
+      // Leftover from a previous radio page; must not clobber checkbox picks.
+      [F.MULTI_ONE_VALUE]: 't21',
+      [F.MULTI_PAGE]: 1,
+      [F.MULTI_PARKED]: [],
+    };
+    expect(selectionsFromOrderItemPayload(item, payload, F)).toEqual({
+      zutaten: ['t1', 't2'],
+    });
+  });
+
+  test('drops fake option ids before returning selections', () => {
+    const item = {
+      optionGroups: [{
+        id: 'zutaten', type: 'multi', maxSelect: 2,
+        options: [{ id: 't1', label: 'T1' }, { id: 't2', label: 'T2' }],
+      }],
+    };
+    const payload = {
+      [F.MULTI_VALUE]: ['t1', 'fake-id'],
+      [F.MULTI2_VALUE]: [],
+      [F.MULTI3_VALUE]: [],
+    };
+    expect(selectionsFromOrderItemPayload(item, payload, F)).toEqual({
+      zutaten: ['t1'],
+    });
+  });
+
+  test('merges multi2_one_value when multi2 remaining is 1', () => {
+    const freeOpts = Array.from({ length: 5 }, (_, i) => ({
+      id: `t${i + 1}`, label: `T${i + 1}`,
+    }));
+    const extraOpts = Array.from({ length: 36 }, (_, i) => ({
+      id: `e${i + 1}`, label: `E${i + 1}`, price: 3,
+    }));
+    const item = {
+      optionGroups: [
+        { id: 'zutaten', type: 'multi', maxSelect: 4, options: freeOpts },
+        { id: 'extras', type: 'multi', maxSelect: 2, options: extraOpts },
+      ],
+    };
+    const payload = {
+      [F.MULTI_VALUE]: ['t1'],
+      [F.MULTI2_VALUE]: [],
+      [F.MULTI3_VALUE]: [],
+      [F.MULTI2_ONE_VALUE]: 'e21',
+      [F.MULTI_PAGE]: 1,
+      [F.MULTI2_PAGE]: 2,
+      [F.MULTI_PARKED]: [],
+      [F.MULTI2_PARKED]: ['e1'],
+    };
+    expect(selectionsFromOrderItemPayload(item, payload, F)).toEqual({
+      zutaten: ['t1'],
+      extras: ['e21', 'e1'],
+    });
+  });
+
+  test('merges multi2 parked extras independently of free toppings', () => {
+    const freeOpts = Array.from({ length: 36 }, (_, i) => ({
+      id: `t${i + 1}`, label: `T${i + 1}`,
+    }));
+    const extraOpts = Array.from({ length: 36 }, (_, i) => ({
+      id: `e${i + 1}`, label: `E${i + 1}`, price: 3,
+    }));
+    const item = {
+      optionGroups: [
+        { id: 'zutaten', type: 'multi', maxSelect: 4, options: freeOpts },
+        { id: 'extras', type: 'multi', options: extraOpts },
+      ],
+    };
+    const payload = {
+      [F.MULTI_VALUE]: ['t1'],
+      [F.MULTI2_VALUE]: ['e21'],
+      [F.MULTI3_VALUE]: [],
+      [F.MULTI_PAGE]: 1,
+      [F.MULTI2_PAGE]: 2,
+      [F.MULTI_PARKED]: [],
+      [F.MULTI2_PARKED]: ['e1', 'e2'],
+    };
+    expect(selectionsFromOrderItemPayload(item, payload, F)).toEqual({
+      zutaten: ['t1'],
+      extras: ['e21', 'e1', 'e2'],
+    });
+  });
 });
 
 describe('sumSelectedOptionPrices', () => {

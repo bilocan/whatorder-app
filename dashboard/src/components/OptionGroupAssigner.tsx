@@ -30,8 +30,18 @@ function groupSummary(group: OptionGroupTemplate, templatesById: Record<string, 
     ? expandOptionGroup(group, templatesById)
     : group;
   const count = expanded.options?.length ?? 0;
-  const type = group.type === 'single' ? '1' : 'n';
-  return `${type} · ${count}`;
+  if (group.type === 'single') return `1 · ${count}`;
+  if (
+    typeof group.minSelect === 'number'
+    && typeof group.maxSelect === 'number'
+    && group.minSelect === group.maxSelect
+  ) {
+    return `=${group.minSelect} · ${count}`;
+  }
+  if (typeof group.maxSelect === 'number' && group.minSelect == null) {
+    return `≤${group.maxSelect} · ${count}`;
+  }
+  return `n · ${count}`;
 }
 
 export default function OptionGroupAssigner({

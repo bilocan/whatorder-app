@@ -156,6 +156,18 @@ module.exports = {
   menuFlowSave: () => 'Kaydet',
   menuFlowMultiSelectAll: () => 'Tümünü seç',
   menuFlowMultiClearAll: () => 'Tümünü kaldır',
+  menuFlowMultiExactError: (n) => `Tam ${n} seç`,
+  menuFlowMultiRangeError: (min, max) => `${min}–${max} seç`,
+  menuFlowMultiMaxError: (n) => `En fazla ${n} seç`,
+  menuFlowMultiMinError: (n) => `En az ${n} seç`,
+  menuFlowMultiExactLabel: (label, n) => `${label} (tam ${n})`,
+  menuFlowMultiExactTotalLabel: (label, n) => `${label} (toplam tam ${n})`,
+  menuFlowMultiMaxLabel: (label, n) => `${label} (en fazla ${n})`,
+  menuFlowMultiMaxTotalLabel: (label, n) => `${label} (toplam en fazla ${n})`,
+  menuFlowMultiRangeLabel: (label, min, max) => `${label} (${min}–${max})`,
+  menuFlowMultiPartLabel: (label, part, parts) => `${label} (${part}/${parts})`,
+  menuFlowMultiPageNext: (page, parts) => `Diğer malzemeler (${page}/${parts})`,
+  menuFlowMultiPagePrev: (page, parts) => `Geri (${page}/${parts})`,
   menuFlowFooterLeftCaption: () => '1 adet fiyatı',
   menuFlowCartTitle: () => 'Sepetiniz',
   menuFlowCartHint: () => 'Çıkarmak için işaretleyin.',
@@ -358,6 +370,16 @@ module.exports = {
     `${qty}x ${itemName}\n${groupLabel} — varsayılan: ${defaultSummary}.\nSeçimlerini yaz (virgülle ayır) veya all / none:\n\n${optionList}\n\nÖrnek: domates, salata`,
   intentMultiUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel, optionList, defaultSummary) =>
     `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} — varsayılan: ${defaultSummary}.\nSeçimlerini yaz (virgülle ayır) veya all / none:\n\n${optionList}`,
+  intentMultiBoundedPrompt: (qty, itemName, groupLabel, rule, optionList) =>
+    `${qty}x ${itemName}\n${groupLabel} — ${rule}.\nSeçimlerini yaz (virgülle ayır):\n\n${optionList}`,
+  intentMultiUnitBoundedPrompt: (unitIndex, unitTotal, itemName, groupLabel, rule, optionList) =>
+    `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} — ${rule}.\nSeçimlerini yaz (virgülle ayır):\n\n${optionList}`,
+  intentMultiExactRule: (n) => `tam ${n} seç`,
+  intentMultiRangeRule: (min, max) => `${min}–${max} seç`,
+  intentMultiMaxRule: (n) => `en fazla ${n} seç`,
+  intentMultiMinRule: (n) => `en az ${n} seç`,
+  intentMultiCountInvalid: (count, rule) =>
+    `${count} seçtin — lütfen ${rule}.`,
   intentMultiInvalid: (unmatched, optionList) =>
     `Tanınmadı: ${unmatched}\n\nMevcut:\n${optionList}\n\nTekrar dene (virgülle ayır, all veya none):`,
   intentMultiDefaultAll: () => 'hepsi dahil',

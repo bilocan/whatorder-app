@@ -108,8 +108,14 @@ export interface MenuOptionGroup {
   multiDefault?: 'all' | 'none' | 'custom';
   /** multi + custom: which options are included in the default */
   defaultOptionIds?: string[];
+  /** multi only: minimum selections (1–20). Exact-N sets minSelect === maxSelect. */
+  minSelect?: number;
+  /** multi only: maximum selections (1–20). Omitted = unlimited. */
+  maxSelect?: number;
   /** Reusable groups whose options are merged before this group's own options */
   extendsGroupIds?: string[];
+  /** When extending: drop prices from inherited options (own options keep theirs). */
+  stripInheritedPrices?: boolean;
 }
 
 export interface MenuItem {

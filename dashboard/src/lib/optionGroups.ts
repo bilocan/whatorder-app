@@ -6,6 +6,12 @@ export type DraftOption = { id: string; label: string; price?: string };
 
 export type MultiDefaultMode = 'all' | 'none' | 'custom';
 
+/** Meta CheckboxGroup max-selected-items upper bound. */
+export const MULTI_SELECT_CAP = 20;
+
+/** UI mode for the Tür select (exact/max still stored as type multi + bounds). */
+export type OptionGroupUiType = 'single' | 'multi' | 'exact' | 'max';
+
 export type DraftOptionGroup = {
   id: string;
   label: string;
@@ -16,9 +22,75 @@ export type DraftOptionGroup = {
   multiDefault?: MultiDefaultMode;
   /** multi + custom: indices into options[] */
   defaultOptionIndices?: number[];
+  /** multi only: minimum selections (1–20) */
+  minSelect?: number;
+  /** multi only: maximum selections (1–20); exact-N uses minSelect === maxSelect */
+  maxSelect?: number;
+  /**
+   * Draft-only: keeps Tür on exact/max while the count field is cleared during typing.
+   * Not persisted to Firestore.
+   */
+  selectMode?: 'exact' | 'max';
   /** Library group ids to inherit options from (merged before own options) */
   extendsGroupIds?: string[];
+  /** When extending: drop prices from inherited options (own options keep theirs). */
+  stripInheritedPrices?: boolean;
 };
+
+export function isExactSelectGroup(g: { minSelect?: number; maxSelect?: number }): boolean {
+  return (
+    typeof g.minSelect === 'number'
+    && typeof g.maxSelect === 'number'
+    && g.minSelect === g.maxSelect
+    && g.minSelect >= 1
+  );
+}
+
+/** At-most-N: maxSelect set, no minSelect (customer may pick fewer, including zero if not required). */
+export function isMaxSelectGroup(g: { minSelect?: number; maxSelect?: number }): boolean {
+  return typeof g.maxSelect === 'number' && g.maxSelect >= 1 && g.minSelect == null;
+}
+
+export function draftUiType(
+  g: Pick<DraftOptionGroup, 'type' | 'minSelect' | 'maxSelect' | 'selectMode'>,
+): OptionGroupUiType {
+  if (g.type === 'single') return 'single';
+  if (g.selectMode === 'exact' || isExactSelectGroup(g)) return 'exact';
+  if (g.selectMode === 'max' || isMaxSelectGroup(g)) return 'max';
+  return 'multi';
+}
+
+export function clampSelectCount(n: number, optionCount: number): number {
+  const upper = Math.min(MULTI_SELECT_CAP, Math.max(1, optionCount || 1));
+  if (!Number.isFinite(n)) return Math.min(4, upper);
+  return Math.min(upper, Math.max(1, Math.floor(n)));
+}
+
+/** Editor-only clamp: allow typing N before all options are added (save still clamps to option count). */
+export function clampSelectCountForEdit(n: number): number {
+  if (!Number.isFinite(n)) return 4;
+  return Math.min(MULTI_SELECT_CAP, Math.max(1, Math.floor(n)));
+}
+
+function normalizeSelectBounds(
+  minSelect: number | undefined,
+  maxSelect: number | undefined,
+  optionCount: number,
+): { minSelect?: number; maxSelect?: number } {
+  const hasMin = typeof minSelect === 'number' && Number.isFinite(minSelect);
+  const hasMax = typeof maxSelect === 'number' && Number.isFinite(maxSelect);
+  if (!hasMin && !hasMax) return {};
+
+  const min = hasMin ? clampSelectCount(minSelect!, optionCount) : undefined;
+  let max = hasMax ? clampSelectCount(maxSelect!, optionCount) : undefined;
+  if (min != null && max != null && min > max) {
+    max = min;
+  }
+  return {
+    ...(min != null ? { minSelect: min } : {}),
+    ...(max != null ? { maxSelect: max } : {}),
+  };
+}
 
 export function slugifyId(text: string): string {
   return text
@@ -40,6 +112,37 @@ export function emptyDraftGroup(type: 'single' | 'multi' = 'single'): DraftOptio
   };
 }
 
+export function emptyExactDraftGroup(selectCount = 4): DraftOptionGroup {
+  const n = clampSelectCountForEdit(selectCount);
+  return {
+    id: '',
+    label: '',
+    type: 'multi',
+    required: true,
+    options: [{ id: '', label: '' }],
+    multiDefault: 'none',
+    defaultOptionIndices: [],
+    selectMode: 'exact',
+    minSelect: n,
+    maxSelect: n,
+  };
+}
+
+export function emptyMaxDraftGroup(selectCount = 4): DraftOptionGroup {
+  const n = clampSelectCountForEdit(selectCount);
+  return {
+    id: '',
+    label: '',
+    type: 'multi',
+    required: false,
+    options: [{ id: '', label: '' }],
+    multiDefault: 'none',
+    defaultOptionIndices: [],
+    selectMode: 'max',
+    maxSelect: n,
+  };
+}
+
 export function draftGroupsFromMenu(groups?: MenuOptionGroup[]): DraftOptionGroup[] {
   if (!groups?.length) return [];
   return groups.map((g) => ({
@@ -54,13 +157,23 @@ export function draftGroupsFromMenu(groups?: MenuOptionGroup[]): DraftOptionGrou
     })),
     ...(g.type === 'multi'
       ? {
-          multiDefault: g.multiDefault ?? 'all',
+          multiDefault: (isExactSelectGroup(g) || isMaxSelectGroup(g))
+            ? (g.multiDefault ?? 'none')
+            : (g.multiDefault ?? 'all'),
           defaultOptionIndices: (g.defaultOptionIds ?? [])
             .map((id) => (g.options ?? []).findIndex((o) => o.id === id))
             .filter((i) => i >= 0),
+          ...(typeof g.minSelect === 'number' ? { minSelect: g.minSelect } : {}),
+          ...(typeof g.maxSelect === 'number' ? { maxSelect: g.maxSelect } : {}),
+          ...(isExactSelectGroup(g)
+            ? { selectMode: 'exact' as const }
+            : isMaxSelectGroup(g)
+              ? { selectMode: 'max' as const }
+              : {}),
         }
       : {}),
     ...(g.extendsGroupIds?.length ? { extendsGroupIds: [...g.extendsGroupIds] } : {}),
+    ...(g.extendsGroupIds?.length && g.stripInheritedPrices ? { stripInheritedPrices: true } : {}),
   }));
 }
 
@@ -99,7 +212,9 @@ export function normalizeOptionGroups(groups: DraftOptionGroup[]): MenuOptionGro
         })
         .filter(Boolean) as MenuOptionGroup['options'];
 
-      if (!options.length) return null;
+      const hasExtends = (g.extendsGroupIds ?? []).some(Boolean);
+      // Own options may be empty when the group only inherits via extendsGroupIds.
+      if (!options.length && !hasExtends) return null;
 
       const base = {
         id: groupId,
@@ -111,19 +226,61 @@ export function normalizeOptionGroups(groups: DraftOptionGroup[]): MenuOptionGro
 
       if (g.type !== 'multi') return base;
 
+      // Exact/max Tür with empty count while typing — reject on save.
+      if (g.selectMode === 'exact' && (g.minSelect == null || g.maxSelect == null)) {
+        return null;
+      }
+      if (g.selectMode === 'max' && g.maxSelect == null) {
+        return null;
+      }
+
+      // Max mode: never persist a minSelect (even if draft still has a leftover).
+      const boundsInput = g.selectMode === 'max'
+        ? { minSelect: undefined, maxSelect: g.maxSelect }
+        : { minSelect: g.minSelect, maxSelect: g.maxSelect };
+      // Extends-only groups have 0 own options; don't clamp the cap down to 1.
+      const optionCountForBounds = options.length > 0 ? options.length : (hasExtends ? MULTI_SELECT_CAP : 1);
+      const bounds = normalizeSelectBounds(
+        boundsInput.minSelect,
+        boundsInput.maxSelect,
+        optionCountForBounds,
+      );
+      const exact = g.selectMode === 'exact' || isExactSelectGroup(bounds);
+      const maxOnly = g.selectMode === 'max' || isMaxSelectGroup(bounds);
+
+      const withBounds = { ...base, ...bounds, ...(exact ? { required: true } : {}) };
+
+      if (exact) {
+        return { ...withBounds, multiDefault: 'none' as const };
+      }
+      if (maxOnly) {
+        // Prefer none/custom; "all" often exceeds maxSelect.
+        const mode = g.multiDefault === 'custom' ? 'custom' : 'none';
+        if (mode === 'custom') {
+          const defaultOptionIds = (g.defaultOptionIndices ?? [])
+            .map((i) => options[i]?.id)
+            .filter((id): id is string => !!id)
+            .slice(0, bounds.maxSelect ?? MULTI_SELECT_CAP);
+          if (defaultOptionIds.length) {
+            return { ...withBounds, multiDefault: 'custom' as const, defaultOptionIds };
+          }
+        }
+        return { ...withBounds, multiDefault: 'none' as const };
+      }
+
       const mode = g.multiDefault ?? 'all';
       if (mode === 'none') {
-        return { ...base, multiDefault: 'none' as const };
+        return { ...withBounds, multiDefault: 'none' as const };
       }
       if (mode === 'custom') {
         const defaultOptionIds = (g.defaultOptionIndices ?? [])
           .map((i) => options[i]?.id)
           .filter((id): id is string => !!id);
         if (defaultOptionIds.length) {
-          return { ...base, multiDefault: 'custom' as const, defaultOptionIds };
+          return { ...withBounds, multiDefault: 'custom' as const, defaultOptionIds };
         }
       }
-      return { ...base, multiDefault: 'all' as const };
+      return { ...withBounds, multiDefault: 'all' as const };
     })
     .filter(Boolean) as MenuOptionGroup[];
 }
@@ -150,6 +307,10 @@ export function mergeOptionLists(lists: MenuOption[][]): MenuOption[] {
   return order.map((id) => byId.get(id)!);
 }
 
+function optionsWithoutPrices(options: MenuOption[]): MenuOption[] {
+  return options.map(({ id, label }) => ({ id, label }));
+}
+
 export function expandOptionGroup(
   group: OptionGroupTemplate,
   templatesById: Record<string, OptionGroupTemplate>,
@@ -165,7 +326,8 @@ export function expandOptionGroup(
     const parent = templatesById[extId];
     if (!parent) continue;
     const expanded = expandOptionGroup(parent, templatesById, new Set(visited));
-    if (expanded.options?.length) lists.push(expanded.options);
+    if (!expanded.options?.length) continue;
+    lists.push(group.stripInheritedPrices ? optionsWithoutPrices(expanded.options) : expanded.options);
   }
   lists.push(group.options ?? []);
 
@@ -369,7 +531,11 @@ export function buildOptionGroupTemplatePayload(group: DraftOptionGroup) {
   if (!normalized) return null;
   const extendsIds = (group.extendsGroupIds ?? []).filter(Boolean);
   if (extendsIds.length) {
-    return { ...normalized, extendsGroupIds: extendsIds };
+    return {
+      ...normalized,
+      extendsGroupIds: extendsIds,
+      ...(group.stripInheritedPrices ? { stripInheritedPrices: true } : {}),
+    };
   }
   return normalized;
 }
