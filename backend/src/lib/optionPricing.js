@@ -88,33 +88,67 @@ function formatFlowOptionTitle(label, price, id = '') {
   return `${named.slice(0, maxLabel - 1)}…${suffix}`;
 }
 
-function normalizeMultiPayload(raw) {
-  if (Array.isArray(raw)) return raw.filter(Boolean).map(String);
-  if (raw) return [String(raw)];
-  return [];
+const {
+  FLOW_MULTI_SLOT_COUNT,
+  multiGroupsFromItem,
+  planFlowMultiSlots,
+  normalizeMultiPayload,
+  selectionsFromPlannedMultiSlots,
+  pageByGroupIdForSlots,
+  needsMultiOnePick,
+} = require('./flowMultiSlots');
+const { resolveSelectBounds } = require('./optionSelectBounds');
+
+function flowMultiValueKeys(fields) {
+  return [fields.MULTI_VALUE, fields.MULTI2_VALUE, fields.MULTI3_VALUE];
 }
 
-/** First N multi option groups on the item (Flow supports 2). */
-function multiGroupsFromItem(item, limit = 2) {
-  return (item?.optionGroups ?? []).filter(g => g.type === 'multi').slice(0, limit);
+function applyRadioPickIfNeeded(multiPayload, keys, slotIndex, planned, parkedCount, radioValue) {
+  const slot = planned[slotIndex];
+  if (!slot || !keys[slotIndex]) return;
+  const { maxSelect } = resolveSelectBounds(slot.group);
+  if (!needsMultiOnePick(maxSelect, parkedCount)) return;
+  const one = radioValue == null ? '' : String(radioValue);
+  multiPayload[keys[slotIndex]] = one ? [one] : [];
 }
 
 function selectionsFromOrderItemPayload(item, payload, fields) {
   const F = fields;
   const selections = {};
   const singles = (item.optionGroups ?? []).filter(g => g.type === 'single').slice(0, 3);
-  const multis = multiGroupsFromItem(item, 2);
 
   singles.forEach((group, i) => {
     const val = payload[F[`SLOT${i + 1}_VALUE`]];
     if (val) selections[group.id] = val;
   });
 
-  const multiVals = normalizeMultiPayload(payload[F.MULTI_VALUE]);
-  if (multis[0] && multiVals.length) selections[multis[0].id] = multiVals;
-
-  const multi2Vals = normalizeMultiPayload(payload[F.MULTI2_VALUE]);
-  if (multis[1] && multi2Vals.length) selections[multis[1].id] = multi2Vals;
+  const pageByGroupId = pageByGroupIdForSlots(item.optionGroups, {
+    0: Number(payload[F.MULTI_PAGE]) || 1,
+    1: Number(payload[F.MULTI2_PAGE]) || 1,
+  });
+  const planned = planFlowMultiSlots(item.optionGroups, { pageByGroupId });
+  const multiPayload = { ...payload };
+  const parked0 = normalizeMultiPayload(payload[F.MULTI_PARKED]);
+  const parked1 = normalizeMultiPayload(payload[F.MULTI2_PARKED]);
+  const keys = flowMultiValueKeys(F);
+  // Only apply radio picks while remaining===1; ignore stale form values otherwise.
+  applyRadioPickIfNeeded(multiPayload, keys, 0, planned, parked0.length, payload[F.MULTI_ONE_VALUE]);
+  applyRadioPickIfNeeded(multiPayload, keys, 1, planned, parked1.length, payload[F.MULTI2_ONE_VALUE]);
+  const parkedByGroupId = {};
+  planned.forEach((slot, i) => {
+    if (!slot.paginate) return;
+    if (i === 0) parkedByGroupId[slot.group.id] = parked0;
+    if (i === 1) parkedByGroupId[slot.group.id] = parked1;
+  });
+  Object.assign(
+    selections,
+    selectionsFromPlannedMultiSlots(
+      planned,
+      multiPayload,
+      keys,
+      parkedByGroupId,
+    ),
+  );
 
   return selections;
 }
@@ -128,5 +162,7 @@ module.exports = {
   formatFlowOptionTitle,
   normalizeMultiPayload,
   multiGroupsFromItem,
+  planFlowMultiSlots,
+  FLOW_MULTI_SLOT_COUNT,
   selectionsFromOrderItemPayload,
 };

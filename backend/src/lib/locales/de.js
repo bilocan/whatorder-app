@@ -156,6 +156,18 @@ module.exports = {
   menuFlowSave: () => 'Speichern',
   menuFlowMultiSelectAll: () => 'Alle wählen',
   menuFlowMultiClearAll: () => 'Alle abwählen',
+  menuFlowMultiExactError: (n) => `Genau ${n} wählen`,
+  menuFlowMultiRangeError: (min, max) => `${min}–${max} wählen`,
+  menuFlowMultiMaxError: (n) => `Maximal ${n} wählen`,
+  menuFlowMultiMinError: (n) => `Mindestens ${n} wählen`,
+  menuFlowMultiExactLabel: (label, n) => `${label} (genau ${n})`,
+  menuFlowMultiExactTotalLabel: (label, n) => `${label} (genau ${n} insgesamt)`,
+  menuFlowMultiMaxLabel: (label, n) => `${label} (max. ${n})`,
+  menuFlowMultiMaxTotalLabel: (label, n) => `${label} (max. ${n} insgesamt)`,
+  menuFlowMultiRangeLabel: (label, min, max) => `${label} (${min}–${max})`,
+  menuFlowMultiPartLabel: (label, part, parts) => `${label} (${part}/${parts})`,
+  menuFlowMultiPageNext: (page, parts) => `Weitere Zutaten (${page}/${parts})`,
+  menuFlowMultiPagePrev: (page, parts) => `Zurück (${page}/${parts})`,
   menuFlowFooterLeftCaption: () => 'Stückpreis',
   menuFlowCartTitle: () => 'Warenkorb',
   menuFlowCartHint: () => 'Zum Entfernen markieren.',
@@ -358,6 +370,16 @@ module.exports = {
     `${qty}x ${itemName}\n${groupLabel} — Standard: ${defaultSummary}.\nAntwort mit Auswahl (kommagetrennt) oder all / none:\n\n${optionList}\n\nBeispiel: Tomate, Salat`,
   intentMultiUnitPrompt: (unitIndex, unitTotal, itemName, groupLabel, optionList, defaultSummary) =>
     `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} — Standard: ${defaultSummary}.\nAntwort mit Auswahl (kommagetrennt) oder all / none:\n\n${optionList}`,
+  intentMultiBoundedPrompt: (qty, itemName, groupLabel, rule, optionList) =>
+    `${qty}x ${itemName}\n${groupLabel} — ${rule}.\nAntwort mit Auswahl (kommagetrennt):\n\n${optionList}`,
+  intentMultiUnitBoundedPrompt: (unitIndex, unitTotal, itemName, groupLabel, rule, optionList) =>
+    `${itemName} ${unitIndex}/${unitTotal}\n${groupLabel} — ${rule}.\nAntwort mit Auswahl (kommagetrennt):\n\n${optionList}`,
+  intentMultiExactRule: (n) => `genau ${n} wählen`,
+  intentMultiRangeRule: (min, max) => `${min}–${max} wählen`,
+  intentMultiMaxRule: (n) => `maximal ${n} wählen`,
+  intentMultiMinRule: (n) => `mindestens ${n} wählen`,
+  intentMultiCountInvalid: (count, rule) =>
+    `Du hast ${count} gewählt — bitte ${rule}.`,
   intentMultiInvalid: (unmatched, optionList) =>
     `Nicht erkannt: ${unmatched}\n\nVerfügbar:\n${optionList}\n\nNochmal versuchen (kommagetrennt, all oder none):`,
   intentMultiDefaultAll: () => 'alles dabei',

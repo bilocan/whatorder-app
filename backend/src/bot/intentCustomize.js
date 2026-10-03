@@ -7,6 +7,7 @@ const { mergeIntoBasket } = require('./intentMatcher');
 const { norm } = require('./menuMatch');
 const { enrichPendingWithModifier, isCustomizationSatisfied, wantsAllIncluded, wantsSpicyIncluded, parseExclusions, resolveModifierSelections } = require('./intentModifiers');
 const { linePriceForItem } = require('../lib/optionPricing');
+const { resolveSelectBounds, selectionCountOk } = require('../lib/optionSelectBounds');
 
 const MULTI_NONE_KEYWORDS = new Set([
   'none', 'no', 'nothing', 'zero',
@@ -113,13 +114,31 @@ function allOptionIds(group) {
 
 function getDefaultMultiSelection(group) {
   const mode = group.multiDefault ?? 'all';
-  if (mode === 'none') return [];
-  if (mode === 'custom') {
+  let selected;
+  if (mode === 'none') selected = [];
+  else if (mode === 'custom') {
     const valid = (group.defaultOptionIds ?? [])
       .filter(id => group.options?.some(o => o.id === id));
-    return valid.length ? valid : allOptionIds(group);
+    selected = valid.length ? valid : allOptionIds(group);
+  } else {
+    selected = allOptionIds(group);
   }
-  return allOptionIds(group);
+  // Exact-N / capped groups cannot use an out-of-range default.
+  if (!selectionCountOk(group, selected)) return [];
+  return selected;
+}
+
+function formatSelectRule(lang, group) {
+  const { minSelect, maxSelect } = resolveSelectBounds(group);
+  if (minSelect != null && maxSelect != null && minSelect === maxSelect) {
+    return t('intentMultiExactRule', lang, minSelect);
+  }
+  if (minSelect != null && maxSelect != null) {
+    return t('intentMultiRangeRule', lang, minSelect, maxSelect);
+  }
+  if (maxSelect != null) return t('intentMultiMaxRule', lang, maxSelect);
+  if (minSelect != null) return t('intentMultiMinRule', lang, minSelect);
+  return '';
 }
 
 function formatDefaultSummary(lang, group) {
@@ -269,10 +288,19 @@ function buildGroupBody(lang, ctx, group) {
   const { item, unitIndex, unitTotal, showUnit } = ctx;
   if (group.type === 'multi') {
     const optionList = formatOptionList(group);
+    const { bounded } = resolveSelectBounds(group);
     const defaultSummary = formatDefaultSummary(lang, group);
-    return showUnit
+    const base = showUnit
       ? t('intentMultiUnitPrompt', lang, unitIndex, unitTotal, item.name, group.label, optionList, defaultSummary)
       : t('intentMultiPrompt', lang, item.qty, item.name, group.label, optionList, defaultSummary);
+    const rule = formatSelectRule(lang, group);
+    if (bounded && rule) {
+      // Bounded groups: lead with the count rule; default/all/none shortcuts often violate it.
+      return showUnit
+        ? t('intentMultiUnitBoundedPrompt', lang, unitIndex, unitTotal, item.name, group.label, rule, optionList)
+        : t('intentMultiBoundedPrompt', lang, item.qty, item.name, group.label, rule, optionList);
+    }
+    return base;
   }
   return showUnit
     ? t('intentCustomizeUnitPrompt', lang, unitIndex, unitTotal, item.name, group.label)
@@ -318,7 +346,9 @@ async function promptSingleGroup(from, lang, ctx, group, selections) {
 
 async function promptMultiGroup(from, lang, ctx, group) {
   const body = buildGroupBody(lang, ctx, group);
-  if (!group.required) {
+  const { bounded } = resolveSelectBounds(group);
+  const defaultOk = selectionCountOk(group, getDefaultMultiSelection(group));
+  if (!group.required && !bounded && defaultOk) {
     return sendButtonMessage(from, {
       body: `${body}\n\n${t('intentMultiDefaultHint', lang)}`,
       buttons: [{ id: optSkipId(group.id), title: t('intentMultiDefaultBtn', lang).slice(0, 20) }],
@@ -330,6 +360,12 @@ async function promptMultiGroup(from, lang, ctx, group) {
 async function promptMultiGroupInvalid(from, lang, ctx, group, unmatched) {
   const optionList = formatOptionList(group);
   const body = `${t('intentMultiInvalid', lang, unmatched.join(', '), optionList)}\n\n${buildGroupBody(lang, ctx, group)}`;
+  return sendText(from, body);
+}
+
+async function promptMultiGroupCountInvalid(from, lang, ctx, group, selectedCount) {
+  const rule = formatSelectRule(lang, group) || t('intentMultiExactRule', lang, 1);
+  const body = `${t('intentMultiCountInvalid', lang, selectedCount, rule)}\n\n${buildGroupBody(lang, ctx, group)}`;
   return sendText(from, body);
 }
 
@@ -381,6 +417,22 @@ async function finishCustomization({ from, session, lang, businessId, readyBaske
   });
 }
 
+/** Index of the first option group that still needs a prompt (missing or out of bounds). */
+function firstGroupNeedingCustomizePrompt(item, selections = {}) {
+  const groups = item?.optionGroups ?? [];
+  return groups.findIndex((g) => {
+    if (g.type === 'single') return !selections[g.id];
+    if (g.type === 'multi') {
+      if (selections[g.id] === undefined) return true;
+      const sel = selections[g.id];
+      const ids = Array.isArray(sel) ? sel : (sel ? [sel] : []);
+      if (g.required && !ids.length) return true;
+      return !selectionCountOk(g, ids);
+    }
+    return false;
+  });
+}
+
 async function startNextItem(from, session, lang, businessId, queue, readyBasket) {
   if (!queue.length) {
     await finishCustomization({ from, session, lang, businessId, readyBasket });
@@ -391,17 +443,13 @@ async function startNextItem(from, session, lang, businessId, queue, readyBasket
 
   if (item.prefilledSelections) {
     ic.selections = { ...item.prefilledSelections };
-    const groups = item.optionGroups ?? [];
-    const firstUnset = groups.findIndex(g => {
-      if (g.type === 'single') return !ic.selections[g.id];
-      if (g.type === 'multi') return ic.selections[g.id] === undefined;
-      return false;
-    });
-    if (firstUnset < 0) {
+    const firstUnset = firstGroupNeedingCustomizePrompt(item, ic.selections);
+    // Only auto-complete when every group is present AND within min/max (exact-N / at-most-N).
+    if (firstUnset < 0 && isCustomizationSatisfied(item, ic.selections)) {
       await completeCurrentUnit({ from, session, lang, businessId, ic, selections: ic.selections });
       return;
     }
-    ic.groupIdx = firstUnset;
+    ic.groupIdx = firstUnset >= 0 ? firstUnset : 0;
     ic.unitMode = item.qty > 1 ? null : 'same';
     if (item.qty > 1 && ic.unitMode == null) {
       const msgId = await promptSameOrEach(from, lang, item);
@@ -562,6 +610,11 @@ async function handleIntentCustomize({ from, session, lang, businessId, type, te
       await promptMultiGroupInvalid(from, lang, ctx, group, unmatched);
       return;
     }
+    if (!selectionCountOk(group, matched)) {
+      const ctx = promptContext(ic);
+      await promptMultiGroupCountInvalid(from, lang, ctx, group, matched.length);
+      return;
+    }
 
     const selections = { ...ic.selections, [group.id]: matched };
     await advanceCustomization({ from, session, lang, businessId, selections });
@@ -585,7 +638,13 @@ async function handleIntentCustomize({ from, session, lang, businessId, type, te
 
   if (parsed.skip) {
     if (group.type === 'multi') {
-      const selections = { ...ic.selections, [group.id]: getDefaultMultiSelection(group) };
+      const defaults = getDefaultMultiSelection(group);
+      if (!selectionCountOk(group, defaults)) {
+        const msgId = await promptOptionGroup(from, lang, ic);
+        await persistCustomize(from, session, lang, businessId, ic, msgId);
+        return;
+      }
+      const selections = { ...ic.selections, [group.id]: defaults };
       await advanceCustomization({ from, session, lang, businessId, selections });
       return;
     }
@@ -615,6 +674,7 @@ module.exports = {
   allOptionIds,
   getDefaultMultiSelection,
   getMultiSelection,
+  firstGroupNeedingCustomizePrompt,
   startIntentCustomization,
   handleIntentCustomize,
 };

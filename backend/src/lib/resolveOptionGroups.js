@@ -19,6 +19,10 @@ function mergeOptionLists(lists) {
   return order.map((id) => byId.get(id));
 }
 
+function optionsWithoutPrices(options) {
+  return (options ?? []).map(({ id, label }) => ({ id, label }));
+}
+
 function expandOptionGroup(group, templatesById, visited = new Set()) {
   if (!group) return null;
   if (visited.has(group.id)) {
@@ -31,7 +35,8 @@ function expandOptionGroup(group, templatesById, visited = new Set()) {
     const parent = templatesById[extId];
     if (!parent) continue;
     const expanded = expandOptionGroup(parent, templatesById, new Set(visited));
-    if (expanded?.options?.length) lists.push(expanded.options);
+    if (!expanded?.options?.length) continue;
+    lists.push(group.stripInheritedPrices ? optionsWithoutPrices(expanded.options) : expanded.options);
   }
   lists.push(group.options ?? []);
 

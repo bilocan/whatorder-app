@@ -50,6 +50,29 @@ describe('expandOptionGroup', () => {
     const tomato = expanded.options.find((o) => o.id === 'tomato');
     expect(tomato).toMatchObject({ label: 'Tomato premium', price: 0.5 });
   });
+
+  test('stripInheritedPrices removes prices from parent options only', () => {
+    const pricedParent = {
+      ...INSERTS_BASIC,
+      options: [
+        { id: 'tomato', label: 'Tomaten', price: 1 },
+        { id: 'salad', label: 'Salad', price: 0.5 },
+      ],
+    };
+    const freeChild = {
+      ...INSERTS_SPECIAL,
+      stripInheritedPrices: true,
+      options: [{ id: 'cheese', label: 'Cheese', price: 1.5 }],
+    };
+    const expanded = expandOptionGroup(freeChild, {
+      inserts_basic: pricedParent,
+      inserts_special: freeChild,
+    });
+    expect(expanded.options.find((o) => o.id === 'tomato')).toEqual({ id: 'tomato', label: 'Tomaten' });
+    expect(expanded.options.find((o) => o.id === 'cheese')).toEqual({
+      id: 'cheese', label: 'Cheese', price: 1.5,
+    });
+  });
 });
 
 describe('resolveMenuItemOptionGroups', () => {

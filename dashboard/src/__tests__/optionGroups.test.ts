@@ -3,7 +3,9 @@ import {
   normalizeOptionGroups,
   slugifyId,
   draftGroupsFromMenu,
+  clampSelectCountForEdit,
   buildMenuPayload,
+  buildOptionGroupTemplatePayload,
   defaultVatRateForCategory,
   resolveMenuItemOptionGroups,
   indexMenuItemsByOptionGroup,
@@ -95,6 +97,183 @@ describe('normalizeOptionGroups', () => {
     const draft = draftGroupsFromMenu(normalized);
     expect(normalizeOptionGroups(draft)).toEqual(normalized);
   });
+
+  it('persists exact-N minSelect/maxSelect and forces required + none default', () => {
+    const result = normalizeOptionGroups([
+      {
+        id: 'toppings',
+        label: 'Toppings',
+        type: 'multi',
+        required: false,
+        multiDefault: 'all',
+        minSelect: 4,
+        maxSelect: 4,
+        options: [
+          { id: '', label: 'Tomato' },
+          { id: '', label: 'Onion' },
+          { id: '', label: 'Cheese' },
+          { id: '', label: 'Mushroom' },
+          { id: '', label: 'Pepper' },
+        ],
+      },
+    ]);
+    expect(result[0]).toMatchObject({
+      type: 'multi',
+      required: true,
+      multiDefault: 'none',
+      minSelect: 4,
+      maxSelect: 4,
+    });
+  });
+
+  it('clamps exact count to option length', () => {
+    const result = normalizeOptionGroups([
+      {
+        id: 'toppings',
+        label: 'Toppings',
+        type: 'multi',
+        required: true,
+        minSelect: 10,
+        maxSelect: 10,
+        options: [
+          { id: '', label: 'A' },
+          { id: '', label: 'B' },
+          { id: '', label: 'C' },
+        ],
+      },
+    ]);
+    expect(result[0]).toMatchObject({ minSelect: 3, maxSelect: 3 });
+  });
+
+  it('editor clamp allows N before options exist', () => {
+    expect(clampSelectCountForEdit(4)).toBe(4);
+    expect(clampSelectCountForEdit(99)).toBe(20);
+  });
+
+  it('rejects exact mode with empty count on save', () => {
+    const result = normalizeOptionGroups([
+      {
+        id: 'toppings',
+        label: 'Toppings',
+        type: 'multi',
+        required: true,
+        selectMode: 'exact',
+        options: [
+          { id: '', label: 'A' },
+          { id: '', label: 'B' },
+          { id: '', label: 'C' },
+          { id: '', label: 'D' },
+        ],
+      },
+    ]);
+    expect(result).toHaveLength(0);
+  });
+
+  it('persists at-most-N as maxSelect only', () => {
+    const result = normalizeOptionGroups([
+      {
+        id: 'toppings',
+        label: 'Toppings',
+        type: 'multi',
+        required: false,
+        selectMode: 'max',
+        maxSelect: 4,
+        options: [
+          { id: '', label: 'Tomato' },
+          { id: '', label: 'Onion' },
+          { id: '', label: 'Cheese' },
+          { id: '', label: 'Mushroom' },
+          { id: '', label: 'Pepper' },
+        ],
+      },
+    ]);
+    expect(result[0]).toMatchObject({
+      type: 'multi',
+      required: false,
+      multiDefault: 'none',
+      maxSelect: 4,
+    });
+    expect(result[0].minSelect).toBeUndefined();
+  });
+
+  it('allows extends-only groups with no own options', () => {
+    const result = normalizeOptionGroups([
+      {
+        id: 'zutaten_nach_wahl',
+        label: 'Zutaten nach Wahl',
+        type: 'multi',
+        required: false,
+        selectMode: 'max',
+        maxSelect: 4,
+        extendsGroupIds: ['ihre_pizza_beilage'],
+        options: [{ id: '', label: '' }],
+      },
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      label: 'Zutaten nach Wahl',
+      maxSelect: 4,
+      options: [],
+    });
+    expect(result[0].minSelect).toBeUndefined();
+  });
+
+  it('buildOptionGroupTemplatePayload keeps extendsGroupIds for extends-only', () => {
+    const payload = buildOptionGroupTemplatePayload({
+      id: '',
+      label: 'Zutaten nach Wahl',
+      type: 'multi',
+      required: false,
+      selectMode: 'max',
+      maxSelect: 4,
+      extendsGroupIds: ['ihre_pizza_beilage'],
+      options: [{ id: '', label: '' }],
+    });
+    expect(payload).toMatchObject({
+      maxSelect: 4,
+      extendsGroupIds: ['ihre_pizza_beilage'],
+      options: [],
+    });
+  });
+
+  it('buildOptionGroupTemplatePayload persists stripInheritedPrices with extends', () => {
+    const payload = buildOptionGroupTemplatePayload({
+      id: '',
+      label: 'Zutaten nach Wahl',
+      type: 'multi',
+      required: false,
+      selectMode: 'max',
+      maxSelect: 4,
+      extendsGroupIds: ['ihre_pizza_beilage'],
+      stripInheritedPrices: true,
+      options: [{ id: '', label: '' }],
+    });
+    expect(payload).toMatchObject({
+      extendsGroupIds: ['ihre_pizza_beilage'],
+      stripInheritedPrices: true,
+    });
+  });
+
+  it('round-trips exact-N through draftGroupsFromMenu', () => {
+    const normalized = normalizeOptionGroups([
+      {
+        id: 'toppings',
+        label: 'Toppings',
+        type: 'multi',
+        required: true,
+        minSelect: 4,
+        maxSelect: 4,
+        options: [
+          { id: '', label: 'Tomato' },
+          { id: '', label: 'Onion' },
+          { id: '', label: 'Cheese' },
+          { id: '', label: 'Mushroom' },
+        ],
+      },
+    ]);
+    const draft = draftGroupsFromMenu(normalized);
+    expect(normalizeOptionGroups(draft)).toEqual(normalized);
+  });
 });
 
 describe('resolveMenuItemOptionGroups', () => {
@@ -137,6 +316,30 @@ describe('expandOptionGroup', () => {
   it('merges extended group options before own', () => {
     const expanded = expandOptionGroup(special, { inserts_basic: basic, inserts_special: special });
     expect(expanded.options.map((o) => o.id)).toEqual(['tomato', 'salad', 'cheese']);
+  });
+
+  it('stripInheritedPrices drops prices from parent options only', () => {
+    const pricedParent = {
+      ...basic,
+      options: [
+        { id: 'tomato', label: 'Tomato', price: 1.2 },
+        { id: 'salad', label: 'Salad', price: 0.8 },
+      ],
+    };
+    const freeChild = {
+      ...special,
+      stripInheritedPrices: true,
+      options: [{ id: 'cheese', label: 'Cheese', price: 1.5 }],
+    };
+    const expanded = expandOptionGroup(freeChild, {
+      inserts_basic: pricedParent,
+      inserts_special: freeChild,
+    });
+    expect(expanded.options).toEqual([
+      { id: 'tomato', label: 'Tomato' },
+      { id: 'salad', label: 'Salad' },
+      { id: 'cheese', label: 'Cheese', price: 1.5 },
+    ]);
   });
 });
 

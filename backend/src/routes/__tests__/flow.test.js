@@ -98,6 +98,55 @@ const MENU = [
       },
     ],
   },
+  {
+    id: 'p4', name: 'Wunschpizza', price: 29, category: 'mains',
+    optionGroups: [
+      {
+        id: 'zutaten', type: 'multi', label: 'Zutaten', required: true,
+        multiDefault: 'none', minSelect: 4, maxSelect: 4,
+        options: [
+          { id: 'ananas', label: 'Ananas' },
+          { id: 'mais', label: 'Mais' },
+          { id: 'pilze', label: 'Pilze' },
+          { id: 'oliven', label: 'Oliven' },
+          { id: 'paprika', label: 'Paprika' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'p5', name: 'Pizza Max Toppings', price: 18, category: 'mains',
+    optionGroups: [
+      {
+        id: 'tops', type: 'multi', label: 'Toppings', required: false,
+        multiDefault: 'none', maxSelect: 4,
+        options: [
+          { id: 'ananas', label: 'Ananas' },
+          { id: 'mais', label: 'Mais' },
+          { id: 'pilze', label: 'Pilze' },
+          { id: 'oliven', label: 'Oliven' },
+          { id: 'paprika', label: 'Paprika' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'p6', name: 'Pizza 36 Beilage', price: 16, category: 'mains',
+    optionGroups: [
+      {
+        id: 'beilage36', type: 'multi', label: 'Beilage', required: false, multiDefault: 'none',
+        options: Array.from({ length: 36 }, (_, i) => ({
+          id: `t${i + 1}`,
+          label: `Topping ${i + 1}`,
+          ...(i > 0 ? { price: 1.5 } : {}),
+        })),
+      },
+      {
+        id: 'sonder36', type: 'multi', label: 'Sonderwunsch', required: false, multiDefault: 'none',
+        options: [{ id: 'kaserand', label: 'Käserand', price: 2.5 }],
+      },
+    ],
+  },
 ];
 
 function mockSession(basket = [], extras = {}) {
@@ -717,7 +766,7 @@ test('CATEGORY_SELECT → MENU_BROWSE filters by category', async () => {
   });
   const body = parsed(res);
   expect(body.screen).toBe(S.MENU_BROWSE);
-  expect(body.data[F.MENU_ITEMS]).toHaveLength(4);
+  expect(body.data[F.MENU_ITEMS]).toHaveLength(7);
   expect(attachMenuItemImages).toHaveBeenCalled();
   // item with description uses "— description" format; item without does not
   const burger = body.data[F.MENU_ITEMS].find(i => i.id === 'b1');
@@ -747,6 +796,9 @@ test('MENU_BROWSE → ORDER_ITEM with no option groups', async () => {
     [F.NOTES]: '',
     [F.MULTI_VALUE]: [],
     [F.MULTI2_VALUE]: [],
+    [F.MULTI3_VALUE]: [],
+    [F.MULTI_ONE_VALUE]: '',
+    [F.MULTI2_ONE_VALUE]: '',
     [F.SLOT1_VALUE]: '',
     [F.SLOT2_VALUE]: '',
     [F.SLOT3_VALUE]: '',
@@ -757,6 +809,7 @@ test('MENU_BROWSE → ORDER_ITEM with no option groups', async () => {
   expect(body.data[F.SLOT1_VISIBLE]).toBe(false);
   expect(body.data[F.MULTI_VISIBLE]).toBe(false);
   expect(body.data[F.MULTI2_VISIBLE]).toBe(false);
+  expect(body.data[F.MULTI3_VISIBLE]).toBe(false);
 });
 
 test('MENU_BROWSE → ORDER_ITEM keeps add footer when basket has items', async () => {
@@ -913,6 +966,275 @@ test('MENU_BROWSE → ORDER_ITEM maps second multi group to multi2 slot', async 
   );
   expect(body.data[F.UI_MULTI2_TOGGLE_VISIBLE]).toBe(true);
   expect(body.data[F.FORM_INIT_VALUES][F.MULTI2_VALUE]).toEqual([]);
+  expect(body.data[F.MULTI3_VISIBLE]).toBe(false);
+});
+
+test('MENU_BROWSE → ORDER_ITEM paginates 36 Beilage and keeps Sonderwunsch on multi2', async () => {
+  const res = await post({
+    action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'p6' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.MULTI_VISIBLE]).toBe(true);
+  expect(body.data[F.MULTI_OPTIONS]).toHaveLength(20);
+  expect(body.data[F.MULTI_LABEL]).toMatch(/\(1\/2\)/);
+  expect(body.data[F.MULTI_PAGE]).toBe(1);
+  expect(body.data[F.UI_MULTI_LINK_ACTION]).toBe('page_next');
+  expect(body.data[F.MULTI2_VISIBLE]).toBe(true);
+  expect(body.data[F.MULTI2_LABEL]).toBe('Sonderwunsch');
+  expect(body.data[F.MULTI2_OPTIONS]).toEqual([
+    expect.objectContaining({ id: 'kaserand' }),
+  ]);
+  expect(body.data[F.MULTI3_VISIBLE]).toBe(false);
+});
+
+test('MENU_BROWSE → ORDER_ITEM paginates capped 36 toppings into one multi slot', async () => {
+  const tops = Array.from({ length: 36 }, (_, i) => ({
+    id: `z${i + 1}`,
+    label: `Zutat ${i + 1}`,
+  }));
+  getMenu.mockResolvedValue([{
+    id: 'wunsch',
+    name: 'Wunschpizza',
+    price: 29,
+    category: 'mains',
+    optionGroups: [{
+      id: 'zutaten', type: 'multi', label: 'Zutaten', maxSelect: 4, multiDefault: 'none',
+      options: tops,
+    }],
+  }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'wunsch' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.MULTI_VISIBLE]).toBe(true);
+  expect(body.data[F.MULTI_OPTIONS]).toHaveLength(20);
+  expect(body.data[F.MULTI_MAX]).toBe(4);
+  expect(body.data[F.MULTI2_VISIBLE]).toBe(false);
+  expect(body.data[F.MULTI_PAGE]).toBe(1);
+  expect(body.data[F.UI_MULTI_TOGGLE_VISIBLE]).toBe(true);
+  expect(body.data[F.UI_MULTI_LINK_ACTION]).toBe('page_next');
+  expect(body.data[F.UI_MULTI_TOGGLE]).toMatch(/2\/2/);
+});
+
+test('ORDER_ITEM page_next parks selections and lowers remaining max', async () => {
+  const tops = Array.from({ length: 36 }, (_, i) => ({
+    id: `z${i + 1}`,
+    label: `Zutat ${i + 1}`,
+  }));
+  getMenu.mockResolvedValue([{
+    id: 'wunsch',
+    name: 'Wunschpizza',
+    price: 29,
+    category: 'mains',
+    optionGroups: [{
+      id: 'zutaten', type: 'multi', label: 'Zutaten', maxSelect: 4, multiDefault: 'none',
+      options: tops,
+    }],
+  }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      [F.ITEM_ID]: 'wunsch',
+      [F.QTY]: '1',
+      multi_action: 'page_next',
+      [F.UI_ORDER_FOOTER_ACTION]: 'add_item',
+      [F.MULTI_PAGE]: 1,
+      [F.MULTI_PARKED]: [],
+      [F.MULTI_VALUE]: ['z1', 'z2'],
+      [F.MULTI2_VALUE]: [],
+      [F.MULTI3_VALUE]: [],
+    },
+  });
+  const body = parsed(res);
+  expect(body.data[F.MULTI_PAGE]).toBe(2);
+  expect(body.data[F.MULTI_PARKED]).toEqual(['z1', 'z2']);
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI_VALUE]).toEqual([]);
+  expect(body.data[F.MULTI_MAX]).toBe(2);
+  expect(body.data[F.MULTI_VISIBLE]).toBe(true);
+  expect(body.data[F.MULTI_ONE_VISIBLE]).toBe(false);
+  expect(body.data[F.MULTI_OPTIONS][0].id).toBe('z21');
+  // Last page still uses page_next (wraps to 1); Meta allows only 2 EmbeddedLinks.
+  expect(body.data[F.UI_MULTI_LINK_ACTION]).toBe('page_next');
+});
+
+test('MENU_BROWSE → ORDER_ITEM paginates free Zutaten and paid Extras', async () => {
+  const tops = Array.from({ length: 36 }, (_, i) => ({
+    id: `z${i + 1}`, label: `Zutat ${i + 1}`,
+  }));
+  const extras = Array.from({ length: 36 }, (_, i) => ({
+    id: `e${i + 1}`, label: `Extra ${i + 1}`, price: 3,
+  }));
+  getMenu.mockResolvedValue([{
+    id: 'wunsch',
+    name: 'Wunschpizza',
+    price: 29,
+    category: 'mains',
+    optionGroups: [
+      { id: 'zutaten', type: 'multi', label: 'Zutaten', maxSelect: 4, multiDefault: 'none', options: tops },
+      { id: 'extras', type: 'multi', label: 'Extras', multiDefault: 'none', options: extras },
+      { id: 'sonder', type: 'multi', label: 'Sonderwunsch', multiDefault: 'none', options: [
+        { id: 'kaserand', label: 'Käserand', price: 5 },
+      ] },
+    ],
+  }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'wunsch' },
+  });
+  const body = parsed(res);
+  expect(body.data[F.MULTI_VISIBLE]).toBe(true);
+  expect(body.data[F.MULTI_OPTIONS]).toHaveLength(20);
+  expect(body.data[F.UI_MULTI_LINK_ACTION]).toBe('page_next');
+  expect(body.data[F.MULTI2_VISIBLE]).toBe(true);
+  expect(body.data[F.MULTI2_OPTIONS]).toHaveLength(20);
+  expect(body.data[F.MULTI2_LABEL]).toMatch(/Extras/);
+  expect(body.data[F.UI_MULTI2_LINK_ACTION]).toBe('page2_next');
+  expect(body.data[F.MULTI3_VISIBLE]).toBe(true);
+  expect(body.data[F.MULTI3_LABEL]).toBe('Sonderwunsch');
+});
+
+test('ORDER_ITEM page2_next parks Extras selections', async () => {
+  const tops = Array.from({ length: 36 }, (_, i) => ({
+    id: `z${i + 1}`, label: `Zutat ${i + 1}`,
+  }));
+  const extras = Array.from({ length: 36 }, (_, i) => ({
+    id: `e${i + 1}`, label: `Extra ${i + 1}`, price: 3,
+  }));
+  getMenu.mockResolvedValue([{
+    id: 'wunsch',
+    name: 'Wunschpizza',
+    price: 29,
+    category: 'mains',
+    optionGroups: [
+      { id: 'zutaten', type: 'multi', maxSelect: 4, multiDefault: 'none', options: tops },
+      { id: 'extras', type: 'multi', multiDefault: 'none', options: extras },
+    ],
+  }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      [F.ITEM_ID]: 'wunsch',
+      [F.QTY]: '1',
+      multi_action: 'page2_next',
+      [F.UI_ORDER_FOOTER_ACTION]: 'add_item',
+      [F.MULTI_PAGE]: 1,
+      [F.MULTI2_PAGE]: 1,
+      [F.MULTI_PARKED]: [],
+      [F.MULTI2_PARKED]: [],
+      [F.MULTI_VALUE]: [],
+      [F.MULTI2_VALUE]: ['e1', 'e2'],
+      [F.MULTI3_VALUE]: [],
+    },
+  });
+  const body = parsed(res);
+  expect(body.data[F.MULTI2_PAGE]).toBe(2);
+  expect(body.data[F.MULTI2_PARKED]).toEqual(['e1', 'e2']);
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI2_VALUE]).toEqual([]);
+  expect(body.data[F.MULTI2_OPTIONS][0].id).toBe('e21');
+  expect(body.data[F.UI_MULTI2_LINK_ACTION]).toBe('page2_next');
+});
+
+test('ORDER_ITEM page_next on last page wraps to page 1', async () => {
+  const tops = Array.from({ length: 50 }, (_, i) => ({
+    id: `z${i + 1}`, label: `Zutat ${i + 1}`,
+  }));
+  getMenu.mockResolvedValue([{
+    id: 'wunsch',
+    name: 'Wunschpizza',
+    price: 29,
+    category: 'mains',
+    optionGroups: [{
+      id: 'zutaten', type: 'multi', maxSelect: 4, multiDefault: 'none', options: tops,
+    }],
+  }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      [F.ITEM_ID]: 'wunsch',
+      [F.QTY]: '1',
+      multi_action: 'page_next',
+      [F.UI_ORDER_FOOTER_ACTION]: 'add_item',
+      [F.MULTI_PAGE]: 3,
+      [F.MULTI_PARKED]: [],
+      [F.MULTI_VALUE]: [],
+      [F.MULTI2_VALUE]: [],
+      [F.MULTI3_VALUE]: [],
+    },
+  });
+  const body = parsed(res);
+  expect(body.data[F.MULTI_PAGE]).toBe(1);
+  expect(body.data[F.MULTI_OPTIONS][0].id).toBe('z1');
+  expect(body.data[F.UI_MULTI_LINK_ACTION]).toBe('page_next');
+});
+
+test('ORDER_ITEM maxSelect=1 uses radio instead of CheckboxGroup', async () => {
+  getMenu.mockResolvedValue([{
+    id: 'sauce',
+    name: 'Extra Sauce',
+    price: 1,
+    category: 'sides',
+    optionGroups: [{
+      id: 'dip', type: 'multi', label: 'Dip', maxSelect: 1, multiDefault: 'none',
+      options: [
+        { id: 'knoblauch', label: 'Knoblauch' },
+        { id: 'scharf', label: 'Scharf' },
+      ],
+    }],
+  }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'sauce' },
+  });
+  const body = parsed(res);
+  expect(body.data[F.MULTI_VISIBLE]).toBe(false);
+  expect(body.data[F.MULTI_ONE_VISIBLE]).toBe(true);
+  expect(body.data[F.MULTI_ONE_OPTIONS]).toHaveLength(2);
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI_VALUE]).toEqual([]);
+});
+
+test('ORDER_ITEM page_next with 3 parked uses radio for the last remaining pick', async () => {
+  const tops = Array.from({ length: 36 }, (_, i) => ({
+    id: `z${i + 1}`,
+    label: `Zutat ${i + 1}`,
+  }));
+  getMenu.mockResolvedValue([{
+    id: 'wunsch',
+    name: 'Wunschpizza',
+    price: 29,
+    category: 'mains',
+    optionGroups: [{
+      id: 'zutaten', type: 'multi', label: 'Zutaten', maxSelect: 4, multiDefault: 'none',
+      options: tops,
+    }],
+  }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      [F.ITEM_ID]: 'wunsch',
+      [F.QTY]: '1',
+      multi_action: 'page_next',
+      [F.UI_ORDER_FOOTER_ACTION]: 'add_item',
+      [F.MULTI_PAGE]: 1,
+      [F.MULTI_PARKED]: [],
+      [F.MULTI_VALUE]: ['z1', 'z2', 'z3'],
+      [F.MULTI2_VALUE]: [],
+      [F.MULTI3_VALUE]: [],
+      [F.MULTI_ONE_VALUE]: '',
+    },
+  });
+  const body = parsed(res);
+  expect(body.data[F.MULTI_PAGE]).toBe(2);
+  expect(body.data[F.MULTI_PARKED]).toEqual(['z1', 'z2', 'z3']);
+  expect(body.data[F.MULTI_VISIBLE]).toBe(false);
+  expect(body.data[F.MULTI_ONE_VISIBLE]).toBe(true);
+  expect(body.data[F.MULTI_ONE_ENABLED]).toBe(true);
+  expect(body.data[F.MULTI_ONE_OPTIONS][0].id).toBe('z21');
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI_VALUE]).toEqual([]);
+  expect(body.data[F.FORM_INIT_VALUES][F.MULTI_ONE_VALUE]).toBe('');
 });
 
 test('MENU_BROWSE unknown item → 500', async () => {
@@ -1083,6 +1405,9 @@ test('ORDER_ITEM rejects qty over 10 with field error', async () => {
     [F.NOTES]: 'keep me',
     [F.MULTI_VALUE]: ['x'],
     [F.MULTI2_VALUE]: [],
+    [F.MULTI3_VALUE]: [],
+    [F.MULTI_ONE_VALUE]: '',
+    [F.MULTI2_ONE_VALUE]: '',
     [F.SLOT1_VALUE]: 's1',
     [F.SLOT2_VALUE]: '',
     [F.SLOT3_VALUE]: '',
@@ -1125,6 +1450,97 @@ test('MENU_BROWSE → ORDER_ITEM respects multiDefault none', async () => {
   expect(body.data[F.FORM_INIT_VALUES][F.MULTI_VALUE]).toEqual([]);
   expect(body.data[F.UI_MULTI_TOGGLE_VISIBLE]).toBe(true);
   expect(body.data[F.UI_MULTI_TOGGLE]).toBe('Alle wählen');
+});
+
+test('MENU_BROWSE → ORDER_ITEM exact-N emits max and hides Alle wählen', async () => {
+  const res = await post({
+    action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'p4' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.MULTI_MAX]).toBe(4);
+  expect(body.data[F.MULTI_LABEL]).toMatch(/genau|exactly|tam/i);
+  expect(body.data[F.UI_MULTI_TOGGLE_VISIBLE]).toBe(false);
+});
+
+test('ORDER_ITEM rejects wrong exact-N selection count', async () => {
+  mockSession([]);
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      [F.ITEM_ID]: 'p4',
+      [F.QTY]: '1',
+      [F.MULTI_VALUE]: ['ananas', 'mais'],
+      [F.NOTES]: '',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.ERROR_MESSAGES][F.MULTI_VALUE]).toMatch(/4/);
+});
+
+test('ORDER_ITEM accepts exact-N selection count', async () => {
+  const ref = mockSession([]);
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      [F.ITEM_ID]: 'p4',
+      [F.QTY]: '1',
+      [F.MULTI_VALUE]: ['ananas', 'mais', 'pilze', 'oliven'],
+      [F.NOTES]: '',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CART_REVIEW);
+  expect(ref.set).toHaveBeenCalled();
+  const saved = ref.set.mock.calls[0][0];
+  expect(saved.basket[0].flowSelections.zutaten).toEqual(['ananas', 'mais', 'pilze', 'oliven']);
+});
+
+test('MENU_BROWSE → ORDER_ITEM at-most-N emits max cap', async () => {
+  const res = await post({
+    action: 'data_exchange', screen: S.MENU_BROWSE, version: V, flow_token: TOKEN,
+    data: { [F.ITEM_ID]: 'p5' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.MULTI_MAX]).toBe(4);
+  expect(body.data[F.MULTI_LABEL]).toMatch(/max|en fazla/i);
+  expect(body.data[F.UI_MULTI_TOGGLE_VISIBLE]).toBe(false);
+});
+
+test('ORDER_ITEM accepts fewer than maxSelect', async () => {
+  const ref = mockSession([]);
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      [F.ITEM_ID]: 'p5',
+      [F.QTY]: '1',
+      [F.MULTI_VALUE]: ['ananas', 'mais'],
+      [F.NOTES]: '',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CART_REVIEW);
+  expect(ref.set).toHaveBeenCalled();
+  expect(ref.set.mock.calls[0][0].basket[0].flowSelections.tops).toEqual(['ananas', 'mais']);
+});
+
+test('ORDER_ITEM rejects more than maxSelect', async () => {
+  mockSession([]);
+  const res = await post({
+    action: 'data_exchange', screen: S.ORDER_ITEM, version: V, flow_token: TOKEN,
+    data: {
+      [F.ITEM_ID]: 'p5',
+      [F.QTY]: '1',
+      [F.MULTI_VALUE]: ['ananas', 'mais', 'pilze', 'oliven', 'paprika'],
+      [F.NOTES]: '',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM);
+  expect(body.data[F.ERROR_MESSAGES][F.MULTI_VALUE]).toMatch(/4/);
 });
 
 test('ORDER_ITEM multi toggle clears all when all selected', async () => {
