@@ -61,10 +61,15 @@ const FIELDS = {
   MULTI_VISIBLE:  'multi_visible',
   MULTI_LABEL:    'multi_label',
   MULTI_OPTIONS:  'multi_options',
+  // Second multi-select (e.g. Sonderwunsch). Hidden when item has < 2 multi groups.
+  MULTI2_VISIBLE: 'multi2_visible',
+  MULTI2_LABEL:   'multi2_label',
+  MULTI2_OPTIONS: 'multi2_options',
   SLOT1_VALUE:    'slot1_value',
   SLOT2_VALUE:    'slot2_value',
   SLOT3_VALUE:    'slot3_value',
   MULTI_VALUE:    'multi_value',
+  MULTI2_VALUE:   'multi2_value',
   NOTES:          'notes',
 
   // CART_REVIEW
@@ -99,6 +104,8 @@ const FIELDS = {
   UI_ORDER_FOOTER_ACTION: 'ui_order_footer_action',
   UI_MULTI_TOGGLE:        'ui_multi_toggle',
   UI_MULTI_TOGGLE_VISIBLE: 'ui_multi_toggle_visible',
+  UI_MULTI2_TOGGLE:         'ui_multi2_toggle',
+  UI_MULTI2_TOGGLE_VISIBLE: 'ui_multi2_toggle_visible',
   UI_FOOTER_LEFT_CAPTION: 'ui_footer_left_caption',
   UI_CART_HINT:        'ui_cart_hint',
   UI_REMOVE_LABEL:     'ui_remove_label',
