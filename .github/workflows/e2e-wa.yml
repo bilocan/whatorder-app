@@ -27,6 +27,10 @@ jobs:
     name: Contabo E2E (Test)
     runs-on: [self-hosted, e2e-wa-web]
     # Secrets come from Contabo backend/.env.local (linked below), not GitHub Environment.
+    # Pin ignores a stale E2E_WA_CUSTOMER_DISPLAY in that file. The number lives in
+    # backend/e2e-wa/lib/config.js (DEFAULT_CUSTOMER_DISPLAY).
+    env:
+      E2E_WA_PIN_CUSTOMER_DISPLAY: '1'
     timeout-minutes: 45
     if: >
       github.event_name == 'schedule'
