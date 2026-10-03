@@ -141,7 +141,7 @@ describe('e2e-wa config targets', () => {
     expect(cfg.target).toBe('test');
     expect(cfg.businessDisplay).toBe('+4368120575797');
     expect(cfg.businessPhoneNumberId).toBe(TEST_BUSINESS_PHONE_NUMBER_ID);
-    expect(cfg.customerDisplay).toBe('+436602585284');
+    expect(cfg.customerDisplay).toBe('+436602898096');
   });
 
   test('loadConfig env overrides target defaults', () => {

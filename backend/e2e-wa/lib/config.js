@@ -15,9 +15,13 @@ const TEST_FIREBASE_PROJECT_ID = 'whatorder-fire';
 /** Prod / preprod GCP / Firebase project. */
 const PROD_FIREBASE_PROJECT_ID = 'whatorder-fire-prod';
 
-/** Dedicated E2E customer WABA (WhatOrder E2E customer). Non-secret. */
+/**
+ * Retired Cloud API id for the previous consumer SIM (+43 660 2585284).
+ * Graph customer transport only. WA Web uses DEFAULT_CUSTOMER_DISPLAY.
+ */
 const DEFAULT_CUSTOMER_PHONE_NUMBER_ID = '1176672252201658';
-const DEFAULT_CUSTOMER_DISPLAY = '+436602585284';
+/** Consumer WhatsApp logged into Contabo WhatsApp Web. Changed 2026-10-03. */
+const DEFAULT_CUSTOMER_DISPLAY = '+436602898096';
 
 /**
  * Named bot targets. Switch with E2E_WA_TARGET=test|test-benat|preprod|prod
