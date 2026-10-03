@@ -245,7 +245,11 @@ function loadConfig(env = process.env, opts = {}) {
     customerPhoneNumberId: String(
       env.E2E_WA_CUSTOMER_PHONE_NUMBER_ID || DEFAULT_CUSTOMER_PHONE_NUMBER_ID,
     ).trim(),
-    customerDisplay: String(env.E2E_WA_CUSTOMER_DISPLAY || DEFAULT_CUSTOMER_DISPLAY).trim(),
+    // Nightly sets E2E_WA_PIN_CUSTOMER_DISPLAY=1. Contabo .env.local is linked
+    // for Firebase secrets and must not keep a stale E2E_WA_CUSTOMER_DISPLAY.
+    customerDisplay: String(env.E2E_WA_PIN_CUSTOMER_DISPLAY || '').trim() === '1'
+      ? DEFAULT_CUSTOMER_DISPLAY
+      : String(env.E2E_WA_CUSTOMER_DISPLAY || DEFAULT_CUSTOMER_DISPLAY).trim(),
     businessDisplay,
     businessPhoneNumberId,
     businessId: String(env.E2E_WA_BUSINESS_ID || resolved.businessId || 'biz_enes_kebap_9450w').trim(),
