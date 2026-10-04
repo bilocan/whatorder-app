@@ -381,6 +381,33 @@ describe('Layer 0: reorder-first for returning customers', () => {
     }));
     expect(sendListMessage).not.toHaveBeenCalled();
   });
+
+  test('single-restaurant first visit with no order history opens catalog Flow directly', async () => {
+    const { getPreferredLanguage } = require('../customerLanguage');
+    getPreferredLanguage.mockResolvedValue('de');
+    getLastOrderForCustomer.mockResolvedValue(null);
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ text: 'Hallo' }));
+
+    expectCatalogPrompt();
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_welcome_menu' })]),
+    }));
+  });
+
+  test('btn_welcome_menu opens catalog Flow', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'browsing',
+      businessId: BIZ,
+      basket: [],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_welcome_menu' }));
+
+    expectCatalogPrompt();
+  });
 });
 
 describe('Layer 1: disambiguation for ambiguous item names', () => {

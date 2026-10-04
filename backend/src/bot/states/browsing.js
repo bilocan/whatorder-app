@@ -9,6 +9,7 @@ const { tryTextIntentOrder, handleIntentButtons, isIntentConfirmText } = require
 const { normIng } = require('../intentMatcher');
 const { tryProposalEdit, parseProposalEdit } = require('../proposalEdit');
 const { handleReorderButtons, tryOfferReorder } = require('../reorder');
+const { beginRestaurantSwitch } = require('../restaurantSwitch');
 const { isMenuRequest, sendOrderEntryPrompt } = require('../orderEntry');
 const { isGreetingOnly, looksLikeOrderText, isFreshStartCommand } = require('../intentParser');
 const { tryNumberSelectionOrder } = require('../textMenuOrder');
@@ -294,7 +295,7 @@ function resolveIntentSuggestionPick(text, suggestions) {
   }) ?? null;
 }
 
-async function handleBrowsing({ from, contactName, session, lang, businessId, basket, isMulti, type, id, items, norm, text }) {
+async function handleBrowsing({ from, contactName, session, lang, businessId, basket, isMulti, type, id, items, data, norm, text }) {
   // Commit deferred basket learning from prior mutation (skip undo — that discards instead)
   if (session.basketPendingLearning && !(type === 'text' && isBasketUndoPhrase(norm, { hasUndoSnapshot: !!session.basketUndoSnapshot?.basket }))) {
     const info = await getBusinessInfo(businessId);
@@ -335,6 +336,11 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
 
   // Flow completed — basket already written to session by /flow/exchange during ORDER_ITEM steps
   if (type === 'flow_completion') {
+    // Menu cart manage: Anderes Restaurant closes the Flow with this action.
+    if (data?.cart_action === 'switch_restaurant') {
+      if (isMulti) await beginRestaurantSwitch({ from, lang });
+      return;
+    }
     const flowBasket = session.basket ?? [];
     if (!flowBasket.length) {
       await openCatalog(from, session, lang, businessId);
@@ -689,7 +695,7 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
       pendingAmendPlacedAt: undefined,
     };
     const { name: businessName } = await getBusinessInfo(businessId);
-    if (await tryOfferReorder({ from, session: cleared, lang, businessId, basket, businessName })) return;
+    if (await tryOfferReorder({ from, session: cleared, lang, businessId, basket, businessName, isMulti })) return;
     await openCatalog(from, cleared, lang, businessId);
     return;
   }
@@ -711,7 +717,7 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
       pendingAmendPlacedAt: undefined,
     };
     const { name: businessName } = await getBusinessInfo(businessId);
-    if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName })) return;
+    if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName, isMulti })) return;
     await openCatalog(from, freshSession, lang, businessId);
     return;
   }

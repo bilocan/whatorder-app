@@ -42,6 +42,7 @@ const {
   cartRemoveModeOptions,
   cartDoneCopy,
 } = require('../bot/menuFlowCopy');
+const { isMultiRestaurantLine } = require('../bot/restaurantSwitch');
 const { getDefaultMultiSelection } = require('../bot/intentCustomize');
 const {
   MULTI_SELECT_CAP,
@@ -800,6 +801,7 @@ function resolveMenuItemForBasketLine(line, menu = []) {
 }
 
 async function buildCartData(basket, lang, menu = [], opts = {}) {
+  const cartUiMode = opts.cartUiMode === 'manage' ? 'manage' : 'summary';
   const flowListImageById = {};
   const productRows = basket.map((i, idx) => {
     const { baseName, detail } = cartRowCopy(i);
@@ -815,19 +817,63 @@ async function buildCartData(basket, lang, menu = [], opts = {}) {
     };
   });
 
+  let allowSwitch = opts.allowSwitch;
+  if (allowSwitch == null && opts.businessId) {
+    allowSwitch = await isMultiRestaurantLine(
+      opts.businessId,
+      opts.phoneNumberId || opts.session?.whatsappPhoneNumberId || null,
+    );
+  }
+
   // No clear-cart row: Meta list thumbs + a fake "clear" option looked like a product
   // and conflicted with Place order (checked clear does not clear on complete).
+  // Edit is summary tap (edit_line); manage radio is remove/clear/switch only.
   return {
-    ...cartEditCopy(lang),
+    ...cartEditCopy(lang, undefined, { cartUiMode }),
     ...await cartPriceLabels(basket, lang, opts),
+    [F.CART_UI_MODE]: cartUiMode,
     [F.BASKET_ITEMS]: await attachListImages(productRows, { flowListImageById }),
     [F.REMOVE_MODE_OPTIONS]: cartRemoveModeOptions(lang, undefined, {
-      allowEdit: opts.allowEdit !== false,
+      allowEdit: false,
+      allowSwitch: !!allowSwitch,
     }),
     [F.FORM_INIT_VALUES]: { [F.REMOVE_MODE]: 'one' },
     [F.ERROR_MESSAGE]: opts.cartError || '',
     [F.ERROR_VISIBLE]: !!opts.cartError,
   };
+}
+
+/** Open ORDER_ITEM_EDIT* for one basket index (summary tap or legacy edit mode). */
+async function replyCartLineEdit({
+  reply, version, screen, editScreen, existing, editIdx, lang, menu, businessId, phone, session, allowEdit, cartUiMode,
+}) {
+  const line = existing[editIdx];
+  const item = resolveMenuItemForBasketLine(line, menu);
+  if (!item) {
+    return reply({
+      version,
+      screen,
+      data: await buildCartData(existing, lang, menu, {
+        businessId, phone, session, allowEdit, cartUiMode,
+        cartError: t('menuFlowEditUnavailable', lang),
+      }),
+    });
+  }
+  await sessionRef(phone).set({
+    flowCartEditIndex: editIdx,
+    flowLastOrderItemId: item.id,
+    flowLastOrderScreen: editScreen,
+    updatedAt: new Date(),
+  }, { merge: true });
+  const prefill = prefillFromBasketLine(item, line);
+  return reply({
+    version,
+    screen: editScreen,
+    data: buildOrderItemScreenData(item, lang, {
+      ...prefill,
+      footerMode: 'save',
+    }),
+  });
 }
 
 /** Map stored flowSelections → ORDER_ITEM form init fields. */
@@ -1067,6 +1113,7 @@ router.post('/flow/exchange', async (req, res) => {
     // Menu browse always uses add (editable).
     const CART_BACK_SCREENS = new Set([
       S.CART_REVIEW, S.CART_UPDATED, S.CART_EDITED, S.CART_EDITED_AGAIN,
+      S.CART_EDITED_MORE, S.CART_EDITED_FINAL,
     ]);
     if (action === 'BACK' && (!screen || CART_BACK_SCREENS.has(screen))) {
       const lang = await loadFlowLang(phone);
@@ -1186,10 +1233,15 @@ router.post('/flow/exchange', async (req, res) => {
     }
 
     // ── ORDER_ITEM (+ edit clones) → basket → cart ───────────────────────────
-    const ORDER_SCREENS = new Set([S.ORDER_ITEM, S.ORDER_ITEM_EDIT, S.ORDER_ITEM_EDIT_AGAIN]);
+    const ORDER_SCREENS = new Set([
+      S.ORDER_ITEM, S.ORDER_ITEM_EDIT, S.ORDER_ITEM_EDIT_AGAIN,
+      S.ORDER_ITEM_EDIT_MORE, S.ORDER_ITEM_EDIT_FINAL,
+    ]);
     const AFTER_EDIT_CART = {
       [S.ORDER_ITEM_EDIT]: S.CART_EDITED,
       [S.ORDER_ITEM_EDIT_AGAIN]: S.CART_EDITED_AGAIN,
+      [S.ORDER_ITEM_EDIT_MORE]: S.CART_EDITED_MORE,
+      [S.ORDER_ITEM_EDIT_FINAL]: S.CART_EDITED_FINAL,
     };
     if (action === 'data_exchange' && ORDER_SCREENS.has(screen)) {
       const lang = await loadFlowLang(phone);
@@ -1218,7 +1270,7 @@ router.post('/flow/exchange', async (req, res) => {
           screen: cartAfterSave === S.CART_REVIEW ? S.CART_REVIEW : cartAfterSave,
           data: await buildCartData(basket, lang, menu, {
             businessId, phone, session,
-            allowEdit: cartAfterSave !== S.CART_EDITED_AGAIN,
+            allowEdit: cartAfterSave !== S.CART_EDITED_FINAL,
           }),
         });
       }
@@ -1449,7 +1501,7 @@ router.post('/flow/exchange', async (req, res) => {
         screen: isEdit ? cartAfterSave : S.CART_REVIEW,
         data: await buildCartData(newBasket, lang, menu, {
           businessId, phone, session,
-          allowEdit: (isEdit ? cartAfterSave : S.CART_REVIEW) !== S.CART_EDITED_AGAIN,
+          allowEdit: (isEdit ? cartAfterSave : S.CART_REVIEW) !== S.CART_EDITED_FINAL,
         }),
       });
     }
@@ -1458,22 +1510,29 @@ router.post('/flow/exchange', async (req, res) => {
     // Edit uses forward-only clones (Meta rejects CART ↔ ORDER_ITEM cycles).
     const CART_SCREENS = new Set([
       S.CART_REVIEW, S.CART_UPDATED, S.CART_EDITED, S.CART_EDITED_AGAIN,
+      S.CART_EDITED_MORE, S.CART_EDITED_FINAL,
     ]);
     const NEXT_CART = {
       [S.CART_REVIEW]: S.CART_UPDATED,
       [S.CART_UPDATED]: S.CART_DONE,
       [S.CART_EDITED]: S.CART_UPDATED,
       [S.CART_EDITED_AGAIN]: S.CART_UPDATED,
+      [S.CART_EDITED_MORE]: S.CART_UPDATED,
+      [S.CART_EDITED_FINAL]: S.CART_UPDATED,
     };
     const EDIT_FROM_CART = {
       [S.CART_REVIEW]: S.ORDER_ITEM_EDIT,
       [S.CART_EDITED]: S.ORDER_ITEM_EDIT_AGAIN,
+      [S.CART_EDITED_AGAIN]: S.ORDER_ITEM_EDIT_MORE,
+      [S.CART_EDITED_MORE]: S.ORDER_ITEM_EDIT_FINAL,
+      [S.CART_UPDATED]: S.ORDER_ITEM_EDIT_MORE,
     };
     if (action === 'data_exchange' && CART_SCREENS.has(screen)) {
       const lang = await loadFlowLang(phone);
       const nextScreen = NEXT_CART[screen];
       const cartAction = payload.cart_action;
       const allowEdit = !!EDIT_FROM_CART[screen];
+      const cartUiMode = payload[F.CART_UI_MODE] === 'manage' ? 'manage' : 'summary';
 
       if (cartAction === 'add_more') {
         const menu = await getMenu(businessId);
@@ -1487,7 +1546,58 @@ router.post('/flow/exchange', async (req, res) => {
         });
       }
 
-      // remove_items (+ remove_mode radio): one / line / all / edit.
+      if (cartAction === 'open_manage' || cartAction === 'back_to_summary') {
+        const ref = sessionRef(phone);
+        const snap = await ref.get();
+        const existing = snap.exists ? (snap.data().basket ?? []) : [];
+        const session = snap.exists ? snap.data() : {};
+        const menu = await getMenu(businessId);
+        return reply({
+          version,
+          screen,
+          data: await buildCartData(existing, lang, menu, {
+            businessId, phone, session, allowEdit,
+            cartUiMode: cartAction === 'open_manage' ? 'manage' : 'summary',
+          }),
+        });
+      }
+
+      // Summary: tap a basket line → ORDER_ITEM_EDIT*.
+      if (cartAction === 'edit_line') {
+        const ref = sessionRef(phone);
+        const snap = await ref.get();
+        const existing = snap.exists ? (snap.data().basket ?? []) : [];
+        const session = snap.exists ? snap.data() : {};
+        const menu = await getMenu(businessId);
+        const editScreen = EDIT_FROM_CART[screen];
+        const editIdx = parseInt(payload[F.BASKET_CHOICE], 10);
+        if (!editScreen) {
+          return reply({
+            version,
+            screen,
+            data: await buildCartData(existing, lang, menu, {
+              businessId, phone, session, allowEdit: false, cartUiMode: 'summary',
+              cartError: t('menuFlowEditUnavailable', lang),
+            }),
+          });
+        }
+        if (Number.isNaN(editIdx) || editIdx < 0 || editIdx >= existing.length) {
+          return reply({
+            version,
+            screen,
+            data: await buildCartData(existing, lang, menu, {
+              businessId, phone, session, allowEdit, cartUiMode: 'summary',
+              cartError: t('menuFlowEditNeedOne', lang),
+            }),
+          });
+        }
+        return replyCartLineEdit({
+          reply, version, screen, editScreen, existing, editIdx, lang, menu,
+          businessId, phone, session, allowEdit, cartUiMode: 'summary',
+        });
+      }
+
+      // remove_items (+ remove_mode radio): one / line / all / edit / switch_restaurant.
       // Meta max 2 EmbeddedLinks/screen: Radio + Anwenden applies the mode.
       const isRemoveAction = cartAction === 'remove_one'
         || cartAction === 'remove_line'
@@ -1499,6 +1609,9 @@ router.post('/flow/exchange', async (req, res) => {
         const snap = await ref.get();
         const existing = snap.exists ? (snap.data().basket ?? []) : [];
         const session = snap.exists ? snap.data() : {};
+        const manageOpts = {
+          businessId, phone, session, allowEdit, cartUiMode: 'manage',
+        };
 
         if (removeIds.includes('clear')) {
           await ref.set({ basket: [], flowCartEditIndex: null, updatedAt: new Date() }, { merge: true });
@@ -1514,9 +1627,37 @@ router.post('/flow/exchange', async (req, res) => {
         }
 
         const modeRaw = payload[F.REMOVE_MODE];
-        const mode = modeRaw === 'line' || modeRaw === 'one' || modeRaw === 'all' || modeRaw === 'edit'
+        const mode = modeRaw === 'line' || modeRaw === 'one' || modeRaw === 'all'
+          || modeRaw === 'edit' || modeRaw === 'switch_restaurant'
           ? modeRaw
           : (cartAction === 'remove_one' ? 'one' : 'line');
+
+        // Close Flow → bot begins restaurant switch (multi only).
+        if (mode === 'switch_restaurant') {
+          if (!(await isMultiRestaurantLine(businessId, session.whatsappPhoneNumberId))) {
+            const menu = await getMenu(businessId);
+            return reply({
+              version,
+              screen,
+              data: await buildCartData(existing, lang, menu, {
+                ...manageOpts,
+                cartError: t('menuFlowEditUnavailable', lang),
+              }),
+            });
+          }
+          return reply({
+            version,
+            screen: 'SUCCESS',
+            data: {
+              extension_message_response: {
+                params: {
+                  flow_token,
+                  cart_action: 'switch_restaurant',
+                },
+              },
+            },
+          });
+        }
 
         // Clear entire cart (no checkbox needed).
         if (mode === 'all') {
@@ -1535,7 +1676,19 @@ router.post('/flow/exchange', async (req, res) => {
         const removeSet = new Set(removeIds.map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
         const menu = await getMenu(businessId);
 
-        // Edit: exactly one selected line → ORDER_ITEM_EDIT* with prefill.
+        // 1 Stück / Ganze Zeile need at least one checked line.
+        if ((mode === 'one' || mode === 'line') && !removeSet.size) {
+          return reply({
+            version,
+            screen,
+            data: await buildCartData(existing, lang, menu, {
+              ...manageOpts,
+              cartError: t('menuFlowRemoveNeedSelect', lang),
+            }),
+          });
+        }
+
+        // Legacy edit mode (older published JSON): exactly one checked line.
         if (mode === 'edit') {
           const editScreen = EDIT_FROM_CART[screen];
           if (!editScreen) {
@@ -1543,7 +1696,8 @@ router.post('/flow/exchange', async (req, res) => {
               version,
               screen,
               data: await buildCartData(existing, lang, menu, {
-                businessId, phone, session, allowEdit: false,
+                ...manageOpts,
+                allowEdit: false,
                 cartError: t('menuFlowEditUnavailable', lang),
               }),
             });
@@ -1554,38 +1708,14 @@ router.post('/flow/exchange', async (req, res) => {
               version,
               screen,
               data: await buildCartData(existing, lang, menu, {
-                businessId, phone, session, allowEdit,
+                ...manageOpts,
                 cartError: t('menuFlowEditNeedOne', lang),
               }),
             });
           }
-          const editIdx = selected[0];
-          const line = existing[editIdx];
-          const item = resolveMenuItemForBasketLine(line, menu);
-          if (!item) {
-            return reply({
-              version,
-              screen,
-              data: await buildCartData(existing, lang, menu, {
-                businessId, phone, session, allowEdit,
-                cartError: t('menuFlowEditUnavailable', lang),
-              }),
-            });
-          }
-          await ref.set({
-            flowCartEditIndex: editIdx,
-            flowLastOrderItemId: item.id,
-            flowLastOrderScreen: editScreen,
-            updatedAt: new Date(),
-          }, { merge: true });
-          const prefill = prefillFromBasketLine(item, line);
-          return reply({
-            version,
-            screen: editScreen,
-            data: buildOrderItemScreenData(item, lang, {
-              ...prefill,
-              footerMode: 'save',
-            }),
+          return replyCartLineEdit({
+            reply, version, screen, editScreen, existing, editIdx: selected[0], lang, menu,
+            businessId, phone, session, allowEdit, cartUiMode: 'manage',
           });
         }
 
@@ -1609,13 +1739,11 @@ router.post('/flow/exchange', async (req, res) => {
           });
         }
 
-        // Stay on this cart screen with refreshed basket (empty select or after remove).
+        // Stay on manage page with refreshed basket.
         return reply({
           version,
           screen,
-          data: await buildCartData(newBasket, lang, menu, {
-            businessId, phone, session, allowEdit,
-          }),
+          data: await buildCartData(newBasket, lang, menu, manageOpts),
         });
       }
 
@@ -1628,7 +1756,7 @@ router.post('/flow/exchange', async (req, res) => {
       const snap = await ref.get();
       const existing = snap.exists ? (snap.data().basket ?? []) : [];
       const session = snap.exists ? snap.data() : {};
-      const cartOpts = { businessId, phone, session };
+      const cartOpts = { businessId, phone, session, cartUiMode: 'summary' };
       const data = nextScreen === S.CART_DONE
         ? { ...cartDoneCopy(lang), ...await basketSummary(existing, lang, cartOpts) }
         : await buildCartData(existing, lang, await getMenu(businessId), cartOpts);

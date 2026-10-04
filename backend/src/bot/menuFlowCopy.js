@@ -43,10 +43,15 @@ function orderItemCopy(lang, t = defaultT) {
   };
 }
 
-function cartEditCopy(lang, t = defaultT) {
+function cartEditCopy(lang, t = defaultT, { cartUiMode = 'summary' } = {}) {
+  const manage = cartUiMode === 'manage';
   return {
-    [F.UI_SCREEN_TITLE]: t('menuFlowCartTitle', lang),
+    [F.UI_SCREEN_TITLE]: manage ? t('menuFlowManageTitle', lang) : t('menuFlowCartTitle', lang),
+    [F.UI_SUMMARY_HINT]: t('menuFlowSummaryHint', lang),
+    [F.UI_CART_ITEMS_LABEL]: t('menuFlowCartItemsLabel', lang),
     [F.UI_CART_HINT]: t('menuFlowCartHint', lang),
+    [F.UI_EDIT_CART]: t('menuFlowEditCart', lang),
+    [F.UI_BACK_TO_SUMMARY]: t('menuFlowBackToSummary', lang),
     [F.UI_REMOVE_LABEL]: t('menuFlowRemoveLabel', lang),
     [F.UI_REMOVE_MODE_LABEL]: t('menuFlowRemoveModeLabel', lang),
     // Meta EmbeddedLink max 25 chars; apply after radio mode.
@@ -56,13 +61,14 @@ function cartEditCopy(lang, t = defaultT) {
   };
 }
 
-function cartRemoveModeOptions(lang, t = defaultT, { allowEdit = true } = {}) {
+function cartRemoveModeOptions(lang, t = defaultT, { allowEdit = true, allowSwitch = false } = {}) {
   const opts = [
     { id: 'one', title: t('menuFlowRemoveOne', lang) },
     { id: 'line', title: t('menuFlowRemoveLine', lang) },
     { id: 'all', title: t('menuFlowRemoveAll', lang) },
   ];
   if (allowEdit) opts.push({ id: 'edit', title: t('menuFlowRemoveEdit', lang) });
+  if (allowSwitch) opts.push({ id: 'switch_restaurant', title: t('menuFlowSwitchRestaurant', lang) });
   return opts;
 }
 

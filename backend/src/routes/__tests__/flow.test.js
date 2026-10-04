@@ -5,6 +5,9 @@ jest.mock('../../lib/flowCrypto', () => ({
 }));
 jest.mock('../../bot/menuService');
 jest.mock('../../lib/collections');
+jest.mock('../../bot/restaurantSwitch', () => ({
+  isMultiRestaurantLine: jest.fn(async () => false),
+}));
 jest.mock('../../lib/flowImages', () => ({
   attachCategoryImages: jest.fn(async (cats) => cats.map(c => ({
     ...c,
@@ -55,6 +58,7 @@ const { SCREENS: S, FIELDS: F } = require('../../flows/fields');
 const { attachCategoryImages, attachMenuItemImages, attachListImages } = require('../../lib/flowImages');
 const { checkoutFlowToken } = require('../../bot/checkoutConfirmFlow');
 const { loadCheckoutTotals } = require('../../bot/checkoutDeal');
+const { isMultiRestaurantLine } = require('../../bot/restaurantSwitch');
 
 const TOKEN = 'phone1|biz1';
 const V = '3.0';
@@ -517,6 +521,94 @@ test('checkout open_cart stays in the Flow on the cart screen', async () => {
     }),
     { merge: true },
   );
+});
+
+test('checkout open_cart includes Anderes Restaurant when multi', async () => {
+  isMultiRestaurantLine.mockResolvedValueOnce(true);
+  const session = {
+    businessId: 'biz1',
+    language: 'de',
+    basket: [{ name: 'Burger', qty: 1, price: 10, itemId: 'b1' }],
+    orderType: 'pickup',
+  };
+  sessionRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
+    set: jest.fn(),
+  });
+
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_REVIEW,
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+    data: { checkout_action: 'open_cart', [F.ORDER_TYPE]: 'pickup' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CHECKOUT_CART);
+  expect(body.data[F.REMOVE_MODE_OPTIONS].map(row => row.id)).toEqual([
+    'one', 'line', 'all', 'switch_restaurant',
+  ]);
+});
+
+test('checkout cart_remove switch_restaurant closes Flow when multi', async () => {
+  isMultiRestaurantLine.mockResolvedValueOnce(true);
+  const session = {
+    businessId: 'biz1',
+    language: 'de',
+    basket: [{ name: 'Burger', qty: 1, price: 10, itemId: 'b1' }],
+    orderType: 'pickup',
+  };
+  sessionRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
+    set: jest.fn(),
+  });
+
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_CART,
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+    data: {
+      checkout_action: 'cart_remove',
+      [F.REMOVE_MODE]: 'switch_restaurant',
+      [F.REMOVE_ITEMS]: [],
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe('SUCCESS');
+  expect(body.data.extension_message_response.params).toEqual({
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+    checkout_action: 'switch_restaurant',
+  });
+});
+
+test('checkout cart_remove switch_restaurant stays on cart when single', async () => {
+  isMultiRestaurantLine.mockResolvedValueOnce(false);
+  const session = {
+    businessId: 'biz1',
+    language: 'de',
+    basket: [{ name: 'Burger', qty: 1, price: 10, itemId: 'b1' }],
+    orderType: 'pickup',
+  };
+  sessionRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({ exists: true, data: () => session }),
+    set: jest.fn(),
+  });
+
+  const res = await post({
+    action: 'data_exchange',
+    screen: S.CHECKOUT_CART,
+    version: V,
+    flow_token: checkoutFlowToken('phone1', 'biz1'),
+    data: {
+      checkout_action: 'cart_remove',
+      [F.REMOVE_MODE]: 'switch_restaurant',
+      [F.REMOVE_ITEMS]: [],
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CHECKOUT_CART);
+  expect(body.data[F.ERROR_VISIBLE]).toBe(true);
 });
 
 test('checkout open_cart prices delivery from the review draft', async () => {
@@ -1740,7 +1832,9 @@ test('CART_REVIEW remove_items mode one on multi-qty → decrement by 1', async 
   expect(body.screen).toBe(S.CART_REVIEW);
   expect(body.data[F.BASKET_ITEMS]).toHaveLength(1);
   expect(body.data[F.BASKET_ITEMS][0].title).toMatch(/^2x /);
-  expect(body.data[F.REMOVE_MODE_OPTIONS]).toHaveLength(4);
+  // Manage radio: one / line / all (edit is summary tap; switch only when multi).
+  expect(body.data[F.REMOVE_MODE_OPTIONS]).toHaveLength(3);
+  expect(body.data[F.CART_UI_MODE]).toBe('manage');
   const [saved] = ref.set.mock.calls[0];
   expect(saved.basket).toEqual([{ name: 'Lahmacun', qty: 2, price: 6.5 }]);
 });
@@ -1896,6 +1990,110 @@ test('CART_REVIEW edit mode → ORDER_ITEM_EDIT with prefill', async () => {
     expect.objectContaining({ flowCartEditIndex: 0 }),
     expect.anything(),
   );
+});
+
+test('CART_REVIEW open_manage flips cart_ui_mode without changing screen', async () => {
+  mockSession([{ name: 'Burger', qty: 1, price: 10, itemId: 'b1' }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: { cart_action: 'open_manage', [F.CART_UI_MODE]: 'summary' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CART_REVIEW);
+  expect(body.data[F.CART_UI_MODE]).toBe('manage');
+  expect(body.data[F.UI_SCREEN_TITLE]).toBe('Warenkorb ändern');
+  expect(body.data[F.REMOVE_MODE_OPTIONS].map((o) => o.id)).toEqual(['one', 'line', 'all']);
+});
+
+test('CART_REVIEW back_to_summary returns summary mode', async () => {
+  mockSession([{ name: 'Burger', qty: 1, price: 10, itemId: 'b1' }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: { cart_action: 'back_to_summary', [F.CART_UI_MODE]: 'manage' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CART_REVIEW);
+  expect(body.data[F.CART_UI_MODE]).toBe('summary');
+  expect(body.data[F.UI_SCREEN_TITLE]).toBe('Warenkorb');
+});
+
+test('CART_REVIEW edit_line opens ORDER_ITEM_EDIT for that index', async () => {
+  mockSession([{
+    name: 'Pizza — Large',
+    baseName: 'Pizza',
+    itemId: 'p1',
+    qty: 1,
+    price: 15,
+    flowSelections: { size: 'l', extras: [] },
+  }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: { cart_action: 'edit_line', [F.BASKET_CHOICE]: '0', [F.CART_UI_MODE]: 'summary' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM_EDIT);
+  expect(body.data[F.ITEM_ID]).toBe('p1');
+});
+
+test('CART_REVIEW switch_restaurant closes Flow when multi', async () => {
+  isMultiRestaurantLine.mockResolvedValueOnce(true);
+  mockSession([{ name: 'Burger', qty: 1, price: 10, itemId: 'b1' }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: {
+      cart_action: 'remove_items',
+      [F.CART_UI_MODE]: 'manage',
+      [F.REMOVE_ITEMS]: [],
+      [F.REMOVE_MODE]: 'switch_restaurant',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe('SUCCESS');
+  expect(body.data.extension_message_response.params).toEqual({
+    flow_token: TOKEN,
+    cart_action: 'switch_restaurant',
+  });
+});
+
+test('CART_REVIEW manage includes Anderes Restaurant option when multi', async () => {
+  isMultiRestaurantLine.mockResolvedValueOnce(true);
+  mockSession([{ name: 'Burger', qty: 1, price: 10, itemId: 'b1' }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: { cart_action: 'open_manage' },
+  });
+  const body = parsed(res);
+  expect(body.data[F.REMOVE_MODE_OPTIONS].map((o) => o.id)).toEqual([
+    'one', 'line', 'all', 'switch_restaurant',
+  ]);
+});
+
+test('CART manage Anwenden without selection shows error', async () => {
+  mockSession([{ name: 'Burger', qty: 1, price: 10, itemId: 'b1' }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_REVIEW, version: V, flow_token: TOKEN,
+    data: {
+      cart_action: 'remove_items',
+      [F.CART_UI_MODE]: 'manage',
+      [F.REMOVE_MODE]: 'one',
+    },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.CART_REVIEW);
+  expect(body.data[F.CART_UI_MODE]).toBe('manage');
+  expect(body.data[F.ERROR_VISIBLE]).toBe(true);
+  expect(body.data[F.ERROR_MESSAGE]).toMatch(/markieren|Select items|işaretleyin/i);
+});
+
+test('CART_EDITED_AGAIN edit_line still opens an edit screen', async () => {
+  mockSession([{ name: 'Burger', qty: 1, price: 10, itemId: 'b1', baseName: 'Burger' }]);
+  const res = await post({
+    action: 'data_exchange', screen: S.CART_EDITED_AGAIN, version: V, flow_token: TOKEN,
+    data: { cart_action: 'edit_line', [F.BASKET_CHOICE]: '0', [F.CART_UI_MODE]: 'summary' },
+  });
+  const body = parsed(res);
+  expect(body.screen).toBe(S.ORDER_ITEM_EDIT_MORE);
+  expect(body.data[F.ITEM_ID]).toBe('b1');
 });
 
 test('ORDER_ITEM_EDIT save replaces basket line', async () => {

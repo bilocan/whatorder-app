@@ -127,7 +127,9 @@ describe('handlePostOrderCancelButton', () => {
     expect(refundOrderPayment).not.toHaveBeenCalled();
     expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true, paymentRefunded: false });
     expect(patchSession).toHaveBeenCalled();
-    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({ from: FROM, businessId: BIZ }));
+    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({
+      from: FROM, businessId: BIZ, isMulti: false,
+    }));
   });
 
   test('cancels cash order when approved (before preparing) and offers reorder', async () => {
@@ -140,7 +142,22 @@ describe('handlePostOrderCancelButton', () => {
 
     expect(handled).toBe(true);
     expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true, paymentRefunded: false });
-    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({ from: FROM, businessId: BIZ }));
+    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({
+      from: FROM, businessId: BIZ, isMulti: false,
+    }));
+  });
+
+  test('passes isMulti through so multi cancel can show Anderes Restaurant', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'pending', paymentMethod: 'cash' });
+    cancelOrder.mockResolvedValue(undefined);
+
+    await handlePostOrderCancelButton({
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ, isMulti: true,
+    });
+
+    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({
+      from: FROM, businessId: BIZ, isMulti: true,
+    }));
   });
 
   test('sends too-late message when already preparing', async () => {

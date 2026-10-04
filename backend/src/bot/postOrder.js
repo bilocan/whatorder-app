@@ -144,7 +144,7 @@ function cancelTooLateLocaleKey(status) {
 }
 
 // Handles the "Stornieren" button tap and text-based cancel ("stornieren", "iptal" etc.)
-async function handlePostOrderCancelButton({ from, session, lang, businessId }) {
+async function handlePostOrderCancelButton({ from, session, lang, businessId, isMulti = false }) {
   const phoneNumberId = session.whatsappPhoneNumberId || null;
 
   let order = null;
@@ -188,6 +188,7 @@ async function handlePostOrderCancelButton({ from, session, lang, businessId }) 
       text: undefined,
       norm: '',
       businessName: info.name,
+      isMulti,
     });
     return true;
   }
