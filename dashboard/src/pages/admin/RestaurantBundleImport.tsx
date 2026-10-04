@@ -34,6 +34,8 @@ export default function RestaurantBundleImport() {
     ? formatAttachLineOption(selectedLine, unlabeled)
     : '';
   const canAttach = Boolean(phoneNumberId) && !linesLoading;
+  const needsOverwrite = Boolean(preview?.exists) && !overwrite;
+  const importBlocked = busy || !canAttach || needsOverwrite;
 
   async function onPreview() {
     if (!file) return;
@@ -174,9 +176,14 @@ export default function RestaurantBundleImport() {
               />
             </label>
           )}
+          {needsOverwrite && (
+            <p role="alert" style={{ margin: '0.75rem 0 0', color: '#92400e' }}>
+              {t('admin.bundle.overwriteRequired')}
+            </p>
+          )}
           <button
             type="button"
-            disabled={busy || !canAttach || (preview.exists && !overwrite)}
+            disabled={importBlocked}
             onClick={onImport}
             style={{
               marginTop: '0.75rem',
@@ -186,7 +193,8 @@ export default function RestaurantBundleImport() {
               border: 'none',
               borderRadius: 8,
               fontWeight: 600,
-              cursor: busy || !canAttach ? 'not-allowed' : 'pointer',
+              cursor: importBlocked ? 'not-allowed' : 'pointer',
+              opacity: importBlocked ? 0.55 : 1,
             }}
           >
             {t('admin.bundle.importButton')}

@@ -896,6 +896,7 @@
       "working": "Bitte warten…",
       "keepId": "Dieselbe Restaurant-ID behalten",
       "overwrite": "Überschreiben, falls diese ID schon existiert",
+      "overwriteRequired": "Diese Restaurant-ID gibt es schon. Setz den Haken bei Überschreiben, dann importieren.",
       "attachLine": "WhatsApp-Leitung für die Bot-Liste",
       "attachLinePlaceholder": "WhatsApp-Leitung wählen",
       "attachLineHint": "Wähl die Nummer, an die Kunden schreiben. Der Bot listet nur Restaurants dieser Leitung. Routing aus der Datei wird nie übernommen.",

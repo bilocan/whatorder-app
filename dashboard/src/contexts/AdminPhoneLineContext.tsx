@@ -73,6 +73,9 @@ export function AdminPhoneLineProvider({ children }: { children: React.ReactNode
 
   useEffect(() => {
     if (loading) return;
+    // An empty list is a failed read as often as a real empty collection.
+    // Keep the env or stored line so import can still attach.
+    if (phoneLines.length === 0) return;
     const ids = new Set(phoneLines.map((l) => l.id));
     if (selectedId && ids.has(selectedId)) return;
 
