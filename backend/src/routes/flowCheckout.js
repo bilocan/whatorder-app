@@ -29,6 +29,7 @@ const {
   shouldConfirmDeliveryBuilding,
 } = require('../bot/resolveTypedDeliveryAddress');
 const { checkoutReviewCopy, checkoutManageCopy, checkoutCartCopy, cartRemoveModeOptions } = require('../bot/menuFlowCopy');
+const { isMultiRestaurantLine } = require('../bot/restaurantSwitch');
 const {
   isSupportedLang,
   setPreferredLanguage,
@@ -971,6 +972,7 @@ async function buildCheckoutCartData({
   });
   const hasDiscount = totals.discount > 0 && totals.deal;
   const showDelivery = !!totals.isDelivery;
+  const allowSwitch = await isMultiRestaurantLine(businessId, session?.whatsappPhoneNumberId);
   return {
     ...checkoutCartCopy(lang),
     [F.SUBTOTAL_LABEL]: t('menuFlowSubtotal', lang, Number(totals.subtotal).toFixed(2)),
@@ -984,7 +986,7 @@ async function buildCheckoutCartData({
     [F.DELIVERY_VISIBLE]: showDelivery,
     [F.TOTAL_LABEL]: t('orderTotal', lang, Number(totals.total).toFixed(2)),
     [F.BASKET_ITEMS]: await attachListImages(productRows, { flowListImageById }),
-    [F.REMOVE_MODE_OPTIONS]: cartRemoveModeOptions(lang, t, { allowEdit: false }),
+    [F.REMOVE_MODE_OPTIONS]: cartRemoveModeOptions(lang, t, { allowEdit: false, allowSwitch }),
     [F.FORM_INIT_VALUES]: { [F.REMOVE_MODE]: 'one' },
     [F.ERROR_MESSAGE]: cartError || '',
     [F.ERROR_VISIBLE]: !!cartError,
@@ -1071,6 +1073,37 @@ async function handleCheckoutCart({
   const info = await getBusinessInfo(businessId);
 
   if (action === 'cart_remove') {
+    // Multi: Anderes Restaurant closes the Flow; bot begins venue switch.
+    if (payload[F.REMOVE_MODE] === 'switch_restaurant') {
+      if (!(await isMultiRestaurantLine(businessId, session?.whatsappPhoneNumberId))) {
+        return {
+          version,
+          screen,
+          data: await buildCheckoutCartData({
+            basket,
+            lang,
+            businessId,
+            phone,
+            session,
+            info,
+            cartError: t('menuFlowEditUnavailable', lang),
+          }),
+        };
+      }
+      return {
+        version,
+        screen: 'SUCCESS',
+        data: {
+          extension_message_response: {
+            params: {
+              flow_token,
+              checkout_action: 'switch_restaurant',
+            },
+          },
+        },
+      };
+    }
+
     const nextBasket = basketAfterCartRemove(basket, payload);
     const changed = nextBasket !== basket;
     if (changed && !nextBasket.length) {

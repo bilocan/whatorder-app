@@ -34,6 +34,7 @@ const { buildOrderTaxSnapshot } = require('../../lib/receiptMath');
 const { isStrongOrderText, isGreetingOnly, isFreshStartCommand } = require('../intentParser');
 const { isConversationalBasket, isCheckoutConfirmFlow } = require('../featureFlags');
 const { tryBasketUndo } = require('../conversationalBasket');
+const { beginRestaurantSwitch } = require('../restaurantSwitch');
 const {
   checkoutFlowToken,
   validateCheckoutSubmit,
@@ -1518,6 +1519,12 @@ async function handleConfirming({
 
     if (payload.checkout_action === 'cart_emptied') {
       await resumeMenuAfterCheckoutClose({ from, session, lang, businessId, basket: [] });
+      return;
+    }
+
+    // Checkout cart radio Anderes Restaurant (multi).
+    if (payload.checkout_action === 'switch_restaurant') {
+      if (isMulti) await beginRestaurantSwitch({ from, lang });
       return;
     }
 

@@ -558,7 +558,7 @@ function checkoutCartScreen(id) {
       [F.REMOVE_MODE_OPTIONS]: {
         type: 'array',
         items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } } },
-        '__example__': cartRemoveModeOptions(EXAMPLE_LANG, t, { allowEdit: false }),
+        '__example__': cartRemoveModeOptions(EXAMPLE_LANG, t, { allowEdit: false, allowSwitch: true }),
       },
       [F.FORM_INIT_VALUES]: {
         type: 'object',

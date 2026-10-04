@@ -186,6 +186,7 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
       text: text ?? '',
       norm: norm ?? '',
       businessName: selectedInfo.name,
+      isMulti: routing.businessIds.length > 1,
     });
     return;
   }

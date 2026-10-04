@@ -1400,6 +1400,34 @@ describe('Checkout confirm Flow', () => {
     }));
   });
 
+  test('switch_restaurant Flow completion begins venue switch on multi', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'confirming',
+      businessId: 'biz_a',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'Alex',
+      orderType: 'pickup',
+    });
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO),
+    );
+    sendLocationRequest.mockResolvedValue('loc_switch_1');
+
+    await handleMessage(ROUTING_MULTI, msg({
+      type: 'flow_completion',
+      data: { checkout_action: 'switch_restaurant' },
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendLocationRequest).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_location',
+      businessId: null,
+      basket: [],
+    }));
+  });
+
   test('cart_emptied Flow completion sends the menu and keeps Prüfen choices', async () => {
     getSession.mockResolvedValue({
       language: 'de',

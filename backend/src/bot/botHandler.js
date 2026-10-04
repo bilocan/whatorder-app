@@ -21,6 +21,7 @@ const { handleAwaitingLocation, handleSelectingRestaurant, refuseClosedRestauran
 const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingDeliveryAddressConfirm, handleAwaitingDeliveryAddressUnit, handleAwaitingName, handleConfirming, handlePaymentBack, isPaymentBackButtonId } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
+const { beginRestaurantSwitch } = require('./restaurantSwitch');
 const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
 const { handleIntentCustomize } = require('./intentCustomize');
 const { handleDisambiguatingIntent } = require('./intentDisambiguate');
@@ -132,6 +133,7 @@ async function enterRestaurantDirect(from, bid, lang, session, routing) {
   const freshSession = { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] };
   await startRestaurantBrowsing({
     from, session: freshSession, lang, businessId: bid, type: 'text', text: '', norm: '', businessName: bidInfo.name,
+    isMulti: routing.businessIds.length > 1,
   });
 }
 
@@ -193,6 +195,7 @@ async function continueAfterLanguagePick(from, lang, session, routing) {
   await setSession(from, freshSession);
   await startRestaurantBrowsing({
     from, session: freshSession, lang, businessId: bid, type: 'text', text: '', norm: '', businessName: bidInfo.name,
+    isMulti: false,
   });
 }
 
@@ -359,13 +362,13 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
   if (type === 'button_reply' && (id === 'btn_post_cancel' || id === 'btn_post_reorder' || id === 'btn_post_restaurant')) {
     const postLang = session.language || preferredLanguage || 'de';
     if (id === 'btn_post_cancel') {
-      await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid });
+      await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid, isMulti });
       return;
     }
     if (id === 'btn_post_restaurant' && isMulti) {
+      // Post-order copy uses welcome location body (not switchLocationRequestBody).
       await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [] });
       try {
-        // Single location_request bubble (no separate welcome text) — less chat clutter.
         const locId = await sendLocationRequest(from, t('locationRequestBody', postLang));
         if (locId) await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [locId] });
       } catch { /* ignore — awaiting_location handler will show picker on next message */ }
@@ -373,7 +376,10 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
     }
     const postInfo = await getBusinessInfo(postBid);
     applyBusinessInfoIdentity(postInfo);
-    await startRestaurantBrowsing({ from, session: { ...session, basket: [] }, lang: postLang, businessId: postBid, type, text, norm, businessName: postInfo.name });
+    await startRestaurantBrowsing({
+      from, session: { ...session, basket: [] }, lang: postLang, businessId: postBid, type, text, norm,
+      businessName: postInfo.name, isMulti,
+    });
     return;
   }
 
@@ -387,7 +393,7 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
     && (session.pendingAmendOrderId || session.pendingAmendBusinessId)
   ) {
     const postLang = session.language || preferredLanguage || detectLanguage(text) || 'de';
-    await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid });
+    await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid, isMulti });
     return;
   }
 
@@ -459,27 +465,18 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
       text,
       norm,
       businessName: bidInfo.name,
+      isMulti,
     });
     return;
   }
 
-  // Switch restaurant command — available from any state (multi only).
-  // Always re-request location so a stale/wrong pin (e.g. Linz while testing Wien) is not reused.
-  // Platform identity: switch leaves the restaurant context.
-  // One location_request bubble: switch notice + location CTA (no separate welcome/switch texts).
-  if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {
-    setMessageIdentity(PLATFORM_IDENTITY);
-    const locId = await sendLocationRequest(from, t('switchLocationRequestBody', lang));
-    await setSession(from, {
-      state: 'awaiting_location',
-      language: lang,
-      basket: [],
-      businessId: null,
-      lat: null,
-      lng: null,
-      pendingDeleteIds: locId ? [locId] : [],
-      restaurantPickerUnfiltered: false,
-    });
+  // Switch restaurant — keywords (test/fallback) or chat button (reorder / no-order welcome / post-order).
+  // Always re-request location so a stale/wrong pin is not reused.
+  if (isMulti && (
+    (type === 'text' && SWITCH_KEYWORDS.has(norm))
+    || (type === 'button_reply' && id === 'btn_switch_restaurant')
+  )) {
+    await beginRestaurantSwitch({ from, lang });
     return;
   }
 

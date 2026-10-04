@@ -8,10 +8,15 @@ const SCREENS = {
   MENU_BROWSE:            'MENU_BROWSE',
   ORDER_ITEM:             'ORDER_ITEM',
   // Cart → edit clones (Meta forbids A↔B; forward-only like ADDRESS_MANAGE).
+  // Extra clones so summary tap-to-edit survives manage round-trips (was 2, now 4).
   ORDER_ITEM_EDIT:        'ORDER_ITEM_EDIT',
   ORDER_ITEM_EDIT_AGAIN:  'ORDER_ITEM_EDIT_AGAIN',
+  ORDER_ITEM_EDIT_MORE:   'ORDER_ITEM_EDIT_MORE',
+  ORDER_ITEM_EDIT_FINAL:  'ORDER_ITEM_EDIT_FINAL',
   CART_EDITED:            'CART_EDITED',
   CART_EDITED_AGAIN:      'CART_EDITED_AGAIN',
+  CART_EDITED_MORE:       'CART_EDITED_MORE',
+  CART_EDITED_FINAL:      'CART_EDITED_FINAL',
   CART_REVIEW:  'CART_REVIEW',  // editable cart round 1
   CART_UPDATED: 'CART_UPDATED', // editable cart round 2 (identical UI, different ID to satisfy DAG)
   CART_DONE:    'CART_DONE',    // final summary — no remove UI, just place order
@@ -111,7 +116,7 @@ const FIELDS = {
   MULTI2_ONE_VALUE:   'multi2_one_value',
   NOTES:          'notes',
 
-  // CART_REVIEW
+  // CART_REVIEW (summary | manage via cart_ui_mode — same screen, two pages)
   BASKET_TEXT:    'basket_text',    // CART_DONE plain list; edit screens use CheckboxGroup rows
   SUBTOTAL_LABEL: 'subtotal_label',
   DISCOUNT_LABEL: 'discount_label',
@@ -120,9 +125,12 @@ const FIELDS = {
   DELIVERY_VISIBLE: 'delivery_visible',
   TOTAL_LABEL:    'total_label',
   BASKET_ITEMS:   'basket_items',
-  REMOVE_ITEMS:   'remove_items', // CheckboxGroup — multi-select removal
-  REMOVE_MODE:    'remove_mode',  // Radio: one | line
+  BASKET_CHOICE:  'basket_choice', // Summary RadioButtonsGroup — tap line to edit
+  REMOVE_ITEMS:   'remove_items', // Manage CheckboxGroup — multi-select removal
+  REMOVE_MODE:    'remove_mode',  // Radio: one | line | all | switch_restaurant
   REMOVE_MODE_OPTIONS: 'remove_mode_options',
+  // summary | manage (If branches; avoids DAG clones for “Warenkorb ändern”)
+  CART_UI_MODE:   'cart_ui_mode',
 
   // Menu Flow UI copy (filled from session.language on every exchange)
   UI_SCREEN_TITLE:     'ui_screen_title',
@@ -150,7 +158,11 @@ const FIELDS = {
   // Second EmbeddedLink: toggle2 | page2_next | page2_prev.
   UI_MULTI2_LINK_ACTION:  'ui_multi2_link_action',
   UI_FOOTER_LEFT_CAPTION: 'ui_footer_left_caption',
-  UI_CART_HINT:        'ui_cart_hint',
+  UI_CART_HINT:        'ui_cart_hint', // manage remove hint
+  UI_SUMMARY_HINT:     'ui_summary_hint', // tippen zum Bearbeiten
+  UI_CART_ITEMS_LABEL: 'ui_cart_items_label', // summary radio group label
+  UI_EDIT_CART:        'ui_edit_cart', // summary → manage link
+  UI_BACK_TO_SUMMARY:  'ui_back_to_summary', // manage → summary link
   UI_REMOVE_LABEL:     'ui_remove_label',
   UI_REMOVE_MODE_LABEL: 'ui_remove_mode_label',
   UI_REMOVE_SELECTED:  'ui_remove_selected',

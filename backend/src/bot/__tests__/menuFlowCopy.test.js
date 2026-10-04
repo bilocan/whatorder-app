@@ -33,9 +33,9 @@ describe('menuFlowCopy', () => {
     expect(checkoutReviewCopy('en')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Profile');
     expect(checkoutReviewCopy('de')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Profil');
     expect(checkoutReviewCopy('tr')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Profil');
-    expect(checkoutReviewCopy('en')[F.UI_BACK_TO_CART]).toBe('Back to cart');
-    expect(checkoutReviewCopy('de')[F.UI_BACK_TO_CART]).toBe('Zum Warenkorb');
-    expect(checkoutReviewCopy('tr')[F.UI_BACK_TO_CART]).toBe('Sepete dön');
+    expect(checkoutReviewCopy('en')[F.UI_BACK_TO_CART]).toBe('Edit cart');
+    expect(checkoutReviewCopy('de')[F.UI_BACK_TO_CART]).toBe('Warenkorb ändern');
+    expect(checkoutReviewCopy('tr')[F.UI_BACK_TO_CART]).toBe('Sepeti düzenle');
     for (const lang of ['de', 'en', 'tr']) {
       const copy = checkoutReviewCopy(lang);
       expect(copy[F.UI_MANAGE_ADDRESSES_LINK].length).toBeLessThanOrEqual(25);

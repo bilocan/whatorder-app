@@ -656,7 +656,7 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
     );
   });
 
-  test('valid restaurant list_reply → browsing state and catalog for selected restaurant', async () => {
+  test('valid restaurant list_reply → browsing state and welcome menu/switch when no order history', async () => {
     getLastOrderForCustomer.mockResolvedValue(null);
     getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
 
@@ -666,7 +666,14 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
       state: 'browsing',
       businessId: 'biz_b',
     }));
-    expectCatalogPrompt();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining(BIZ_B_INFO.name),
+      buttons: [
+        expect.objectContaining({ id: 'btn_welcome_menu' }),
+        expect.objectContaining({ id: 'btn_switch_restaurant' }),
+      ],
+    }));
+    expect(sendFlowMessage).not.toHaveBeenCalled();
   });
 
   test('valid restaurant list_reply → reorder prompt when order history exists', async () => {
@@ -822,7 +829,7 @@ describe('Multi-restaurant: newly added restaurant appears in picker', () => {
     expect(rows).toHaveLength(3);
   });
 
-  test('newly added restaurant (biz_c) is selectable and shows catalog', async () => {
+  test('newly added restaurant (biz_c) is selectable and shows welcome menu/switch', async () => {
     getLastOrderForCustomer.mockResolvedValue(null);
     getSession.mockResolvedValue({ state: 'selecting_restaurant', language: 'en', basket: [], businessId: null });
 
@@ -832,7 +839,13 @@ describe('Multi-restaurant: newly added restaurant appears in picker', () => {
       state: 'browsing',
       businessId: 'biz_c',
     }));
-    expectCatalogPrompt();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: [
+        expect.objectContaining({ id: 'btn_welcome_menu' }),
+        expect.objectContaining({ id: 'btn_switch_restaurant' }),
+      ],
+    }));
+    expect(sendFlowMessage).not.toHaveBeenCalled();
   });
 
   test('picker row title shows newly added restaurant name', async () => {
