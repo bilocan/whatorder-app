@@ -134,6 +134,27 @@ describe('RestaurantBundleImport', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
     expect(mockRun).not.toHaveBeenCalled();
   });
+
+  it('tells the admin to check overwrite when the restaurant id already exists', async () => {
+    mockPreview.mockResolvedValue({
+      businessId: 'biz_doner',
+      businessName: 'Döner Palace',
+      profile: 'setup',
+      exists: true,
+      warnings: ['Restaurant id already exists; import requires overwrite.'],
+      counts: { menu: 3 },
+      pii: false,
+      importToken: 'tok-commit',
+    });
+    await previewFile();
+    const button = screen.getByRole('button', { name: 'Import' });
+    expect(button).toBeDisabled();
+    expect(screen.getByText('This restaurant ID already exists. Check overwrite, then import.')).toBeInTheDocument();
+    fireEvent.click(button);
+    expect(mockRun).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Overwrite if this ID already exists' }));
+    expect(screen.getByRole('button', { name: 'Import' })).toBeEnabled();
+  });
 });
 
 describe('RestaurantBundleExport', () => {
