@@ -1,5 +1,5 @@
 const { patchSession } = require('./sessionStore');
-const { sendText } = require('../lib/whatsapp');
+const { sendText, sendButtonMessage } = require('../lib/whatsapp');
 const { t } = require('./templates');
 const { getBusinessInfo } = require('./menuService');
 const { startRestaurantBrowsing } = require('./reorder');
@@ -16,6 +16,8 @@ const {
 const POST_ORDER_CONTEXT_MS = 60 * 60 * 1000;
 const HANDOFF_FAILURE_THRESHOLD = 2;
 const HANDOFF_BUTTON_ID = 'btn_human_handoff';
+/** Finished orders: too-late cancel should re-offer reorder CTAs (same as terminal notify). */
+const TOO_LATE_REENTRY_STATUSES = new Set(['delivered', 'picked_up', 'cancelled', 'rejected']);
 
 const CANCEL_ORDER_PHRASES = new Set([
   'stornieren', 'storno', 'cancel order', 'bestellung stornieren', 'bestellung abbrechen',
@@ -190,8 +192,8 @@ async function handlePostOrderCancelButton({ from, session, lang, businessId }) 
     return true;
   }
 
-  // Order is already preparing / out for delivery — too late for self-serve cancel.
-  // No re-entry buttons here: order is still live; delivered/picked_up already offers reorder CTAs.
+  // Too late for self-serve cancel. Live kitchen: text only (order still active).
+  // Finished order: re-offer reorder CTAs so a stale Stornieren tap is not a dead-end.
   const info = await getBusinessInfo(businessId);
   const phone = info.alertPhone || info.phone || null;
   await sendText(
@@ -199,6 +201,20 @@ async function handlePostOrderCancelButton({ from, session, lang, businessId }) 
     t(cancelTooLateLocaleKey(order.status), lang, info.name, phone),
     phoneNumberId,
   );
+  if (TOO_LATE_REENTRY_STATUSES.has(order.status)) {
+    await sendButtonMessage(from, {
+      body: t('orderCompletePrompt', lang),
+      buttons: [
+        { id: 'btn_post_reorder', title: t('postReorderBtn', lang) },
+        { id: 'btn_post_restaurant', title: t('postCompleteRestaurantBtn', lang) },
+      ],
+    }, phoneNumberId);
+    try {
+      await patchSession(from, { pendingAmendBusinessId: businessId }, session);
+    } catch (patchErr) {
+      console.error('[postOrder] too-late reentry session patch failed:', patchErr.message);
+    }
+  }
   return true;
 }
 

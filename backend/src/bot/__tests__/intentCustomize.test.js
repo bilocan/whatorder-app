@@ -5,6 +5,7 @@ const {
   parseMultiReply,
   parsePerUnitModifierText,
   getDefaultMultiSelection,
+  firstGroupNeedingCustomizePrompt,
   allOptionIds,
 } = require('../intentCustomize');
 
@@ -54,6 +55,60 @@ describe('getDefaultMultiSelection', () => {
 
   test('custom mode returns owner-selected options', () => {
     expect(getDefaultMultiSelection(CUSTOM_DEFAULT_GROUP)).toEqual(['tomato', 'onion']);
+  });
+
+  test('exact-N all default falls back to empty when count would violate', () => {
+    const exact = {
+      ...OPTION_GROUPS[1],
+      multiDefault: 'all',
+      minSelect: 2,
+      maxSelect: 2,
+    };
+    // 3 options selected by "all" → out of range → empty fallback
+    expect(getDefaultMultiSelection(exact)).toEqual([]);
+  });
+
+  test('exact-N custom default kept when count matches', () => {
+    const exact = {
+      ...CUSTOM_DEFAULT_GROUP,
+      minSelect: 2,
+      maxSelect: 2,
+    };
+    expect(getDefaultMultiSelection(exact)).toEqual(['tomato', 'onion']);
+  });
+});
+
+describe('firstGroupNeedingCustomizePrompt', () => {
+  const exactInserts = {
+    id: 'inserts',
+    label: 'Inserts',
+    type: 'multi',
+    required: false,
+    minSelect: 2,
+    maxSelect: 2,
+    options: OPTION_GROUPS[1].options,
+  };
+  const item = { optionGroups: [OPTION_GROUPS[0], exactInserts] };
+
+  test('returns -1 when prefill satisfies exact-N', () => {
+    expect(firstGroupNeedingCustomizePrompt(item, {
+      protein: 'chicken',
+      inserts: ['tomato', 'salad'],
+    })).toBe(-1);
+  });
+
+  test('flags multi when prefill count violates exact-N', () => {
+    expect(firstGroupNeedingCustomizePrompt(item, {
+      protein: 'chicken',
+      inserts: ['tomato', 'salad', 'onion'],
+    })).toBe(1);
+  });
+
+  test('flags multi when prefill is empty array for exact-N', () => {
+    expect(firstGroupNeedingCustomizePrompt(item, {
+      protein: 'chicken',
+      inserts: [],
+    })).toBe(1);
   });
 });
 

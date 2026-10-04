@@ -96,6 +96,12 @@ describe('scoreLanguage', () => {
 });
 
 describe('getOverride', () => {
+  test('returns short codes en/de/tr', () => {
+    expect(getOverride('en')).toBe('en');
+    expect(getOverride('de')).toBe('de');
+    expect(getOverride('tr')).toBe('tr');
+  });
+
   test('returns "en" for "english"', () => {
     expect(getOverride('english')).toBe('en');
   });

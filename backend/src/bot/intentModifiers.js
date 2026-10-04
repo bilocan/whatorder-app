@@ -1,3 +1,5 @@
+const { selectionCountOk } = require('../lib/optionSelectBounds');
+
 const ALL_PHRASES = /\b(mit allem|mit allen|mit alles|alles dabei|everything|with everything|hepsi|komplett|full)\b/i;
 const EXCLUDE_RE = /\b(?:ohne|kein(?:e)?|no|without)\s+([\wäöüÄÖÜß-]+)/gi;
 
@@ -381,9 +383,11 @@ function isCustomizationSatisfied(item, selections) {
     if (group.type === 'single' && group.required) {
       if (!selections[group.id]) return false;
     }
-    if (group.type === 'multi' && group.required) {
+    if (group.type === 'multi') {
       const sel = selections[group.id];
-      if (!Array.isArray(sel) || !sel.length) return false;
+      const ids = Array.isArray(sel) ? sel : (sel ? [sel] : []);
+      if (group.required && !ids.length) return false;
+      if (!selectionCountOk(group, ids)) return false;
     }
   }
   return true;

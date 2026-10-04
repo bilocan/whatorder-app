@@ -209,8 +209,19 @@ export default function OptionGroupsPage() {
     await deleteDoc(doc(db, 'businesses', businessId, 'optionGroups', group.id));
   }
 
-  function typeLabel(type: OptionGroupTemplate['type']) {
-    return type === 'single' ? t('menu.optionGroups.typeSingle') : t('menu.optionGroups.typeMulti');
+  function typeLabel(group: OptionGroupTemplate) {
+    if (group.type === 'single') return t('menu.optionGroups.typeSingle');
+    if (
+      typeof group.minSelect === 'number'
+      && typeof group.maxSelect === 'number'
+      && group.minSelect === group.maxSelect
+    ) {
+      return t('menu.optionGroups.typeExactSummary', { count: group.minSelect });
+    }
+    if (typeof group.maxSelect === 'number' && group.minSelect == null) {
+      return t('menu.optionGroups.typeMaxSummary', { count: group.maxSelect });
+    }
+    return t('menu.optionGroups.typeMulti');
   }
 
   return (
@@ -306,7 +317,7 @@ export default function OptionGroupsPage() {
             <div>
               <span style={{ fontWeight: 600 }}>{group.label}</span>
               <span style={{ color: '#22c55e', fontSize: '0.75rem', marginLeft: '0.45rem' }}>
-                {typeLabel(group.type)}
+                {typeLabel(group)}
               </span>
               {customizationSummary([expanded]) && (
                 <span style={{ color: '#999', fontSize: '0.75rem', marginLeft: '0.45rem' }}>

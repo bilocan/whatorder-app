@@ -15,7 +15,7 @@ const {
   receiptsRef, receiptRef, receiptCounterRef, dealsRef, dealRef,
   ownerRef, ownersCollectionRef, ownersByBusinessIdsQuery, ownersByLegacyBusinessIdQuery, adminRef, processedMessageRef, stripeEventRef, configRef,
   settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, intentLearningsRef, commandLearningRef,
-  seededIntentRef, seededIntentsRef, seedOverridesRef, wallboardFeedRef,
+  seededIntentRef, seededIntentsRef, seedOverridesRef, wallboardFeedRef, customerPrefsRef,
 } = require('../collections');
 
 beforeEach(() => {
@@ -148,6 +148,14 @@ describe('adminRef', () => {
     adminRef('uid_abc');
     expect(db.collection).toHaveBeenCalledWith('admins');
     expect(db.doc).toHaveBeenCalledWith('uid_abc');
+  });
+});
+
+describe('customerPrefsRef', () => {
+  test('builds path: customerPrefs/{phone}', () => {
+    customerPrefsRef('+43699000001');
+    expect(db.collection).toHaveBeenCalledWith('customerPrefs');
+    expect(db.doc).toHaveBeenCalledWith('+43699000001');
   });
 });
 

@@ -8,7 +8,18 @@ const {
   formatFlowOptionTitle,
   computeLinePrice,
   selectionsFromOrderItemPayload,
+  normalizeMultiPayload,
 } = require('../lib/optionPricing');
+const {
+  chunkSelection,
+  parkSelectionsOffPage,
+  pageMaxSelectedItems,
+  needsMultiOnePick,
+  nextWrappedPage,
+  uniqueIds,
+  pageByGroupIdForSlots,
+  planFlowMultiSlots,
+} = require('../lib/flowMultiSlots');
 const {
   attachCategoryImages,
   attachMenuItemImages,
@@ -32,6 +43,11 @@ const {
   cartDoneCopy,
 } = require('../bot/menuFlowCopy');
 const { getDefaultMultiSelection } = require('../bot/intentCustomize');
+const {
+  MULTI_SELECT_CAP,
+  resolveSelectBounds,
+  selectionCountOk,
+} = require('../lib/optionSelectBounds');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -58,43 +74,180 @@ function decrementBasketAtIndices(basket, indices) {
 
 const FLOW_QTY_MAX = 10;
 
-/** Owner multiDefault (all/none/custom) → CheckboxGroup init ids. Same as chat intent. */
-function defaultMultiValueForItem(item) {
-  const multi = (item?.optionGroups ?? []).find(g => g.type === 'multi');
-  return multi ? getDefaultMultiSelection(multi) : [];
-}
-
 function normalizeMultiInit(multiValue) {
-  if (Array.isArray(multiValue)) return multiValue.filter(Boolean).map(String);
-  if (multiValue) return [String(multiValue)];
-  return [];
+  return normalizeMultiPayload(multiValue);
 }
 
-/** Ids for the item's multi (Beilagen) group, or []. */
-function multiOptionIds(item) {
-  const multi = (item?.optionGroups ?? []).find(g => g.type === 'multi');
-  return (multi?.options ?? []).map(o => String(o.id));
+function normalizePagePages(multiPage = 1, multi2Page = 1) {
+  return {
+    multiPage: Math.max(1, Number(multiPage) || 1),
+    multi2Page: Math.max(1, Number(multi2Page) || 1),
+  };
 }
 
-/** If every option is selected → clear; otherwise select all. */
-function toggleMultiSelection(item, currentValue) {
-  const allIds = multiOptionIds(item);
+function planItemMultiSlots(item, multiPage = 1, multi2Page = 1) {
+  const pages = normalizePagePages(multiPage, multi2Page);
+  const pageByGroupId = pageByGroupIdForSlots(item?.optionGroups, {
+    0: pages.multiPage,
+    1: pages.multi2Page,
+  });
+  return planFlowMultiSlots(item?.optionGroups, { pageByGroupId });
+}
+
+/** Paginated slot at Flow multi index 0 or 1. */
+function paginatedSlotAt(item, slotIndex, multiPage = 1, multi2Page = 1) {
+  const planned = planItemMultiSlots(item, multiPage, multi2Page);
+  const slot = planned[slotIndex];
+  return slot?.paginate ? slot : null;
+}
+
+function paginatedSlot(item, multiPage = 1, multi2Page = 1) {
+  return paginatedSlotAt(item, 0, multiPage, multi2Page);
+}
+
+/** Default CheckboxGroup values for planned Flow multi slots (chunk/page-aware). */
+function defaultFlowMultiValues(item, multiPage = 1, multi2Page = 1) {
+  const planned = planItemMultiSlots(item, multiPage, multi2Page);
+  return [0, 1, 2].map((i) => {
+    const slot = planned[i];
+    if (!slot) return [];
+    return chunkSelection(slot, getDefaultMultiSelection(slot.group));
+  });
+}
+
+function defaultMultiValueForItem(item, multiPage = 1, multi2Page = 1) {
+  return defaultFlowMultiValues(item, multiPage, multi2Page)[0];
+}
+
+function defaultMulti2ValueForItem(item, multiPage = 1, multi2Page = 1) {
+  return defaultFlowMultiValues(item, multiPage, multi2Page)[1];
+}
+
+function defaultMulti3ValueForItem(item, multiPage = 1, multi2Page = 1) {
+  return defaultFlowMultiValues(item, multiPage, multi2Page)[2];
+}
+
+function defaultMultiParkedForItem(item, multiPage = 1, multi2Page = 1) {
+  const slot = paginatedSlotAt(item, 0, multiPage, multi2Page);
+  if (!slot) return [];
+  return parkSelectionsOffPage(slot, getDefaultMultiSelection(slot.group));
+}
+
+function defaultMulti2ParkedForItem(item, multiPage = 1, multi2Page = 1) {
+  const slot = paginatedSlotAt(item, 1, multiPage, multi2Page);
+  if (!slot) return [];
+  return parkSelectionsOffPage(slot, getDefaultMultiSelection(slot.group));
+}
+
+/** Option ids visible in the Nth planned Flow multi slot. */
+function multiSlotOptionIds(item, index = 0, multiPage = 1, multi2Page = 1) {
+  const slot = planItemMultiSlots(item, multiPage, multi2Page)[index];
+  return (slot?.options ?? []).map((o) => String(o.id));
+}
+
+/** If every option in that Flow slot is selected → clear; otherwise select all. */
+function toggleMultiSelection(item, currentValue, index = 0, multiPage = 1, multi2Page = 1) {
+  const allIds = multiSlotOptionIds(item, index, multiPage, multi2Page);
   if (!allIds.length) return [];
   const selected = new Set(normalizeMultiInit(currentValue));
-  const allOn = allIds.every(id => selected.has(id));
+  const allOn = allIds.every((id) => selected.has(id));
   return allOn ? [] : allIds;
 }
 
-function multiToggleCopy(item, multiValue, lang) {
-  const allIds = multiOptionIds(item);
-  if (!allIds.length) {
-    return { [F.UI_MULTI_TOGGLE_VISIBLE]: false, [F.UI_MULTI_TOGGLE]: '' };
+function multiLinkFields(item, multiValue, lang, {
+  multiPage = 1, multi2Page = 1, formEditable = true,
+} = {}) {
+  const planned = planItemMultiSlots(item, multiPage, multi2Page);
+  const pageSlot = paginatedSlotAt(item, 0, multiPage, multi2Page);
+  if (!formEditable || !planned[0]) {
+    return {
+      [F.UI_MULTI_TOGGLE_VISIBLE]: false,
+      [F.UI_MULTI_TOGGLE]: '',
+      [F.UI_MULTI_LINK_ACTION]: 'toggle',
+    };
+  }
+  // Overflow lists use the first EmbeddedLink for page nav (Alle wählen would be page-local only).
+  // Always page_next (wraps to 1 on last page) so 3+ page lists are never stuck on the last two.
+  if (pageSlot && pageSlot.pageCount > 1) {
+    const target = nextWrappedPage(pageSlot.page, pageSlot.pageCount);
+    const onLast = pageSlot.page >= pageSlot.pageCount;
+    return {
+      [F.UI_MULTI_TOGGLE_VISIBLE]: true,
+      [F.UI_MULTI_TOGGLE]: onLast
+        ? t('menuFlowMultiPagePrev', lang, target, pageSlot.pageCount)
+        : t('menuFlowMultiPageNext', lang, target, pageSlot.pageCount),
+      [F.UI_MULTI_LINK_ACTION]: 'page_next',
+    };
+  }
+  const slot0 = planned[0];
+  const allIds = (slot0.options ?? []).map((o) => String(o.id));
+  const { maxSelect } = resolveSelectBounds(slot0.group);
+  if (!allIds.length || maxSelect != null) {
+    return {
+      [F.UI_MULTI_TOGGLE_VISIBLE]: false,
+      [F.UI_MULTI_TOGGLE]: '',
+      [F.UI_MULTI_LINK_ACTION]: 'toggle',
+    };
   }
   const selected = new Set(normalizeMultiInit(multiValue));
-  const allOn = allIds.every(id => selected.has(id));
+  const allOn = allIds.every((id) => selected.has(id));
   return {
     [F.UI_MULTI_TOGGLE_VISIBLE]: true,
     [F.UI_MULTI_TOGGLE]: t(allOn ? 'menuFlowMultiClearAll' : 'menuFlowMultiSelectAll', lang),
+    [F.UI_MULTI_LINK_ACTION]: 'toggle',
+  };
+}
+
+function multi2ToggleFields(item, multi2Value, lang, {
+  multiPage = 1, multi2Page = 1, formEditable = true,
+} = {}) {
+  const planned = planItemMultiSlots(item, multiPage, multi2Page);
+  const slot = planned[1];
+  const pageSlot = paginatedSlotAt(item, 1, multiPage, multi2Page);
+  if (!formEditable || !slot) {
+    return {
+      [F.UI_MULTI2_TOGGLE_VISIBLE]: false,
+      [F.UI_MULTI2_TOGGLE]: '',
+      [F.UI_MULTI2_LINK_ACTION]: 'toggle2',
+    };
+  }
+  if (pageSlot && pageSlot.pageCount > 1) {
+    const target = nextWrappedPage(pageSlot.page, pageSlot.pageCount);
+    const onLast = pageSlot.page >= pageSlot.pageCount;
+    return {
+      [F.UI_MULTI2_TOGGLE_VISIBLE]: true,
+      [F.UI_MULTI2_TOGGLE]: onLast
+        ? t('menuFlowMultiPagePrev', lang, target, pageSlot.pageCount)
+        : t('menuFlowMultiPageNext', lang, target, pageSlot.pageCount),
+      [F.UI_MULTI2_LINK_ACTION]: 'page2_next',
+    };
+  }
+  const allIds = (slot.options ?? []).map((o) => String(o.id));
+  const { maxSelect } = resolveSelectBounds(slot.group);
+  if (!allIds.length || maxSelect != null) {
+    return {
+      [F.UI_MULTI2_TOGGLE_VISIBLE]: false,
+      [F.UI_MULTI2_TOGGLE]: '',
+      [F.UI_MULTI2_LINK_ACTION]: 'toggle2',
+    };
+  }
+  const selected = new Set(normalizeMultiInit(multi2Value));
+  const allOn = allIds.every((id) => selected.has(id));
+  return {
+    [F.UI_MULTI2_TOGGLE_VISIBLE]: true,
+    [F.UI_MULTI2_TOGGLE]: t(allOn ? 'menuFlowMultiClearAll' : 'menuFlowMultiSelectAll', lang),
+    [F.UI_MULTI2_LINK_ACTION]: 'toggle2',
+  };
+}
+
+function multiToggleCopy(item, multiValue, multi2Value, lang, {
+  multiPage = 1,
+  multi2Page = 1,
+  formEditable = true,
+} = {}) {
+  return {
+    ...multiLinkFields(item, multiValue, lang, { multiPage, multi2Page, formEditable }),
+    ...multi2ToggleFields(item, multi2Value, lang, { multiPage, multi2Page, formEditable }),
   };
 }
 
@@ -104,6 +257,10 @@ function orderItemFormInit({
   qtyInit = 1,
   notes = '',
   multiValue = [],
+  multi2Value = [],
+  multi3Value = [],
+  multiOneValue = '',
+  multi2OneValue = '',
   slot1 = '',
   slot2 = '',
   slot3 = '',
@@ -112,23 +269,47 @@ function orderItemFormInit({
     [F.QTY]: qtyInit,
     [F.NOTES]: notes == null ? '' : String(notes),
     [F.MULTI_VALUE]: normalizeMultiInit(multiValue),
+    [F.MULTI2_VALUE]: normalizeMultiInit(multi2Value),
+    [F.MULTI3_VALUE]: normalizeMultiInit(multi3Value),
+    [F.MULTI_ONE_VALUE]: multiOneValue == null ? '' : String(multiOneValue),
+    [F.MULTI2_ONE_VALUE]: multi2OneValue == null ? '' : String(multi2OneValue),
     [F.SLOT1_VALUE]: slot1 == null ? '' : String(slot1),
     [F.SLOT2_VALUE]: slot2 == null ? '' : String(slot2),
     [F.SLOT3_VALUE]: slot3 == null ? '' : String(slot3),
   };
 }
 
+/** Visible page picks for the overflow multi slot (checkbox array or radio single). */
+function visibleOverflowSelection(multiValue, multiOneValue, useMultiOne) {
+  if (useMultiOne) {
+    const one = multiOneValue == null ? '' : String(multiOneValue);
+    return one ? [one] : [];
+  }
+  return normalizeMultiInit(multiValue);
+}
+
 /**
  * @param {'add'|'save'|'view_cart'} footerMode
  *   add — from menu: Footer adds the line.
  *   save — from cart Bearbeiten: Footer saves/replaces the line.
- *   view_cart — system back from cart: Footer returns without adding.
+ *   view_cart — system back from cart: Footer returns without adding; form read-only.
  */
 function buildOrderItemScreenData(item, lang, {
   qtyInit = 1,
   qtyError = null,
+  multiError = null,
+  multi2Error = null,
+  multi3Error = null,
   notes = '',
   multiValue = [],
+  multi2Value = [],
+  multi3Value = [],
+  multiOneValue = '',
+  multi2OneValue = '',
+  multiPage = 1,
+  multi2Page = 1,
+  multiParked = [],
+  multi2Parked = [],
   slot1 = '',
   slot2 = '',
   slot3 = '',
@@ -137,12 +318,65 @@ function buildOrderItemScreenData(item, lang, {
   const description = String(item.description || '').trim();
   const price = `€${Number(item.price).toFixed(2)}`;
   const copy = orderItemCopy(lang);
+  const formEditable = footerMode !== 'view_cart';
   if (footerMode === 'view_cart') {
     copy[F.UI_ADD_TO_CART] = t('confirmFlowBackToCart', lang);
   } else if (footerMode === 'save') {
     copy[F.UI_ADD_TO_CART] = t('menuFlowSave', lang);
   }
-  const multiInit = normalizeMultiInit(multiValue);
+  const pages = normalizePagePages(multiPage, multi2Page);
+  const parked = normalizeMultiInit(multiParked);
+  const parked2 = normalizeMultiInit(multi2Parked);
+  const planned = planItemMultiSlots(item, pages.multiPage, pages.multi2Page);
+  const pageSlot = planned[0]?.paginate ? planned[0] : null;
+  const pageSlot2 = planned[1]?.paginate ? planned[1] : null;
+  const { maxSelect: max0 } = resolveSelectBounds(planned[0]?.group);
+  const { maxSelect: max1 } = resolveSelectBounds(planned[1]?.group);
+  const useMultiOne = !!(planned[0] && needsMultiOnePick(max0, parked.length));
+  const useMulti2One = !!(planned[1] && needsMultiOnePick(max1, parked2.length));
+  // In radio mode the page pick lives in multi_*_one_value; keep checkbox empty.
+  const multiInit = useMultiOne ? [] : normalizeMultiInit(multiValue);
+  const multi2Init = useMulti2One ? [] : normalizeMultiInit(multi2Value);
+  const multi3Init = normalizeMultiInit(multi3Value);
+  const oneInit = useMultiOne
+    ? (multiOneValue
+      ? String(multiOneValue)
+      : (normalizeMultiInit(multiValue)[0] || ''))
+    : '';
+  const one2Init = useMulti2One
+    ? (multi2OneValue
+      ? String(multi2OneValue)
+      : (normalizeMultiInit(multi2Value)[0] || ''))
+    : '';
+  const toggle = multiToggleCopy(item, multiInit, multi2Init, lang, {
+    multiPage: pages.multiPage,
+    multi2Page: pages.multi2Page,
+    formEditable,
+  });
+  const slots = mapOptionSlots(item.optionGroups, lang, {
+    formEditable,
+    multiPage: pages.multiPage,
+    multi2Page: pages.multi2Page,
+    multiParked: parked,
+    multi2Parked: parked2,
+  });
+  // Disabled required radios can still block Footer; relax required in view_cart.
+  if (!formEditable) {
+    for (const n of [1, 2, 3]) slots[F[`SLOT${n}_REQUIRED`]] = false;
+  }
+  const qtyNum = Number(qtyInit);
+  const qtyForSummary = Number.isFinite(qtyNum) && qtyNum >= 1
+    ? Math.min(FLOW_QTY_MAX, qtyNum)
+    : 1;
+  const errorMessages = {};
+  if (qtyError) errorMessages[F.QTY] = qtyError;
+  if (multiError) {
+    errorMessages[useMultiOne ? F.MULTI_ONE_VALUE : F.MULTI_VALUE] = multiError;
+  }
+  if (multi2Error) {
+    errorMessages[useMulti2One ? F.MULTI2_ONE_VALUE : F.MULTI2_VALUE] = multi2Error;
+  }
+  if (multi3Error) errorMessages[F.MULTI3_VALUE] = multi3Error;
   return {
     ...copy,
     [F.ITEM_ID]: item.id,
@@ -150,14 +384,43 @@ function buildOrderItemScreenData(item, lang, {
     [F.ITEM_DESCRIPTION]: description,
     [F.ITEM_DESCRIPTION_VISIBLE]: !!description,
     [F.ITEM_PRICE]: price,
+    [F.FORM_EDITABLE]: formEditable,
+    [F.UI_QTY_SUMMARY]: `${t('menuFlowQtyLabel', lang)}: ${qtyForSummary}`,
     [F.UI_ORDER_FOOTER_ACTION]: footerMode === 'view_cart' ? 'back_to_cart' : 'add_item',
-    ...multiToggleCopy(item, multiInit, lang),
+    [F.MULTI_PAGE]: pageSlot ? pageSlot.page : 1,
+    [F.MULTI_PARKED]: pageSlot ? parked : [],
+    [F.MULTI2_PAGE]: pageSlot2 ? pageSlot2.page : 1,
+    [F.MULTI2_PARKED]: pageSlot2 ? parked2 : [],
+    ...toggle,
     [F.FORM_INIT_VALUES]: orderItemFormInit({
-      qtyInit, notes, multiValue: multiInit, slot1, slot2, slot3,
+      qtyInit,
+      notes,
+      multiValue: multiInit,
+      multi2Value: multi2Init,
+      multi3Value: multi3Init,
+      multiOneValue: oneInit,
+      multi2OneValue: one2Init,
+      slot1,
+      slot2,
+      slot3,
     }),
-    [F.ERROR_MESSAGES]: qtyError ? { [F.QTY]: qtyError } : {},
-    ...mapOptionSlots(item.optionGroups),
+    [F.ERROR_MESSAGES]: errorMessages,
+    ...slots,
   };
+}
+
+function multiSelectCountError(group, selectedIds, lang) {
+  if (!group || selectionCountOk(group, selectedIds)) return null;
+  const { minSelect, maxSelect } = resolveSelectBounds(group);
+  if (minSelect != null && maxSelect != null && minSelect === maxSelect) {
+    return t('menuFlowMultiExactError', lang, minSelect);
+  }
+  if (minSelect != null && maxSelect != null) {
+    return t('menuFlowMultiRangeError', lang, minSelect, maxSelect);
+  }
+  if (maxSelect != null) return t('menuFlowMultiMaxError', lang, maxSelect);
+  if (minSelect != null) return t('menuFlowMultiMinError', lang, minSelect);
+  return t('menuFlowMultiExactError', lang, 1);
 }
 
 /** WhatsApp Flows RadioButtonsGroup / CheckboxGroup title max length. */
@@ -217,9 +480,42 @@ async function menuBrowseData(menu, categoryId, lang) {
 }
 
 // Map item.optionGroups to flat top-level fields (nested object binding is unreliable in Flows).
-function mapOptionSlots(optionGroups = []) {
+function multiGroupLabel(group, lang, part = null, parts = null) {
+  let base = group.label || '';
+  const { minSelect, maxSelect } = resolveSelectBounds(group);
+  const split = part != null && parts != null;
+  if (minSelect != null && maxSelect != null && minSelect === maxSelect) {
+    base = split
+      ? t('menuFlowMultiExactTotalLabel', lang, base, minSelect)
+      : t('menuFlowMultiExactLabel', lang, base, minSelect);
+  } else if (minSelect != null && maxSelect != null) {
+    base = t('menuFlowMultiRangeLabel', lang, base, minSelect, maxSelect);
+  } else if (maxSelect != null) {
+    base = split
+      ? t('menuFlowMultiMaxTotalLabel', lang, base, maxSelect)
+      : t('menuFlowMultiMaxLabel', lang, base, maxSelect);
+  }
+  if (split) {
+    return t('menuFlowMultiPartLabel', lang, base, part, parts);
+  }
+  return base;
+}
+
+function mapOptionSlots(optionGroups = [], lang = 'de', {
+  formEditable = true,
+  multiPage = 1,
+  multi2Page = 1,
+  multiParked = [],
+  multi2Parked = [],
+} = {}) {
   const singles = optionGroups.filter(g => g.type === 'single').slice(0, 3);
-  const multi   = optionGroups.find(g => g.type === 'multi') || null;
+  const pageByGroupId = pageByGroupIdForSlots(optionGroups, {
+    0: multiPage,
+    1: multi2Page,
+  });
+  const planned = planFlowMultiSlots(optionGroups, { pageByGroupId });
+  const parkedCount = normalizeMultiInit(multiParked).length;
+  const parked2Count = normalizeMultiInit(multi2Parked).length;
 
   function slotFields(n, group) {
     if (!group) return {
@@ -239,18 +535,116 @@ function mapOptionSlots(optionGroups = []) {
     };
   }
 
+  function multiFields(slot, index, {
+    visibleKey, labelKey, optionsKey, maxKey, enabledKey,
+  }) {
+    if (!slot) {
+      return {
+        [visibleKey]: false,
+        [labelKey]: '',
+        [optionsKey]: [],
+        [maxKey]: MULTI_SELECT_CAP,
+        [enabledKey]: false,
+      };
+    }
+    const { maxSelect } = resolveSelectBounds(slot.group);
+    const options = (slot.options ?? []).map(o => ({
+      id: o.id,
+      title: formatFlowOptionTitle(o.label || o.name, o.price, o.id),
+    }));
+    const label = multiGroupLabel(slot.group, lang, slot.part, slot.parts);
+    const slotParkedCount = index === 0 ? parkedCount : (index === 1 ? parked2Count : 0);
+    // Remaining 1 (incl. maxSelect=1): RadioButtonsGroup replaces CheckboxGroup (Meta max > 1).
+    if ((index === 0 || index === 1) && needsMultiOnePick(maxSelect, slotParkedCount)) {
+      return {
+        [visibleKey]: false,
+        [labelKey]: label,
+        [optionsKey]: options,
+        [maxKey]: 2,
+        [enabledKey]: false,
+      };
+    }
+    let maxItems = maxSelect ?? MULTI_SELECT_CAP;
+    let enabled = !!formEditable;
+    if (slot.paginate && maxSelect != null) {
+      const remaining = Math.max(0, maxSelect - slotParkedCount);
+      maxItems = pageMaxSelectedItems(maxSelect, slotParkedCount);
+      // Quota fully used on other page(s): keep control visible but not interactive.
+      enabled = !!formEditable && remaining > 0;
+    } else if (maxSelect != null && maxSelect <= 1) {
+      // Defense: never bind Meta-illegal max-selected-items of 1.
+      maxItems = 2;
+      enabled = false;
+    }
+    return {
+      [visibleKey]: true,
+      [labelKey]: label,
+      [optionsKey]: options,
+      [maxKey]: maxItems,
+      [enabledKey]: enabled,
+    };
+  }
+
+  function multiOneRadioFields(slot, parkedForSlot, {
+    visibleKey, labelKey, optionsKey, enabledKey,
+  }) {
+    const empty = {
+      [visibleKey]: false,
+      [labelKey]: '',
+      [optionsKey]: [],
+      [enabledKey]: false,
+    };
+    if (!slot) return empty;
+    const { maxSelect } = resolveSelectBounds(slot.group);
+    if (!needsMultiOnePick(maxSelect, parkedForSlot)) return empty;
+    return {
+      [visibleKey]: true,
+      [labelKey]: multiGroupLabel(slot.group, lang, slot.part, slot.parts),
+      [optionsKey]: (slot.options ?? []).map(o => ({
+        id: o.id,
+        title: formatFlowOptionTitle(o.label || o.name, o.price, o.id),
+      })),
+      [enabledKey]: !!formEditable,
+    };
+  }
+
   return {
     ...slotFields(1, singles[0] ?? null),
     ...slotFields(2, singles[1] ?? null),
     ...slotFields(3, singles[2] ?? null),
-    [F.MULTI_VISIBLE]: !!multi,
-    [F.MULTI_LABEL]:   multi?.label ?? '',
-    [F.MULTI_OPTIONS]: multi
-      ? multi.options.map(o => ({
-        id: o.id,
-        title: formatFlowOptionTitle(o.label || o.name, o.price, o.id),
-      }))
-      : [],
+    ...multiFields(planned[0] ?? null, 0, {
+      visibleKey: F.MULTI_VISIBLE,
+      labelKey: F.MULTI_LABEL,
+      optionsKey: F.MULTI_OPTIONS,
+      maxKey: F.MULTI_MAX,
+      enabledKey: F.MULTI_ENABLED,
+    }),
+    ...multiOneRadioFields(planned[0] ?? null, parkedCount, {
+      visibleKey: F.MULTI_ONE_VISIBLE,
+      labelKey: F.MULTI_ONE_LABEL,
+      optionsKey: F.MULTI_ONE_OPTIONS,
+      enabledKey: F.MULTI_ONE_ENABLED,
+    }),
+    ...multiFields(planned[1] ?? null, 1, {
+      visibleKey: F.MULTI2_VISIBLE,
+      labelKey: F.MULTI2_LABEL,
+      optionsKey: F.MULTI2_OPTIONS,
+      maxKey: F.MULTI2_MAX,
+      enabledKey: F.MULTI2_ENABLED,
+    }),
+    ...multiOneRadioFields(planned[1] ?? null, parked2Count, {
+      visibleKey: F.MULTI2_ONE_VISIBLE,
+      labelKey: F.MULTI2_ONE_LABEL,
+      optionsKey: F.MULTI2_ONE_OPTIONS,
+      enabledKey: F.MULTI2_ONE_ENABLED,
+    }),
+    ...multiFields(planned[2] ?? null, 2, {
+      visibleKey: F.MULTI3_VISIBLE,
+      labelKey: F.MULTI3_LABEL,
+      optionsKey: F.MULTI3_OPTIONS,
+      maxKey: F.MULTI3_MAX,
+      enabledKey: F.MULTI3_ENABLED,
+    }),
   };
 }
 
@@ -372,6 +766,17 @@ function basketLineMenuId(line) {
   return line?.itemId || line?.menuItemId || null;
 }
 
+/** Most recent basket line for this menu item (system-back prefill). */
+function findLastBasketLineForItem(basket, item) {
+  if (!item || !Array.isArray(basket) || !basket.length) return null;
+  for (let i = basket.length - 1; i >= 0; i--) {
+    const line = basket[i];
+    if (basketLineMenuId(line) === item.id) return line;
+    if (String(line?.baseName || '').trim() === item.name) return line;
+  }
+  return null;
+}
+
 function resolveMenuItemForBasketLine(line, menu = []) {
   const id = basketLineMenuId(line);
   if (id) {
@@ -431,18 +836,154 @@ function prefillFromBasketLine(item, line) {
     ? line.flowSelections
     : {};
   const singles = (item?.optionGroups ?? []).filter(g => g.type === 'single').slice(0, 3);
-  const multi = (item?.optionGroups ?? []).find(g => g.type === 'multi') ?? null;
-  const multiSel = multi ? selections[multi.id] : null;
+  const multiPage = 1;
+  const multi2Page = 1;
+  const planned = planItemMultiSlots(item, multiPage, multi2Page);
+  const defaults = defaultFlowMultiValues(item, multiPage, multi2Page);
+  const multiValues = [0, 1, 2].map((i) => {
+    const slot = planned[i];
+    if (!slot) return [];
+    const stored = selections[slot.group.id];
+    if (stored != null) return chunkSelection(slot, stored);
+    return defaults[i];
+  });
+  const pageSlot = paginatedSlotAt(item, 0, multiPage, multi2Page);
+  const pageSlot2 = paginatedSlotAt(item, 1, multiPage, multi2Page);
+  const multiParked = pageSlot && selections[pageSlot.group.id] != null
+    ? parkSelectionsOffPage(pageSlot, selections[pageSlot.group.id])
+    : defaultMultiParkedForItem(item, multiPage, multi2Page);
+  const multi2Parked = pageSlot2 && selections[pageSlot2.group.id] != null
+    ? parkSelectionsOffPage(pageSlot2, selections[pageSlot2.group.id])
+    : defaultMulti2ParkedForItem(item, multiPage, multi2Page);
   return {
     qtyInit: Math.min(FLOW_QTY_MAX, Math.max(1, Number(line?.qty) || 1)),
     notes: notesFromBasketLine(line),
     slot1: singles[0] && selections[singles[0].id] != null ? String(selections[singles[0].id]) : '',
     slot2: singles[1] && selections[singles[1].id] != null ? String(selections[singles[1].id]) : '',
     slot3: singles[2] && selections[singles[2].id] != null ? String(selections[singles[2].id]) : '',
-    multiValue: multi
-      ? (multiSel != null ? normalizeMultiInit(multiSel) : defaultMultiValueForItem(item))
-      : [],
+    multiValue: multiValues[0],
+    multi2Value: multiValues[1],
+    multi3Value: multiValues[2],
+    multiPage,
+    multi2Page,
+    multiParked,
+    multi2Parked,
   };
+}
+
+/** Merge visible page picks + parked ids for an overflow multi group. */
+function mergePaginatedMultiSelection(visibleValue, multiParked) {
+  return uniqueIds([
+    ...normalizeMultiInit(multiParked),
+    ...normalizeMultiInit(visibleValue),
+  ]);
+}
+
+function flipMultiPage(item, {
+  multiPage,
+  multi2Page = 1,
+  multiValue,
+  multi2Value,
+  multi3Value,
+  multiOneValue,
+  multiParked,
+  direction,
+}) {
+  const pages = normalizePagePages(multiPage, multi2Page);
+  const values = [
+    normalizeMultiInit(multiValue),
+    normalizeMultiInit(multi2Value),
+    normalizeMultiInit(multi3Value),
+  ];
+  const slot = paginatedSlotAt(item, 0, pages.multiPage, pages.multi2Page);
+  if (!slot) {
+    return {
+      multiPage: pages.multiPage,
+      multiValue: values[0],
+      multi2Value: values[1],
+      multi3Value: values[2],
+      multiOneValue: '',
+      multiParked: normalizeMultiInit(multiParked),
+    };
+  }
+  const { maxSelect } = resolveSelectBounds(slot.group);
+  const curUseOne = needsMultiOnePick(maxSelect, normalizeMultiInit(multiParked).length);
+  const pagePicks = visibleOverflowSelection(values[0], multiOneValue, curUseOne);
+  const allSelected = mergePaginatedMultiSelection(pagePicks, multiParked);
+  const nextPage = direction === 'page_prev'
+    ? Math.max(1, pages.multiPage - 1)
+    : nextWrappedPage(pages.multiPage, slot.pageCount);
+  const nextSlot = paginatedSlotAt(item, 0, nextPage, pages.multi2Page);
+  const nextParked = parkSelectionsOffPage(nextSlot, allSelected);
+  const nextChunk = chunkSelection(nextSlot, allSelected);
+  const { maxSelect: nextMax } = resolveSelectBounds(nextSlot.group);
+  const nextUseOne = needsMultiOnePick(nextMax, nextParked.length);
+  return {
+    multiPage: nextPage,
+    multiValue: nextUseOne ? [] : nextChunk,
+    multi2Value: values[1],
+    multi3Value: values[2],
+    multiOneValue: nextUseOne ? (nextChunk[0] || '') : '',
+    multiParked: nextParked,
+  };
+}
+
+function flipMulti2Page(item, {
+  multiPage = 1,
+  multi2Page,
+  multiValue,
+  multi2Value,
+  multi3Value,
+  multi2OneValue,
+  multi2Parked,
+  direction,
+}) {
+  const pages = normalizePagePages(multiPage, multi2Page);
+  const values = [
+    normalizeMultiInit(multiValue),
+    normalizeMultiInit(multi2Value),
+    normalizeMultiInit(multi3Value),
+  ];
+  const slot = paginatedSlotAt(item, 1, pages.multiPage, pages.multi2Page);
+  if (!slot) {
+    return {
+      multi2Page: pages.multi2Page,
+      multiValue: values[0],
+      multi2Value: values[1],
+      multi3Value: values[2],
+      multi2OneValue: '',
+      multi2Parked: normalizeMultiInit(multi2Parked),
+    };
+  }
+  const { maxSelect } = resolveSelectBounds(slot.group);
+  const curUseOne = needsMultiOnePick(maxSelect, normalizeMultiInit(multi2Parked).length);
+  const pagePicks = visibleOverflowSelection(values[1], multi2OneValue, curUseOne);
+  const allSelected = mergePaginatedMultiSelection(pagePicks, multi2Parked);
+  const nextPage = direction === 'page2_prev'
+    ? Math.max(1, pages.multi2Page - 1)
+    : nextWrappedPage(pages.multi2Page, slot.pageCount);
+  const nextSlot = paginatedSlotAt(item, 1, pages.multiPage, nextPage);
+  const nextParked = parkSelectionsOffPage(nextSlot, allSelected);
+  const nextChunk = chunkSelection(nextSlot, allSelected);
+  const { maxSelect: nextMax } = resolveSelectBounds(nextSlot.group);
+  const nextUseOne = needsMultiOnePick(nextMax, nextParked.length);
+  return {
+    multi2Page: nextPage,
+    multiValue: values[0],
+    multi2Value: nextUseOne ? [] : nextChunk,
+    multi3Value: values[2],
+    multi2OneValue: nextUseOne ? (nextChunk[0] || '') : '',
+    multi2Parked: nextParked,
+  };
+}
+
+function appendMultiPartLabels(parts, payload, slots, valueKey, visibleKey, optionsKey) {
+  const multiVals = normalizeMultiInit(payload[valueKey]);
+  if (!slots[visibleKey] || !multiVals.length) return;
+  const labels = multiVals
+    .map(v => slots[optionsKey].find(o => o.id === v)?.title ?? v)
+    .join(', ');
+  parts.push(labels);
 }
 
 // Build a readable label from submitted slot values + the flat slots data returned by mapOptionSlots.
@@ -455,14 +996,16 @@ function buildCustomParts(item, payload, slots) {
     const opt = slots[F[`SLOT${n}_OPTIONS`]].find(o => o.id === val);
     parts.push(opt ? opt.title : val);
   }
-  const multiVals = Array.isArray(payload[F.MULTI_VALUE])
-    ? payload[F.MULTI_VALUE]
-    : (payload[F.MULTI_VALUE] ? [payload[F.MULTI_VALUE]] : []);
-  if (slots[F.MULTI_VISIBLE] && multiVals.length) {
-    const labels = multiVals
-      .map(v => slots[F.MULTI_OPTIONS].find(o => o.id === v)?.title ?? v)
-      .join(', ');
-    parts.push(labels);
+  // Merged multi selections (includes paginated parked ids not on the current page).
+  const selections = selectionsFromOrderItemPayload(item, payload, F);
+  for (const group of (item.optionGroups ?? []).filter((g) => g.type === 'multi')) {
+    const ids = selections[group.id];
+    if (!Array.isArray(ids) || !ids.length) continue;
+    const labels = ids.map((id) => {
+      const opt = (group.options ?? []).find((o) => o.id === id);
+      return formatFlowOptionTitle(opt?.label || id, opt?.price, id);
+    });
+    parts.push(labels.join(', '));
   }
   const detail = parts.join(', ');
   const displayName = detail ? `${item.name} — ${detail}` : item.name;
@@ -520,7 +1063,8 @@ router.post('/flow/exchange', async (req, res) => {
     }
 
     // ── BACK (refresh_on_back on cart screens) → ORDER_ITEM* ────────────────
-    // Footer = Zum Warenkorb (no EmbeddedLink). Menu browse always uses add.
+    // Footer = Zum Warenkorb; form read-only with last line prefill.
+    // Menu browse always uses add (editable).
     const CART_BACK_SCREENS = new Set([
       S.CART_REVIEW, S.CART_UPDATED, S.CART_EDITED, S.CART_EDITED_AGAIN,
     ]);
@@ -546,17 +1090,30 @@ router.post('/flow/exchange', async (req, res) => {
           },
         });
       }
+      const line = findLastBasketLineForItem(session.basket ?? [], item);
+      const prefill = line
+        ? prefillFromBasketLine(item, line)
+        : {
+          multiValue: defaultMultiValueForItem(item),
+          multi2Value: defaultMulti2ValueForItem(item),
+          multi3Value: defaultMulti3ValueForItem(item),
+          multiPage: 1,
+          multi2Page: 1,
+          multiParked: defaultMultiParkedForItem(item),
+          multi2Parked: defaultMulti2ParkedForItem(item),
+        };
       console.log(
-        '[flow/exchange] BACK cart→%s item=%s footer=view_cart',
+        '[flow/exchange] BACK cart→%s item=%s footer=view_cart editable=false line=%s',
         orderScreen,
         itemId,
+        line ? 'prefill' : 'defaults',
       );
       return reply({
         version,
         screen: orderScreen,
         data: buildOrderItemScreenData(item, lang, {
+          ...prefill,
           footerMode: 'view_cart',
-          multiValue: defaultMultiValueForItem(item),
         }),
       });
     }
@@ -618,6 +1175,12 @@ router.post('/flow/exchange', async (req, res) => {
         data: buildOrderItemScreenData(item, lang, {
           footerMode: 'add',
           multiValue: defaultMultiValueForItem(item),
+          multi2Value: defaultMulti2ValueForItem(item),
+          multi3Value: defaultMulti3ValueForItem(item),
+          multiPage: 1,
+          multi2Page: 1,
+          multiParked: defaultMultiParkedForItem(item),
+          multi2Parked: defaultMulti2ParkedForItem(item),
         }),
       });
     }
@@ -660,13 +1223,19 @@ router.post('/flow/exchange', async (req, res) => {
         });
       }
 
-      // Beilagen: one EmbeddedLink toggles all ↔ none from current form selection.
-      if (payload.multi_action === 'toggle') {
+      // Beilagen / Extras: Alle wählen or page flip on either EmbeddedLink.
+      if (
+        payload.multi_action === 'toggle'
+        || payload.multi_action === 'toggle2'
+        || payload.multi_action === 'page_next'
+        || payload.multi_action === 'page_prev'
+        || payload.multi_action === 'page2_next'
+        || payload.multi_action === 'page2_prev'
+      ) {
         const itemId = payload[F.ITEM_ID];
         const menu = await getMenu(businessId);
         const item = menu.find(m => m.id === itemId);
         if (!item) throw new Error(`Item not found: ${itemId}`);
-        const nextMulti = toggleMultiSelection(item, payload[F.MULTI_VALUE]);
         const footerMode = payload[F.UI_ORDER_FOOTER_ACTION] === 'back_to_cart'
           ? 'view_cart'
           : (screen === S.ORDER_ITEM ? 'add' : 'save');
@@ -675,18 +1244,75 @@ router.post('/flow/exchange', async (req, res) => {
         const qtyInit = Number.isFinite(qtyParsed) && qtyParsed >= 1
           ? Math.min(FLOW_QTY_MAX, qtyParsed)
           : 1;
+        const curPage = Math.max(1, Number(payload[F.MULTI_PAGE]) || 1);
+        const curPage2 = Math.max(1, Number(payload[F.MULTI2_PAGE]) || 1);
+        const formState = {
+          qtyInit,
+          notes: payload[F.NOTES] ?? '',
+          multiValue: payload[F.MULTI_VALUE],
+          multi2Value: payload[F.MULTI2_VALUE],
+          multi3Value: payload[F.MULTI3_VALUE],
+          multiOneValue: payload[F.MULTI_ONE_VALUE] ?? '',
+          multi2OneValue: payload[F.MULTI2_ONE_VALUE] ?? '',
+          multiPage: curPage,
+          multi2Page: curPage2,
+          multiParked: payload[F.MULTI_PARKED],
+          multi2Parked: payload[F.MULTI2_PARKED],
+          slot1: payload[F.SLOT1_VALUE] ?? '',
+          slot2: payload[F.SLOT2_VALUE] ?? '',
+          slot3: payload[F.SLOT3_VALUE] ?? '',
+          footerMode,
+        };
+        // view_cart is read-only: ignore toggle/page (links hidden; defense in depth).
+        if (footerMode !== 'view_cart') {
+          if (payload.multi_action === 'page_next' || payload.multi_action === 'page_prev') {
+            const flipped = flipMultiPage(item, {
+              multiPage: curPage,
+              multi2Page: curPage2,
+              multiValue: payload[F.MULTI_VALUE],
+              multi2Value: payload[F.MULTI2_VALUE],
+              multi3Value: payload[F.MULTI3_VALUE],
+              multiOneValue: payload[F.MULTI_ONE_VALUE],
+              multiParked: payload[F.MULTI_PARKED],
+              direction: payload.multi_action,
+            });
+            formState.multiPage = flipped.multiPage;
+            formState.multiValue = flipped.multiValue;
+            formState.multi2Value = flipped.multi2Value;
+            formState.multi3Value = flipped.multi3Value;
+            formState.multiOneValue = flipped.multiOneValue;
+            formState.multiParked = flipped.multiParked;
+          } else if (payload.multi_action === 'page2_next' || payload.multi_action === 'page2_prev') {
+            const flipped = flipMulti2Page(item, {
+              multiPage: curPage,
+              multi2Page: curPage2,
+              multiValue: payload[F.MULTI_VALUE],
+              multi2Value: payload[F.MULTI2_VALUE],
+              multi3Value: payload[F.MULTI3_VALUE],
+              multi2OneValue: payload[F.MULTI2_ONE_VALUE],
+              multi2Parked: payload[F.MULTI2_PARKED],
+              direction: payload.multi_action,
+            });
+            formState.multi2Page = flipped.multi2Page;
+            formState.multiValue = flipped.multiValue;
+            formState.multi2Value = flipped.multi2Value;
+            formState.multi3Value = flipped.multi3Value;
+            formState.multi2OneValue = flipped.multi2OneValue;
+            formState.multi2Parked = flipped.multi2Parked;
+          } else if (payload.multi_action === 'toggle') {
+            formState.multiValue = toggleMultiSelection(
+              item, payload[F.MULTI_VALUE], 0, curPage, curPage2,
+            );
+          } else {
+            formState.multi2Value = toggleMultiSelection(
+              item, payload[F.MULTI2_VALUE], 1, curPage, curPage2,
+            );
+          }
+        }
         return reply({
           version,
           screen,
-          data: buildOrderItemScreenData(item, lang, {
-            qtyInit,
-            notes: payload[F.NOTES] ?? '',
-            multiValue: nextMulti,
-            slot1: payload[F.SLOT1_VALUE] ?? '',
-            slot2: payload[F.SLOT2_VALUE] ?? '',
-            slot3: payload[F.SLOT3_VALUE] ?? '',
-            footerMode,
-          }),
+          data: buildOrderItemScreenData(item, lang, formState),
         });
       }
 
@@ -700,6 +1326,10 @@ router.post('/flow/exchange', async (req, res) => {
       const sessionSnap = await sessionRef(phone).get();
       const session = sessionSnap.exists ? sessionSnap.data() : {};
 
+      const curPage = Math.max(1, Number(payload[F.MULTI_PAGE]) || 1);
+      const curPage2 = Math.max(1, Number(payload[F.MULTI2_PAGE]) || 1);
+      const curParked = normalizeMultiInit(payload[F.MULTI_PARKED]);
+      const curParked2 = normalizeMultiInit(payload[F.MULTI2_PARKED]);
       const parsedQty = parseInt(qtyId, 10);
       if (!Number.isFinite(parsedQty) || parsedQty < 1 || parsedQty > FLOW_QTY_MAX) {
         const keep = Number.isFinite(parsedQty) ? Math.min(99, Math.max(0, parsedQty)) : 1;
@@ -712,6 +1342,14 @@ router.post('/flow/exchange', async (req, res) => {
             // Keep the user's other inputs while correcting qty.
             notes,
             multiValue: payload[F.MULTI_VALUE],
+            multi2Value: payload[F.MULTI2_VALUE],
+            multi3Value: payload[F.MULTI3_VALUE],
+            multiOneValue: payload[F.MULTI_ONE_VALUE] ?? '',
+            multi2OneValue: payload[F.MULTI2_ONE_VALUE] ?? '',
+            multiPage: curPage,
+            multi2Page: curPage2,
+            multiParked: curParked,
+            multi2Parked: curParked2,
             slot1: payload[F.SLOT1_VALUE] ?? '',
             slot2: payload[F.SLOT2_VALUE] ?? '',
             slot3: payload[F.SLOT3_VALUE] ?? '',
@@ -720,7 +1358,50 @@ router.post('/flow/exchange', async (req, res) => {
         });
       }
       const qty = parsedQty;
-      const slots = mapOptionSlots(item.optionGroups);
+      const multiVals = normalizeMultiInit(payload[F.MULTI_VALUE]);
+      const multi2Vals = normalizeMultiInit(payload[F.MULTI2_VALUE]);
+      const multi3Vals = normalizeMultiInit(payload[F.MULTI3_VALUE]);
+      const multiOneVal = payload[F.MULTI_ONE_VALUE] == null ? '' : String(payload[F.MULTI_ONE_VALUE]);
+      const multi2OneVal = payload[F.MULTI2_ONE_VALUE] == null ? '' : String(payload[F.MULTI2_ONE_VALUE]);
+      const planned = planItemMultiSlots(item, curPage, curPage2);
+      const mergedMulti = selectionsFromOrderItemPayload(item, payload, F);
+      const slotErrors = [null, null, null];
+      const seenGroups = new Set();
+      planned.forEach((slot, i) => {
+        const groupId = slot.group.id;
+        if (seenGroups.has(groupId)) return;
+        seenGroups.add(groupId);
+        const err = multiSelectCountError(slot.group, mergedMulti[groupId] || [], lang);
+        if (err) slotErrors[i] = err;
+      });
+      const [multiError, multi2Error, multi3Error] = slotErrors;
+      if (multiError || multi2Error || multi3Error) {
+        return reply({
+          version,
+          screen,
+          data: buildOrderItemScreenData(item, lang, {
+            qtyInit: qty,
+            multiError,
+            multi2Error,
+            multi3Error,
+            notes,
+            multiValue: multiVals,
+            multi2Value: multi2Vals,
+            multi3Value: multi3Vals,
+            multiOneValue: multiOneVal,
+            multi2OneValue: multi2OneVal,
+            multiPage: curPage,
+            multi2Page: curPage2,
+            multiParked: curParked,
+            multi2Parked: curParked2,
+            slot1: payload[F.SLOT1_VALUE] ?? '',
+            slot2: payload[F.SLOT2_VALUE] ?? '',
+            slot3: payload[F.SLOT3_VALUE] ?? '',
+            footerMode: screen === S.ORDER_ITEM ? 'add' : 'save',
+          }),
+        });
+      }
+      const slots = mapOptionSlots(item.optionGroups, lang);
       const { baseName, detail, displayName } = buildCustomParts(item, payload, slots);
       const itemNotes = notes.trim() || null;
       const selections = selectionsFromOrderItemPayload(item, payload, F);

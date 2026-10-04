@@ -30,6 +30,11 @@ const {
 } = require('../bot/resolveTypedDeliveryAddress');
 const { checkoutReviewCopy, checkoutManageCopy, checkoutCartCopy, cartRemoveModeOptions } = require('../bot/menuFlowCopy');
 const {
+  isSupportedLang,
+  setPreferredLanguage,
+  languageRadioOptions,
+} = require('../bot/customerLanguage');
+const {
   loadCustomerAddresses,
   saveCustomerAddress,
   saveCustomerName,
@@ -38,7 +43,12 @@ const {
 } = require('../bot/customerAddresses');
 const { loadCheckoutTotals } = require('../bot/checkoutDeal');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
-const { attachAddressListImages, addressHomeIconBase64, attachListImages } = require('../lib/flowImages');
+const {
+  attachAddressListImages,
+  attachLanguageListImages,
+  addressHomeIconBase64,
+  attachListImages,
+} = require('../lib/flowImages');
 
 const REVIEW_SCREENS = new Set([
   S.CHECKOUT_REVIEW,
@@ -417,6 +427,8 @@ async function buildManageData({
     [F.CUSTOMER_NAME]: Object.prototype.hasOwnProperty.call(payload, F.CUSTOMER_NAME)
       ? String(payload[F.CUSTOMER_NAME] ?? '')
       : (trimmedName(profile.customerName) || ''),
+    [F.LANGUAGE_CHOICE]: isSupportedLang(lang) ? lang : 'de',
+    [F.LANGUAGE_OPTIONS]: await attachLanguageListImages(languageRadioOptions(t, lang)),
     // Always present: the manage screen binds a TextCaption to these, and Meta needs every
     // declared data field on every response for the screen.
     [F.ERROR_MESSAGE]: errorKey ? t(errorKey, lang) : '',
@@ -1130,6 +1142,7 @@ function logicalCheckoutScreen(payload = {}) {
     || action === 'select_address'
     || action === 'apply_found'
     || action === 'manage_edit_link'
+    || action === 'set_language'
   ) {
     return mode === 'cart' ? S.CHECKOUT_CART : S.ADDRESS_MANAGE;
   }
@@ -1340,6 +1353,42 @@ async function dispatchCheckoutExchange({
   }
 
   const profile = await loadCustomerAddresses(phone, businessId);
+
+  if (action === 'set_language' && MANAGE_SCREENS.has(screen)) {
+    const nextLang = String(payload[F.LANGUAGE_CHOICE] || '').trim();
+    if (!isSupportedLang(nextLang)) {
+      return manageResponse({
+        screen,
+        profile: profileWithSessionName(profile, session),
+        lang,
+        payload,
+        version,
+        editVisible: true,
+      });
+    }
+    let nextProfile = profileWithSessionName(profile, session);
+    let nextSession = session;
+    const named = await applyNameFromManagePayload({
+      phone, businessId, payload, profile: nextProfile, session, ref,
+    });
+    if (named.ok) {
+      nextProfile = named.profile;
+      nextSession = named.session;
+    }
+    await setPreferredLanguage(phone, nextLang);
+    await ref.set({ language: nextLang, updatedAt: new Date() }, { merge: true });
+    nextSession = { ...nextSession, language: nextLang };
+    const nextScreen = returnReviewScreenForManage(screen) || S.CHECKOUT_REVIEW;
+    return buildReviewReturnResponse({
+      screen: nextScreen,
+      profile: nextProfile,
+      session: nextSession,
+      ref,
+      version,
+      businessId,
+      phone,
+    });
+  }
 
   if (action === 'select_address') {
     if (MANAGE_SCREENS.has(screen)) {

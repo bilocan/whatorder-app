@@ -383,6 +383,56 @@ async function attachAddressListImages(options, newAddressId = 'addr_new') {
   return attachListImages(options, { flowListImageById });
 }
 
+/** Rounded flag thumb for checkout language rows (de / en / tr). */
+async function languageFlagIconBase64(lang) {
+  const key = `icon:lang-flag-${lang}-v1`;
+  const cached = cacheGet(key);
+  if (cached) return cached;
+
+  let inner = '';
+  if (lang === 'de') {
+    // Black / red / gold horizontal stripes
+    inner = '<rect y="18" width="96" height="20" fill="#000000"/>'
+      + '<rect y="38" width="96" height="20" fill="#DD0000"/>'
+      + '<rect y="58" width="96" height="20" fill="#FFCE00"/>';
+  } else if (lang === 'tr') {
+    // Red field + white crescent / star (simplified)
+    inner = '<rect y="18" width="96" height="60" fill="#E30A17"/>'
+      + '<circle cx="42" cy="48" r="14" fill="#FFFFFF"/>'
+      + '<circle cx="48" cy="48" r="11" fill="#E30A17"/>'
+      + '<circle cx="58" cy="48" r="5" fill="#FFFFFF"/>';
+  } else {
+    // Simplified UK-style: blue field + red cross + white trim
+    inner = '<rect y="18" width="96" height="60" fill="#012169"/>'
+      + '<path stroke="#FFFFFF" stroke-width="14" d="M0 48h96M48 18v60"/>'
+      + '<path stroke="#C8102E" stroke-width="8" d="M0 48h96M48 18v60"/>'
+      + '<path stroke="#FFFFFF" stroke-width="8" d="M0 18L96 78M96 18L0 78"/>'
+      + '<path stroke="#C8102E" stroke-width="4" d="M0 18L96 78M96 18L0 78"/>';
+  }
+
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${THUMB_SIZE}" height="${THUMB_SIZE}" viewBox="0 0 96 96">`
+    + '<rect width="96" height="96" rx="12" fill="#F3F4F6"/>'
+    + inner
+    + '</svg>',
+  );
+  const buf = await sharp(svg).png({ compressionLevel: 9 }).toBuffer();
+  const b64 = buf.toString('base64');
+  cacheSet(key, b64);
+  return b64;
+}
+
+/**
+ * Attach flag thumbs to language radio options.
+ * @param {Array<{id:string,title:string}>} options
+ */
+async function attachLanguageListImages(options) {
+  const langs = ['de', 'en', 'tr'];
+  const flags = await Promise.all(langs.map((id) => languageFlagIconBase64(id)));
+  const byId = Object.fromEntries(langs.map((id, i) => [id, flags[i]]));
+  return attachListImages(options, { flowListImageById: byId });
+}
+
 module.exports = {
   colorTileBase64,
   colorForSeed,
@@ -393,7 +443,9 @@ module.exports = {
   clearCartIconBase64,
   addressHomeIconBase64,
   addressNewIconBase64,
+  languageFlagIconBase64,
   attachAddressListImages,
+  attachLanguageListImages,
   attachListImages,
   attachCategoryImages,
   attachMenuItemImages,
