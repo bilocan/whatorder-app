@@ -239,12 +239,16 @@ async function uploadAssets(assets, { sourceBusinessId, targetBusinessId } = {})
       uploaded.push(objectPath);
     });
   } catch (err) {
+    let restored = false;
     try {
       await restoreLive(bucket, backups, promoted);
+      restored = true;
     } catch (restoreErr) {
       console.error('[restaurant-bundle] photo restore failed', restoreErr.message);
     }
-    await deletePaths(bucket, staged.concat(backups.map((entry) => entry.backup).filter(Boolean)));
+    const backupPaths = backups.map((entry) => entry.backup).filter(Boolean);
+    // A failed restore is the only remaining copy of the previous photos.
+    await deletePaths(bucket, restored ? staged.concat(backupPaths) : staged);
     throw err;
   }
   await deletePaths(bucket, staged.concat(backups.map((entry) => entry.backup).filter(Boolean)));

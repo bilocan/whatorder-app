@@ -246,6 +246,43 @@ test('failed promote restores live photos already replaced', async () => {
   expect([...store.objects.keys()].some((key) => key.startsWith('bundle-import-'))).toBe(false);
 });
 
+test('failed restore keeps photo backups', async () => {
+  const objects = new Map([
+    ['menu-photos/biz_t/a.jpg', 'old-a'],
+    ['menu-photos/biz_t/b.jpg', 'old-b'],
+  ]);
+  admin.storage.mockReturnValue({
+    bucket: () => ({
+      file: (objectPath) => ({
+        name: objectPath,
+        save: async (buffer) => {
+          objects.set(objectPath, buffer.toString());
+        },
+        exists: async () => [objects.has(objectPath)],
+        copy: async (dest) => {
+          const destPath = typeof dest === 'string' ? dest : dest.name;
+          if (objectPath.startsWith('bundle-import-stage/') && destPath === 'menu-photos/biz_t/b.jpg') {
+            throw new Error('promote failed');
+          }
+          if (objectPath.startsWith('bundle-import-backup/') && destPath === 'menu-photos/biz_t/a.jpg') {
+            throw new Error('restore failed');
+          }
+          objects.set(destPath, objects.get(objectPath));
+        },
+        delete: async () => { objects.delete(objectPath); },
+      }),
+    }),
+  });
+
+  await expect(uploadAssets([
+    { objectPath: 'menu-photos/biz_t/a.jpg', buffer: Buffer.from('new-a') },
+    { objectPath: 'menu-photos/biz_t/b.jpg', buffer: Buffer.from('new-b') },
+  ], { sourceBusinessId: 'biz_t', targetBusinessId: 'biz_t' })).rejects.toThrow('promote failed');
+
+  const backups = [...objects.entries()].filter(([key]) => key.startsWith('bundle-import-backup/'));
+  expect(backups.map(([, value]) => value).sort()).toEqual(['old-a', 'old-b']);
+});
+
 test('uploadAssets stops scheduling after a save failure', async () => {
   const started = [];
   admin.storage.mockReturnValue({
