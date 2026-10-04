@@ -78,6 +78,21 @@ describe('AdminPhoneLineContext', () => {
     expect(localStorage.getItem('whatorder-admin-phone-line')).toBe('line_b');
   });
 
+  it('keeps the build phone line when the routing list fails', async () => {
+    vi.stubEnv('VITE_WHATSAPP_PHONE_NUMBER_ID', '1230087620193335');
+    mockOnSnapshot.mockImplementation((_ref: unknown, _onNext: unknown, onError?: (err: Error) => void) => {
+      onError?.(new Error('Missing or insufficient permissions.'));
+      return vi.fn();
+    });
+
+    const { result } = renderHook(() => useAdminPhoneLine(), {
+      wrapper: AdminPhoneLineProvider,
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.phoneNumberId).toBe('1230087620193335');
+  });
+
   it('writes displayNumber to phoneRouting when updateDisplayNumber is called', async () => {
     mockPhoneRoutingDocs([{ id: 'line_a' }]);
 
