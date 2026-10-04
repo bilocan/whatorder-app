@@ -80,8 +80,8 @@ async function listMenuPhotoRefs(businessId) {
   }
 }
 
-const DOWNLOAD_CONCURRENCY = 8;
-const DOWNLOAD_TIMEOUT_MS = 30_000;
+const ASSET_IO_CONCURRENCY = 8;
+const ASSET_IO_TIMEOUT_MS = 30_000;
 
 async function eachLimit(items, limit, fn) {
   const list = items || [];
@@ -108,14 +108,14 @@ async function downloadAssets(refs) {
     seen.add(refKey(ref));
     unique.push(ref);
   }
-  await eachLimit(unique, DOWNLOAD_CONCURRENCY, async (ref) => {
+  await eachLimit(unique, ASSET_IO_CONCURRENCY, async (ref) => {
     try {
       const file = tenantBucket(ref.bucket).file(ref.objectPath);
       // Skip the extra metadata round trip. Photos live in us-west1 and Test
       // Cloud Run is europe-west3, so one call per file already dominates.
       const [buffer] = await file.download({
         validation: false,
-        timeout: DOWNLOAD_TIMEOUT_MS,
+        timeout: ASSET_IO_TIMEOUT_MS,
       });
       assets.push({
         name: zipAssetName(ref.objectPath),
@@ -132,6 +132,7 @@ async function downloadAssets(refs) {
 
 async function uploadAssets(assets, { sourceBusinessId, targetBusinessId } = {}) {
   const uploaded = [];
+  const jobs = [];
   for (const asset of assets || []) {
     const objectPath = remapObjectPath(
       asset.objectPath || objectPathFromZipName(asset.name),
@@ -139,12 +140,16 @@ async function uploadAssets(assets, { sourceBusinessId, targetBusinessId } = {})
       targetBusinessId,
     );
     if (!objectPath || !asset.buffer) continue;
+    jobs.push({ objectPath, asset });
+  }
+  await eachLimit(jobs, ASSET_IO_CONCURRENCY, async ({ objectPath, asset }) => {
     await tenantBucket().file(objectPath).save(asset.buffer, {
       contentType: asset.contentType || contentTypeFor(objectPath),
       resumable: false,
+      timeout: ASSET_IO_TIMEOUT_MS,
     });
     uploaded.push(objectPath);
-  }
+  });
   return uploaded;
 }
 

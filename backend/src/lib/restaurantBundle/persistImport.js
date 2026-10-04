@@ -88,10 +88,14 @@ async function persistImport(result, {
     }
   }
 
-  await uploadAssets(assets, {
+  const uploadStarted = Date.now();
+  const uploaded = await uploadAssets(assets, {
     sourceBusinessId: sourceBusinessId || result.business?.id,
     targetBusinessId: businessId,
   });
+  console.log(
+    `[restaurant-bundle] import ${businessId} profile=${profile} assets=${uploaded.length} uploadMs=${Date.now() - uploadStarted}`,
+  );
 
   await businessRef(businessId).set(prepared(result.business), { merge: false });
 

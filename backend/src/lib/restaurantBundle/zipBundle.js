@@ -4,8 +4,11 @@ const { pipeline } = require('stream/promises');
 const archiver = require('archiver');
 const unzipper = require('unzipper');
 
-const MAX_ZIP_BYTES = 80 * 1024 * 1024;
-const MAX_UNCOMPRESSED_BYTES = 120 * 1024 * 1024;
+// Pizza Favori Test setup is ~86 MiB of JPEG (208 photos). The old 80 MiB
+// cap returned 413 on import. Both caps stay under the 512Mi Cloud Run
+// instance while the ZIP buffer and unpacked photos are in memory together.
+const MAX_ZIP_BYTES = 160 * 1024 * 1024;
+const MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;
 const MAX_ZIP_FILES = 8000;
 const MAX_ENTRY_BYTES = 30 * 1024 * 1024;
 

@@ -10,6 +10,7 @@ const {
   zipAssetName,
   objectPathFromZipName,
   downloadAssets,
+  uploadAssets,
 } = require('../assets');
 
 test('collectStorageRefs picks cover, menu photos, and receipt paths', () => {
@@ -80,6 +81,38 @@ test('downloadAssets keeps successful photos and skips failures', async () => {
   ]);
   expect(assets.find((a) => a.objectPath.endsWith('a.jpg')).buffer.toString()).toBe('jpeg');
   expect(skipped).toEqual(['menu-photos/biz_1/missing.jpg']);
+  expect(maxInFlight).toBeGreaterThan(1);
+});
+
+test('uploadAssets remaps paths and uploads in parallel', async () => {
+  const saved = [];
+  let inFlight = 0;
+  let maxInFlight = 0;
+  admin.storage.mockReturnValue({
+    bucket: () => ({
+      file: (objectPath) => ({
+        save: async (buffer) => {
+          inFlight += 1;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          await new Promise((resolve) => setTimeout(resolve, 15));
+          inFlight -= 1;
+          saved.push({ objectPath, text: buffer.toString() });
+        },
+      }),
+    }),
+  });
+
+  const uploaded = await uploadAssets([
+    { objectPath: 'menu-photos/biz_old/a.jpg', buffer: Buffer.from('a'), contentType: 'image/jpeg' },
+    { objectPath: 'menu-photos/biz_old/b.jpg', buffer: Buffer.from('b'), contentType: 'image/jpeg' },
+    { name: 'assets/no-bytes.jpg' },
+  ], { sourceBusinessId: 'biz_old', targetBusinessId: 'biz_new' });
+
+  expect(saved.map((s) => s.objectPath).sort()).toEqual([
+    'menu-photos/biz_new/a.jpg',
+    'menu-photos/biz_new/b.jpg',
+  ]);
+  expect(uploaded.slice().sort()).toEqual(saved.map((s) => s.objectPath).sort());
   expect(maxInFlight).toBeGreaterThan(1);
 });
 
