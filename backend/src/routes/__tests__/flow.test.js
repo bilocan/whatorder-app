@@ -22,7 +22,9 @@ jest.mock('../../lib/flowImages', () => ({
     'alt-text': i.title,
   }))),
   attachAddressListImages: jest.fn(async (options) => options),
+  attachLanguageListImages: jest.fn(async (options) => options),
   addressHomeIconBase64: jest.fn(async () => 'AA=='),
+  languageFlagIconBase64: jest.fn(async () => 'AA=='),
 }));
 jest.mock('../../bot/checkoutDeal', () => ({
   loadCheckoutTotals: jest.fn(async ({ basket, session = {}, info = {} }) => {

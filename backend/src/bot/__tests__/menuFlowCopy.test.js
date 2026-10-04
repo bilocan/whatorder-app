@@ -30,9 +30,9 @@ describe('menuFlowCopy', () => {
   });
 
   test('checkout review links stay within the EmbeddedLink character cap', () => {
-    expect(checkoutReviewCopy('en')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Change name or address');
-    expect(checkoutReviewCopy('de')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Name oder Adresse ändern');
-    expect(checkoutReviewCopy('tr')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Ad veya adres değiştir');
+    expect(checkoutReviewCopy('en')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Profile');
+    expect(checkoutReviewCopy('de')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Profil');
+    expect(checkoutReviewCopy('tr')[F.UI_MANAGE_ADDRESSES_LINK]).toBe('Profil');
     expect(checkoutReviewCopy('en')[F.UI_BACK_TO_CART]).toBe('Back to cart');
     expect(checkoutReviewCopy('de')[F.UI_BACK_TO_CART]).toBe('Zum Warenkorb');
     expect(checkoutReviewCopy('tr')[F.UI_BACK_TO_CART]).toBe('Sepete dön');

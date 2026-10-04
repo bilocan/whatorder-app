@@ -62,6 +62,12 @@ const adminRef = (uid) =>
 const sessionRef = (phone) =>
   db.collection('sessions').doc(phone);
 
+// customerPrefs/{phone} → { preferredLanguage, languageChosenAt, updatedAt }
+// Phone-level (not restaurant-scoped): language follows the customer across venues.
+// Callers should pass digits-only ids (see bot/customerLanguage.js + normalizeCustomerPhone).
+const customerPrefsRef = (phone) =>
+  db.collection('customerPrefs').doc(phone);
+
 // processedMessages/{wamid} → { processedAt, businessId }  (idempotency guard for WhatsApp webhooks)
 const processedMessageRef = (wamid) =>
   db.collection('processedMessages').doc(wamid);
@@ -118,6 +124,7 @@ module.exports = {
   phoneRoutingRef, phoneRoutingByBusinessQuery,
   ownerRef, ownersCollectionRef, ownersByBusinessIdsQuery, ownersByLegacyBusinessIdQuery, adminRef,
   sessionRef,
+  customerPrefsRef,
   processedMessageRef,
   stripeEventRef,
   configRef,

@@ -2,6 +2,11 @@ jest.mock('../../lib/firebase', () => ({ db: {}, admin: {} }));
 jest.mock('../../lib/collections');
 jest.mock('../../bot/menuService');
 jest.mock('../../bot/customerAddresses');
+jest.mock('../../bot/customerLanguage', () => ({
+  ...jest.requireActual('../../bot/customerLanguage'),
+  setPreferredLanguage: jest.fn().mockResolvedValue(undefined),
+  getPreferredLanguage: jest.fn().mockResolvedValue(null),
+}));
 jest.mock('../../bot/resolveTypedDeliveryAddress', () => ({
   resolveTypedDeliveryAddress: jest.fn(async (raw) => ({
     ok: true,
@@ -29,6 +34,7 @@ const {
   setDefaultCustomerAddress,
   deleteCustomerAddress,
 } = require('../../bot/customerAddresses');
+const { setPreferredLanguage } = require('../../bot/customerLanguage');
 const {
   resolveTypedDeliveryAddress,
   shouldConfirmDeliveryBuilding,
@@ -169,6 +175,40 @@ test('manage_addresses opens the manage screen with current profile options', as
   expect(response.data[F.MANAGE_ADDRESS_OPTIONS].map((option) => option.id))
     .toEqual(['addr_0', 'addr_1', 'addr_new']);
   expect(response.data[F.MANAGE_UI_MODE]).toBe('list');
+  expect(response.data[F.LANGUAGE_CHOICE]).toBe('en');
+  expect(response.data[F.LANGUAGE_OPTIONS].map((option) => option.id)).toEqual(['de', 'en', 'tr']);
+  expect(response.data[F.LANGUAGE_OPTIONS].every((option) => option.image && option['alt-text'])).toBe(true);
+  expect(response.data[F.UI_LANGUAGE_LABEL]).toBe('Language');
+});
+
+test('set_language updates session language and returns to review', async () => {
+  const { ref } = mockSession({ language: 'en' });
+  const response = await exchange(S.ADDRESS_MANAGE, {
+    checkout_action: 'set_language',
+    [F.LANGUAGE_CHOICE]: 'tr',
+    [F.CUSTOMER_NAME]: 'Alex',
+  });
+
+  expect(setPreferredLanguage).toHaveBeenCalledWith(PHONE, 'tr');
+  expect(ref.set).toHaveBeenCalledWith(expect.objectContaining({ language: 'tr' }), { merge: true });
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW_RETURN);
+  expect(response.data[F.UI_PLACE_ORDER]).toMatch(/Sipariş/i);
+});
+
+test('single layout set_language stays on CHECKOUT_REVIEW in review mode', async () => {
+  mockSession({ language: 'en' });
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_layout: 'single',
+    [F.CHECKOUT_UI_MODE]: 'manage',
+    checkout_action: 'set_language',
+    [F.LANGUAGE_CHOICE]: 'de',
+    [F.CUSTOMER_NAME]: 'Alex',
+  });
+
+  expect(setPreferredLanguage).toHaveBeenCalledWith(PHONE, 'de');
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(response.data[F.CHECKOUT_UI_MODE]).toBe('review');
+  expect(response.data[F.UI_PLACE_ORDER]).toMatch(/Bestellung/i);
 });
 
 test('single layout profile and cart updates stay on CHECKOUT_REVIEW', async () => {

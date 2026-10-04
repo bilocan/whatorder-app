@@ -12,6 +12,11 @@ jest.mock('../../lib/llm', () => ({
   parseProposalEditWithLlm: jest.fn().mockResolvedValue(null),
   parseBotCommandWithLlm: jest.fn().mockResolvedValue(null),
 }));
+jest.mock('../customerLanguage', () => ({
+  ...jest.requireActual('../customerLanguage'),
+  getPreferredLanguage: jest.fn().mockResolvedValue(null),
+  setPreferredLanguage: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../sessionStore', () => {
   const actual = jest.requireActual('../sessionStore');
   const getSession = jest.fn();
@@ -42,6 +47,7 @@ jest.mock('../../lib/paymentService', () => ({
 }));
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  customerPrefsRef: jest.fn(() => ({ get: jest.fn().mockResolvedValue({ exists: false }), set: jest.fn().mockResolvedValue(undefined) })),
   menuRef: jest.fn(),
   ordersRef: jest.fn(() => ({
     doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
@@ -110,14 +116,24 @@ describe('Multi-restaurant: first-time customer', () => {
     );
   });
 
-  test('first message triggers location request', async () => {
+  test('first message asks language; after pick requests location', async () => {
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'Hello' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_language',
+      language: null,
+    }));
+    expect(sendButtonMessage).toHaveBeenCalled();
+
+    getSession.mockResolvedValue({ state: 'awaiting_language', language: null, basket: [], businessId: null });
+    await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_lang_en' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'awaiting_location',
       businessId: null,
+      language: 'en',
     }));
     expect(sendLocationRequest).toHaveBeenCalledWith(
       FROM,
@@ -127,7 +143,6 @@ describe('Multi-restaurant: first-time customer', () => {
       FROM,
       expect.not.stringMatching(/Restaurant switched|Restaurant gewechselt|Restoran değiştirildi/i),
     );
-    expect(sendText).not.toHaveBeenCalled();
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
@@ -165,7 +180,9 @@ describe('Deep link: returning customer (single restaurant)', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('No results'));
   });
 
-  test('QR deep link entry shows restaurant catalog', async () => {
+  test('QR deep link entry shows restaurant catalog when language known', async () => {
+    const { getPreferredLanguage } = require('../customerLanguage');
+    getPreferredLanguage.mockResolvedValue('de');
     getSession.mockResolvedValue({});
     getLastOrderForCustomer.mockResolvedValue(null);
 

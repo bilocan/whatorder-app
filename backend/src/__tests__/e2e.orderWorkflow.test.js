@@ -45,7 +45,7 @@ const { sendText, sendButtonMessage, sendFlowMessage, sendListMessage,
   sendLocationRequest, sendCtaUrlMessage, deleteMessage } = require('../lib/whatsapp');
 const { getSession, setSession } = require('../bot/sessionStore');
 const { getMenu, getBusinessInfo } = require('../bot/menuService');
-const { ordersRef, businessRef, customersRef, menuRef } = require('../lib/collections');
+const { ordersRef, businessRef, customersRef, menuRef, customerPrefsRef } = require('../lib/collections');
 const { isOpenNow, isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { sortByDistance } = require('../lib/distance');
 const { createCheckoutSessionForOrder } = require('../lib/paymentService');
@@ -147,6 +147,16 @@ function makeCustomersRef() {
   });
 }
 
+function makeCustomerPrefsRef(preferredLanguage = 'tr') {
+  customerPrefsRef.mockReturnValue({
+    get: jest.fn().mockResolvedValue({
+      exists: true,
+      data: () => ({ preferredLanguage }),
+    }),
+    set: jest.fn().mockResolvedValue(undefined),
+  });
+}
+
 function inMsg(overrides = {}) {
   return {
     from: CUSTOMER_PHONE,
@@ -193,6 +203,9 @@ beforeEach(() => {
 
   // Distance sort: identity
   sortByDistance.mockImplementation((items) => items);
+
+  // Phone-level language pref (language gate + session language)
+  makeCustomerPrefsRef('tr');
 });
 
 afterEach(() => {

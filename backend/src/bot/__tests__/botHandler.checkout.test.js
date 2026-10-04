@@ -12,6 +12,11 @@ jest.mock('../../lib/llm', () => ({
   parseProposalEditWithLlm: jest.fn().mockResolvedValue(null),
   parseBotCommandWithLlm: jest.fn().mockResolvedValue(null),
 }));
+jest.mock('../customerLanguage', () => ({
+  ...jest.requireActual('../customerLanguage'),
+  getPreferredLanguage: jest.fn().mockResolvedValue(null),
+  setPreferredLanguage: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../sessionStore', () => {
   const actual = jest.requireActual('../sessionStore');
   const getSession = jest.fn();
@@ -42,6 +47,7 @@ jest.mock('../../lib/paymentService', () => ({
 }));
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  customerPrefsRef: jest.fn(() => ({ get: jest.fn().mockResolvedValue({ exists: false }), set: jest.fn().mockResolvedValue(undefined) })),
   menuRef: jest.fn(),
   ordersRef: jest.fn(() => {
     const query = {
@@ -874,7 +880,7 @@ describe('Checkout confirm Flow', () => {
         order_type: 'pickup',
         order_type_options: [expect.objectContaining({ id: 'pickup' })],
         ui_review_intro: 'Döner Palace',
-        ui_manage_addresses_link: 'Change name',
+        ui_manage_addresses_link: 'Profile',
         receipt_text: expect.stringContaining('For Ahmet'),
       }),
     }));
