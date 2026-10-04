@@ -4,8 +4,11 @@ const { pipeline } = require('stream/promises');
 const archiver = require('archiver');
 const unzipper = require('unzipper');
 
-const MAX_ZIP_BYTES = 80 * 1024 * 1024;
-const MAX_UNCOMPRESSED_BYTES = 120 * 1024 * 1024;
+// Pizza Favori Test setup is ~86 MiB of JPEG. Import keeps the ZIP buffer
+// and the unpacked files at the same time. 120 + 150 MiB leaves room for
+// the Node process on a 512 MiB Cloud Run instance.
+const MAX_ZIP_BYTES = 120 * 1024 * 1024;
+const MAX_UNCOMPRESSED_BYTES = 150 * 1024 * 1024;
 const MAX_ZIP_FILES = 8000;
 const MAX_ENTRY_BYTES = 30 * 1024 * 1024;
 
@@ -45,7 +48,9 @@ function assertZipLimits(buf, directory) {
 }
 
 async function packBundleToStream(bundle, output) {
-  const archive = archiver('zip', { zlib: { level: 9 } });
+  // Menu photos are already JPEG/PNG. Level 9 does not shrink them and burns
+  // the single Cloud Run CPU before the 300s request limit.
+  const archive = archiver('zip', { zlib: { level: 1 } });
   const done = pipeline(archive, output);
   archive.append(JSON.stringify(bundle.manifest, null, 2), { name: 'manifest.json' });
   const fs = bundle.firestore || {};

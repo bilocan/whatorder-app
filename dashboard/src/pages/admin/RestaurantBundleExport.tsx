@@ -10,13 +10,16 @@ export default function RestaurantBundleExport({ businessId }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [doneUrl, setDoneUrl] = useState('');
+  const [skippedCount, setSkippedCount] = useState(0);
 
   async function onExport() {
     setError('');
     setDoneUrl('');
+    setSkippedCount(0);
     setBusy(true);
     try {
       const result = await exportRestaurantBundle(businessId, profile);
+      setSkippedCount(result.skipped?.length || 0);
       setDoneUrl(result.url);
       window.open(result.url, '_blank', 'noopener,noreferrer');
     } catch (err) {
@@ -69,6 +72,11 @@ export default function RestaurantBundleExport({ businessId }: Props) {
       {profile === 'full' && (
         <p role="note" style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: '#92400e' }}>
           {t('admin.bundle.piiWarning')}
+        </p>
+      )}
+      {skippedCount > 0 && (
+        <p role="note" style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: '#92400e' }}>
+          {t('admin.bundle.skippedPhotos', { count: skippedCount })}
         </p>
       )}
       {error && <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: '#ef4444' }}>{error}</p>}
