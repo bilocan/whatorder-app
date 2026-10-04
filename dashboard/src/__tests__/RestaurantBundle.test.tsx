@@ -1,11 +1,13 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import RestaurantBundleImport from '../pages/admin/RestaurantBundleImport';
+import RestaurantBundleExport from '../pages/admin/RestaurantBundleExport';
 
 const mockRequest = vi.hoisted(() => vi.fn());
 const mockUpload = vi.hoisted(() => vi.fn());
 const mockPreview = vi.hoisted(() => vi.fn());
 const mockRun = vi.hoisted(() => vi.fn());
+const mockExport = vi.hoisted(() => vi.fn());
 const mockSetPhoneNumberId = vi.hoisted(() => vi.fn());
 const phoneLineState = vi.hoisted(() => ({
   phoneNumberId: '1147794621759163' as string | undefined,
@@ -29,6 +31,7 @@ vi.mock('../lib/restaurantBundleApi', async () => {
     uploadBundleFile: mockUpload,
     previewImportBundle: mockPreview,
     runImportBundle: mockRun,
+    exportRestaurantBundle: mockExport,
     isProductionDashboard: () => false,
   };
 });
@@ -130,5 +133,24 @@ describe('RestaurantBundleImport', () => {
     expect(screen.getByRole('button', { name: 'Import' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
     expect(mockRun).not.toHaveBeenCalled();
+  });
+});
+
+describe('RestaurantBundleExport', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('open', vi.fn());
+  });
+
+  it('tells the admin when source photos were left out', async () => {
+    mockExport.mockResolvedValue({
+      url: 'https://example.com/bundle.zip',
+      checksum: 'abc',
+      counts: { assets: 1 },
+      skipped: ['menu-photos/biz_1/a.jpg', 'menu-photos/biz_1/b.jpg'],
+    });
+    render(<RestaurantBundleExport businessId="biz_1" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    expect(await screen.findByText(/2 photos were left out of the file/)).toBeInTheDocument();
   });
 });

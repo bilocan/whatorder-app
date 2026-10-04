@@ -886,6 +886,7 @@
       "exportButton": "Dışa aktar",
       "exporting": "Aktarılıyor…",
       "downloadAgain": "Tekrar indir",
+      "skippedPhotos": "{{count}} fotoğraf dosyaya girmedi. Bu görseller içe aktarmadan sonra eksik kalabilir.",
       "profileSetup": "Kurulum (başka ortama taşı)",
       "profileFull": "Tam (sipariş ve fişler dahil)",
       "piiWarning": "Dosyada sahip telefonları, IBAN ve müşteri verisi olabilir. Sohbet eki değil, yedek gibi sakla.",

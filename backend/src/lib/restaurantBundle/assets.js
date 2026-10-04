@@ -63,6 +63,26 @@ function remapObjectPath(objectPath, sourceBusinessId, targetBusinessId) {
     .split(`businesses/${sourceBusinessId}/`).join(`businesses/${targetBusinessId}/`);
 }
 
+function assertContainedAssetPath(objectPath, targetBusinessId) {
+  const path = String(objectPath || '').replace(/^\/+/, '');
+  const bad = !targetBusinessId
+    || !path
+    || path.includes('..')
+    || path.includes('\\')
+    || path.includes('\0')
+    || path.split('/').some((part) => part === '');
+  const menuPrefix = `menu-photos/${targetBusinessId}/`;
+  const businessPrefix = `businesses/${targetBusinessId}/`;
+  const foreignTenant = path.includes('menu-photos/') || path.includes('businesses/');
+  const allowed = path.startsWith(menuPrefix) || path.startsWith(businessPrefix) || !foreignTenant;
+  if (bad || !allowed) {
+    const err = new Error(`Asset path is outside the target restaurant: ${path || objectPath}`);
+    err.status = 400;
+    throw err;
+  }
+  return path;
+}
+
 function tenantBucket(name) {
   return name ? admin.storage().bucket(name) : admin.storage().bucket();
 }
@@ -87,15 +107,22 @@ async function eachLimit(items, limit, fn) {
   const list = items || [];
   if (!list.length) return;
   let cursor = 0;
+  let failure = null;
   async function worker() {
-    while (cursor < list.length) {
+    while (!failure && cursor < list.length) {
       const index = cursor;
       cursor += 1;
-      await fn(list[index], index);
+      try {
+        await fn(list[index], index);
+      } catch (err) {
+        if (!failure) failure = err;
+        return;
+      }
     }
   }
   const workers = Math.min(limit, list.length);
   await Promise.all(Array.from({ length: workers }, () => worker()));
+  if (failure) throw failure;
 }
 
 async function downloadAssets(refs) {
@@ -140,7 +167,10 @@ async function uploadAssets(assets, { sourceBusinessId, targetBusinessId } = {})
       targetBusinessId,
     );
     if (!objectPath || !asset.buffer) continue;
-    jobs.push({ objectPath, asset });
+    jobs.push({
+      objectPath: assertContainedAssetPath(objectPath, targetBusinessId),
+      asset,
+    });
   }
   await eachLimit(jobs, ASSET_IO_CONCURRENCY, async ({ objectPath, asset }) => {
     await tenantBucket().file(objectPath).save(asset.buffer, {
@@ -159,6 +189,7 @@ module.exports = {
   objectPathFromZipName,
   collectStorageRefs,
   remapObjectPath,
+  assertContainedAssetPath,
   listMenuPhotoRefs,
   downloadAssets,
   uploadAssets,

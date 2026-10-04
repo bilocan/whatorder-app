@@ -886,6 +886,7 @@
         "exportButton": "Export",
         "exporting": "Exporting…",
         "downloadAgain": "Download again",
+        "skippedPhotos": "{{count}} photos were left out of the file. Those images can be missing after import.",
         "profileSetup": "Setup (move to another env)",
         "profileFull": "Full (includes orders and receipts)",
         "piiWarning": "This file can contain owner phones, IBAN, and customer data. Treat it like a backup, not a chat attachment.",

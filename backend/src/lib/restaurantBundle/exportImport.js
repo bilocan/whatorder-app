@@ -77,6 +77,7 @@ async function exportRestaurantBundle({ businessId, profile, adminUid }) {
       ...countsFromFirestore(firestore, profile),
       assets: assets.length,
     },
+    skipped,
   };
 }
 
@@ -102,6 +103,10 @@ function previewWarnings(bundle, { exists, targetEnv }) {
     || Object.values(bundle.firestore?.menu || {}).some((d) => d.photoUrl);
   if (hasPhotos && !(bundle.assets || []).length) {
     warnings.push('ZIP has no photo files; rewritten image URLs may 404 on the target bucket.');
+  }
+  const skipped = Array.isArray(bundle.manifest?.skippedAssets) ? bundle.manifest.skippedAssets : [];
+  if (skipped.length && (bundle.assets || []).length) {
+    warnings.push(`ZIP is missing ${skipped.length} photo file(s); those image URLs may 404 on the target bucket.`);
   }
   return warnings;
 }
@@ -209,4 +214,5 @@ module.exports = {
   startImportUpload,
   previewImportBundle,
   runImportBundle,
+  previewWarnings,
 };

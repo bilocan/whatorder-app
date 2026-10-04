@@ -116,6 +116,71 @@ test('uploadAssets remaps paths and uploads in parallel', async () => {
   expect(maxInFlight).toBeGreaterThan(1);
 });
 
+test('uploadAssets rejects another restaurant prefix before writing', async () => {
+  const save = jest.fn();
+  admin.storage.mockReturnValue({
+    bucket: () => ({ file: () => ({ save }) }),
+  });
+  await expect(uploadAssets([
+    { objectPath: 'menu-photos/biz_victim/a.jpg', buffer: Buffer.from('a') },
+    { objectPath: 'misc/hero.png', buffer: Buffer.from('b') },
+  ], { sourceBusinessId: 'biz_old', targetBusinessId: 'biz_new' })).rejects.toThrow(/outside the target restaurant/);
+  expect(save).not.toHaveBeenCalled();
+});
+
+test('uploadAssets rejects parent-directory paths before writing', async () => {
+  const save = jest.fn();
+  admin.storage.mockReturnValue({
+    bucket: () => ({ file: () => ({ save }) }),
+  });
+  await expect(uploadAssets([
+    { objectPath: 'menu-photos/biz_old/a.jpg', buffer: Buffer.from('a') },
+    { objectPath: '../menu-photos/biz_new/evil.jpg', buffer: Buffer.from('c') },
+  ], { sourceBusinessId: 'biz_old', targetBusinessId: 'biz_new' })).rejects.toThrow(/outside the target restaurant/);
+  expect(save).not.toHaveBeenCalled();
+});
+
+test('uploadAssets allows a shared cover when every path is contained', async () => {
+  const saved = [];
+  admin.storage.mockReturnValue({
+    bucket: () => ({
+      file: (objectPath) => ({
+        save: async () => { saved.push(objectPath); },
+      }),
+    }),
+  });
+  const uploaded = await uploadAssets([
+    { objectPath: 'menu-photos/biz_old/a.jpg', buffer: Buffer.from('a') },
+    { objectPath: 'misc/hero.png', buffer: Buffer.from('b') },
+  ], { sourceBusinessId: 'biz_old', targetBusinessId: 'biz_new' });
+  expect(uploaded.sort()).toEqual(['menu-photos/biz_new/a.jpg', 'misc/hero.png']);
+  expect(saved.sort()).toEqual(uploaded.sort());
+});
+
+test('uploadAssets stops scheduling after a save failure', async () => {
+  const started = [];
+  admin.storage.mockReturnValue({
+    bucket: () => ({
+      file: (objectPath) => ({
+        save: async () => {
+          started.push(objectPath);
+          if (objectPath.endsWith('a.jpg')) throw new Error('boom');
+          await new Promise((resolve) => setTimeout(resolve, 40));
+        },
+      }),
+    }),
+  });
+  const assets = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l'].map((id) => ({
+    objectPath: `menu-photos/biz_t/${id}.jpg`,
+    buffer: Buffer.from(id),
+  }));
+  await expect(uploadAssets(assets, {
+    sourceBusinessId: 'biz_t',
+    targetBusinessId: 'biz_t',
+  })).rejects.toThrow('boom');
+  expect(started.length).toBeLessThan(assets.length);
+});
+
 test('zip asset names round-trip', () => {
   expect(zipAssetName('menu-photos/biz_1/a.jpg')).toBe('assets/menu-photos/biz_1/a.jpg');
   expect(objectPathFromZipName('assets/menu-photos/biz_1/a.jpg')).toBe('menu-photos/biz_1/a.jpg');
