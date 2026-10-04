@@ -12,6 +12,11 @@ jest.mock('../../lib/llm', () => ({
   parseProposalEditWithLlm: jest.fn().mockResolvedValue(null),
   parseBotCommandWithLlm: jest.fn().mockResolvedValue(null),
 }));
+jest.mock('../customerLanguage', () => ({
+  ...jest.requireActual('../customerLanguage'),
+  getPreferredLanguage: jest.fn().mockResolvedValue(null),
+  setPreferredLanguage: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../sessionStore', () => {
   const actual = jest.requireActual('../sessionStore');
   const getSession = jest.fn();
@@ -35,6 +40,7 @@ jest.mock('../../lib/whatsapp');
 jest.mock('../../lib/geocode');
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  customerPrefsRef: jest.fn(() => ({ get: jest.fn().mockResolvedValue({ exists: false }), set: jest.fn().mockResolvedValue(undefined) })),
   ordersRef: jest.fn(() => ({
     limit: jest.fn(() => ({
       get: jest.fn().mockResolvedValue({ docs: [] }),
@@ -90,6 +96,8 @@ afterEach(clearBotHandlerEnv);
 
 describe('Intent ordering (Tier A)', () => {
   test('first message with order text shows intent confirm instead of menu', async () => {
+    const { getPreferredLanguage } = require('../customerLanguage');
+    getPreferredLanguage.mockResolvedValue('de');
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: '2x Döner und Ayran' }));
@@ -634,6 +642,8 @@ describe('Intent ordering (Tier A)', () => {
   });
 
   test('greeting first message shows catalog', async () => {
+    const { getPreferredLanguage } = require('../customerLanguage');
+    getPreferredLanguage.mockResolvedValue('tr');
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
@@ -669,6 +679,8 @@ describe('Intent ordering (Tier A)', () => {
           },
         },
       });
+      const { getPreferredLanguage } = require('../customerLanguage');
+      getPreferredLanguage.mockResolvedValue('tr');
       getSession.mockResolvedValue({});
 
       await handleMessage(ROUTING, msg({ text: 'Merhaba' }));

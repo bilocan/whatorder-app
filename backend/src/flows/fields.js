@@ -201,6 +201,9 @@ const FIELDS = {
   UI_RETURN_TO_REVIEW: 'ui_return_to_review',
   UI_BACK_TO_CART_VISIBLE: 'ui_back_to_cart_visible',
   UI_MANAGE_ADDRESSES_LINK: 'ui_manage_addresses_link',
+  UI_LANGUAGE_LABEL: 'ui_language_label',
+  LANGUAGE_CHOICE: 'language_choice',
+  LANGUAGE_OPTIONS: 'language_options',
 
   // ADDRESS_MANAGE
   MANAGE_ADDRESS_CHOICE:  'manage_address_choice',

@@ -5,6 +5,8 @@ const LOCALES = ['en', 'tr', 'de'];
 // Every key that should exist across all three locales
 const FUNCTION_KEYS = [
   'greeting', 'langChanged',
+  'languagePickBody', 'langBtnDe', 'langBtnEn', 'langBtnTr',
+  'langOptionDe', 'langOptionEn', 'langOptionTr', 'confirmFlowLanguageLabel',
   'menuListHeader', 'menuListBody', 'menuListFooter', 'viewMenuBtn',
   'qtyBody',
   'itemAdded', 'itemsAdded', 'itemsAddedCount', 'reorderLoaded', 'addMoreBtn', 'viewBasketBtn', 'doneBtn',

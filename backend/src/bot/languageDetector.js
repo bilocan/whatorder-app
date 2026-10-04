@@ -36,6 +36,9 @@ const DE_WORDS = new Set([
 ]);
 
 const OVERRIDE_MAP = {
+  en: 'en',
+  de: 'de',
+  tr: 'tr',
   english: 'en',
   deutsch: 'de',
   'türkçe': 'tr',

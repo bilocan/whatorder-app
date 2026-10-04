@@ -251,6 +251,7 @@ async function addressManageScreen(id, exampleOptions) {
   };
   const formPayload = {
     [F.CUSTOMER_NAME]: `\${form.${F.CUSTOMER_NAME}}`,
+    [F.LANGUAGE_CHOICE]: `\${form.${F.LANGUAGE_CHOICE}}`,
     [F.MANAGE_ADDRESS_CHOICE]: `\${form.${F.MANAGE_ADDRESS_CHOICE}}`,
     [F.DELIVERY_ADDRESS]: `\${form.${F.DELIVERY_ADDRESS}}`,
     [F.DELIVERY_APARTMENT]: `\${form.${F.DELIVERY_APARTMENT}}`,
@@ -263,6 +264,15 @@ async function addressManageScreen(id, exampleOptions) {
     data: {
       ...uiSchema(copy),
       [F.CUSTOMER_NAME]: { type: 'string', '__example__': 'Alex' },
+      [F.LANGUAGE_CHOICE]: { type: 'string', '__example__': 'en' },
+      [F.LANGUAGE_OPTIONS]: {
+        ...ADDRESS_OPTION_LIST_SCHEMA,
+        '__example__': [
+          { id: 'de', title: 'Deutsch', image: 'AA==', 'alt-text': 'Deutsch' },
+          { id: 'en', title: 'English', image: 'AA==', 'alt-text': 'English' },
+          { id: 'tr', title: 'Türkçe', image: 'AA==', 'alt-text': 'Türkçe' },
+        ],
+      },
       [F.MANAGE_ADDRESS_CHOICE]: { type: 'string', '__example__': '' },
       [F.MANAGE_ADDRESS_OPTIONS]: {
         ...ADDRESS_OPTION_LIST_SCHEMA,
@@ -299,6 +309,7 @@ async function addressManageScreen(id, exampleOptions) {
         name: 'manage_address_form',
         'init-values': {
           [F.CUSTOMER_NAME]: `\${data.${F.CUSTOMER_NAME}}`,
+          [F.LANGUAGE_CHOICE]: `\${data.${F.LANGUAGE_CHOICE}}`,
           [F.MANAGE_ADDRESS_CHOICE]: `\${data.${F.MANAGE_ADDRESS_CHOICE}}`,
           [F.DELIVERY_ADDRESS]: `\${data.${F.DELIVERY_ADDRESS}}`,
           [F.DELIVERY_APARTMENT]: `\${data.${F.DELIVERY_APARTMENT}}`,
@@ -468,6 +479,22 @@ async function addressManageScreen(id, exampleOptions) {
                 {
                   type: 'TextCaption',
                   text: `\${data.${F.UI_MANAGE_SELECT_HINT}}`,
+                },
+                {
+                  // Below addresses so name/address stay one block; flags match address row media.
+                  type: 'RadioButtonsGroup',
+                  label: `\${data.${F.UI_LANGUAGE_LABEL}}`,
+                  name: F.LANGUAGE_CHOICE,
+                  required: true,
+                  'data-source': `\${data.${F.LANGUAGE_OPTIONS}}`,
+                  'media-size': 'regular',
+                  'on-select-action': {
+                    name: 'data_exchange',
+                    payload: {
+                      checkout_action: 'set_language',
+                      ...formPayload,
+                    },
+                  },
                 },
                 {
                   // List mode: primary action is return (tap a row to open the form).
@@ -670,6 +697,7 @@ async function unifiedCheckoutScreen(exampleOptions) {
           [F.ORDER_TYPE]: `\${data.${F.ORDER_TYPE}}`,
           [F.CHECKOUT_NOTE]: `\${data.${F.CHECKOUT_NOTE}}`,
           [F.CUSTOMER_NAME]: `\${data.${F.CUSTOMER_NAME}}`,
+          [F.LANGUAGE_CHOICE]: `\${data.${F.LANGUAGE_CHOICE}}`,
           [F.MANAGE_ADDRESS_CHOICE]: `\${data.${F.MANAGE_ADDRESS_CHOICE}}`,
           [F.DELIVERY_ADDRESS]: `\${data.${F.DELIVERY_ADDRESS}}`,
           [F.DELIVERY_APARTMENT]: `\${data.${F.DELIVERY_APARTMENT}}`,

@@ -129,6 +129,7 @@ function checkoutManageCopy(lang, t = defaultT, { savedCount = 0, maxSaved = DEF
     [F.UI_MANAGE_FOUND_LABEL]: t('confirmFlowManageFoundLabel', lang),
     [F.UI_PROFILE_NAME_LABEL]: t('confirmFlowProfileNameLabel', lang),
     [F.UI_PROFILE_NAME_HELPER]: t('confirmFlowProfileNameHelper', lang),
+    [F.UI_LANGUAGE_LABEL]: t('confirmFlowLanguageLabel', lang),
   };
 }
 
