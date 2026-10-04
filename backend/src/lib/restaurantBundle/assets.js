@@ -80,38 +80,53 @@ async function listMenuPhotoRefs(businessId) {
   }
 }
 
+const DOWNLOAD_CONCURRENCY = 8;
+const DOWNLOAD_TIMEOUT_MS = 30_000;
+
+async function eachLimit(items, limit, fn) {
+  const list = items || [];
+  if (!list.length) return;
+  let cursor = 0;
+  async function worker() {
+    while (cursor < list.length) {
+      const index = cursor;
+      cursor += 1;
+      await fn(list[index], index);
+    }
+  }
+  const workers = Math.min(limit, list.length);
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+}
+
 async function downloadAssets(refs) {
   const assets = [];
   const skipped = [];
   const seen = new Set();
+  const unique = [];
   for (const ref of refs || []) {
     if (!ref?.objectPath || seen.has(refKey(ref))) continue;
     seen.add(refKey(ref));
+    unique.push(ref);
+  }
+  await eachLimit(unique, DOWNLOAD_CONCURRENCY, async (ref) => {
     try {
       const file = tenantBucket(ref.bucket).file(ref.objectPath);
-      let contentType = contentTypeFor(ref.objectPath);
-      try {
-        const [metadata] = await file.getMetadata();
-        if (metadata?.contentType) contentType = metadata.contentType;
-      } catch {
-        // download may still succeed
-      }
-      const [buffer] = await file.download();
+      // Skip the extra metadata round trip. Photos live in us-west1 and Test
+      // Cloud Run is europe-west3, so one call per file already dominates.
+      const [buffer] = await file.download({
+        validation: false,
+        timeout: DOWNLOAD_TIMEOUT_MS,
+      });
       assets.push({
         name: zipAssetName(ref.objectPath),
         objectPath: ref.objectPath,
-        contentType,
+        contentType: contentTypeFor(ref.objectPath),
         buffer,
       });
-    } catch (err) {
-      const code = err.code || err.statusCode;
-      if (code === 404 || code === '404') {
-        skipped.push(ref.objectPath);
-        continue;
-      }
+    } catch {
       skipped.push(ref.objectPath);
     }
-  }
+  });
   return { assets, skipped };
 }
 

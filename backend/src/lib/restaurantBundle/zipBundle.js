@@ -45,7 +45,9 @@ function assertZipLimits(buf, directory) {
 }
 
 async function packBundleToStream(bundle, output) {
-  const archive = archiver('zip', { zlib: { level: 9 } });
+  // Menu photos are already JPEG/PNG. Level 9 does not shrink them and burns
+  // the single Cloud Run CPU before the 300s request limit.
+  const archive = archiver('zip', { zlib: { level: 1 } });
   const done = pipeline(archive, output);
   archive.append(JSON.stringify(bundle.manifest, null, 2), { name: 'manifest.json' });
   const fs = bundle.firestore || {};
