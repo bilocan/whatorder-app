@@ -331,15 +331,16 @@ module.exports = {
   deliveryPickupOptionDesc: () => 'Pick up instead of delivery',
 
   multiWelcomeBody: () => '👋 Welcome to WhatOrder!',
-  locationRequestBody: () => '👋 Welcome to WhatOrder!\n\n📍 Share your location → nearest restaurants on the map.',
-  switchLocationRequestBody: () => '👋 Welcome to WhatOrder!\n\n🔄 Restaurant switched — basket cleared.\n\n📍 Share your location → nearest restaurants on the map.',
+  locationRequestBody: () => '👋 Welcome to WhatOrder!\n\n📍 Share your location to see nearby restaurants on the map.',
+  switchLocationRequestBody: () => '👋 Welcome to WhatOrder!\n\n🔄 Restaurant switched — basket cleared.\n\n📍 Share your location to see nearby restaurants on the map.',
+  locationRequiredAgain: () => '📍 Please share your location to see restaurants on the map.',
   restaurantPickerBody: () => 'Which restaurant would you like to order from?',
   restaurantPickerButton: () => 'See restaurants',
   restaurantPickerFooter: () => 'Tap a name to open its menu',
   restaurantPickerFooterNumbered: () => 'Numbers match the Open map',
   interactiveMapBody: () => 'Which restaurant would you like to order from?\n\nOpen map → tap a pin → “Order here”.',
   interactiveMapBtn: () => 'Open map',
-  noNearbyRestaurants: (maxKm) => `No restaurants within ${maxKm} km. Reply *all* to see every restaurant on this number.`,
+  noNearbyRestaurants: (maxKm) => `No restaurants within ${maxKm} km. Reply *all* to see every restaurant on the map.`,
   switchConfirmed: () => '🔄 Switching restaurants. Your basket has been cleared.',
 
   orderConfirmedWithChoice: (shortId, name, alertPhone, address) => {

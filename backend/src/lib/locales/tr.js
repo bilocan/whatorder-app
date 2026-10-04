@@ -331,15 +331,16 @@ module.exports = {
   deliveryPickupOptionDesc: () => 'Teslimat yerine gel-al',
 
   multiWelcomeBody: () => '👋 WhatOrder\'a hoş geldiniz!',
-  locationRequestBody: () => '👋 WhatOrder\'a hoş geldiniz!\n\n📍 Konumunuzu paylaşın → haritada en yakın restoranlar.',
-  switchLocationRequestBody: () => '👋 WhatOrder\'a hoş geldiniz!\n\n🔄 Restoran değiştirildi — sepet temizlendi.\n\n📍 Konumunuzu paylaşın → haritada en yakın restoranlar.',
+  locationRequestBody: () => '👋 WhatOrder\'a hoş geldiniz!\n\n📍 Yakın restoranları haritada görmek için konumunuzu paylaşın.',
+  switchLocationRequestBody: () => '👋 WhatOrder\'a hoş geldiniz!\n\n🔄 Restoran değiştirildi — sepet temizlendi.\n\n📍 Yakın restoranları haritada görmek için konumunuzu paylaşın.',
+  locationRequiredAgain: () => '📍 Restoranları haritada görmek için lütfen konumunuzu paylaşın.',
   restaurantPickerBody: () => 'Hangi restorandan sipariş vermek istersiniz?',
   restaurantPickerButton: () => 'Restoranlar',
   restaurantPickerFooter: () => 'Menüyü açmak için bir isme dokunun',
   restaurantPickerFooterNumbered: () => 'Numaralar Haritayı aç ile eşleşir',
   interactiveMapBody: () => 'Hangi restorandan sipariş vermek istersiniz?\n\nHaritayı aç → işarete dokun → „Buradan sipariş ver“.',
   interactiveMapBtn: () => 'Haritayı aç',
-  noNearbyRestaurants: (maxKm) => `${maxKm} km içinde restoran yok. Bu numaradaki tüm restoranlar için *hepsi* yazın.`,
+  noNearbyRestaurants: (maxKm) => `${maxKm} km içinde restoran yok. Haritada tüm restoranlar için *hepsi* yazın.`,
   switchConfirmed: () => '🔄 Restoran değiştiriliyor. Sepetiniz temizlendi.',
 
   orderConfirmedWithChoice: (shortId, name, alertPhone, address) => {
