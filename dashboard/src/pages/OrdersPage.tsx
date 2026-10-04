@@ -8,7 +8,7 @@ import type { Order, OrderStatus } from '../types';
 import { toDate } from '../types';
 import { paymentBadge } from '../lib/paymentBadge';
 import { shortId } from '../lib/shortId';
-import { belegPaymentLine, printOrderBeleg, restaurantSlipLines } from '../lib/printOrderBeleg';
+import { belegFulfillmentLine, belegPaymentLine, printOrderBeleg, restaurantSlipLines } from '../lib/printOrderBeleg';
 import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
 import { getActivePhoneNumberId } from '../lib/activePhoneNumberId';
 import {
@@ -643,7 +643,10 @@ export default function OrdersPage() {
                       hour: '2-digit',
                       minute: '2-digit',
                     }),
-                    fulfillment: openOrder.orderType === 'delivery' ? t('orders.delivery') : undefined,
+                    fulfillment: belegFulfillmentLine(openOrder.orderType, {
+                      pickup: t('orders.pickup'),
+                      delivery: t('orders.delivery'),
+                    }),
                     address: openOrder.orderType === 'delivery' ? openOrder.deliveryAddress : undefined,
                     lines: openOrder.items.map((item) => ({
                       label: `${item.qty}× ${item.name}`,

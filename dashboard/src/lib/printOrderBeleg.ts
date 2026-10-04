@@ -26,6 +26,16 @@ export interface OrderBelegPrintInput {
   payment?: string;
 }
 
+/** Fulfillment line on the bon. Pickup and delivery both name the method. */
+export function belegFulfillmentLine(
+  orderType: 'pickup' | 'delivery' | undefined,
+  labels: { pickup: string; delivery: string },
+): string | undefined {
+  if (orderType === 'delivery') return labels.delivery;
+  if (orderType === 'pickup') return labels.pickup;
+  return undefined;
+}
+
 /** Payment line on the bon. Cash is the method word. "Paid by card" only after a card charge. */
 export function belegPaymentLine(
   order: { paymentMethod?: 'stripe' | 'cash'; paymentStatus?: string },

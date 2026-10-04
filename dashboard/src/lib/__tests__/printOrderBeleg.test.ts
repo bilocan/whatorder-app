@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { belegPaymentLine, buildOrderBelegHtml, printOrderBeleg, restaurantSlipLines, writeAndPrint, type OrderBelegPrintInput } from '../printOrderBeleg'
+import { belegFulfillmentLine, belegPaymentLine, buildOrderBelegHtml, printOrderBeleg, restaurantSlipLines, writeAndPrint, type OrderBelegPrintInput } from '../printOrderBeleg'
 
 const INPUT: OrderBelegPrintInput = {
   code: '0XG2YS',
@@ -68,6 +68,16 @@ describe('restaurantSlipLines', () => {
       address: 'Huttengasse 41, 1160 Wien',
       phone: undefined,
     })
+  })
+})
+
+describe('belegFulfillmentLine', () => {
+  const labels = { pickup: 'Abholung', delivery: 'Lieferung' }
+
+  it('names pickup and delivery, and skips an unknown type', () => {
+    expect(belegFulfillmentLine('pickup', labels)).toBe('Abholung')
+    expect(belegFulfillmentLine('delivery', labels)).toBe('Lieferung')
+    expect(belegFulfillmentLine(undefined, labels)).toBeUndefined()
   })
 })
 

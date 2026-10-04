@@ -53,6 +53,7 @@ const ORDERS = [
     items: [{ name: 'Döner', qty: 2, price: 8.5 }],
     total: 17.0,
     status: 'pending',
+    orderType: 'pickup' as const,
     createdAt: TODAY,
   },
   {
@@ -267,6 +268,7 @@ describe('OrdersPage', () => {
       restaurantPhone: '+43 660 111111',
       lines: [{ label: '2× Döner', amount: '€17.00' }],
       totalAmount: '€17.00',
+      fulfillment: 'Pickup',
       payment: 'Cash',
     })))
   })
