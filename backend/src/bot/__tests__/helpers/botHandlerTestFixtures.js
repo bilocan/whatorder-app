@@ -5,6 +5,7 @@ const { createOrder, getLastOrderForCustomer, getOrder, amendOrderAddItems, canc
 const { sendText, sendListMessage, sendButtonMessage, sendFlowMessage, sendLocationRequest, sendImage, sendCtaUrlMessage } = require('../../../lib/whatsapp');
 const { reverseGeocode } = require('../../../lib/geocode');
 const { customersRef } = require('../../../lib/collections');
+const { getPreferredLanguage, setPreferredLanguage } = require('../../customerLanguage');
 
 const BIZ = 'biz_test';
 const ROUTING = { businessIds: [BIZ], defaultBusinessId: BIZ, phoneNumberId: 'test_phone_id' };
@@ -159,6 +160,8 @@ function multiSession(overrides) {
 function resetBotHandlerMocks() {
   jest.clearAllMocks();
   process.env.WHATSAPP_MENU_FLOW_ID = 'flow_test_id';
+  getPreferredLanguage.mockResolvedValue(null);
+  setPreferredLanguage.mockResolvedValue(undefined);
   getMenu.mockResolvedValue(MENU);
   getMenuContext.mockImplementation(async () => ({
     menu: await getMenu(),
@@ -197,6 +200,13 @@ function expectOrderEntryPrompt() {
       expect.objectContaining({ id: 'btn_search' }),
       expect.objectContaining({ id: 'btn_view_full_menu' }),
     ]),
+  }));
+}
+
+function expectCatalogPrompt() {
+  expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+    flowId: 'flow_test_id',
+    flowAction: 'data_exchange',
   }));
 }
 
@@ -241,8 +251,11 @@ module.exports = {
   mockCustomerProfile,
   msg,
   expectOrderEntryPrompt,
+  expectCatalogPrompt,
   makeUpdatedAt,
   multiSession,
   resetBotHandlerMocks,
   clearBotHandlerEnv,
+  getPreferredLanguage,
+  setPreferredLanguage,
 };

@@ -243,17 +243,8 @@ async function handleCheckoutSessionCompleted(session) {
       await orderRef.update({
         paymentNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-      // Best-effort: send post-order action buttons. Failure is logged but does not
-      // block the primary notification or cause a duplicate text on retry.
-      await sendButtonMessage(order.customerPhone, {
-        body: t('postOrderOptions', lang, order.restaurantName || null),
-        buttons: [
-          { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
-          { id: 'btn_post_reorder',    title: t('postReorderBtn', lang) },
-          { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
-        ],
-      }, phoneNumberId);
 
+      // Beleg before action buttons so "Was möchtest du tun?" is the last bubble.
       if (beleg?.status === 'ready' && beleg.gcsPath) {
         try {
           const { downloadReceiptPdf } = require('./receipts/gcsReceiptStorage');
@@ -275,6 +266,17 @@ async function handleCheckoutSessionCompleted(session) {
           console.error(`[stripe] Beleg WhatsApp document failed orderId=${orderId}: ${docErr.message}`);
         }
       }
+
+      // Best-effort: send post-order action buttons last. Failure is logged but does not
+      // block the primary notification or cause a duplicate text on retry.
+      await sendButtonMessage(order.customerPhone, {
+        body: t('postOrderOptions', lang, order.restaurantName || null),
+        buttons: [
+          { id: 'btn_post_reorder',    title: t('postReorderBtn', lang) },
+          { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
+          { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
+        ],
+      }, phoneNumberId);
     });
   } catch (err) {
     const msg = err.name === 'WhatsAppRoutingError'

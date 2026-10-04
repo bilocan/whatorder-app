@@ -12,6 +12,11 @@ jest.mock('../../lib/llm', () => ({
   parseProposalEditWithLlm: jest.fn().mockResolvedValue(null),
   parseBotCommandWithLlm: jest.fn().mockResolvedValue(null),
 }));
+jest.mock('../customerLanguage', () => ({
+  ...jest.requireActual('../customerLanguage'),
+  getPreferredLanguage: jest.fn().mockResolvedValue(null),
+  setPreferredLanguage: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../sessionStore', () => {
   const actual = jest.requireActual('../sessionStore');
   const getSession = jest.fn();
@@ -42,6 +47,7 @@ jest.mock('../../lib/paymentService', () => ({
 }));
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  customerPrefsRef: jest.fn(() => ({ get: jest.fn().mockResolvedValue({ exists: false }), set: jest.fn().mockResolvedValue(undefined) })),
   menuRef: jest.fn(),
   ordersRef: jest.fn(() => {
     const query = {
@@ -90,6 +96,7 @@ const {
   mockCustomerProfile,
   msg,
   expectOrderEntryPrompt,
+  expectCatalogPrompt,
   makeUpdatedAt,
   multiSession,
   resetBotHandlerMocks,
@@ -625,7 +632,7 @@ describe('Confirming state: ambiguous input', () => {
 
     expect(createOrder).not.toHaveBeenCalled();
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('YES'));
-    expectOrderEntryPrompt();
+    expectCatalogPrompt();
   });
 
   test('text "yes" confirms order (text-path CONFIRM keyword)', async () => {
@@ -873,7 +880,7 @@ describe('Checkout confirm Flow', () => {
         order_type: 'pickup',
         order_type_options: [expect.objectContaining({ id: 'pickup' })],
         ui_review_intro: 'Döner Palace',
-        ui_manage_addresses_link: 'Change name',
+        ui_manage_addresses_link: 'Profile',
         receipt_text: expect.stringContaining('For Ahmet'),
       }),
     }));
@@ -1390,6 +1397,34 @@ describe('Checkout confirm Flow', () => {
       customerName: 'Alex',
       specialRequests: 'ohne Zwiebel',
       deliveryAddress: expect.stringContaining('Top 14'),
+    }));
+  });
+
+  test('switch_restaurant Flow completion begins venue switch on multi', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'confirming',
+      businessId: 'biz_a',
+      basket: [{ name: 'Döner', qty: 1, price: 8.50 }],
+      customerName: 'Alex',
+      orderType: 'pickup',
+    });
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO),
+    );
+    sendLocationRequest.mockResolvedValue('loc_switch_1');
+
+    await handleMessage(ROUTING_MULTI, msg({
+      type: 'flow_completion',
+      data: { checkout_action: 'switch_restaurant' },
+    }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendLocationRequest).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_location',
+      businessId: null,
+      basket: [],
     }));
   });
 

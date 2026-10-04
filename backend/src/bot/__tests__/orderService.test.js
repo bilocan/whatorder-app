@@ -763,14 +763,20 @@ describe('getLastOrderForCustomer', () => {
   function mockOrderedOrders(docsByCall) {
     const queue = Array.isArray(docsByCall[0]) ? [...docsByCall] : [docsByCall];
     const where = jest.fn().mockImplementation(() => {
-      const docs = queue.length > 1 ? queue.shift() : queue[0];
+      const makeLimitGet = () => {
+        const docs = queue.length > 1 ? queue.shift() : queue[0];
+        return {
+          get: jest.fn().mockResolvedValue({
+            empty: !docs.length,
+            docs: docs.map(data => ({ data: () => data, id: data.id || 'doc' })),
+          }),
+        };
+      };
       return {
         orderBy: jest.fn().mockReturnValue({
-          limit: jest.fn().mockReturnValue({
-            get: jest.fn().mockResolvedValue({
-              empty: !docs.length,
-              docs: docs.map(data => ({ data: () => data })),
-            }),
+          limit: jest.fn().mockImplementation(() => makeLimitGet()),
+          startAfter: jest.fn().mockReturnValue({
+            limit: jest.fn().mockImplementation(() => makeLimitGet()),
           }),
         }),
       };
@@ -838,6 +844,29 @@ describe('getLastOrderForCustomer', () => {
     expect(result).toEqual(paid);
   });
 
+  test('pages past a full first page of cancelled noise to reach eligible order', async () => {
+    const noise = Array.from({ length: 15 }, (_, i) => ({
+      id: `cancelled_${i}`,
+      items: [{ name: 'Burger', qty: 1, price: 10 }],
+      status: 'cancelled',
+      paymentMethod: 'stripe',
+      paymentStatus: 'pending',
+      createdAt: { toMillis: () => 4000 - i },
+    }));
+    const paid = {
+      id: 'delivered_1',
+      items: [{ name: 'Cheeseburger XXXL mit Pommes', qty: 1, price: 12.9 }],
+      status: 'delivered',
+      paymentMethod: 'stripe',
+      paymentStatus: 'paid',
+      createdAt: { toMillis: () => 1000 },
+    };
+    mockOrderedOrders([noise, [paid]]);
+
+    const result = await getLastOrderForCustomer(BIZ, '+43699000001');
+    expect(result).toEqual(paid);
+  });
+
   test('returns null when no orders exist', async () => {
     mockOrderedOrders([]);
 
@@ -862,6 +891,11 @@ describe('getLastOrderForCustomer', () => {
     const orderBy = jest.fn().mockReturnValue({
       limit: jest.fn().mockReturnValue({
         get: jest.fn().mockResolvedValue({ empty: true, docs: [] }),
+      }),
+      startAfter: jest.fn().mockReturnValue({
+        limit: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue({ empty: true, docs: [] }),
+        }),
       }),
     });
     const where = jest.fn().mockReturnValue({ orderBy });

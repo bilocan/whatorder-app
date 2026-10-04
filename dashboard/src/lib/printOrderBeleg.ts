@@ -1,5 +1,7 @@
-/** Browser preview of a kitchen bon for an 80 mm roll (Epson TM-T20II).
- * Printable width is 72 mm. This is not an ESC/POS job. */
+/** Browser print of a kitchen bon for an 80 mm roll (Epson TM-T20II).
+ * The head is 72 mm wide, but a 72 mm body sits on that edge: pilot slips
+ * lost the last digit of the prices and the cutter took the payment line.
+ * Content is 66 mm, with blank feed under the last line. Not an ESC/POS job. */
 
 export interface OrderBelegLine {
   label: string;
@@ -22,6 +24,16 @@ export interface OrderBelegPrintInput {
   totalAmount: string;
   notes?: string;
   payment?: string;
+}
+
+/** Fulfillment line on the bon. Pickup and delivery both name the method. */
+export function belegFulfillmentLine(
+  orderType: 'pickup' | 'delivery' | undefined,
+  labels: { pickup: string; delivery: string },
+): string | undefined {
+  if (orderType === 'delivery') return labels.delivery;
+  if (orderType === 'pickup') return labels.pickup;
+  return undefined;
 }
 
 /** Payment line on the bon. Cash is the method word. "Paid by card" only after a card charge. */
@@ -99,7 +111,7 @@ export function buildOrderBelegHtml(input: OrderBelegPrintInput): string {
   @page { size: 80mm auto; margin: 4mm; }
   html, body { margin: 0; padding: 0; background: #fff; color: #000; }
   body {
-    width: 72mm;
+    width: 66mm;
     font-family: "Courier New", Courier, monospace;
     font-size: 12px;
     line-height: 1.35;
@@ -114,6 +126,7 @@ export function buildOrderBelegHtml(input: OrderBelegPrintInput): string {
   .rule { border: 0; border-top: 1px dashed #000; margin: 2mm 0; }
   .total td { font-size: 14px; font-weight: 700; padding-top: 1mm; }
   .extra, .note, .pay { margin: 1.5mm 0; }
+  .feed { height: 12mm; }
 </style>
 </head>
 <body>
@@ -135,6 +148,7 @@ export function buildOrderBelegHtml(input: OrderBelegPrintInput): string {
   </table>
   ${notes}
   ${payment}
+  <div class="feed"></div>
 </body>
 </html>`;
 }

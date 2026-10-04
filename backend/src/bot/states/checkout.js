@@ -34,6 +34,7 @@ const { buildOrderTaxSnapshot } = require('../../lib/receiptMath');
 const { isStrongOrderText, isGreetingOnly, isFreshStartCommand } = require('../intentParser');
 const { isConversationalBasket, isCheckoutConfirmFlow } = require('../featureFlags');
 const { tryBasketUndo } = require('../conversationalBasket');
+const { beginRestaurantSwitch } = require('../restaurantSwitch');
 const {
   checkoutFlowToken,
   validateCheckoutSubmit,
@@ -281,11 +282,7 @@ async function placeOrderAndNotify({ from, session, lang, businessId, basket, is
   await sendText(from, t('orderReceipt', lang, shortId, info.name, itemLines, total.toFixed(2), session.pickupTime, session.customerName, session.deliveryAddress ?? null, paymentMethod, info.alertPhone || null, info.address || null, checkoutDealLines(t, lang, totals)), phoneNumberId);
   await sendButtonMessage(from, {
     body: t('postOrderOptions', lang, info.name),
-    buttons: [
-      { id: 'btn_post_cancel',     title: t('postCancelBtn', lang) },
-      { id: 'btn_post_reorder',    title: t('postReorderBtn', lang) },
-      { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
-    ],
+    buttons: postOrderButtons(lang),
   }, phoneNumberId);
 }
 
@@ -1525,6 +1522,12 @@ async function handleConfirming({
       return;
     }
 
+    // Checkout cart radio Anderes Restaurant (multi).
+    if (payload.checkout_action === 'switch_restaurant') {
+      if (isMulti) await beginRestaurantSwitch({ from, lang });
+      return;
+    }
+
     // Flow closed early: customer picked Lieferung while below Mindestbestellwert.
     if (payload.checkout_action === 'delivery_below_minimum') {
       const info = await getBusinessInfo(businessId);
@@ -1780,9 +1783,9 @@ function basketFromOrderItems(items) {
 
 function postOrderButtons(lang) {
   return [
-    { id: 'btn_post_cancel', title: t('postCancelBtn', lang) },
     { id: 'btn_post_reorder', title: t('postReorderBtn', lang) },
     { id: 'btn_post_restaurant', title: t('postRestaurantBtn', lang) },
+    { id: 'btn_post_cancel', title: t('postCancelBtn', lang) },
   ];
 }
 

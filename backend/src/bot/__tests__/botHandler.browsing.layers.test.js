@@ -12,6 +12,11 @@ jest.mock('../../lib/llm', () => ({
   parseProposalEditWithLlm: jest.fn().mockResolvedValue(null),
   parseBotCommandWithLlm: jest.fn().mockResolvedValue(null),
 }));
+jest.mock('../customerLanguage', () => ({
+  ...jest.requireActual('../customerLanguage'),
+  getPreferredLanguage: jest.fn().mockResolvedValue(null),
+  setPreferredLanguage: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../sessionStore', () => {
   const actual = jest.requireActual('../sessionStore');
   const getSession = jest.fn();
@@ -35,6 +40,7 @@ jest.mock('../../lib/whatsapp');
 jest.mock('../../lib/geocode');
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  customerPrefsRef: jest.fn(() => ({ get: jest.fn().mockResolvedValue({ exists: false }), set: jest.fn().mockResolvedValue(undefined) })),
   ordersRef: jest.fn(() => ({
     limit: jest.fn(() => ({
       get: jest.fn().mockResolvedValue({ docs: [] }),
@@ -76,6 +82,7 @@ const {
   mockCustomerProfile,
   msg,
   expectOrderEntryPrompt,
+  expectCatalogPrompt,
   makeUpdatedAt,
   multiSession,
   resetBotHandlerMocks,
@@ -251,6 +258,8 @@ describe('Layer 0: reorder-first for returning customers', () => {
   };
 
   test('first message shows reorder prompt when order history exists', async () => {
+    const { getPreferredLanguage } = require('../customerLanguage');
+    getPreferredLanguage.mockResolvedValue('de');
     getLastOrderForCustomer.mockResolvedValue(LAST_ORDER);
     getSession.mockResolvedValue({});
 
@@ -268,6 +277,8 @@ describe('Layer 0: reorder-first for returning customers', () => {
   });
 
   test('explicit new order text skips reorder and uses intent parser', async () => {
+    const { getPreferredLanguage } = require('../customerLanguage');
+    getPreferredLanguage.mockResolvedValue('de');
     getLastOrderForCustomer.mockResolvedValue(LAST_ORDER);
     getSession.mockResolvedValue({});
 
@@ -369,6 +380,33 @@ describe('Layer 0: reorder-first for returning customers', () => {
       flowAction: 'data_exchange',
     }));
     expect(sendListMessage).not.toHaveBeenCalled();
+  });
+
+  test('single-restaurant first visit with no order history opens catalog Flow directly', async () => {
+    const { getPreferredLanguage } = require('../customerLanguage');
+    getPreferredLanguage.mockResolvedValue('de');
+    getLastOrderForCustomer.mockResolvedValue(null);
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ text: 'Hallo' }));
+
+    expectCatalogPrompt();
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_welcome_menu' })]),
+    }));
+  });
+
+  test('btn_welcome_menu opens catalog Flow', async () => {
+    getSession.mockResolvedValue({
+      language: 'de',
+      state: 'browsing',
+      businessId: BIZ,
+      basket: [],
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_welcome_menu' }));
+
+    expectCatalogPrompt();
   });
 });
 
@@ -640,7 +678,7 @@ describe('Layer 1: disambiguation for ambiguous item names', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
-  test('start during disambiguation clears to order entry', async () => {
+  test('start during disambiguation clears to catalog', async () => {
     getSession.mockResolvedValue({
       language: 'de',
       state: 'disambiguating_intent',
@@ -661,7 +699,7 @@ describe('Layer 1: disambiguation for ambiguous item names', () => {
     await handleMessage(ROUTING, msg({ text: 'start' }));
 
     // botHandler GREETING_FRESH_START_STATES exits disambiguation before the state handler.
-    expectOrderEntryPrompt();
+    expectCatalogPrompt();
     expect(sendListMessage).not.toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(
       FROM,

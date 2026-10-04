@@ -3,6 +3,7 @@ const { sendButtonMessage } = require('../lib/whatsapp');
 const { applyBusinessInfoIdentity } = require('../lib/messageIdentity');
 const { t } = require('./templates');
 const { sendCatalog } = require('./botHelpers');
+const { appendDealMarketingLine } = require('./dealMarketing');
 const { getMenu, getBusinessInfo } = require('./menuService');
 const { getLastOrderForCustomer } = require('./orderService');
 const { matchMenuItem } = require('./menuMatch');
@@ -45,7 +46,7 @@ function buildReorderPromptBody(matched, unmatched, lang, restaurantName) {
   return body;
 }
 
-async function tryOfferReorder({ from, session, lang, businessId, basket, businessName }) {
+async function tryOfferReorder({ from, session, lang, businessId, basket, businessName, isMulti = false }) {
   const lastOrder = await getLastOrderForCustomer(businessId, from);
   if (!lastOrder) return false;
 
@@ -66,12 +67,18 @@ async function tryOfferReorder({ from, session, lang, businessId, basket, busine
     specialRequests: undefined,
   }, session);
 
+  const buttons = [
+    { id: 'btn_reorder_confirm', title: t('reorderConfirmBtn', lang) },
+    { id: 'btn_reorder_browse', title: t('reorderBrowseBtn', lang) },
+  ];
+  // WhatsApp max 3 buttons. Multi: visible switch (keywords are test-only).
+  if (isMulti) {
+    buttons.push({ id: 'btn_switch_restaurant', title: t('menuFlowSwitchRestaurant', lang) });
+  }
+
   const msgId = await sendButtonMessage(from, {
     body: buildReorderPromptBody(matched, unmatched, lang, businessName),
-    buttons: [
-      { id: 'btn_reorder_confirm', title: t('reorderConfirmBtn', lang) },
-      { id: 'btn_reorder_browse', title: t('reorderBrowseBtn', lang) },
-    ],
+    buttons,
   });
 
   await patchSession(from, { pendingDeleteIds: msgId ? [msgId] : [] });
@@ -79,6 +86,11 @@ async function tryOfferReorder({ from, session, lang, businessId, basket, busine
 }
 
 async function handleReorderButtons({ from, session, lang, businessId, basket, id, onReorderCheckout }) {
+  if (id === 'btn_welcome_menu') {
+    await openFreshCatalog(from, lang, businessId);
+    return true;
+  }
+
   if (id === 'btn_reorder_confirm') {
     const live = await getSession(from);
     const pending = live.pendingReorderItems ?? [];
@@ -130,8 +142,75 @@ async function handleReorderButtons({ from, session, lang, businessId, basket, i
   return false;
 }
 
-// Layer 0–1 entry: menu keyword → catalog; intent → disambiguate/confirm; reorder → offer; else order entry prompt.
-async function startRestaurantBrowsing({ from, session, lang, businessId, type, text, norm, businessName }) {
+// First visit / no reorder history: open catalog (Menü anzeigen), not Suche / Volles Menü.
+async function openFreshCatalog(from, lang, businessId) {
+  const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
+  // Empty-basket menu reopen is a fresh order: drop sticky Lieferung / address so
+  // Mindestbestellwert does not fire before Prüfen (Profil / prior gate leftover).
+  await patchSession(from, {
+    state: 'browsing',
+    language: lang,
+    businessId,
+    basket: [],
+    textMenuIndex,
+    textMenuCategory,
+    menuId,
+    specialRequests: undefined,
+    orderType: undefined,
+    deliveryAddress: undefined,
+    pendingPaymentMethod: undefined,
+    confirmFlowDraft: undefined,
+    pendingAmendOrderId: undefined,
+    pendingAmendBusinessId: undefined,
+    pendingAmendPlacedAt: undefined,
+    pendingReorderItems: undefined,
+    pendingReorderUnmatched: undefined,
+  });
+}
+
+/**
+ * Multi + no reorder: Flow CTA cannot share a bubble with Anderes Restaurant.
+ * Send a 2-button welcome card first; single-restaurant still opens the catalog Flow.
+ */
+async function offerWelcomeMenuOrCatalog({
+  from, session, lang, businessId, businessName, isMulti = false,
+}) {
+  if (!isMulti) {
+    await openFreshCatalog(from, lang, businessId);
+    return;
+  }
+
+  const info = await getBusinessInfo(businessId);
+  const name = businessName || info.name;
+  await patchSession(from, {
+    state: 'browsing',
+    language: lang,
+    businessId,
+    basket: [],
+    specialRequests: undefined,
+    orderType: undefined,
+    deliveryAddress: undefined,
+    pendingPaymentMethod: undefined,
+    confirmFlowDraft: undefined,
+    pendingAmendOrderId: undefined,
+    pendingAmendBusinessId: undefined,
+    pendingAmendPlacedAt: undefined,
+    pendingReorderItems: undefined,
+    pendingReorderUnmatched: undefined,
+  }, session);
+
+  const msgId = await sendButtonMessage(from, {
+    body: appendDealMarketingLine(lang, t('greeting', lang, name), info),
+    buttons: [
+      { id: 'btn_welcome_menu', title: t('viewMenuBtn', lang) },
+      { id: 'btn_switch_restaurant', title: t('menuFlowSwitchRestaurant', lang) },
+    ],
+  });
+  await patchSession(from, { pendingDeleteIds: msgId ? [msgId] : [] });
+}
+
+// Layer 0–1 entry: menu keyword → catalog; intent → disambiguate/confirm; reorder → offer; else catalog.
+async function startRestaurantBrowsing({ from, session, lang, businessId, type, text, norm, businessName, isMulti = false }) {
   applyBusinessInfoIdentity(await getBusinessInfo(businessId));
   // Any fresh browse clears the post-order amend context so subsequent food text is treated as a new order.
   if (session.pendingAmendOrderId) {
@@ -152,23 +231,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
   const greetingPrefix = businessName ? t('greeting', lang, businessName) + '\n\n' : '';
 
   if (type === 'text' && isMenuRequest(norm)) {
-    const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
-    // Empty-basket menu reopen is a fresh order: drop sticky Lieferung / address so
-    // Mindestbestellwert does not fire before Prüfen (Profil / prior gate leftover).
-    await patchSession(from, {
-      state: 'browsing',
-      language: lang,
-      businessId,
-      basket: [],
-      textMenuIndex,
-      textMenuCategory,
-      menuId,
-      specialRequests: undefined,
-      orderType: undefined,
-      deliveryAddress: undefined,
-      pendingPaymentMethod: undefined,
-      confirmFlowDraft: undefined,
-    });
+    await openFreshCatalog(from, lang, businessId);
     return;
   }
 
@@ -178,10 +241,9 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
   }
 
   if (type === 'text' && isFreshStartCommand(norm)) {
-    if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName })) return;
-    await sendOrderEntryPrompt({
-      from, session: freshSession, lang, businessId, basket: [], fresh: true,
-      ...(businessName ? { bodyOverride: greetingPrefix + t('orderEntryBody', lang) } : {}),
+    if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName, isMulti })) return;
+    await offerWelcomeMenuOrCatalog({
+      from, session: freshSession, lang, businessId, businessName, isMulti,
     });
     return;
   }
@@ -205,11 +267,10 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
     }
   }
 
-  if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName })) return;
+  if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName, isMulti })) return;
 
-  await sendOrderEntryPrompt({
-    from, session: freshSession, lang, businessId, basket: [], fresh: true,
-    ...(businessName ? { bodyOverride: greetingPrefix + t('orderEntryBody', lang) } : {}),
+  await offerWelcomeMenuOrCatalog({
+    from, session: freshSession, lang, businessId, businessName, isMulti,
   });
 }
 
@@ -218,5 +279,6 @@ module.exports = {
   buildReorderPromptBody,
   tryOfferReorder,
   handleReorderButtons,
+  offerWelcomeMenuOrCatalog,
   startRestaurantBrowsing,
 };

@@ -12,6 +12,11 @@ jest.mock('../../lib/llm', () => ({
   parseProposalEditWithLlm: jest.fn().mockResolvedValue(null),
   parseBotCommandWithLlm: jest.fn().mockResolvedValue(null),
 }));
+jest.mock('../customerLanguage', () => ({
+  ...jest.requireActual('../customerLanguage'),
+  getPreferredLanguage: jest.fn().mockResolvedValue(null),
+  setPreferredLanguage: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../sessionStore', () => {
   const actual = jest.requireActual('../sessionStore');
   const getSession = jest.fn();
@@ -42,6 +47,7 @@ jest.mock('../../lib/paymentService', () => ({
 }));
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  customerPrefsRef: jest.fn(() => ({ get: jest.fn().mockResolvedValue({ exists: false }), set: jest.fn().mockResolvedValue(undefined) })),
   menuRef: jest.fn(),
   ordersRef: jest.fn(() => ({
     doc: jest.fn(() => ({ update: jest.fn().mockResolvedValue(undefined) })),
@@ -87,6 +93,7 @@ const {
   mockCustomerProfile,
   msg,
   expectOrderEntryPrompt,
+  expectCatalogPrompt,
   makeUpdatedAt,
   multiSession,
   resetBotHandlerMocks,
@@ -94,6 +101,7 @@ const {
 } = require('./helpers/botHandlerTestFixtures');
 const { menuRef } = require('../../lib/collections');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
+const { getPreferredLanguage, setPreferredLanguage } = require('../customerLanguage');
 
 beforeEach(() => {
   resetBotHandlerMocks();
@@ -104,13 +112,24 @@ afterEach(clearBotHandlerEnv);
 
 describe('Full flow: language detection → catalog → cart → name → confirm → order', () => {
 
-  test('Step 1: first message triggers language detection and shows order entry prompt', async () => {
+  test('Step 1: first message asks for language; button pick opens catalog', async () => {
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'awaiting_language', language: null }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_lang_tr' }),
+      ]),
+    }));
+
+    getSession.mockResolvedValue({ state: 'awaiting_language', language: null, basket: [], businessId: null });
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_lang_tr' }));
+
+    expect(setPreferredLanguage).toHaveBeenCalledWith(FROM, 'tr');
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'tr', state: 'browsing' }));
-    expectOrderEntryPrompt();
+    expectCatalogPrompt();
   });
 
   test('Step 2: cart_submitted skips notes and moves straight to awaiting_name (no known name)', async () => {
@@ -203,53 +222,168 @@ describe('Full flow: language detection → catalog → cart → name → confir
 
 });
 
-describe('Language detection', () => {
+describe('Language picker', () => {
   test.each([
-    ['Hallo, ich möchte bestellen', 'de'],
-    ['Hello, I want to order',      'en'],
-    ['Merhaba sipariş vermek',      'tr'],
-  ])('"%s" detects language "%s"', async (text, expectedLang) => {
-    getSession.mockResolvedValue({});
+    ['btn_lang_de', 'de'],
+    ['btn_lang_en', 'en'],
+    ['btn_lang_tr', 'tr'],
+  ])('%s sets preferred language %s and opens catalog', async (buttonId, expectedLang) => {
+    getSession.mockResolvedValue({ state: 'awaiting_language', language: null, basket: [], businessId: null });
 
-    await handleMessage(ROUTING, msg({ text }));
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: buttonId }));
 
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: expectedLang }));
+    expect(setPreferredLanguage).toHaveBeenCalledWith(FROM, expectedLang);
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: expectedLang, state: 'browsing' }));
+    expectCatalogPrompt();
   });
 
-  test('non-text first message uses botLanguage from business (not text-detect)', async () => {
+  test('first message without preferred language shows picker (not auto-detect)', async () => {
     getSession.mockResolvedValue({});
 
-    await handleMessage(ROUTING, msg({ type: 'image', text: undefined }));
+    await handleMessage(ROUTING, msg({ text: 'Hallo, ich möchte bestellen' }));
 
-    // BIZ_INFO.botLanguage = 'de', so non-text first message defaults to 'de'
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'de' }));
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_lang_de' }),
+        expect.objectContaining({ id: 'btn_lang_en' }),
+        expect.objectContaining({ id: 'btn_lang_tr' }),
+      ]),
+    }));
+    expect(sendFlowMessage).not.toHaveBeenCalled();
   });
 
-  test('non-text first message uses botLanguage "en" when configured', async () => {
-    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, botLanguage: 'en' });
+  test('returning customer with preferredLanguage skips picker', async () => {
+    getPreferredLanguage.mockResolvedValue('tr');
     getSession.mockResolvedValue({});
 
-    await handleMessage(ROUTING, msg({ type: 'image', text: undefined }));
+    await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
 
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'en' }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'tr', state: 'browsing' }));
+    expectCatalogPrompt();
   });
 
-  test('mid-conversation re-detect updates language when score >= 2', async () => {
+  test('stuck awaiting_language with preferredLanguage resumes without re-showing picker', async () => {
+    getPreferredLanguage.mockResolvedValue('tr');
+    getSession.mockResolvedValue({
+      state: 'awaiting_language',
+      language: null,
+      basket: [],
+      businessId: null,
+      pendingDeepBid: null,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'Merhaba' }));
+
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_lang_de' }),
+      ]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'tr', state: 'browsing' }));
+    expectCatalogPrompt();
+  });
+
+  test('stuck awaiting_language with preferredLanguage + pendingDeepBid resumes deep link', async () => {
+    getPreferredLanguage.mockResolvedValue('de');
+    getSession.mockResolvedValue({
+      state: 'awaiting_language',
+      language: null,
+      basket: [],
+      businessId: null,
+      pendingDeepBid: BIZ,
+    });
+    getLastOrderForCustomer.mockResolvedValue(null);
+
+    await handleMessage(ROUTING, msg({ text: 'hi' }));
+
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_lang_de' }),
+      ]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      language: 'de',
+      businessId: BIZ,
+      pendingDeepBid: null,
+    }));
+  });
+
+  test('cart_submitted during awaiting_language is not blocked by language gate', async () => {
+    getSession.mockResolvedValue({
+      state: 'awaiting_language',
+      language: null,
+      basket: [],
+      businessId: BIZ,
+    });
+
+    await handleMessage(ROUTING, msg({
+      type: 'cart_submitted',
+      items: [{ productId: 'item_1', qty: 1, price: 8.50, currency: 'EUR' }],
+    }));
+
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_lang_de' }),
+      ]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      basket: expect.arrayContaining([
+        expect.objectContaining({ name: 'Döner', qty: 1 }),
+      ]),
+    }));
+  });
+
+  test('re-prompt while awaiting_language preserves basket via patchSession', async () => {
+    const basket = [{ name: 'Döner', qty: 1, price: 8.5 }];
+    getSession.mockResolvedValue({
+      state: 'awaiting_language',
+      language: null,
+      basket,
+      businessId: BIZ,
+      pendingDeepBid: null,
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'hi' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_lang_de' }),
+      ]),
+    }));
+    // Full wipe would call setSession with basket: []; re-prompt must keep items.
+    const wipeCalls = setSession.mock.calls.filter(([, data]) => (
+      data?.state === 'awaiting_language' && Array.isArray(data.basket) && data.basket.length === 0
+    ));
+    expect(wipeCalls).toHaveLength(0);
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_language',
+      basket,
+      businessId: BIZ,
+    }));
+  });
+
+  test('mid-conversation re-detect updates language when score >= 2 and no preferredLanguage', async () => {
     getSession.mockResolvedValue({ language: 'tr', state: 'browsing', businessId: BIZ, basket: [] });
 
-    // German text with 3 clear DE keywords — should flip to 'de'
     await handleMessage(ROUTING, msg({ text: 'Hallo ich möchte bestellen bitte' }));
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'de' }));
   });
 
+  test('preferredLanguage blocks mid-conversation auto re-detect', async () => {
+    getPreferredLanguage.mockResolvedValue('tr');
+    getSession.mockResolvedValue({ language: 'tr', state: 'browsing', businessId: BIZ, basket: [] });
+
+    await handleMessage(ROUTING, msg({ text: 'Hallo ich möchte bestellen bitte' }));
+
+    expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'de' }));
+  });
+
   test('mid-conversation re-detect does NOT update language on weak signal (score < 2)', async () => {
     getSession.mockResolvedValue({ language: 'tr', state: 'browsing', businessId: BIZ, basket: [] });
 
-    // 'naber' is TR (score TR:1), 'ja' is DE (score DE:1) — tie, no change; not order-like text
     await handleMessage(ROUTING, msg({ text: 'naber ja' }));
 
-    // Re-detect didn't flip language (stays tr)
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'de' }));
   });
 });
@@ -319,15 +453,21 @@ describe('Edge cases', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
-  test('no WHATSAPP_MENU_FLOW_ID falls back to order entry on first message', async () => {
+  test('no WHATSAPP_MENU_FLOW_ID falls back to list menu on first message', async () => {
     delete process.env.WHATSAPP_MENU_FLOW_ID;
     delete process.env.WHATSAPP_FLOW_ID;
+    getPreferredLanguage.mockResolvedValue('en');
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Hello' }));
 
-    expectOrderEntryPrompt();
+    expect(sendListMessage).toHaveBeenCalled();
     expect(sendFlowMessage).not.toHaveBeenCalled();
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_search' }),
+      ]),
+    }));
   });
 
   test('unknown productId falls back to productId as name', async () => {
@@ -351,13 +491,19 @@ describe('Edge cases', () => {
     expectOrderEntryPrompt();
   });
 
-  test('flow failure falls back to order entry on first message', async () => {
+  test('flow failure falls back to list menu on first message', async () => {
     sendFlowMessage.mockRejectedValue(new Error('API error'));
+    getPreferredLanguage.mockResolvedValue('en');
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: 'Hello' }));
 
-    expectOrderEntryPrompt();
+    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_search' }),
+      ]),
+    }));
   });
 });
 
@@ -372,15 +518,27 @@ describe('Deep link: returning customer (single restaurant)', () => {
     expect(sendText).not.toHaveBeenCalledWith(FROM, expect.stringContaining('No results'));
   });
 
-  test('QR deep link entry shows restaurant-branded order entry prompt', async () => {
+  test('QR deep link without language stashes bid and shows picker', async () => {
     getSession.mockResolvedValue({});
     getLastOrderForCustomer.mockResolvedValue(null);
 
     await handleMessage(ROUTING, msg({ text: `ORDER ${BIZ}` }));
 
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      body: expect.stringContaining(BIZ_INFO.name),
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_language',
+      pendingDeepBid: BIZ,
     }));
+    expect(sendButtonMessage).toHaveBeenCalled();
+  });
+
+  test('QR deep link with preferredLanguage opens catalog', async () => {
+    getPreferredLanguage.mockResolvedValue('tr');
+    getSession.mockResolvedValue({});
+    getLastOrderForCustomer.mockResolvedValue(null);
+
+    await handleMessage(ROUTING, msg({ text: `ORDER ${BIZ}` }));
+
+    expectCatalogPrompt();
   });
 });
 

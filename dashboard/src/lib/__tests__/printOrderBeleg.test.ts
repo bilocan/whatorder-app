@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { belegPaymentLine, buildOrderBelegHtml, printOrderBeleg, restaurantSlipLines, writeAndPrint, type OrderBelegPrintInput } from '../printOrderBeleg'
+import { belegFulfillmentLine, belegPaymentLine, buildOrderBelegHtml, printOrderBeleg, restaurantSlipLines, writeAndPrint, type OrderBelegPrintInput } from '../printOrderBeleg'
 
 const INPUT: OrderBelegPrintInput = {
   code: '0XG2YS',
@@ -23,10 +23,11 @@ const INPUT: OrderBelegPrintInput = {
 }
 
 describe('buildOrderBelegHtml', () => {
-  it('lays the bon out for an 80 mm roll with a 72 mm print width', () => {
+  it('insets the bon on an 80 mm roll so the head and cutter do not clip it', () => {
     const html = buildOrderBelegHtml(INPUT)
     expect(html).toContain('size: 80mm auto')
-    expect(html).toContain('width: 72mm')
+    expect(html).toContain('width: 66mm')
+    expect(html).toContain('class="feed"')
     expect(html).toContain('Enes Kebap')
     expect(html).toContain('Huttengasse 41, 1160 Wien')
     expect(html).toContain('+43 660 111111')
@@ -67,6 +68,16 @@ describe('restaurantSlipLines', () => {
       address: 'Huttengasse 41, 1160 Wien',
       phone: undefined,
     })
+  })
+})
+
+describe('belegFulfillmentLine', () => {
+  const labels = { pickup: 'Abholung', delivery: 'Lieferung' }
+
+  it('names pickup and delivery, and skips an unknown type', () => {
+    expect(belegFulfillmentLine('pickup', labels)).toBe('Abholung')
+    expect(belegFulfillmentLine('delivery', labels)).toBe('Lieferung')
+    expect(belegFulfillmentLine(undefined, labels)).toBeUndefined()
   })
 })
 

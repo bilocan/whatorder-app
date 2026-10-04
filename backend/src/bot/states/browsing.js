@@ -9,6 +9,7 @@ const { tryTextIntentOrder, handleIntentButtons, isIntentConfirmText } = require
 const { normIng } = require('../intentMatcher');
 const { tryProposalEdit, parseProposalEdit } = require('../proposalEdit');
 const { handleReorderButtons, tryOfferReorder } = require('../reorder');
+const { beginRestaurantSwitch } = require('../restaurantSwitch');
 const { isMenuRequest, sendOrderEntryPrompt } = require('../orderEntry');
 const { isGreetingOnly, looksLikeOrderText, isFreshStartCommand } = require('../intentParser');
 const { tryNumberSelectionOrder } = require('../textMenuOrder');
@@ -294,7 +295,7 @@ function resolveIntentSuggestionPick(text, suggestions) {
   }) ?? null;
 }
 
-async function handleBrowsing({ from, contactName, session, lang, businessId, basket, isMulti, type, id, items, norm, text }) {
+async function handleBrowsing({ from, contactName, session, lang, businessId, basket, isMulti, type, id, items, data, norm, text }) {
   // Commit deferred basket learning from prior mutation (skip undo — that discards instead)
   if (session.basketPendingLearning && !(type === 'text' && isBasketUndoPhrase(norm, { hasUndoSnapshot: !!session.basketUndoSnapshot?.basket }))) {
     const info = await getBusinessInfo(businessId);
@@ -335,6 +336,11 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
 
   // Flow completed — basket already written to session by /flow/exchange during ORDER_ITEM steps
   if (type === 'flow_completion') {
+    // Menu cart manage: Anderes Restaurant closes the Flow with this action.
+    if (data?.cart_action === 'switch_restaurant') {
+      if (isMulti) await beginRestaurantSwitch({ from, lang });
+      return;
+    }
     const flowBasket = session.basket ?? [];
     if (!flowBasket.length) {
       await openCatalog(from, session, lang, businessId);
@@ -664,15 +670,18 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
     }
   }
 
-  // Text: fresh start or greeting with empty basket — offer reorder before order entry
+  // Text: fresh start or greeting with empty basket — reorder if history, else catalog
   if (type === 'text' && text?.trim() && (isGreetingOnly(norm) || isFreshStartCommand(norm)) && !basket.length) {
-    // Drop sticky checkout type left by Profil / prior delivery gate.
+    // Drop sticky checkout type + post-order amend so food text is a new order, not call-restaurant.
     await patchSession(from, {
       orderType: undefined,
       deliveryAddress: undefined,
       pendingPaymentMethod: undefined,
       confirmFlowDraft: undefined,
       specialRequests: undefined,
+      pendingAmendOrderId: undefined,
+      pendingAmendBusinessId: undefined,
+      pendingAmendPlacedAt: undefined,
     }, session);
     const cleared = {
       ...session,
@@ -681,21 +690,35 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
       pendingPaymentMethod: undefined,
       confirmFlowDraft: undefined,
       specialRequests: undefined,
+      pendingAmendOrderId: undefined,
+      pendingAmendBusinessId: undefined,
+      pendingAmendPlacedAt: undefined,
     };
     const { name: businessName } = await getBusinessInfo(businessId);
-    if (await tryOfferReorder({ from, session: cleared, lang, businessId, basket, businessName })) return;
-    await sendOrderEntryPrompt({ from, session: cleared, lang, businessId, basket });
+    if (await tryOfferReorder({ from, session: cleared, lang, businessId, basket, businessName, isMulti })) return;
+    await openCatalog(from, cleared, lang, businessId);
     return;
   }
 
   // Text: explicit fresh-start command ("start"/"starten") always resets, even with items
   // already in the basket — a plain greeting mid-order is handled below (basket preserved).
   if (type === 'text' && text?.trim() && isFreshStartCommand(norm) && basket.length) {
-    await patchSession(from, BASKET_CLEAR_PATCH, session);
-    const freshSession = { ...session, ...BASKET_CLEAR_PATCH };
+    await patchSession(from, {
+      ...BASKET_CLEAR_PATCH,
+      pendingAmendOrderId: undefined,
+      pendingAmendBusinessId: undefined,
+      pendingAmendPlacedAt: undefined,
+    }, session);
+    const freshSession = {
+      ...session,
+      ...BASKET_CLEAR_PATCH,
+      pendingAmendOrderId: undefined,
+      pendingAmendBusinessId: undefined,
+      pendingAmendPlacedAt: undefined,
+    };
     const { name: businessName } = await getBusinessInfo(businessId);
-    if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName })) return;
-    await sendOrderEntryPrompt({ from, session: freshSession, lang, businessId, basket: [] });
+    if (await tryOfferReorder({ from, session: freshSession, lang, businessId, basket: [], businessName, isMulti })) return;
+    await openCatalog(from, freshSession, lang, businessId);
     return;
   }
 

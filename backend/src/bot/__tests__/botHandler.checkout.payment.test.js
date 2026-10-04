@@ -12,6 +12,11 @@ jest.mock('../../lib/llm', () => ({
   parseProposalEditWithLlm: jest.fn().mockResolvedValue(null),
   parseBotCommandWithLlm: jest.fn().mockResolvedValue(null),
 }));
+jest.mock('../customerLanguage', () => ({
+  ...jest.requireActual('../customerLanguage'),
+  getPreferredLanguage: jest.fn().mockResolvedValue(null),
+  setPreferredLanguage: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../sessionStore', () => {
   const actual = jest.requireActual('../sessionStore');
   return {
@@ -40,6 +45,7 @@ jest.mock('../../lib/paymentService', () => ({
 const mockOrderUpdate = jest.fn().mockResolvedValue(undefined);
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
+  customerPrefsRef: jest.fn(() => ({ get: jest.fn().mockResolvedValue({ exists: false }), set: jest.fn().mockResolvedValue(undefined) })),
   menuRef: jest.fn(),
   ordersRef: jest.fn(() => ({
     doc: jest.fn(() => ({ update: mockOrderUpdate })),
@@ -521,9 +527,9 @@ describe('unpaid payment back button', () => {
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, {
       body: t('postOrderOptions', 'en', 'enes kebap'),
       buttons: [
-        { id: 'btn_post_cancel', title: t('postCancelBtn', 'en') },
         { id: 'btn_post_reorder', title: t('postReorderBtn', 'en') },
         { id: 'btn_post_restaurant', title: t('postRestaurantBtn', 'en') },
+        { id: 'btn_post_cancel', title: t('postCancelBtn', 'en') },
       ],
     }, 'test_phone_id');
   });

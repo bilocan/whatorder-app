@@ -1,6 +1,6 @@
-const { getSession, setSession } = require('./sessionStore');
+const { getSession, setSession, patchSession } = require('./sessionStore');
 const { getBusinessInfo } = require('./menuService');
-const { sendText, sendLocationRequest, sendFlowMessage, deleteMessage } = require('../lib/whatsapp');
+const { sendText, sendLocationRequest, sendFlowMessage, sendButtonMessage, deleteMessage } = require('../lib/whatsapp');
 const {
   PLATFORM_IDENTITY,
   runWithMessageIdentity,
@@ -8,14 +8,20 @@ const {
   applyBusinessInfoIdentity,
 } = require('../lib/messageIdentity');
 const { detectLanguage, scoreLanguage, getOverride } = require('./languageDetector');
+const {
+  getPreferredLanguage,
+  setPreferredLanguage,
+  langFromButtonId,
+  languagePickButtons,
+} = require('./customerLanguage');
 const { t } = require('./templates');
 const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { isAcceptingOrders } = require('../lib/presence');
-const { getBusinessesInfo, sendRestaurantPicker, presentRestaurantPickerForLocation } = require('./botHelpers');
 const { handleAwaitingLocation, handleSelectingRestaurant, refuseClosedRestaurant } = require('./states/restaurant');
 const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingDeliveryAddressConfirm, handleAwaitingDeliveryAddressUnit, handleAwaitingName, handleConfirming, handlePaymentBack, isPaymentBackButtonId } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
+const { beginRestaurantSwitch } = require('./restaurantSwitch');
 const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
 const { handleIntentCustomize } = require('./intentCustomize');
 const { handleDisambiguatingIntent } = require('./intentDisambiguate');
@@ -69,6 +75,40 @@ async function deleteStale(phone, session) {
   if (ids.length) await Promise.allSettled(ids.map(id => deleteMessage(id)));
 }
 
+/** Cart / Flow completions must not be blocked by the language gate (stale open Flows). */
+const LANGUAGE_GATE_PASSTHROUGH = new Set(['cart_submitted', 'flow_completion']);
+
+async function offerLanguagePick(from, session = {}, { pendingDeepBid = null, phoneNumberId = null } = {}) {
+  const alreadyPicking = session.state === 'awaiting_language';
+  const phoneId = phoneNumberId || session.whatsappPhoneNumberId || null;
+  const deepBid = pendingDeepBid != null ? pendingDeepBid : (session.pendingDeepBid || null);
+
+  if (alreadyPicking) {
+    // Re-prompt: keep basket / businessId (menu Flow may have written them concurrently).
+    await patchSession(from, {
+      state: 'awaiting_language',
+      language: null,
+      pendingDeepBid: deepBid,
+      ...(phoneId ? { whatsappPhoneNumberId: phoneId } : {}),
+    });
+  } else {
+    await setSession(from, {
+      state: 'awaiting_language',
+      language: null,
+      basket: [],
+      businessId: null,
+      pendingDeleteIds: [],
+      pendingDeepBid: deepBid,
+      ...(phoneId ? { whatsappPhoneNumberId: phoneId } : {}),
+    });
+  }
+  const msgId = await sendButtonMessage(from, {
+    body: t('languagePickBody', 'en'),
+    buttons: languagePickButtons(t),
+  });
+  if (msgId) await patchSession(from, { pendingDeleteIds: [msgId] });
+}
+
 async function enterRestaurantDirect(from, bid, lang, session, routing) {
   const bidInfo = await getBusinessInfo(bid);
   applyBusinessInfoIdentity(bidInfo);
@@ -93,6 +133,69 @@ async function enterRestaurantDirect(from, bid, lang, session, routing) {
   const freshSession = { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] };
   await startRestaurantBrowsing({
     from, session: freshSession, lang, businessId: bid, type: 'text', text: '', norm: '', businessName: bidInfo.name,
+    isMulti: routing.businessIds.length > 1,
+  });
+}
+
+async function continueAfterLanguagePick(from, lang, session, routing) {
+  const deepBid = session.pendingDeepBid;
+  const isMulti = routing.businessIds.length > 1;
+
+  if (deepBid && routing.businessIds.includes(deepBid)) {
+    await setSession(from, {
+      state: 'browsing',
+      language: lang,
+      basket: [],
+      businessId: deepBid,
+      pendingDeleteIds: [],
+      pendingDeepBid: null,
+    });
+    await enterRestaurantDirect(from, deepBid, lang, session, routing);
+    return;
+  }
+
+  if (isMulti) {
+    await setSession(from, {
+      state: 'awaiting_location',
+      language: lang,
+      basket: [],
+      businessId: null,
+      pendingDeleteIds: [],
+      pendingDeepBid: null,
+    });
+    try {
+      const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
+      if (locId) await patchSession(from, { pendingDeleteIds: [locId] });
+    } catch { /* awaiting_location handler will show picker on next message */ }
+    return;
+  }
+
+  const bid = routing.defaultBusinessId || routing.businessIds[0];
+  const bidInfo = await getBusinessInfo(bid);
+  applyBusinessInfoIdentity(bidInfo);
+  if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
+    const _w0 = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
+    await sendText(from, t('restaurantClosed', lang, bidInfo.name, _w0?.firstOrderTime ?? null, _w0?.lastOrderTime ?? null));
+    await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [], pendingDeepBid: null });
+    return;
+  }
+  if (!isAcceptingOrders(bidInfo)) {
+    await sendText(from, t('ordersClosedByOwner', lang, bidInfo.name));
+    await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [], pendingDeepBid: null });
+    return;
+  }
+  const freshSession = {
+    state: 'browsing',
+    language: lang,
+    basket: [],
+    businessId: bid,
+    pendingDeleteIds: [],
+    pendingDeepBid: null,
+  };
+  await setSession(from, freshSession);
+  await startRestaurantBrowsing({
+    from, session: freshSession, lang, businessId: bid, type: 'text', text: '', norm: '', businessName: bidInfo.name,
+    isMulti: false,
   });
 }
 
@@ -106,31 +209,106 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
   if (routing.phoneNumberId) {
     session = { ...session, whatsappPhoneNumberId: routing.phoneNumberId };
   }
+  const preferredLanguage = await getPreferredLanguage(from);
+  if (preferredLanguage && session.language !== preferredLanguage) {
+    session = { ...session, language: preferredLanguage };
+  }
   const norm = (text ?? '').trim().toLowerCase();
   const isMulti = routing.businessIds.length > 1;
 
   await deleteStale(from, session);
 
-  // QR deep link — any session; skip menu search on the ORDER token text.
-  if (type === 'text') {
-    const deepBid = parseOrderDeepLink(text, routing.businessIds);
-    if (deepBid) {
-      const lang = session.language || detectLanguage(text) || 'de';
-      await enterRestaurantDirect(from, deepBid, lang, session, routing);
+  // Explicit language buttons (first pick or later re-tap).
+  if (type === 'button_reply') {
+    const picked = langFromButtonId(id);
+    if (picked) {
+      await setPreferredLanguage(from, picked);
+      const wasPicking = session.state === 'awaiting_language' || !session.language;
+      if (wasPicking) {
+        await continueAfterLanguagePick(from, picked, session, routing);
+      } else {
+        if (session.businessId && routing.businessIds.includes(session.businessId)) {
+          applyBusinessInfoIdentity(await getBusinessInfo(session.businessId));
+        }
+        await setSession(from, { ...session, language: picked, pendingDeleteIds: [] });
+        await sendText(from, t('langChanged', picked));
+      }
       return;
     }
   }
 
-  // Language override (text only)
+  // Language override keywords (also persist preferred language).
   if (type === 'text') {
     const overrideLang = getOverride(norm);
     if (overrideLang) {
+      await setPreferredLanguage(from, overrideLang);
+      const wasPicking = session.state === 'awaiting_language' || (!preferredLanguage && !session.language);
+      if (wasPicking) {
+        await continueAfterLanguagePick(from, overrideLang, session, routing);
+        return;
+      }
       if (session.businessId && routing.businessIds.includes(session.businessId)) {
         applyBusinessInfoIdentity(await getBusinessInfo(session.businessId));
       }
       await setSession(from, { ...session, language: overrideLang, pendingDeleteIds: [] });
       await sendText(from, t('langChanged', overrideLang));
       return;
+    }
+  }
+
+  // Durable pref exists but session stuck in awaiting_language (crash / set_language / race).
+  // Resume restaurant flow; never re-show the picker.
+  if (preferredLanguage && session.state === 'awaiting_language') {
+    session = { ...session, language: preferredLanguage };
+    if (!LANGUAGE_GATE_PASSTHROUGH.has(type)) {
+      if (type === 'text') {
+        const deepBid = parseOrderDeepLink(text, routing.businessIds);
+        if (deepBid) session = { ...session, pendingDeepBid: deepBid };
+      }
+      await continueAfterLanguagePick(from, preferredLanguage, session, routing);
+      return;
+    }
+    await patchSession(from, { language: preferredLanguage, state: 'browsing' });
+    session = { ...session, language: preferredLanguage, state: 'browsing' };
+  }
+
+  // First-time language gate (no durable pref and no in-session language yet).
+  // cart_submitted / flow_completion pass through so an open Flow is not dropped.
+  const needsLanguage = !preferredLanguage && !session.language;
+  if (needsLanguage && !LANGUAGE_GATE_PASSTHROUGH.has(type)) {
+    if (type === 'text') {
+      const deepBid = parseOrderDeepLink(text, routing.businessIds);
+      if (deepBid) {
+        await offerLanguagePick(from, session, {
+          pendingDeepBid: deepBid,
+          phoneNumberId: routing.phoneNumberId || session.whatsappPhoneNumberId,
+        });
+        return;
+      }
+    }
+    await offerLanguagePick(from, session, {
+      pendingDeepBid: session.pendingDeepBid || null,
+      phoneNumberId: routing.phoneNumberId || session.whatsappPhoneNumberId,
+    });
+    return;
+  }
+
+  // QR deep link — any session; skip menu search on the ORDER token text.
+  if (type === 'text') {
+    const deepBid = parseOrderDeepLink(text, routing.businessIds);
+    if (deepBid) {
+      const lang = session.language || preferredLanguage || 'de';
+      await enterRestaurantDirect(from, deepBid, lang, session, routing);
+      return;
+    }
+  }
+
+  // Soft re-detect only when the customer has not chosen a durable preferred language.
+  if (type === 'text' && session.language && !preferredLanguage) {
+    const { lang: reDetected, score } = scoreLanguage(text ?? '');
+    if (score >= 2 && reDetected !== session.language) {
+      session = { ...session, language: reDetected };
+      await setSession(from, session);
     }
   }
 
@@ -155,16 +333,6 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
     return;
   }
 
-  // Re-detect language mid-conversation on clear signal (≥2 keyword hits), to prevent
-  // flipping on a single borrowed word (e.g. "ok" or "ja" in a Turkish message).
-  if (type === 'text' && session.language) {
-    const { lang: reDetected, score } = scoreLanguage(text ?? '');
-    if (score >= 2 && reDetected !== session.language) {
-      session = { ...session, language: reDetected };
-      await setSession(from, session);
-    }
-  }
-
   // TTL safety net: abandoned browsing session (no order placed, idle 8h+)
   const lastActive = session.updatedAt?.toDate?.() ?? null;
   const isIdleBrowsing = session.state === 'browsing'
@@ -176,7 +344,7 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
   // Ändern above an unpaid card pay link. Button id carries businessId|orderId so a
   // stale bubble withdraws that order. Legacy plain btn_payment_back uses pendingAmend*.
   if (type === 'button_reply' && isPaymentBackButtonId(id)) {
-    const postLang = session.language || 'de';
+    const postLang = session.language || preferredLanguage || 'de';
     await handlePaymentBack({
       from,
       session,
@@ -192,15 +360,15 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
   // Same for typed "Stornieren" / "iptal" (quote-reply or free text).
   const postBid = session.pendingAmendBusinessId || session.businessId || routing.defaultBusinessId || routing.businessIds[0];
   if (type === 'button_reply' && (id === 'btn_post_cancel' || id === 'btn_post_reorder' || id === 'btn_post_restaurant')) {
-    const postLang = session.language || 'de';
+    const postLang = session.language || preferredLanguage || 'de';
     if (id === 'btn_post_cancel') {
-      await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid });
+      await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid, isMulti });
       return;
     }
     if (id === 'btn_post_restaurant' && isMulti) {
+      // Post-order copy uses welcome location body (not switchLocationRequestBody).
       await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [] });
       try {
-        // Single location_request bubble (no separate welcome text) — less chat clutter.
         const locId = await sendLocationRequest(from, t('locationRequestBody', postLang));
         if (locId) await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [locId] });
       } catch { /* ignore — awaiting_location handler will show picker on next message */ }
@@ -208,7 +376,10 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
     }
     const postInfo = await getBusinessInfo(postBid);
     applyBusinessInfoIdentity(postInfo);
-    await startRestaurantBrowsing({ from, session: { ...session, basket: [] }, lang: postLang, businessId: postBid, type, text, norm, businessName: postInfo.name });
+    await startRestaurantBrowsing({
+      from, session: { ...session, basket: [] }, lang: postLang, businessId: postBid, type, text, norm,
+      businessName: postInfo.name, isMulti,
+    });
     return;
   }
 
@@ -221,59 +392,36 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
     && detectCancelOrderRequest(text, norm)
     && (session.pendingAmendOrderId || session.pendingAmendBusinessId)
   ) {
-    const postLang = session.language || detectLanguage(text) || 'de';
-    await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid });
+    const postLang = session.language || preferredLanguage || detectLanguage(text) || 'de';
+    await handlePostOrderCancelButton({ from, session, lang: postLang, businessId: postBid, isMulti });
     return;
   }
 
-  // First message OR multi-restaurant with no restaurant selected yet OR TTL expired
+  // Multi-restaurant with no restaurant selected yet OR TTL expired
   // (skip if already in selecting_restaurant — let the state machine handle the reply)
-  if (!session.language || (isMulti && !session.businessId && session.state !== 'selecting_restaurant' && session.state !== 'awaiting_location') || sessionExpiredForPicker) {
-    const lang = session.language || (type === 'text' ? detectLanguage(text) : null);
+  if ((isMulti && !session.businessId && session.state !== 'selecting_restaurant' && session.state !== 'awaiting_location') || sessionExpiredForPicker) {
+    const lang = session.language || preferredLanguage || 'en';
 
     if (type === 'text') {
       const deepBid = parseOrderDeepLink(text, routing.businessIds);
       if (deepBid) {
-        await enterRestaurantDirect(from, deepBid, lang || 'de', session, routing);
+        await enterRestaurantDirect(from, deepBid, lang, session, routing);
         return;
       }
     }
 
-    if (isMulti) {
-      const langForMulti = lang || 'en';
-      // Set state before the API call so a failed sendLocationRequest can't leave the bot looping;
-      // if the call succeeds, update pendingDeleteIds so the message is cleaned up next turn.
-      await setSession(from, { state: 'awaiting_location', language: langForMulti, basket: [], businessId: null, pendingDeleteIds: [] });
-      try {
-        // One interactive bubble only (welcome folded into location CTA copy).
-        const locId = await sendLocationRequest(from, t('locationRequestBody', langForMulti));
-        if (locId) await setSession(from, { state: 'awaiting_location', language: langForMulti, basket: [], businessId: null, pendingDeleteIds: [locId] });
-      } catch { /* ignore — awaiting_location handler will show the picker on next message */ }
-      return;
-    }
-    const bid = routing.defaultBusinessId || routing.businessIds[0];
-    const bidInfo = await getBusinessInfo(bid);
-    applyBusinessInfoIdentity(bidInfo);
-    const langResolved = lang || bidInfo.botLanguage || 'de';
-    if (!isOrderingOpen(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna')) {
-      const _w0 = getTodayOrderWindow(bidInfo.schedule, bidInfo.timezone || 'Europe/Vienna');
-      await sendText(from, t('restaurantClosed', langResolved, bidInfo.name, _w0?.firstOrderTime ?? null, _w0?.lastOrderTime ?? null));
-      await setSession(from, { state: 'browsing', language: langResolved, basket: [], businessId: bid, pendingDeleteIds: [] });
-      return;
-    }
-    if (!isAcceptingOrders(bidInfo)) {
-      await sendText(from, t('ordersClosedByOwner', langResolved, bidInfo.name));
-      await setSession(from, { state: 'browsing', language: langResolved, basket: [], businessId: bid, pendingDeleteIds: [] });
-      return;
-    }
-    const freshSession = { state: 'browsing', language: langResolved, basket: [], businessId: bid, pendingDeleteIds: [] };
-    await startRestaurantBrowsing({
-      from, session: freshSession, lang: langResolved, businessId: bid, type, text, norm, businessName: bidInfo.name,
-    });
+    // Set state before the API call so a failed sendLocationRequest can't leave the bot looping;
+    // if the call succeeds, update pendingDeleteIds so the message is cleaned up next turn.
+    await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: [] });
+    try {
+      // One interactive bubble only (welcome folded into location CTA copy).
+      const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
+      if (locId) await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: [locId] });
+    } catch { /* ignore — awaiting_location handler will show the picker on next message */ }
     return;
   }
 
-  const lang = session.language;
+  const lang = session.language || preferredLanguage || 'de';
   // Validate session.businessId is still in the current routing — prevents stale sessions
   // from locking a customer to a restaurant that's been removed or replaced.
   const sessionBidValid = session.businessId && routing.businessIds.includes(session.businessId);
@@ -317,27 +465,18 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
       text,
       norm,
       businessName: bidInfo.name,
+      isMulti,
     });
     return;
   }
 
-  // Switch restaurant command — available from any state (multi only).
-  // Always re-request location so a stale/wrong pin (e.g. Linz while testing Wien) is not reused.
-  // Platform identity: switch leaves the restaurant context.
-  // One location_request bubble: switch notice + location CTA (no separate welcome/switch texts).
-  if (isMulti && type === 'text' && SWITCH_KEYWORDS.has(norm)) {
-    setMessageIdentity(PLATFORM_IDENTITY);
-    const locId = await sendLocationRequest(from, t('switchLocationRequestBody', lang));
-    await setSession(from, {
-      state: 'awaiting_location',
-      language: lang,
-      basket: [],
-      businessId: null,
-      lat: null,
-      lng: null,
-      pendingDeleteIds: locId ? [locId] : [],
-      restaurantPickerUnfiltered: false,
-    });
+  // Switch restaurant — keywords (test/fallback) or chat button (reorder / no-order welcome / post-order).
+  // Always re-request location so a stale/wrong pin is not reused.
+  if (isMulti && (
+    (type === 'text' && SWITCH_KEYWORDS.has(norm))
+    || (type === 'button_reply' && id === 'btn_switch_restaurant')
+  )) {
+    await beginRestaurantSwitch({ from, lang });
     return;
   }
 

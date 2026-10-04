@@ -127,7 +127,9 @@ describe('handlePostOrderCancelButton', () => {
     expect(refundOrderPayment).not.toHaveBeenCalled();
     expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true, paymentRefunded: false });
     expect(patchSession).toHaveBeenCalled();
-    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({ from: FROM, businessId: BIZ }));
+    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({
+      from: FROM, businessId: BIZ, isMulti: false,
+    }));
   });
 
   test('cancels cash order when approved (before preparing) and offers reorder', async () => {
@@ -140,7 +142,22 @@ describe('handlePostOrderCancelButton', () => {
 
     expect(handled).toBe(true);
     expect(cancelOrder).toHaveBeenCalledWith(BIZ, ORDER_ID, { skipReentry: true, paymentRefunded: false });
-    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({ from: FROM, businessId: BIZ }));
+    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({
+      from: FROM, businessId: BIZ, isMulti: false,
+    }));
+  });
+
+  test('passes isMulti through so multi cancel can show Anderes Restaurant', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'pending', paymentMethod: 'cash' });
+    cancelOrder.mockResolvedValue(undefined);
+
+    await handlePostOrderCancelButton({
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ, isMulti: true,
+    });
+
+    expect(startRestaurantBrowsing).toHaveBeenCalledWith(expect.objectContaining({
+      from: FROM, businessId: BIZ, isMulti: true,
+    }));
   });
 
   test('sends too-late message when already preparing', async () => {
@@ -153,6 +170,7 @@ describe('handlePostOrderCancelButton', () => {
     expect(handled).toBe(true);
     expect(cancelOrder).not.toHaveBeenCalled();
     expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLatePreparing', null);
+    expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
   test('routes stripe preparing order to too-late (no self-serve refund)', async () => {
@@ -166,6 +184,7 @@ describe('handlePostOrderCancelButton', () => {
     expect(refundOrderPayment).not.toHaveBeenCalled();
     expect(cancelOrder).not.toHaveBeenCalled();
     expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLatePreparing', null);
+    expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
   test('too-late on the way uses delivery-specific copy', async () => {
@@ -178,9 +197,10 @@ describe('handlePostOrderCancelButton', () => {
     expect(handled).toBe(true);
     expect(refundOrderPayment).not.toHaveBeenCalled();
     expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLateOnTheWay', null);
+    expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
-  test('too-late after delivered uses delivered-specific copy', async () => {
+  test('too-late after delivered re-offers reorder CTAs', async () => {
     getOrder.mockResolvedValue({ id: ORDER_ID, status: 'delivered', paymentMethod: 'stripe' });
 
     const handled = await handlePostOrderCancelButton({
@@ -190,18 +210,42 @@ describe('handlePostOrderCancelButton', () => {
     expect(handled).toBe(true);
     expect(refundOrderPayment).not.toHaveBeenCalled();
     expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLateDelivered', null);
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, {
+      body: 'orderCompletePrompt',
+      buttons: [
+        { id: 'btn_post_reorder', title: 'postReorderBtn' },
+        { id: 'btn_post_restaurant', title: 'postCompleteRestaurantBtn' },
+      ],
+    }, null);
+    expect(patchSession).toHaveBeenCalledWith(FROM, { pendingAmendBusinessId: BIZ }, baseSession);
   });
 
-  test('too-late after delivered uses delivered-specific copy', async () => {
-    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'delivered', paymentMethod: 'stripe' });
+  test('too-late after picked_up re-offers reorder CTAs', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'picked_up', paymentMethod: 'cash' });
 
     const handled = await handlePostOrderCancelButton({
-      from: FROM, session: baseSession, lang: 'tr', businessId: BIZ,
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ,
     });
 
     expect(handled).toBe(true);
-    expect(refundOrderPayment).not.toHaveBeenCalled();
-    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLateDelivered', null);
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLatePickedUp', null);
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: 'orderCompletePrompt',
+    }), null);
+  });
+
+  test('too-late after already cancelled re-offers reorder CTAs', async () => {
+    getOrder.mockResolvedValue({ id: ORDER_ID, status: 'cancelled', paymentMethod: 'cash' });
+
+    const handled = await handlePostOrderCancelButton({
+      from: FROM, session: baseSession, lang: 'de', businessId: BIZ,
+    });
+
+    expect(handled).toBe(true);
+    expect(sendText).toHaveBeenCalledWith(FROM, 'postOrderCancelTooLateAlreadyClosed', null);
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: 'orderCompletePrompt',
+    }), null);
   });
 
   test('refunds then cancels stripe order when pending', async () => {

@@ -29,6 +29,12 @@ const {
   shouldConfirmDeliveryBuilding,
 } = require('../bot/resolveTypedDeliveryAddress');
 const { checkoutReviewCopy, checkoutManageCopy, checkoutCartCopy, cartRemoveModeOptions } = require('../bot/menuFlowCopy');
+const { isMultiRestaurantLine } = require('../bot/restaurantSwitch');
+const {
+  isSupportedLang,
+  setPreferredLanguage,
+  languageRadioOptions,
+} = require('../bot/customerLanguage');
 const {
   loadCustomerAddresses,
   saveCustomerAddress,
@@ -38,7 +44,12 @@ const {
 } = require('../bot/customerAddresses');
 const { loadCheckoutTotals } = require('../bot/checkoutDeal');
 const { SCREENS: S, FIELDS: F } = require('../flows/fields');
-const { attachAddressListImages, addressHomeIconBase64, attachListImages } = require('../lib/flowImages');
+const {
+  attachAddressListImages,
+  attachLanguageListImages,
+  addressHomeIconBase64,
+  attachListImages,
+} = require('../lib/flowImages');
 
 const REVIEW_SCREENS = new Set([
   S.CHECKOUT_REVIEW,
@@ -417,6 +428,8 @@ async function buildManageData({
     [F.CUSTOMER_NAME]: Object.prototype.hasOwnProperty.call(payload, F.CUSTOMER_NAME)
       ? String(payload[F.CUSTOMER_NAME] ?? '')
       : (trimmedName(profile.customerName) || ''),
+    [F.LANGUAGE_CHOICE]: isSupportedLang(lang) ? lang : 'de',
+    [F.LANGUAGE_OPTIONS]: await attachLanguageListImages(languageRadioOptions(t, lang)),
     // Always present: the manage screen binds a TextCaption to these, and Meta needs every
     // declared data field on every response for the screen.
     [F.ERROR_MESSAGE]: errorKey ? t(errorKey, lang) : '',
@@ -959,6 +972,7 @@ async function buildCheckoutCartData({
   });
   const hasDiscount = totals.discount > 0 && totals.deal;
   const showDelivery = !!totals.isDelivery;
+  const allowSwitch = await isMultiRestaurantLine(businessId, session?.whatsappPhoneNumberId);
   return {
     ...checkoutCartCopy(lang),
     [F.SUBTOTAL_LABEL]: t('menuFlowSubtotal', lang, Number(totals.subtotal).toFixed(2)),
@@ -972,7 +986,7 @@ async function buildCheckoutCartData({
     [F.DELIVERY_VISIBLE]: showDelivery,
     [F.TOTAL_LABEL]: t('orderTotal', lang, Number(totals.total).toFixed(2)),
     [F.BASKET_ITEMS]: await attachListImages(productRows, { flowListImageById }),
-    [F.REMOVE_MODE_OPTIONS]: cartRemoveModeOptions(lang, t, { allowEdit: false }),
+    [F.REMOVE_MODE_OPTIONS]: cartRemoveModeOptions(lang, t, { allowEdit: false, allowSwitch }),
     [F.FORM_INIT_VALUES]: { [F.REMOVE_MODE]: 'one' },
     [F.ERROR_MESSAGE]: cartError || '',
     [F.ERROR_VISIBLE]: !!cartError,
@@ -1059,6 +1073,37 @@ async function handleCheckoutCart({
   const info = await getBusinessInfo(businessId);
 
   if (action === 'cart_remove') {
+    // Multi: Anderes Restaurant closes the Flow; bot begins venue switch.
+    if (payload[F.REMOVE_MODE] === 'switch_restaurant') {
+      if (!(await isMultiRestaurantLine(businessId, session?.whatsappPhoneNumberId))) {
+        return {
+          version,
+          screen,
+          data: await buildCheckoutCartData({
+            basket,
+            lang,
+            businessId,
+            phone,
+            session,
+            info,
+            cartError: t('menuFlowEditUnavailable', lang),
+          }),
+        };
+      }
+      return {
+        version,
+        screen: 'SUCCESS',
+        data: {
+          extension_message_response: {
+            params: {
+              flow_token,
+              checkout_action: 'switch_restaurant',
+            },
+          },
+        },
+      };
+    }
+
     const nextBasket = basketAfterCartRemove(basket, payload);
     const changed = nextBasket !== basket;
     if (changed && !nextBasket.length) {
@@ -1130,6 +1175,7 @@ function logicalCheckoutScreen(payload = {}) {
     || action === 'select_address'
     || action === 'apply_found'
     || action === 'manage_edit_link'
+    || action === 'set_language'
   ) {
     return mode === 'cart' ? S.CHECKOUT_CART : S.ADDRESS_MANAGE;
   }
@@ -1340,6 +1386,42 @@ async function dispatchCheckoutExchange({
   }
 
   const profile = await loadCustomerAddresses(phone, businessId);
+
+  if (action === 'set_language' && MANAGE_SCREENS.has(screen)) {
+    const nextLang = String(payload[F.LANGUAGE_CHOICE] || '').trim();
+    if (!isSupportedLang(nextLang)) {
+      return manageResponse({
+        screen,
+        profile: profileWithSessionName(profile, session),
+        lang,
+        payload,
+        version,
+        editVisible: true,
+      });
+    }
+    let nextProfile = profileWithSessionName(profile, session);
+    let nextSession = session;
+    const named = await applyNameFromManagePayload({
+      phone, businessId, payload, profile: nextProfile, session, ref,
+    });
+    if (named.ok) {
+      nextProfile = named.profile;
+      nextSession = named.session;
+    }
+    await setPreferredLanguage(phone, nextLang);
+    await ref.set({ language: nextLang, updatedAt: new Date() }, { merge: true });
+    nextSession = { ...nextSession, language: nextLang };
+    const nextScreen = returnReviewScreenForManage(screen) || S.CHECKOUT_REVIEW;
+    return buildReviewReturnResponse({
+      screen: nextScreen,
+      profile: nextProfile,
+      session: nextSession,
+      ref,
+      version,
+      businessId,
+      phone,
+    });
+  }
 
   if (action === 'select_address') {
     if (MANAGE_SCREENS.has(screen)) {

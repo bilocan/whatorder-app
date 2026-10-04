@@ -8,10 +8,15 @@ const SCREENS = {
   MENU_BROWSE:            'MENU_BROWSE',
   ORDER_ITEM:             'ORDER_ITEM',
   // Cart → edit clones (Meta forbids A↔B; forward-only like ADDRESS_MANAGE).
+  // Extra clones so summary tap-to-edit survives manage round-trips (was 2, now 4).
   ORDER_ITEM_EDIT:        'ORDER_ITEM_EDIT',
   ORDER_ITEM_EDIT_AGAIN:  'ORDER_ITEM_EDIT_AGAIN',
+  ORDER_ITEM_EDIT_MORE:   'ORDER_ITEM_EDIT_MORE',
+  ORDER_ITEM_EDIT_FINAL:  'ORDER_ITEM_EDIT_FINAL',
   CART_EDITED:            'CART_EDITED',
   CART_EDITED_AGAIN:      'CART_EDITED_AGAIN',
+  CART_EDITED_MORE:       'CART_EDITED_MORE',
+  CART_EDITED_FINAL:      'CART_EDITED_FINAL',
   CART_REVIEW:  'CART_REVIEW',  // editable cart round 1
   CART_UPDATED: 'CART_UPDATED', // editable cart round 2 (identical UI, different ID to satisfy DAG)
   CART_DONE:    'CART_DONE',    // final summary — no remove UI, just place order
@@ -61,13 +66,57 @@ const FIELDS = {
   MULTI_VISIBLE:  'multi_visible',
   MULTI_LABEL:    'multi_label',
   MULTI_OPTIONS:  'multi_options',
+  // When true, ORDER_ITEM uses CheckboxGroup with selection bounds.
+  MULTI_BOUNDED:  'multi_bounded',
+  // When true with MULTI_BOUNDED: set both min+max. When false: max only (at-most-N).
+  MULTI_HAS_MIN:  'multi_has_min',
+  MULTI_MIN:      'multi_min',
+  MULTI_MAX:      'multi_max',
+  // form_editable AND shared maxSelect quota (split Beilage chunks).
+  MULTI_ENABLED:  'multi_enabled',
+  // Second multi-select (e.g. Sonderwunsch or Beilage overflow chunk).
+  MULTI2_VISIBLE: 'multi2_visible',
+  MULTI2_LABEL:   'multi2_label',
+  MULTI2_OPTIONS: 'multi2_options',
+  MULTI2_BOUNDED: 'multi2_bounded',
+  MULTI2_HAS_MIN: 'multi2_has_min',
+  MULTI2_MIN:     'multi2_min',
+  MULTI2_MAX:     'multi2_max',
+  MULTI2_ENABLED: 'multi2_enabled',
+  // Third multi-select (Beilage overflow + Sonderwunsch). No Alle wählen (Meta max 2 EmbeddedLinks).
+  MULTI3_VISIBLE: 'multi3_visible',
+  MULTI3_LABEL:   'multi3_label',
+  MULTI3_OPTIONS: 'multi3_options',
+  MULTI3_MAX:     'multi3_max',
+  MULTI3_ENABLED: 'multi3_enabled',
   SLOT1_VALUE:    'slot1_value',
   SLOT2_VALUE:    'slot2_value',
   SLOT3_VALUE:    'slot3_value',
   MULTI_VALUE:    'multi_value',
+  MULTI2_VALUE:   'multi2_value',
+  MULTI3_VALUE:   'multi3_value',
+  // Multi lists >20: CheckboxGroup page flip (not split chunks).
+  MULTI_PAGE:     'multi_page',
+  MULTI_PARKED:   'multi_parked',
+  // Second overflow multi (e.g. paid Extras alongside free Zutaten).
+  MULTI2_PAGE:    'multi2_page',
+  MULTI2_PARKED:  'multi2_parked',
+  // Meta forbids CheckboxGroup max-selected-items <= 1. When 1 pick remains
+  // (maxSelect=1 or paginated remaining=1), hide CheckboxGroup and use radio.
+  MULTI_ONE_VISIBLE: 'multi_one_visible',
+  MULTI_ONE_LABEL:   'multi_one_label',
+  MULTI_ONE_OPTIONS: 'multi_one_options',
+  MULTI_ONE_ENABLED: 'multi_one_enabled',
+  MULTI_ONE_VALUE:   'multi_one_value',
+  // Same radio fallback for the second multi slot (e.g. capped Extras).
+  MULTI2_ONE_VISIBLE: 'multi2_one_visible',
+  MULTI2_ONE_LABEL:   'multi2_one_label',
+  MULTI2_ONE_OPTIONS: 'multi2_one_options',
+  MULTI2_ONE_ENABLED: 'multi2_one_enabled',
+  MULTI2_ONE_VALUE:   'multi2_one_value',
   NOTES:          'notes',
 
-  // CART_REVIEW
+  // CART_REVIEW (summary | manage via cart_ui_mode — same screen, two pages)
   BASKET_TEXT:    'basket_text',    // CART_DONE plain list; edit screens use CheckboxGroup rows
   SUBTOTAL_LABEL: 'subtotal_label',
   DISCOUNT_LABEL: 'discount_label',
@@ -76,9 +125,12 @@ const FIELDS = {
   DELIVERY_VISIBLE: 'delivery_visible',
   TOTAL_LABEL:    'total_label',
   BASKET_ITEMS:   'basket_items',
-  REMOVE_ITEMS:   'remove_items', // CheckboxGroup — multi-select removal
-  REMOVE_MODE:    'remove_mode',  // Radio: one | line
+  BASKET_CHOICE:  'basket_choice', // Summary RadioButtonsGroup — tap line to edit
+  REMOVE_ITEMS:   'remove_items', // Manage CheckboxGroup — multi-select removal
+  REMOVE_MODE:    'remove_mode',  // Radio: one | line | all | switch_restaurant
   REMOVE_MODE_OPTIONS: 'remove_mode_options',
+  // summary | manage (If branches; avoids DAG clones for “Warenkorb ändern”)
+  CART_UI_MODE:   'cart_ui_mode',
 
   // Menu Flow UI copy (filled from session.language on every exchange)
   UI_SCREEN_TITLE:     'ui_screen_title',
@@ -87,6 +139,9 @@ const FIELDS = {
   UI_CUSTOMISE:        'ui_customise',
   UI_QTY_LABEL:        'ui_qty_label',
   UI_QTY_HELPER:       'ui_qty_helper',
+  // Read-only Anpassen after system back from cart (TextInput has no enabled).
+  UI_QTY_SUMMARY:      'ui_qty_summary',
+  FORM_EDITABLE:       'form_editable',
   FORM_INIT_VALUES:    'form_init_values',
   ERROR_MESSAGES:      'error_messages',
   UI_NOTES_LABEL:      'ui_notes_label',
@@ -96,8 +151,18 @@ const FIELDS = {
   UI_ORDER_FOOTER_ACTION: 'ui_order_footer_action',
   UI_MULTI_TOGGLE:        'ui_multi_toggle',
   UI_MULTI_TOGGLE_VISIBLE: 'ui_multi_toggle_visible',
+  UI_MULTI2_TOGGLE:         'ui_multi2_toggle',
+  UI_MULTI2_TOGGLE_VISIBLE: 'ui_multi2_toggle_visible',
+  // First EmbeddedLink action: toggle | page_next | page_prev (overflow pagination).
+  UI_MULTI_LINK_ACTION:   'ui_multi_link_action',
+  // Second EmbeddedLink: toggle2 | page2_next | page2_prev.
+  UI_MULTI2_LINK_ACTION:  'ui_multi2_link_action',
   UI_FOOTER_LEFT_CAPTION: 'ui_footer_left_caption',
-  UI_CART_HINT:        'ui_cart_hint',
+  UI_CART_HINT:        'ui_cart_hint', // manage remove hint
+  UI_SUMMARY_HINT:     'ui_summary_hint', // tippen zum Bearbeiten
+  UI_CART_ITEMS_LABEL: 'ui_cart_items_label', // summary radio group label
+  UI_EDIT_CART:        'ui_edit_cart', // summary → manage link
+  UI_BACK_TO_SUMMARY:  'ui_back_to_summary', // manage → summary link
   UI_REMOVE_LABEL:     'ui_remove_label',
   UI_REMOVE_MODE_LABEL: 'ui_remove_mode_label',
   UI_REMOVE_SELECTED:  'ui_remove_selected',
@@ -148,6 +213,9 @@ const FIELDS = {
   UI_RETURN_TO_REVIEW: 'ui_return_to_review',
   UI_BACK_TO_CART_VISIBLE: 'ui_back_to_cart_visible',
   UI_MANAGE_ADDRESSES_LINK: 'ui_manage_addresses_link',
+  UI_LANGUAGE_LABEL: 'ui_language_label',
+  LANGUAGE_CHOICE: 'language_choice',
+  LANGUAGE_OPTIONS: 'language_options',
 
   // ADDRESS_MANAGE
   MANAGE_ADDRESS_CHOICE:  'manage_address_choice',

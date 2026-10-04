@@ -198,7 +198,54 @@ function radioSlot(n) {
     name: F[`SLOT${n}_VALUE`],
     required: `\${data.${F[`SLOT${n}_REQUIRED`]}}`,
     visible: `\${data.${F[`SLOT${n}_VISIBLE`]}}`,
+    enabled: `\${data.${F.FORM_EDITABLE}}`,
     'data-source': `\${data.${F[`SLOT${n}_OPTIONS`]}}`,
+  };
+}
+
+/** Payload shared by multi toggles / page flip / footer. */
+function multiFormPayload(extra = {}) {
+  return {
+    ...extra,
+    [F.UI_ORDER_FOOTER_ACTION]: `\${data.${F.UI_ORDER_FOOTER_ACTION}}`,
+    [F.ITEM_ID]:     `\${data.${F.ITEM_ID}}`,
+    [F.QTY]:         `\${form.${F.QTY}}`,
+    [F.SLOT1_VALUE]: `\${form.${F.SLOT1_VALUE}}`,
+    [F.SLOT2_VALUE]: `\${form.${F.SLOT2_VALUE}}`,
+    [F.SLOT3_VALUE]: `\${form.${F.SLOT3_VALUE}}`,
+    [F.MULTI_VALUE]: `\${form.${F.MULTI_VALUE}}`,
+    [F.MULTI2_VALUE]: `\${form.${F.MULTI2_VALUE}}`,
+    [F.MULTI3_VALUE]: `\${form.${F.MULTI3_VALUE}}`,
+    [F.MULTI_ONE_VALUE]: `\${form.${F.MULTI_ONE_VALUE}}`,
+    [F.MULTI2_ONE_VALUE]: `\${form.${F.MULTI2_ONE_VALUE}}`,
+    [F.MULTI_PAGE]:  `\${data.${F.MULTI_PAGE}}`,
+    [F.MULTI_PARKED]: `\${data.${F.MULTI_PARKED}}`,
+    [F.MULTI2_PAGE]: `\${data.${F.MULTI2_PAGE}}`,
+    [F.MULTI2_PARKED]: `\${data.${F.MULTI2_PARKED}}`,
+    [F.NOTES]:       `\${form.${F.NOTES}}`,
+  };
+}
+
+/**
+ * One CheckboxGroup per multi slot (Meta forbids duplicate form names across If branches).
+ * Always bind max-selected-items: at-most-N / exact uses owner cap; unlimited uses 20 (Meta max).
+ * Exact minimum is enforced server-side (min-selected-items would force ≥1 on optional groups).
+ * Do NOT use on-select-action data_exchange here: Meta requires max-selected-items > 1, so
+ * remaining 0 → max 2 + disable; remaining 1 → RadioButtonsGroup (MULTI_ONE_*).
+ * Per-tick exchange lags on fast taps. Lists >20 paginate; shared max uses multi_parked.
+ */
+function multiCheckboxSlot({
+  labelKey, name, visibleKey, optionsKey, maxKey, enabledKey,
+}) {
+  return {
+    type: 'CheckboxGroup',
+    label: `\${data.${labelKey}}`,
+    name,
+    required: false,
+    visible: `\${data.${visibleKey}}`,
+    enabled: `\${data.${enabledKey}}`,
+    'data-source': `\${data.${optionsKey}}`,
+    'max-selected-items': `\${data.${maxKey}}`,
   };
 }
 
@@ -217,14 +264,28 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
       [F.ITEM_DESCRIPTION_VISIBLE]: { type: 'boolean', '__example__': !!exampleDesc },
       [F.ITEM_PRICE]:       { type: 'string', '__example__': examplePrice },
       [F.UI_ORDER_FOOTER_ACTION]: { type: 'string', '__example__': 'add_item' },
+      [F.FORM_EDITABLE]: { type: 'boolean', '__example__': true },
+      [F.UI_QTY_SUMMARY]: { type: 'string', '__example__': `${t('menuFlowQtyLabel', EXAMPLE_LANG)}: 1` },
       [F.UI_MULTI_TOGGLE]: { type: 'string', '__example__': t('menuFlowMultiClearAll', EXAMPLE_LANG) },
       [F.UI_MULTI_TOGGLE_VISIBLE]: { type: 'boolean', '__example__': true },
+      [F.UI_MULTI_LINK_ACTION]: { type: 'string', '__example__': 'toggle' },
+      [F.UI_MULTI2_TOGGLE]: { type: 'string', '__example__': t('menuFlowMultiSelectAll', EXAMPLE_LANG) },
+      [F.UI_MULTI2_TOGGLE_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.UI_MULTI2_LINK_ACTION]: { type: 'string', '__example__': 'toggle2' },
+      [F.MULTI_PAGE]: { type: 'number', '__example__': 1 },
+      [F.MULTI_PARKED]: { type: 'array', items: { type: 'string' }, '__example__': [] },
+      [F.MULTI2_PAGE]: { type: 'number', '__example__': 1 },
+      [F.MULTI2_PARKED]: { type: 'array', items: { type: 'string' }, '__example__': [] },
       [F.FORM_INIT_VALUES]: {
         type: 'object',
         properties: {
           [F.QTY]: { type: 'number' },
           [F.NOTES]: { type: 'string' },
           [F.MULTI_VALUE]: { type: 'array', items: { type: 'string' } },
+          [F.MULTI2_VALUE]: { type: 'array', items: { type: 'string' } },
+          [F.MULTI3_VALUE]: { type: 'array', items: { type: 'string' } },
+          [F.MULTI_ONE_VALUE]: { type: 'string' },
+          [F.MULTI2_ONE_VALUE]: { type: 'string' },
           [F.SLOT1_VALUE]: { type: 'string' },
           [F.SLOT2_VALUE]: { type: 'string' },
           [F.SLOT3_VALUE]: { type: 'string' },
@@ -234,6 +295,10 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
           [F.QTY]: 1,
           [F.NOTES]: '',
           [F.MULTI_VALUE]: [],
+          [F.MULTI2_VALUE]: [],
+          [F.MULTI3_VALUE]: [],
+          [F.MULTI_ONE_VALUE]: '',
+          [F.MULTI2_ONE_VALUE]: '',
           [F.SLOT1_VALUE]: '',
           [F.SLOT2_VALUE]: '',
           [F.SLOT3_VALUE]: '',
@@ -241,7 +306,14 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
       },
       [F.ERROR_MESSAGES]: {
         type: 'object',
-        properties: { [F.QTY]: { type: 'string' } },
+        properties: {
+          [F.QTY]: { type: 'string' },
+          [F.MULTI_VALUE]: { type: 'string' },
+          [F.MULTI2_VALUE]: { type: 'string' },
+          [F.MULTI3_VALUE]: { type: 'string' },
+          [F.MULTI_ONE_VALUE]: { type: 'string' },
+          [F.MULTI2_ONE_VALUE]: { type: 'string' },
+        },
         '__example__': {},
       },
       // Slot 1 (single-select) — flat fields so visible/data-source binding works
@@ -259,10 +331,30 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
       [F.SLOT3_LABEL]:    { type: 'string',  '__example__': 'Option' },
       [F.SLOT3_REQUIRED]: { type: 'boolean', '__example__': false },
       [F.SLOT3_OPTIONS]:  { ...OPTS_SCHEMA,  '__example__': [{ id: 'opt', title: 'Option' }] },
-      // Multi-select slot
+      // Multi-select slots (Beilagen + optional Sonderwunsch)
       [F.MULTI_VISIBLE]:  { type: 'boolean', '__example__': true },
       [F.MULTI_LABEL]:    { type: 'string',  '__example__': 'Extras' },
       [F.MULTI_OPTIONS]:  { ...OPTS_SCHEMA,  '__example__': [{ id: 'kaese', title: 'Käse' }, { id: 'pommes', title: 'Pommes' }] },
+      [F.MULTI_MAX]:      { type: 'number',  '__example__': 20 },
+      [F.MULTI_ENABLED]:  { type: 'boolean', '__example__': true },
+      [F.MULTI_ONE_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.MULTI_ONE_LABEL]:   { type: 'string',  '__example__': 'Extras' },
+      [F.MULTI_ONE_OPTIONS]: { ...OPTS_SCHEMA,  '__example__': [{ id: 'kaese', title: 'Käse' }] },
+      [F.MULTI_ONE_ENABLED]: { type: 'boolean', '__example__': false },
+      [F.MULTI2_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.MULTI2_LABEL]:   { type: 'string',  '__example__': 'Sonderwunsch' },
+      [F.MULTI2_OPTIONS]: { ...OPTS_SCHEMA,  '__example__': [{ id: 'kaserand', title: 'Käserand' }] },
+      [F.MULTI2_MAX]:     { type: 'number',  '__example__': 20 },
+      [F.MULTI2_ENABLED]: { type: 'boolean', '__example__': false },
+      [F.MULTI2_ONE_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.MULTI2_ONE_LABEL]:   { type: 'string',  '__example__': 'Sonderwunsch' },
+      [F.MULTI2_ONE_OPTIONS]: { ...OPTS_SCHEMA,  '__example__': [{ id: 'kaserand', title: 'Käserand' }] },
+      [F.MULTI2_ONE_ENABLED]: { type: 'boolean', '__example__': false },
+      [F.MULTI3_VISIBLE]: { type: 'boolean', '__example__': false },
+      [F.MULTI3_LABEL]:   { type: 'string',  '__example__': 'More extras' },
+      [F.MULTI3_OPTIONS]: { ...OPTS_SCHEMA,  '__example__': [{ id: 'oliven', title: 'Oliven' }] },
+      [F.MULTI3_MAX]:     { type: 'number',  '__example__': 20 },
+      [F.MULTI3_ENABLED]: { type: 'boolean', '__example__': false },
     },
     layout: {
       type: 'SingleColumnLayout',
@@ -280,51 +372,102 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
             then: [{ type: 'TextCaption', text: `\${data.${F.ITEM_DESCRIPTION}}` }],
           },
           {
-            type: 'TextInput',
-            label: `\${data.${F.UI_QTY_LABEL}}`,
-            name: F.QTY,
-            required: true,
-            'input-type': 'number',
-            'max-chars': 2,
-            // Anchored: unanchored (10|[1-9]) wrongly accepts "11".
-            pattern: '^(10|[1-9])$',
-            'helper-text': `\${data.${F.UI_QTY_HELPER}}`,
+            // TextInput has no enabled; view_cart shows a summary instead.
+            type: 'If',
+            condition: `\${data.${F.FORM_EDITABLE}}`,
+            then: [{
+              type: 'TextInput',
+              label: `\${data.${F.UI_QTY_LABEL}}`,
+              name: F.QTY,
+              required: true,
+              'input-type': 'number',
+              'max-chars': 2,
+              // Anchored: unanchored (10|[1-9]) wrongly accepts "11".
+              pattern: '^(10|[1-9])$',
+              'helper-text': `\${data.${F.UI_QTY_HELPER}}`,
+            }],
+            else: [{
+              type: 'TextBody',
+              text: `\${data.${F.UI_QTY_SUMMARY}}`,
+            }],
           },
           radioSlot(1),
           radioSlot(2),
           radioSlot(3),
-          {
-            type: 'CheckboxGroup',
-            label: `\${data.${F.MULTI_LABEL}}`,
+          multiCheckboxSlot({
+            labelKey: F.MULTI_LABEL,
             name: F.MULTI_VALUE,
+            visibleKey: F.MULTI_VISIBLE,
+            optionsKey: F.MULTI_OPTIONS,
+            maxKey: F.MULTI_MAX,
+            enabledKey: F.MULTI_ENABLED,
+          }),
+          {
+            // Meta forbids CheckboxGroup max-selected-items of 1; last remaining pick uses radio.
+            type: 'RadioButtonsGroup',
+            label: `\${data.${F.MULTI_ONE_LABEL}}`,
+            name: F.MULTI_ONE_VALUE,
             required: false,
-            visible: `\${data.${F.MULTI_VISIBLE}}`,
-            'data-source': `\${data.${F.MULTI_OPTIONS}}`,
+            visible: `\${data.${F.MULTI_ONE_VISIBLE}}`,
+            enabled: `\${data.${F.MULTI_ONE_ENABLED}}`,
+            'data-source': `\${data.${F.MULTI_ONE_OPTIONS}}`,
           },
           {
+            // Alle wählen, or Weitere/Zurück for capped lists paginated past Meta's 20-option cap.
             type: 'EmbeddedLink',
             text: `\${data.${F.UI_MULTI_TOGGLE}}`,
             visible: `\${data.${F.UI_MULTI_TOGGLE_VISIBLE}}`,
             'on-click-action': {
               name: 'data_exchange',
-              payload: {
-                multi_action: 'toggle',
-                [F.UI_ORDER_FOOTER_ACTION]: `\${data.${F.UI_ORDER_FOOTER_ACTION}}`,
-                [F.ITEM_ID]:     `\${data.${F.ITEM_ID}}`,
-                [F.QTY]:         `\${form.${F.QTY}}`,
-                [F.SLOT1_VALUE]: `\${form.${F.SLOT1_VALUE}}`,
-                [F.SLOT2_VALUE]: `\${form.${F.SLOT2_VALUE}}`,
-                [F.SLOT3_VALUE]: `\${form.${F.SLOT3_VALUE}}`,
-                [F.MULTI_VALUE]: `\${form.${F.MULTI_VALUE}}`,
-                [F.NOTES]:       `\${form.${F.NOTES}}`,
-              },
+              payload: multiFormPayload({
+                multi_action: `\${data.${F.UI_MULTI_LINK_ACTION}}`,
+              }),
             },
           },
+          multiCheckboxSlot({
+            labelKey: F.MULTI2_LABEL,
+            name: F.MULTI2_VALUE,
+            visibleKey: F.MULTI2_VISIBLE,
+            optionsKey: F.MULTI2_OPTIONS,
+            maxKey: F.MULTI2_MAX,
+            enabledKey: F.MULTI2_ENABLED,
+          }),
+          {
+            // Same Meta max=1 workaround for the second multi slot.
+            type: 'RadioButtonsGroup',
+            label: `\${data.${F.MULTI2_ONE_LABEL}}`,
+            name: F.MULTI2_ONE_VALUE,
+            required: false,
+            visible: `\${data.${F.MULTI2_ONE_VISIBLE}}`,
+            enabled: `\${data.${F.MULTI2_ONE_ENABLED}}`,
+            'data-source': `\${data.${F.MULTI2_ONE_OPTIONS}}`,
+          },
+          {
+            // Meta max 2 EmbeddedLinks/screen — this is the second (with multi toggle above).
+            type: 'EmbeddedLink',
+            text: `\${data.${F.UI_MULTI2_TOGGLE}}`,
+            visible: `\${data.${F.UI_MULTI2_TOGGLE_VISIBLE}}`,
+            'on-click-action': {
+              name: 'data_exchange',
+              payload: multiFormPayload({
+                multi_action: `\${data.${F.UI_MULTI2_LINK_ACTION}}`,
+              }),
+            },
+          },
+          multiCheckboxSlot({
+            labelKey: F.MULTI3_LABEL,
+            name: F.MULTI3_VALUE,
+            visibleKey: F.MULTI3_VISIBLE,
+            optionsKey: F.MULTI3_OPTIONS,
+            maxKey: F.MULTI3_MAX,
+            enabledKey: F.MULTI3_ENABLED,
+          }),
           {
             type: 'TextArea',
             label: `\${data.${F.UI_NOTES_LABEL}}`,
             name: F.NOTES,
             required: false,
+            enabled: `\${data.${F.FORM_EDITABLE}}`,
             'helper-text': `\${data.${F.UI_NOTES_HELPER}}`,
           },
           {
@@ -335,17 +478,10 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
             'right-caption': `\${data.${F.ITEM_PRICE}}`,
             'on-click-action': {
               name: 'data_exchange',
-              payload: {
+              payload: multiFormPayload({
                 // add_item | back_to_cart — set by exchange (menu vs system back).
                 cart_action: `\${data.${F.UI_ORDER_FOOTER_ACTION}}`,
-                [F.ITEM_ID]:    `\${data.${F.ITEM_ID}}`,
-                [F.QTY]:        `\${form.${F.QTY}}`,
-                [F.SLOT1_VALUE]: `\${form.${F.SLOT1_VALUE}}`,
-                [F.SLOT2_VALUE]: `\${form.${F.SLOT2_VALUE}}`,
-                [F.SLOT3_VALUE]: `\${form.${F.SLOT3_VALUE}}`,
-                [F.MULTI_VALUE]: `\${form.${F.MULTI_VALUE}}`,
-                [F.NOTES]:       `\${form.${F.NOTES}}`,
-              },
+              }),
             },
           },
         ],
@@ -356,8 +492,136 @@ async function orderItem(exampleItem, screenId = S.ORDER_ITEM) {
 
 function cartReview() { return cartEditScreen(S.CART_REVIEW); }
 
+function cartPriceBlock() {
+  // Prefer `visible` over nested `If` — Meta caps If nesting at 3; summary/manage Switch
+  // already uses one structural branch, so price lines must not add If depth.
+  return [
+    { type: 'TextBody', text: `\${data.${F.SUBTOTAL_LABEL}}` },
+    {
+      type: 'TextBody',
+      text: `\${data.${F.DISCOUNT_LABEL}}`,
+      visible: `\${data.${F.DISCOUNT_VISIBLE}}`,
+    },
+    {
+      type: 'TextBody',
+      text: `\${data.${F.DELIVERY_LABEL}}`,
+      visible: `\${data.${F.DELIVERY_VISIBLE}}`,
+    },
+    { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
+  ];
+}
+
+/** Summary page: tap a line to edit; Mehr hinzufügen + Warenkorb ändern. */
+function cartSummaryChildren() {
+  return [
+    { type: 'TextCaption', text: `\${data.${F.UI_SUMMARY_HINT}}` },
+    {
+      type: 'TextBody',
+      text: `\${data.${F.ERROR_MESSAGE}}`,
+      visible: `\${data.${F.ERROR_VISIBLE}}`,
+    },
+    {
+      type: 'RadioButtonsGroup',
+      label: `\${data.${F.UI_CART_ITEMS_LABEL}}`,
+      name: F.BASKET_CHOICE,
+      required: false,
+      'media-size': 'large',
+      'data-source': `\${data.${F.BASKET_ITEMS}}`,
+      'on-select-action': {
+        name: 'data_exchange',
+        payload: {
+          cart_action: 'edit_line',
+          [F.CART_UI_MODE]: 'summary',
+          [F.BASKET_CHOICE]: `\${form.${F.BASKET_CHOICE}}`,
+        },
+      },
+    },
+    ...cartPriceBlock(),
+    {
+      type: 'EmbeddedLink',
+      text: `\${data.${F.UI_ADD_MORE}}`,
+      'on-click-action': {
+        name: 'data_exchange',
+        payload: { cart_action: 'add_more', [F.CART_UI_MODE]: 'summary' },
+      },
+    },
+    {
+      type: 'EmbeddedLink',
+      text: `\${data.${F.UI_EDIT_CART}}`,
+      'on-click-action': {
+        name: 'data_exchange',
+        payload: { cart_action: 'open_manage', [F.CART_UI_MODE]: 'summary' },
+      },
+    },
+    {
+      type: 'Footer',
+      label: `\${data.${F.UI_PLACE_ORDER}}`,
+      'on-click-action': { name: 'complete', payload: {} },
+    },
+  ];
+}
+
+/** Manage page: remove / clear / Anderes Restaurant; Zurück zum Warenkorb. */
+function cartManageChildren() {
+  return [
+    { type: 'TextCaption', text: `\${data.${F.UI_CART_HINT}}` },
+    {
+      type: 'TextBody',
+      text: `\${data.${F.ERROR_MESSAGE}}`,
+      visible: `\${data.${F.ERROR_VISIBLE}}`,
+    },
+    {
+      type: 'CheckboxGroup',
+      label: `\${data.${F.UI_REMOVE_LABEL}}`,
+      name: F.REMOVE_ITEMS,
+      required: false,
+      'media-size': 'large',
+      'data-source': `\${data.${F.BASKET_ITEMS}}`,
+    },
+    ...cartPriceBlock(),
+    {
+      type: 'RadioButtonsGroup',
+      label: `\${data.${F.UI_REMOVE_MODE_LABEL}}`,
+      name: F.REMOVE_MODE,
+      required: true,
+      'data-source': `\${data.${F.REMOVE_MODE_OPTIONS}}`,
+    },
+    {
+      type: 'EmbeddedLink',
+      text: `\${data.${F.UI_REMOVE_SELECTED}}`,
+      'on-click-action': {
+        name: 'data_exchange',
+        payload: {
+          cart_action: 'remove_items',
+          [F.CART_UI_MODE]: 'manage',
+          [F.REMOVE_ITEMS]: `\${form.${F.REMOVE_ITEMS}}`,
+          [F.REMOVE_MODE]: `\${form.${F.REMOVE_MODE}}`,
+        },
+      },
+    },
+    {
+      type: 'EmbeddedLink',
+      text: `\${data.${F.UI_BACK_TO_SUMMARY}}`,
+      'on-click-action': {
+        name: 'data_exchange',
+        payload: { cart_action: 'back_to_summary', [F.CART_UI_MODE]: 'manage' },
+      },
+    },
+    {
+      type: 'Footer',
+      label: `\${data.${F.UI_PLACE_ORDER}}`,
+      'on-click-action': { name: 'complete', payload: {} },
+    },
+  ];
+}
+
 async function cartEditScreen(id) {
-  const copy = cartEditCopy(EXAMPLE_LANG);
+  // Schema must include every ui_* key used in either branch.
+  const copy = {
+    ...cartEditCopy(EXAMPLE_LANG, t, { cartUiMode: 'summary' }),
+    ...cartEditCopy(EXAMPLE_LANG, t, { cartUiMode: 'manage' }),
+    [F.UI_SCREEN_TITLE]: t('menuFlowCartTitle', EXAMPLE_LANG),
+  };
   const exampleRows = await Promise.all([
     withTileImage({
       id: '0',
@@ -381,6 +645,7 @@ async function cartEditScreen(id) {
     refresh_on_back: true,
     data: {
       ...uiSchema(copy),
+      [F.CART_UI_MODE]: { type: 'string', '__example__': 'summary' },
       [F.SUBTOTAL_LABEL]: { type: 'string', '__example__': t('menuFlowSubtotal', EXAMPLE_LANG, '15.40') },
       [F.DISCOUNT_LABEL]: {
         type: 'string',
@@ -401,7 +666,7 @@ async function cartEditScreen(id) {
       [F.REMOVE_MODE_OPTIONS]: {
         type: 'array',
         items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } } },
-        '__example__': cartRemoveModeOptions(EXAMPLE_LANG),
+        '__example__': cartRemoveModeOptions(EXAMPLE_LANG, t, { allowEdit: false, allowSwitch: true }),
       },
       [F.FORM_INIT_VALUES]: {
         type: 'object',
@@ -419,69 +684,16 @@ async function cartEditScreen(id) {
         type: 'Form',
         name: 'cart_form',
         'init-values': `\${data.${F.FORM_INIT_VALUES}}`,
-        children: [
-          { type: 'TextCaption', text: `\${data.${F.UI_CART_HINT}}` },
-          {
-            type: 'TextBody',
-            text: `\${data.${F.ERROR_MESSAGE}}`,
-            visible: `\${data.${F.ERROR_VISIBLE}}`,
+        children: [{
+          // Switch (not If): keeps If-nesting budget for other screens; same screen id
+          // for summary vs manage (Meta progress bar / DAG safe, like checkout Profil).
+          type: 'Switch',
+          value: `\${data.${F.CART_UI_MODE}}`,
+          cases: {
+            manage: cartManageChildren(),
+            summary: cartSummaryChildren(),
           },
-          {
-            type: 'CheckboxGroup',
-            // required:false keeps Place order enabled with nothing checked.
-            // Meta appends a localized "(optional)" suffix to the label (client UI language).
-            label: `\${data.${F.UI_REMOVE_LABEL}}`,
-            name: F.REMOVE_ITEMS,
-            required: false,
-            'media-size': 'large',
-            'data-source': `\${data.${F.BASKET_ITEMS}}`,
-          },
-          { type: 'TextBody', text: `\${data.${F.SUBTOTAL_LABEL}}` },
-          {
-            type: 'If',
-            condition: `\${data.${F.DISCOUNT_VISIBLE}}`,
-            then: [
-              { type: 'TextBody', text: `\${data.${F.DISCOUNT_LABEL}}` },
-            ],
-          },
-          {
-            type: 'If',
-            condition: `\${data.${F.DELIVERY_VISIBLE}}`,
-            then: [
-              { type: 'TextBody', text: `\${data.${F.DELIVERY_LABEL}}` },
-            ],
-          },
-          { type: 'TextSubheading', text: `\${data.${F.TOTAL_LABEL}}` },
-          {
-            type: 'RadioButtonsGroup',
-            label: `\${data.${F.UI_REMOVE_MODE_LABEL}}`,
-            name: F.REMOVE_MODE,
-            required: true,
-            'data-source': `\${data.${F.REMOVE_MODE_OPTIONS}}`,
-          },
-          {
-            type: 'EmbeddedLink',
-            text: `\${data.${F.UI_REMOVE_SELECTED}}`,
-            'on-click-action': {
-              name: 'data_exchange',
-              payload: {
-                cart_action: 'remove_items',
-                [F.REMOVE_ITEMS]: `\${form.${F.REMOVE_ITEMS}}`,
-                [F.REMOVE_MODE]: `\${form.${F.REMOVE_MODE}}`,
-              },
-            },
-          },
-          {
-            type: 'EmbeddedLink',
-            text: `\${data.${F.UI_ADD_MORE}}`,
-            'on-click-action': { name: 'data_exchange', payload: { cart_action: 'add_more' } },
-          },
-          {
-            type: 'Footer',
-            label: `\${data.${F.UI_PLACE_ORDER}}`,
-            'on-click-action': { name: 'complete', payload: {} },
-          },
-        ],
+        }],
       }],
     },
   };
@@ -544,12 +756,17 @@ async function main() {
       [S.MENU_BROWSE]:            [S.ORDER_ITEM],
       [S.ORDER_ITEM]:             [S.CART_REVIEW],
       // Forward-only edit chain (Meta rejects CART ↔ ORDER_ITEM cycles).
+      // Four edit rounds so manage ↔ summary round-trips do not exhaust edit.
       [S.CART_REVIEW]:            [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED, S.ORDER_ITEM_EDIT],
       [S.ORDER_ITEM_EDIT]:        [S.CART_EDITED],
       [S.CART_EDITED]:            [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED, S.ORDER_ITEM_EDIT_AGAIN],
       [S.ORDER_ITEM_EDIT_AGAIN]:  [S.CART_EDITED_AGAIN],
-      [S.CART_EDITED_AGAIN]:      [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED],
-      [S.CART_UPDATED]:           [S.CATEGORY_SELECT_RETURN, S.CART_DONE],
+      [S.CART_EDITED_AGAIN]:      [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED, S.ORDER_ITEM_EDIT_MORE],
+      [S.ORDER_ITEM_EDIT_MORE]:   [S.CART_EDITED_MORE],
+      [S.CART_EDITED_MORE]:       [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED, S.ORDER_ITEM_EDIT_FINAL],
+      [S.ORDER_ITEM_EDIT_FINAL]:  [S.CART_EDITED_FINAL],
+      [S.CART_EDITED_FINAL]:      [S.CATEGORY_SELECT_RETURN, S.CART_UPDATED],
+      [S.CART_UPDATED]:           [S.CATEGORY_SELECT_RETURN, S.CART_DONE, S.ORDER_ITEM_EDIT_MORE],
       [S.CART_DONE]:              [S.CATEGORY_SELECT_RETURN],
     },
     screens: [
@@ -559,9 +776,13 @@ async function main() {
       await orderItem(EXAMPLE_ITEM),
       await orderItem(EXAMPLE_ITEM, S.ORDER_ITEM_EDIT),
       await orderItem(EXAMPLE_ITEM, S.ORDER_ITEM_EDIT_AGAIN),
+      await orderItem(EXAMPLE_ITEM, S.ORDER_ITEM_EDIT_MORE),
+      await orderItem(EXAMPLE_ITEM, S.ORDER_ITEM_EDIT_FINAL),
       await cartEditScreen(S.CART_REVIEW),
       await cartEditScreen(S.CART_EDITED),
       await cartEditScreen(S.CART_EDITED_AGAIN),
+      await cartEditScreen(S.CART_EDITED_MORE),
+      await cartEditScreen(S.CART_EDITED_FINAL),
       await cartEditScreen(S.CART_UPDATED),
       cartDone(),
     ],

@@ -15,9 +15,13 @@ const TEST_FIREBASE_PROJECT_ID = 'whatorder-fire';
 /** Prod / preprod GCP / Firebase project. */
 const PROD_FIREBASE_PROJECT_ID = 'whatorder-fire-prod';
 
-/** Dedicated E2E customer WABA (WhatOrder E2E customer). Non-secret. */
+/**
+ * Retired Cloud API id for the previous consumer SIM (+43 660 2585284).
+ * Graph customer transport only. WA Web uses DEFAULT_CUSTOMER_DISPLAY.
+ */
 const DEFAULT_CUSTOMER_PHONE_NUMBER_ID = '1176672252201658';
-const DEFAULT_CUSTOMER_DISPLAY = '+436602585284';
+/** Consumer WhatsApp logged into Contabo WhatsApp Web. Changed 2026-10-03. */
+const DEFAULT_CUSTOMER_DISPLAY = '+436602898096';
 
 /**
  * Named bot targets. Switch with E2E_WA_TARGET=test|test-benat|preprod|prod
@@ -241,7 +245,11 @@ function loadConfig(env = process.env, opts = {}) {
     customerPhoneNumberId: String(
       env.E2E_WA_CUSTOMER_PHONE_NUMBER_ID || DEFAULT_CUSTOMER_PHONE_NUMBER_ID,
     ).trim(),
-    customerDisplay: String(env.E2E_WA_CUSTOMER_DISPLAY || DEFAULT_CUSTOMER_DISPLAY).trim(),
+    // Nightly sets E2E_WA_PIN_CUSTOMER_DISPLAY=1. Contabo .env.local is linked
+    // for Firebase secrets and must not keep a stale E2E_WA_CUSTOMER_DISPLAY.
+    customerDisplay: String(env.E2E_WA_PIN_CUSTOMER_DISPLAY || '').trim() === '1'
+      ? DEFAULT_CUSTOMER_DISPLAY
+      : String(env.E2E_WA_CUSTOMER_DISPLAY || DEFAULT_CUSTOMER_DISPLAY).trim(),
     businessDisplay,
     businessPhoneNumberId,
     businessId: String(env.E2E_WA_BUSINESS_ID || resolved.businessId || 'biz_enes_kebap_9450w').trim(),

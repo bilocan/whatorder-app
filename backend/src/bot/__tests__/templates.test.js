@@ -5,6 +5,8 @@ const LOCALES = ['en', 'tr', 'de'];
 // Every key that should exist across all three locales
 const FUNCTION_KEYS = [
   'greeting', 'langChanged',
+  'languagePickBody', 'langBtnDe', 'langBtnEn', 'langBtnTr',
+  'langOptionDe', 'langOptionEn', 'langOptionTr', 'confirmFlowLanguageLabel',
   'menuListHeader', 'menuListBody', 'menuListFooter', 'viewMenuBtn',
   'qtyBody',
   'itemAdded', 'itemsAdded', 'itemsAddedCount', 'reorderLoaded', 'addMoreBtn', 'viewBasketBtn', 'doneBtn',
@@ -29,7 +31,10 @@ const FUNCTION_KEYS = [
   'menuFlowScreenMenu', 'menuFlowCategoryPrompt', 'menuFlowNext', 'menuFlowCustomise',
   'menuFlowQtyLabel', 'menuFlowNotesLabel', 'menuFlowNotesHelper',   'menuFlowAddToCart',
   'menuFlowSave', 'menuFlowMultiSelectAll', 'menuFlowMultiClearAll',
-  'menuFlowCartTitle', 'menuFlowCartHint', 'menuFlowRemoveLabel', 'menuFlowRemoveModeLabel',
+  'menuFlowCartTitle', 'menuFlowManageTitle', 'menuFlowSummaryHint', 'menuFlowCartItemsLabel',
+  'menuFlowEditCart', 'menuFlowBackToSummary', 'menuFlowSwitchRestaurant',
+  'menuFlowCartHint', 'menuFlowRemoveLabel', 'menuFlowRemoveModeLabel',
+  'menuFlowRemoveNeedSelect',
   'menuFlowRemoveOne', 'menuFlowRemoveLine', 'menuFlowRemoveAll', 'menuFlowRemoveEdit',
   'menuFlowRemoveSelected', 'menuFlowEditNeedOne', 'menuFlowEditUnavailable',
   'menuFlowAddMore', 'menuFlowPlaceOrder', 'menuFlowClearCart',

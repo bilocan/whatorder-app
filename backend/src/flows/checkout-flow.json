@@ -72,7 +72,7 @@
         },
         "ui_manage_addresses_link": {
           "type": "string",
-          "__example__": "Change name or address"
+          "__example__": "Profile"
         },
         "receipt_text": {
           "type": "string",
@@ -254,6 +254,60 @@
         "ui_profile_name_helper": {
           "type": "string",
           "__example__": "Used on your order"
+        },
+        "ui_language_label": {
+          "type": "string",
+          "__example__": "Language"
+        },
+        "language_choice": {
+          "type": "string",
+          "__example__": "en"
+        },
+        "language_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "string"
+              },
+              "image": {
+                "type": "string"
+              },
+              "alt-text": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "de",
+              "title": "Deutsch",
+              "image": "AA==",
+              "alt-text": "Deutsch"
+            },
+            {
+              "id": "en",
+              "title": "English",
+              "image": "AA==",
+              "alt-text": "English"
+            },
+            {
+              "id": "tr",
+              "title": "Türkçe",
+              "image": "AA==",
+              "alt-text": "Türkçe"
+            }
+          ]
         },
         "manage_address_choice": {
           "type": "string",
@@ -515,6 +569,7 @@
               "order_type": "${data.order_type}",
               "note": "${data.note}",
               "customer_name": "${data.customer_name}",
+              "language_choice": "${data.language_choice}",
               "manage_address_choice": "${data.manage_address_choice}",
               "delivery_address": "${data.delivery_address}",
               "delivery_apartment": "${data.delivery_apartment}",
@@ -660,6 +715,7 @@
                             "payload": {
                               "checkout_action": "manage_edit_link",
                               "customer_name": "${form.customer_name}",
+                              "language_choice": "${form.language_choice}",
                               "manage_address_choice": "${form.manage_address_choice}",
                               "delivery_address": "${form.delivery_address}",
                               "delivery_apartment": "${form.delivery_apartment}",
@@ -677,6 +733,7 @@
                             "payload": {
                               "checkout_action": "manage_back",
                               "customer_name": "${form.customer_name}",
+                              "language_choice": "${form.language_choice}",
                               "manage_address_choice": "${form.manage_address_choice}",
                               "delivery_address": "${form.delivery_address}",
                               "delivery_apartment": "${form.delivery_apartment}",
@@ -694,6 +751,7 @@
                             "payload": {
                               "checkout_action": "manage_save",
                               "customer_name": "${form.customer_name}",
+                              "language_choice": "${form.language_choice}",
                               "manage_address_choice": "${form.manage_address_choice}",
                               "delivery_address": "${form.delivery_address}",
                               "delivery_apartment": "${form.delivery_apartment}",
@@ -711,6 +769,28 @@
                           "text": "${data.ui_manage_select_hint}"
                         },
                         {
+                          "type": "RadioButtonsGroup",
+                          "label": "${data.ui_language_label}",
+                          "name": "language_choice",
+                          "required": true,
+                          "data-source": "${data.language_options}",
+                          "media-size": "regular",
+                          "on-select-action": {
+                            "name": "data_exchange",
+                            "payload": {
+                              "checkout_action": "set_language",
+                              "customer_name": "${form.customer_name}",
+                              "language_choice": "${form.language_choice}",
+                              "manage_address_choice": "${form.manage_address_choice}",
+                              "delivery_address": "${form.delivery_address}",
+                              "delivery_apartment": "${form.delivery_apartment}",
+                              "manage_set_as_default": "${form.manage_set_as_default}",
+                              "checkout_layout": "single",
+                              "checkout_ui_mode": "${data.checkout_ui_mode}"
+                            }
+                          }
+                        },
+                        {
                           "type": "Footer",
                           "label": "${data.ui_manage_back}",
                           "on-click-action": {
@@ -718,6 +798,7 @@
                             "payload": {
                               "checkout_action": "manage_back",
                               "customer_name": "${form.customer_name}",
+                              "language_choice": "${form.language_choice}",
                               "manage_address_choice": "${form.manage_address_choice}",
                               "delivery_address": "${form.delivery_address}",
                               "delivery_apartment": "${form.delivery_apartment}",
