@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { admin } = require('../firebase');
 const { parseGsUrl } = require('./urls');
 
@@ -157,6 +158,25 @@ async function downloadAssets(refs) {
   return { assets, skipped };
 }
 
+// Outside menu-photos/ so a leftover stage file is not packed into the next export.
+function stageObjectPath(targetBusinessId, batchId, objectPath) {
+  return `bundle-import-stage/${targetBusinessId}/${batchId}/${objectPath}`;
+}
+
+function backupObjectPath(targetBusinessId, batchId, objectPath) {
+  return `bundle-import-backup/${targetBusinessId}/${batchId}/${objectPath}`;
+}
+
+async function deletePaths(bucket, paths) {
+  await eachLimit(paths, ASSET_IO_CONCURRENCY, async (objectPath) => {
+    try {
+      await bucket.file(objectPath).delete();
+    } catch {
+      // A leftover stage object must not hide the upload error.
+    }
+  });
+}
+
 async function uploadAssets(assets, { sourceBusinessId, targetBusinessId } = {}) {
   const uploaded = [];
   const jobs = [];
@@ -172,15 +192,79 @@ async function uploadAssets(assets, { sourceBusinessId, targetBusinessId } = {})
       asset,
     });
   }
-  await eachLimit(jobs, ASSET_IO_CONCURRENCY, async ({ objectPath, asset }) => {
-    await tenantBucket().file(objectPath).save(asset.buffer, {
-      contentType: asset.contentType || contentTypeFor(objectPath),
-      resumable: false,
-      timeout: ASSET_IO_TIMEOUT_MS,
+  if (!jobs.length) return uploaded;
+
+  const batchId = crypto.randomBytes(6).toString('hex');
+  const bucket = tenantBucket();
+  const staged = [];
+  try {
+    await eachLimit(jobs, ASSET_IO_CONCURRENCY, async ({ objectPath, asset }) => {
+      const stagePath = stageObjectPath(targetBusinessId, batchId, objectPath);
+      await bucket.file(stagePath).save(asset.buffer, {
+        contentType: asset.contentType || contentTypeFor(objectPath),
+        resumable: false,
+        timeout: ASSET_IO_TIMEOUT_MS,
+      });
+      staged.push(stagePath);
     });
-    uploaded.push(objectPath);
-  });
+  } catch (err) {
+    await deletePaths(bucket, staged);
+    throw err;
+  }
+
+  const backups = [];
+  try {
+    await eachLimit(jobs, ASSET_IO_CONCURRENCY, async ({ objectPath }) => {
+      const live = bucket.file(objectPath);
+      const [exists] = await live.exists();
+      if (!exists) {
+        backups.push({ objectPath, backup: null });
+        return;
+      }
+      const backup = backupObjectPath(targetBusinessId, batchId, objectPath);
+      await live.copy(bucket.file(backup));
+      backups.push({ objectPath, backup });
+    });
+  } catch (err) {
+    await deletePaths(bucket, staged.concat(backups.map((entry) => entry.backup).filter(Boolean)));
+    throw err;
+  }
+
+  const promoted = [];
+  try {
+    await eachLimit(jobs, ASSET_IO_CONCURRENCY, async ({ objectPath }) => {
+      const stagePath = stageObjectPath(targetBusinessId, batchId, objectPath);
+      await bucket.file(stagePath).copy(bucket.file(objectPath));
+      promoted.push(objectPath);
+      uploaded.push(objectPath);
+    });
+  } catch (err) {
+    try {
+      await restoreLive(bucket, backups, promoted);
+    } catch (restoreErr) {
+      console.error('[restaurant-bundle] photo restore failed', restoreErr.message);
+    }
+    await deletePaths(bucket, staged.concat(backups.map((entry) => entry.backup).filter(Boolean)));
+    throw err;
+  }
+  await deletePaths(bucket, staged.concat(backups.map((entry) => entry.backup).filter(Boolean)));
   return uploaded;
+}
+
+async function restoreLive(bucket, backups, promoted) {
+  const backupByPath = new Map(backups.map((entry) => [entry.objectPath, entry.backup]));
+  await eachLimit(promoted, ASSET_IO_CONCURRENCY, async (objectPath) => {
+    const backup = backupByPath.get(objectPath);
+    if (backup) {
+      await bucket.file(backup).copy(bucket.file(objectPath));
+      return;
+    }
+    try {
+      await bucket.file(objectPath).delete();
+    } catch {
+      // The live object was new and is already gone.
+    }
+  });
 }
 
 module.exports = {

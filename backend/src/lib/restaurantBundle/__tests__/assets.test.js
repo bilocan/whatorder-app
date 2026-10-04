@@ -86,11 +86,13 @@ test('downloadAssets keeps successful photos and skips failures', async () => {
 
 test('uploadAssets remaps paths and uploads in parallel', async () => {
   const saved = [];
+  const copied = [];
   let inFlight = 0;
   let maxInFlight = 0;
   admin.storage.mockReturnValue({
     bucket: () => ({
       file: (objectPath) => ({
+        name: objectPath,
         save: async (buffer) => {
           inFlight += 1;
           maxInFlight = Math.max(maxInFlight, inFlight);
@@ -98,6 +100,13 @@ test('uploadAssets remaps paths and uploads in parallel', async () => {
           inFlight -= 1;
           saved.push({ objectPath, text: buffer.toString() });
         },
+        exists: async () => [false],
+        copy: async (dest) => {
+          const destPath = typeof dest === 'string' ? dest : dest.name;
+          const source = saved.find((entry) => entry.objectPath === objectPath);
+          copied.push({ objectPath: destPath, text: source ? source.text : '' });
+        },
+        delete: async () => {},
       }),
     }),
   });
@@ -108,11 +117,13 @@ test('uploadAssets remaps paths and uploads in parallel', async () => {
     { name: 'assets/no-bytes.jpg' },
   ], { sourceBusinessId: 'biz_old', targetBusinessId: 'biz_new' });
 
-  expect(saved.map((s) => s.objectPath).sort()).toEqual([
+  expect(copied.map((entry) => entry.objectPath).sort()).toEqual([
     'menu-photos/biz_new/a.jpg',
     'menu-photos/biz_new/b.jpg',
   ]);
-  expect(uploaded.slice().sort()).toEqual(saved.map((s) => s.objectPath).sort());
+  expect(copied.map((entry) => entry.text).sort()).toEqual(['a', 'b']);
+  expect(uploaded.slice().sort()).toEqual(copied.map((entry) => entry.objectPath).sort());
+  expect(saved.every((entry) => entry.objectPath.startsWith('bundle-import-stage/'))).toBe(true);
   expect(maxInFlight).toBeGreaterThan(1);
 });
 
@@ -141,11 +152,17 @@ test('uploadAssets rejects parent-directory paths before writing', async () => {
 });
 
 test('uploadAssets allows a shared cover when every path is contained', async () => {
-  const saved = [];
+  const copied = [];
   admin.storage.mockReturnValue({
     bucket: () => ({
       file: (objectPath) => ({
-        save: async () => { saved.push(objectPath); },
+        name: objectPath,
+        save: async () => {},
+        exists: async () => [false],
+        copy: async (dest) => {
+          copied.push(typeof dest === 'string' ? dest : dest.name);
+        },
+        delete: async () => {},
       }),
     }),
   });
@@ -154,7 +171,79 @@ test('uploadAssets allows a shared cover when every path is contained', async ()
     { objectPath: 'misc/hero.png', buffer: Buffer.from('b') },
   ], { sourceBusinessId: 'biz_old', targetBusinessId: 'biz_new' });
   expect(uploaded.sort()).toEqual(['menu-photos/biz_new/a.jpg', 'misc/hero.png']);
-  expect(saved.sort()).toEqual(uploaded.sort());
+  expect(copied.sort()).toEqual(uploaded.sort());
+});
+
+test('failed upload leaves existing live photos unchanged', async () => {
+  const objects = new Map([
+    ['menu-photos/biz_t/a.jpg', 'old-a'],
+    ['menu-photos/biz_t/b.jpg', 'old-b'],
+  ]);
+  const store = { objects };
+  store.bucket = () => ({
+    file: (objectPath) => {
+      const handle = {
+        name: objectPath,
+        save: async (buffer) => {
+          if (String(objectPath).endsWith('b.jpg')) throw new Error('boom');
+          store.objects.set(objectPath, buffer.toString());
+        },
+        exists: async () => [store.objects.has(objectPath)],
+        copy: async (dest) => {
+          const destPath = typeof dest === 'string' ? dest : dest.name;
+          store.objects.set(destPath, store.objects.get(objectPath));
+        },
+        delete: async () => { store.objects.delete(objectPath); },
+      };
+      return handle;
+    },
+  });
+  admin.storage.mockReturnValue({ bucket: store.bucket });
+
+  await expect(uploadAssets([
+    { objectPath: 'menu-photos/biz_t/a.jpg', buffer: Buffer.from('new-a') },
+    { objectPath: 'menu-photos/biz_t/b.jpg', buffer: Buffer.from('new-b') },
+  ], { sourceBusinessId: 'biz_t', targetBusinessId: 'biz_t' })).rejects.toThrow('boom');
+
+  expect(store.objects.get('menu-photos/biz_t/a.jpg')).toBe('old-a');
+  expect(store.objects.get('menu-photos/biz_t/b.jpg')).toBe('old-b');
+  expect([...store.objects.keys()].some((key) => key.startsWith('bundle-import-'))).toBe(false);
+});
+
+test('failed promote restores live photos already replaced', async () => {
+  const objects = new Map([
+    ['menu-photos/biz_t/a.jpg', 'old-a'],
+    ['menu-photos/biz_t/b.jpg', 'old-b'],
+  ]);
+  const store = { objects };
+  admin.storage.mockReturnValue({
+    bucket: () => ({
+      file: (objectPath) => ({
+        name: objectPath,
+        save: async (buffer) => {
+          store.objects.set(objectPath, buffer.toString());
+        },
+        exists: async () => [store.objects.has(objectPath)],
+        copy: async (dest) => {
+          const destPath = typeof dest === 'string' ? dest : dest.name;
+          if (destPath === 'menu-photos/biz_t/b.jpg') throw new Error('promote failed');
+          store.objects.set(destPath, store.objects.get(objectPath));
+        },
+        delete: async () => { store.objects.delete(objectPath); },
+      }),
+    }),
+  });
+
+  await expect(uploadAssets([
+    { objectPath: 'menu-photos/biz_t/a.jpg', buffer: Buffer.from('new-a') },
+    { objectPath: 'menu-photos/biz_t/b.jpg', buffer: Buffer.from('new-b') },
+    { objectPath: 'menu-photos/biz_t/c.jpg', buffer: Buffer.from('new-c') },
+  ], { sourceBusinessId: 'biz_t', targetBusinessId: 'biz_t' })).rejects.toThrow('promote failed');
+
+  expect(store.objects.get('menu-photos/biz_t/a.jpg')).toBe('old-a');
+  expect(store.objects.get('menu-photos/biz_t/b.jpg')).toBe('old-b');
+  expect(store.objects.has('menu-photos/biz_t/c.jpg')).toBe(false);
+  expect([...store.objects.keys()].some((key) => key.startsWith('bundle-import-'))).toBe(false);
 });
 
 test('uploadAssets stops scheduling after a save failure', async () => {
