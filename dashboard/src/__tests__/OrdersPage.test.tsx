@@ -286,5 +286,22 @@ describe('OrdersPage', () => {
       'approve',
       expect.objectContaining({ etaMinutes: 30 }),
     )
+    await waitFor(() => expect(mockPrintOrderBeleg).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'O1',
+      customerName: 'Ali Veli',
+      fulfillment: 'Pickup',
+    })))
+  })
+
+  it('does not print a bon when accept fails', async () => {
+    mockPostOrderAction.mockResolvedValue({ ok: false, error: 'nope' })
+    mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+      cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
+      return vi.fn()
+    })
+    renderPage()
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() => expect(screen.getByText('nope')).toBeInTheDocument())
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
   })
 })

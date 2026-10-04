@@ -192,6 +192,58 @@ export default function OrdersPage() {
     };
   }
 
+  function printKitchenBeleg(order: Order) {
+    const adjustments: string[] = [];
+    if (Number(order.discount) > 0) {
+      adjustments.push(t('orderDetail.discount', {
+        label: order.discountLabel || t('orderDetail.discountFallback'),
+        amount: Number(order.discount).toFixed(2),
+      }));
+    }
+    if (order.orderType === 'delivery' && order.deliveryFee) {
+      adjustments.push(t('orderDetail.deliveryFee', {
+        fee: order.deliveryFee.toFixed(2),
+      }));
+    }
+    printOrderBeleg({
+      code: shortId(order.id),
+      restaurantName: restaurant?.name,
+      restaurantAddress: restaurant?.address,
+      restaurantPhone: restaurant?.phone,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      orderedAt: toDate(order.createdAt).toLocaleString('de-AT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      fulfillment: belegFulfillmentLine(order.orderType, {
+        pickup: t('orders.pickup'),
+        delivery: t('orders.delivery'),
+      }),
+      address: order.orderType === 'delivery' ? order.deliveryAddress : undefined,
+      lines: order.items.map((item) => ({
+        label: `${item.qty}× ${item.name}`,
+        amount: `€${(item.price * item.qty).toFixed(2)}`,
+      })),
+      adjustments,
+      totalLabel: t('orders.col.total'),
+      totalAmount: `€${order.total.toFixed(2)}`,
+      notes: order.notes
+        ? t('orderDetail.note', { note: order.notes })
+        : undefined,
+      payment: belegPaymentLine(order, {
+        cash: t('orders.payment.cash'),
+        card: t('orders.board.paidViaCard'),
+        pending: t('orders.payment.pending'),
+        failed: t('orders.payment.failed'),
+        refunded: t('orders.payment.refunded'),
+      }),
+    });
+  }
+
   async function runAction(order: Order, action: string) {
     if (!businessId) return;
     setOrderLoading(order.id, true);
@@ -204,6 +256,7 @@ export default function OrdersPage() {
         setActionError(result.error);
         return;
       }
+      if (action === 'approve') printKitchenBeleg(order);
       const patch = stampTerminalFields(result.nextStatus, new Date().toISOString());
       optimisticRef.current.set(order.id, patch);
       setOrders((prev) =>
@@ -616,57 +669,7 @@ export default function OrdersPage() {
               <button
                 type="button"
                 className="kitchen-beleg-print"
-                onClick={() => {
-                  const adjustments: string[] = [];
-                  if (Number(openOrder.discount) > 0) {
-                    adjustments.push(t('orderDetail.discount', {
-                      label: openOrder.discountLabel || t('orderDetail.discountFallback'),
-                      amount: Number(openOrder.discount).toFixed(2),
-                    }));
-                  }
-                  if (openOrder.orderType === 'delivery' && openOrder.deliveryFee) {
-                    adjustments.push(t('orderDetail.deliveryFee', {
-                      fee: openOrder.deliveryFee.toFixed(2),
-                    }));
-                  }
-                  printOrderBeleg({
-                    code: shortId(openOrder.id),
-                    restaurantName: restaurant?.name,
-                    restaurantAddress: restaurant?.address,
-                    restaurantPhone: restaurant?.phone,
-                    customerName: openOrder.customerName,
-                    customerPhone: openOrder.customerPhone,
-                    orderedAt: toDate(openOrder.createdAt).toLocaleString('de-AT', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    }),
-                    fulfillment: belegFulfillmentLine(openOrder.orderType, {
-                      pickup: t('orders.pickup'),
-                      delivery: t('orders.delivery'),
-                    }),
-                    address: openOrder.orderType === 'delivery' ? openOrder.deliveryAddress : undefined,
-                    lines: openOrder.items.map((item) => ({
-                      label: `${item.qty}× ${item.name}`,
-                      amount: `€${(item.price * item.qty).toFixed(2)}`,
-                    })),
-                    adjustments,
-                    totalLabel: t('orders.col.total'),
-                    totalAmount: `€${openOrder.total.toFixed(2)}`,
-                    notes: openOrder.notes
-                      ? t('orderDetail.note', { note: openOrder.notes })
-                      : undefined,
-                    payment: belegPaymentLine(openOrder, {
-                      cash: t('orders.payment.cash'),
-                      card: t('orders.board.paidViaCard'),
-                      pending: t('orders.payment.pending'),
-                      failed: t('orders.payment.failed'),
-                      refunded: t('orders.payment.refunded'),
-                    }),
-                  });
-                }}
+                onClick={() => printKitchenBeleg(openOrder)}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M7 8V3.5h10V8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
