@@ -1,10 +1,8 @@
 const { setSession, patchSession } = require('../sessionStore');
-const { sendText } = require('../../lib/whatsapp');
+const { sendText, sendLocationRequest } = require('../../lib/whatsapp');
 const { applyBusinessInfoIdentity, setMessageIdentity, PLATFORM_IDENTITY } = require('../../lib/messageIdentity');
 const { t } = require('../templates');
 const {
-  getBusinessesInfo,
-  sendRestaurantPicker,
   sendRestaurantPickerWithMap,
   presentRestaurantPickerForLocation,
   resolveRestaurantsForPicker,
@@ -14,6 +12,19 @@ const { startRestaurantBrowsing } = require('../reorder');
 const { getBusinessInfo } = require('../menuService');
 const { isOrderingOpen, getTodayOrderWindow } = require('../../lib/schedule');
 const { isAcceptingOrders } = require('../../lib/presence');
+
+async function promptRestaurantLocation(from, lang, { switchMode = false } = {}) {
+  const body = switchMode
+    ? t('switchLocationRequestBody', lang)
+    : t('locationRequiredAgain', lang);
+  try {
+    const locId = await sendLocationRequest(from, body);
+    return locId ? [locId] : [];
+  } catch (err) {
+    console.error('[restaurant] location re-prompt failed:', err.response?.data ?? err.message);
+    return [];
+  }
+}
 
 async function listOtherOpenRestaurantIds(businessIds, excludeId) {
   const openIds = [];
@@ -34,9 +45,7 @@ async function resolveOpenRestaurantOffer(openIds, session) {
   const restaurantPickerUnfiltered = session?.restaurantPickerUnfiltered === true;
 
   if (lat == null || lng == null) {
-    const businesses = await getBusinessesInfo(openIds);
-    if (!businesses.length) return null;
-    return { mode: 'list', businesses, restaurantPickerUnfiltered };
+    return { mode: 'location', restaurantPickerUnfiltered };
   }
 
   let unfiltered = restaurantPickerUnfiltered;
@@ -56,9 +65,9 @@ async function resolveOpenRestaurantOffer(openIds, session) {
 }
 
 /**
- * Closed or paused restaurant: tell the customer, then re-show the picker
- * for other restaurants that are still taking orders. Returns true when
- * that picker was sent (session stays selecting_restaurant).
+ * Closed or paused restaurant: tell the customer, then re-show the map
+ * (or re-prompt location) for other restaurants that are still taking orders.
+ * Returns true when that offer was sent (session stays selecting_restaurant / awaiting_location).
  */
 async function refuseClosedRestaurant({ from, session, lang, routing, selectedBid, selectedInfo, gate }) {
   const offer = await resolveOpenRestaurantOffer(
@@ -81,46 +90,59 @@ async function refuseClosedRestaurant({ from, session, lang, routing, selectedBi
   if (offer.mode === 'map') {
     const sent = await sendRestaurantPickerWithMap(from, offer.pickList, lang, offer.lat, offer.lng);
     pendingDeleteIds = sent.pendingDeleteIds ?? [];
+    await patchSession(from, {
+      state: 'selecting_restaurant',
+      language: lang,
+      basket: [],
+      businessId: null,
+      lat: session?.lat ?? null,
+      lng: session?.lng ?? null,
+      pendingDeleteIds,
+      restaurantPickerUnfiltered: offer.restaurantPickerUnfiltered,
+    });
   } else {
-    const pickerId = await sendRestaurantPicker(from, offer.businesses, lang);
-    pendingDeleteIds = pickerId ? [pickerId] : [];
+    pendingDeleteIds = await promptRestaurantLocation(from, lang);
+    await patchSession(from, {
+      state: 'awaiting_location',
+      language: lang,
+      basket: [],
+      businessId: null,
+      lat: null,
+      lng: null,
+      pendingDeleteIds,
+      restaurantPickerUnfiltered: false,
+    });
   }
-
-  await patchSession(from, {
-    state: 'selecting_restaurant',
-    language: lang,
-    basket: [],
-    businessId: null,
-    lat: session?.lat ?? null,
-    lng: session?.lng ?? null,
-    pendingDeleteIds,
-    restaurantPickerUnfiltered: offer.restaurantPickerUnfiltered,
-  });
   return true;
 }
 
 async function handleAwaitingLocation({ from, session, lang, routing, type, latitude, longitude }) {
-  let lat = null;
-  let lng = null;
-  let pendingDeleteIds = [];
-
   if (type === 'location' && latitude != null && longitude != null) {
-    lat = latitude;
-    lng = longitude;
-    ({ pendingDeleteIds } = await presentRestaurantPickerForLocation(from, routing.businessIds, lat, lng, lang));
-  } else {
-    const businesses = await getBusinessesInfo(routing.businessIds);
-    const pickerId = await sendRestaurantPicker(from, businesses, lang);
-    pendingDeleteIds = pickerId ? [pickerId] : [];
+    const { pendingDeleteIds } = await presentRestaurantPickerForLocation(
+      from, routing.businessIds, latitude, longitude, lang,
+    );
+    await setSession(from, {
+      state: 'selecting_restaurant',
+      language: lang,
+      basket: [],
+      businessId: null,
+      lat: latitude,
+      lng: longitude,
+      pendingDeleteIds,
+      restaurantPickerUnfiltered: false,
+    });
+    return;
   }
 
+  // Location is required for the map CTA — re-prompt, do not fall back to a list.
+  const pendingDeleteIds = await promptRestaurantLocation(from, lang);
   await setSession(from, {
-    state: 'selecting_restaurant',
+    state: 'awaiting_location',
     language: lang,
     basket: [],
     businessId: null,
-    lat,
-    lng,
+    lat: null,
+    lng: null,
     pendingDeleteIds,
     restaurantPickerUnfiltered: false,
   });
@@ -141,6 +163,7 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
     return;
   }
 
+  // Stale list bubbles from before map-only: still accept selection.
   if (type === 'list_reply' && id?.startsWith('restaurant_')) {
     const selectedBid = id.replace('restaurant_', '');
     if (!routing.businessIds.includes(selectedBid)) {
@@ -150,7 +173,15 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
           { unfiltered: session.restaurantPickerUnfiltered === true },
         );
       } else {
-        await sendRestaurantPicker(from, await getBusinessesInfo(routing.businessIds), lang);
+        await setSession(from, {
+          ...session,
+          state: 'awaiting_location',
+          businessId: null,
+          lat: null,
+          lng: null,
+          pendingDeleteIds: await promptRestaurantLocation(from, lang),
+          restaurantPickerUnfiltered: false,
+        });
       }
       return;
     }
@@ -202,7 +233,15 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
     return;
   }
 
-  await sendRestaurantPicker(from, await getBusinessesInfo(routing.businessIds), lang);
+  await setSession(from, {
+    ...session,
+    state: 'awaiting_location',
+    businessId: null,
+    lat: null,
+    lng: null,
+    pendingDeleteIds: await promptRestaurantLocation(from, lang),
+    restaurantPickerUnfiltered: false,
+  });
 }
 
 module.exports = { handleAwaitingLocation, handleSelectingRestaurant, refuseClosedRestaurant };

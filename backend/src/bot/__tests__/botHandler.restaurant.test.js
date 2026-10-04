@@ -246,7 +246,7 @@ describe('Multi-restaurant: awaiting_location state', () => {
     delete process.env.NGROK_DOMAIN;
   });
 
-  test('location message sorts restaurants by distance and shows picker', async () => {
+  test('location message sorts restaurants by distance and shows map CTA only', async () => {
     getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
 
     // Customer is closer to biz_b (48.1980, 16.3730) than biz_a (48.2093, 16.3621)
@@ -254,24 +254,16 @@ describe('Multi-restaurant: awaiting_location state', () => {
 
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'selecting_restaurant', lat: 48.1980, lng: 16.3730 }));
     expect(sendImage).not.toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
     expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       url: expect.stringContaining('/map?clat='),
       buttonLabel: 'Open map',
     }));
-    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      sections: [expect.objectContaining({
-        rows: expect.arrayContaining([
-          expect.objectContaining({ id: 'restaurant_biz_b' }),
-        ]),
-      })],
-    }));
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    expect(rows[0].id).toBe('restaurant_biz_b');
-    expect(rows[0].title).toMatch(/^1\./);
-    expect(rows).toHaveLength(2);
+    const mapUrl = sendCtaUrlMessage.mock.calls[0][1].url;
+    expect(mapUrl).toMatch(/ids=biz_b%2Cbiz_a|ids=biz_b,biz_a/);
   });
 
-  test('excludes restaurants beyond 20 km from picker and map', async () => {
+  test('excludes restaurants beyond 20 km from map', async () => {
     getBusinessInfo.mockImplementation(id =>
       Promise.resolve(id === 'biz_a'
         ? { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 }
@@ -281,9 +273,7 @@ describe('Multi-restaurant: awaiting_location state', () => {
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
 
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    expect(rows).toHaveLength(1);
-    expect(rows[0].id).toBe('restaurant_biz_a');
+    expect(sendListMessage).not.toHaveBeenCalled();
     expect(sendImage).not.toHaveBeenCalled();
     expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       url: expect.stringMatching(/ids=biz_a(?:&|$)/),
@@ -291,85 +281,38 @@ describe('Multi-restaurant: awaiting_location state', () => {
     expect(sendCtaUrlMessage.mock.calls[0][1].url).not.toContain('biz_b');
   });
 
-  test('location row description shows distance', async () => {
-    getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
-
-    await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.2093, longitude: 16.3621 }));
-
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    // The closest restaurant (biz_a, same coords as customer) should show very small distance
-    expect(rows[0].description).toMatch(/📍/);
-    expect(rows[0].description).toMatch(/m |km/);
-  });
-
-  describe('live window deal badge', () => {
-    beforeEach(() => {
-      jest.useFakeTimers({ now: new Date('2026-08-13T12:00:00.000Z') });
-    });
-
-    afterEach(() => {
-      jest.useRealTimers();
-    });
-
-    test('location row description prepends live deal badge', async () => {
-      getBusinessInfo.mockImplementation(id =>
-        Promise.resolve(id === 'biz_a'
-          ? {
-              ...BIZ_A_WITH_COORDS,
-              deals: {
-                window: {
-                  dealId: 'w1',
-                  kind: 'window',
-                  discountType: 'percent',
-                  discountValue: 10,
-                  label: '10% Rabatt',
-                  active: true,
-                  startsAt: new Date('2026-08-01T00:00:00.000Z'),
-                  endsAt: new Date('2026-08-31T23:59:59.000Z'),
-                },
-              },
-            }
-          : BIZ_B_WITH_COORDS)
-      );
-      getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
-
-      await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.2093, longitude: 16.3621 }));
-
-      const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-      expect(rows[0].description).toMatch(/🏷️ 10% Rabatt/);
-      expect(rows[0].description).toMatch(/📍/);
-    });
-  });
-
-  test('non-location message skips to unsorted picker', async () => {
+  test('non-location message re-prompts location (no list fallback)', async () => {
     getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'skip' }));
 
     expect(sendCtaUrlMessage).not.toHaveBeenCalled();
     expect(sendImage).not.toHaveBeenCalled();
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'selecting_restaurant', lat: null, lng: null }));
-    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      sections: [expect.objectContaining({
-        rows: expect.arrayContaining([
-          expect.objectContaining({ id: 'restaurant_biz_a' }),
-          expect.objectContaining({ id: 'restaurant_biz_b' }),
-        ]),
-      })],
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendLocationRequest).toHaveBeenCalledWith(
+      FROM,
+      expect.stringMatching(/share your location|Standort teilen|konumunuzu paylaşın/i),
+    );
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_location',
+      lat: null,
+      lng: null,
     }));
-    // No distance label when location was skipped — sortByDistance was NOT called so distanceKm is undefined
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    rows.forEach(r => expect(r.description).not.toMatch(/📍/));
   });
 
-  test('location message with null coords falls back to unsorted picker', async () => {
+  test('location message with null coords re-prompts location', async () => {
     getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: null, longitude: null }));
 
-    expect(sendListMessage).toHaveBeenCalled();
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    rows.forEach(r => expect(r.description).not.toMatch(/📍/));
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendCtaUrlMessage).not.toHaveBeenCalled();
+    expect(sendLocationRequest).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_location',
+      lat: null,
+      lng: null,
+    }));
   });
 });
 
@@ -392,18 +335,17 @@ describe('Multi-restaurant: late location share in selecting_restaurant', () => 
     delete process.env.NGROK_DOMAIN;
   });
 
-  test('location message re-shows picker sorted by distance and saves coords to session', async () => {
+  test('location message re-sends map CTA sorted by distance and saves coords to session', async () => {
     getSession.mockResolvedValue({ state: 'selecting_restaurant', language: 'en', basket: [], businessId: null });
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
 
     expect(sendImage).not.toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
     expect(sendCtaUrlMessage).toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ lat: 48.1980, lng: 16.3730 }));
-    expect(sendListMessage).toHaveBeenCalled();
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    expect(rows[0].id).toBe('restaurant_biz_b');
-    expect(rows[0].description).toMatch(/📍/);
+    const mapUrl = sendCtaUrlMessage.mock.calls[0][1].url;
+    expect(mapUrl).toMatch(/ids=biz_b%2Cbiz_a|ids=biz_b,biz_a/);
   });
 
   test('restaurant selected → lat/lng preserved in browsing session', async () => {
@@ -695,32 +637,40 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
-  test('invalid restaurant id in list_reply → re-shows picker without state change', async () => {
+  test('invalid restaurant id in list_reply without location → re-prompts location', async () => {
     getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_unknown_999' }));
 
-    expect(setSession).not.toHaveBeenCalled();
-    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      sections: [expect.objectContaining({ rows: expect.any(Array) })],
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendLocationRequest).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_location',
+      businessId: null,
+      lat: null,
+      lng: null,
     }));
   });
 
-  test('paused restaurant re-shows the other open restaurants', async () => {
+  test('paused restaurant with location re-offers map of other open restaurants', async () => {
     getBusinessInfo.mockImplementation(id =>
       Promise.resolve(id === 'biz_a'
-        ? BIZ_A_INFO
-        : { ...BIZ_B_INFO, ordersOpen: false, isOnline: true }),
+        ? { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 }
+        : { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734, ordersOpen: false, isOnline: true }),
     );
-    getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
+    getSession.mockResolvedValue(multiSession({
+      state: 'selecting_restaurant',
+      businessId: null,
+      lat: 48.1980,
+      lng: 16.3730,
+    }));
 
     await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_biz_b' }));
 
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/choose another restaurant/i));
-    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      sections: [expect.objectContaining({
-        rows: [expect.objectContaining({ id: 'restaurant_biz_a' })],
-      })],
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: expect.stringMatching(/ids=biz_a(?:&|$)/),
     }));
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'selecting_restaurant',
@@ -729,7 +679,7 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
-  test('closed hours re-shows the other open restaurants', async () => {
+  test('closed hours without location re-prompts location for other open restaurants', async () => {
     getBusinessInfo.mockImplementation(id =>
       Promise.resolve(id === 'biz_a'
         ? BIZ_A_INFO
@@ -744,10 +694,10 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
     await handleMessage(ROUTING_MULTI, msg({ type: 'list_reply', id: 'restaurant_biz_b' }));
 
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/choose another restaurant/i));
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    expect(rows.map(r => r.id)).toEqual(['restaurant_biz_a']);
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendLocationRequest).toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'selecting_restaurant',
+      state: 'awaiting_location',
       businessId: null,
     }));
   });
@@ -766,10 +716,11 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
 
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/try again later/i));
     expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendCtaUrlMessage).not.toHaveBeenCalled();
     expect(setSession).not.toHaveBeenCalled();
   });
 
-  test('ORDER deep link to a paused restaurant returns to the other open restaurants', async () => {
+  test('ORDER deep link to a paused restaurant re-prompts location for other open restaurants', async () => {
     getBusinessInfo.mockImplementation(id =>
       Promise.resolve(id === 'biz_a'
         ? BIZ_A_INFO
@@ -780,53 +731,81 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
     await handleMessage(ROUTING_MULTI, msg({ text: 'ORDER+biz_b' }));
 
     expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/choose another restaurant/i));
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    expect(rows.map(r => r.id)).toEqual(['restaurant_biz_a']);
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendLocationRequest).toHaveBeenCalled();
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'selecting_restaurant',
+      state: 'awaiting_location',
       businessId: null,
     }));
     expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
-  test('non-list_reply input while selecting_restaurant → re-shows picker', async () => {
+  test('non-list_reply input while selecting_restaurant without location → re-prompts location', async () => {
     getSession.mockResolvedValue(multiSession({ state: 'selecting_restaurant', businessId: null }));
 
     await handleMessage(ROUTING_MULTI, msg({ text: 'what are my options?' }));
 
-    expect(setSession).not.toHaveBeenCalled();
-    expect(sendListMessage).toHaveBeenCalled();
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendLocationRequest).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_location',
+      businessId: null,
+    }));
+  });
+
+  test('non-list_reply input while selecting_restaurant with location → re-sends map CTA', async () => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a'
+        ? { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 }
+        : { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 }),
+    );
+    getSession.mockResolvedValue(multiSession({
+      state: 'selecting_restaurant',
+      businessId: null,
+      lat: 48.1980,
+      lng: 16.3730,
+    }));
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'what are my options?' }));
+
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: expect.stringContaining('/map?'),
+    }));
   });
 });
 
-describe('Multi-restaurant: newly added restaurant appears in picker', () => {
-  const BIZ_C_INFO = { name: 'Sushi Garden', tagline: 'Fresh sushi', avgPrepTime: 30, catalogId: 'cat_c' };
+describe('Multi-restaurant: newly added restaurant appears on map', () => {
+  const BIZ_C_INFO = {
+    name: 'Sushi Garden',
+    tagline: 'Fresh sushi',
+    avgPrepTime: 30,
+    catalogId: 'cat_c',
+    imageUrl: 'https://example.com/biz_c.jpg',
+    lat: 48.2000,
+    lng: 16.3700,
+  };
   const ROUTING_3 = { businessIds: ['biz_a', 'biz_b', 'biz_c'], defaultBusinessId: null };
 
   beforeEach(() => {
     getBusinessInfo.mockImplementation(id => {
-      if (id === 'biz_a') return Promise.resolve(BIZ_A_INFO);
-      if (id === 'biz_b') return Promise.resolve(BIZ_B_INFO);
+      if (id === 'biz_a') return Promise.resolve({ ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 });
+      if (id === 'biz_b') return Promise.resolve({ ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 });
       return Promise.resolve(BIZ_C_INFO);
     });
   });
 
-  test('picker lists all 3 restaurants including newly added one', async () => {
+  test('map CTA includes all 3 restaurants including newly added one', async () => {
     getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
 
-    await handleMessage(ROUTING_3, msg({ text: 'skip' }));
+    await handleMessage(ROUTING_3, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
 
-    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      sections: [expect.objectContaining({
-        rows: expect.arrayContaining([
-          expect.objectContaining({ id: 'restaurant_biz_a' }),
-          expect.objectContaining({ id: 'restaurant_biz_b' }),
-          expect.objectContaining({ id: 'restaurant_biz_c' }),
-        ]),
-      })],
-    }));
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    expect(rows).toHaveLength(3);
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendCtaUrlMessage).toHaveBeenCalled();
+    const mapUrl = sendCtaUrlMessage.mock.calls[0][1].url;
+    expect(mapUrl).toContain('biz_a');
+    expect(mapUrl).toContain('biz_b');
+    expect(mapUrl).toContain('biz_c');
   });
 
   test('newly added restaurant (biz_c) is selectable and shows welcome menu/switch', async () => {
@@ -847,53 +826,52 @@ describe('Multi-restaurant: newly added restaurant appears in picker', () => {
     }));
     expect(sendFlowMessage).not.toHaveBeenCalled();
   });
-
-  test('picker row title shows newly added restaurant name', async () => {
-    getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
-
-    await handleMessage(ROUTING_3, msg({ text: 'skip' }));
-
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    const bizCRow = rows.find(r => r.id === 'restaurant_biz_c');
-    expect(bizCRow).toBeDefined();
-    expect(bizCRow.title).toBe('Sushi Garden');
-  });
 });
 
-// ─── Removed restaurant absent from picker ───────────────────────────────────
+// ─── Removed restaurant absent from map ──────────────────────────────────────
 
-describe('Multi-restaurant: removed restaurant absent from picker', () => {
+describe('Multi-restaurant: removed restaurant absent from map', () => {
   const ROUTING_AFTER_REMOVAL = { businessIds: ['biz_a', 'biz_b'], defaultBusinessId: null };
 
   beforeEach(() => {
     getBusinessInfo.mockImplementation(id =>
-      Promise.resolve(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO),
+      Promise.resolve(id === 'biz_a'
+        ? { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 }
+        : { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 }),
     );
   });
 
-  test('picker shows only 2 restaurants after biz_c was removed', async () => {
+  test('map CTA shows only 2 restaurants after biz_c was removed', async () => {
     getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
 
-    await handleMessage(ROUTING_AFTER_REMOVAL, msg({ text: 'skip' }));
+    await handleMessage(ROUTING_AFTER_REMOVAL, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
 
-    const rows = sendListMessage.mock.calls[0][1].sections[0].rows;
-    expect(rows).toHaveLength(2);
-    expect(rows.map(r => r.id)).not.toContain('restaurant_biz_c');
+    expect(sendListMessage).not.toHaveBeenCalled();
+    const mapUrl = sendCtaUrlMessage.mock.calls[0][1].url;
+    expect(mapUrl).toContain('biz_a');
+    expect(mapUrl).toContain('biz_b');
+    expect(mapUrl).not.toContain('biz_c');
   });
 
-  test('removed restaurant id in list_reply is rejected and re-shows picker', async () => {
-    getSession.mockResolvedValue({ state: 'selecting_restaurant', language: 'en', basket: [], businessId: null });
+  test('removed restaurant id in list_reply with location re-sends map CTA', async () => {
+    getSession.mockResolvedValue({
+      state: 'selecting_restaurant',
+      language: 'en',
+      basket: [],
+      businessId: null,
+      lat: 48.1980,
+      lng: 16.3730,
+    });
 
     await handleMessage(ROUTING_AFTER_REMOVAL, msg({ type: 'list_reply', id: 'restaurant_biz_c' }));
 
-    expect(setSession).not.toHaveBeenCalled();
-    expect(sendListMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      sections: [expect.objectContaining({
-        rows: expect.arrayContaining([
-          expect.objectContaining({ id: 'restaurant_biz_a' }),
-          expect.objectContaining({ id: 'restaurant_biz_b' }),
-        ]),
-      })],
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      url: expect.stringContaining('/map?'),
     }));
+    const mapUrl = sendCtaUrlMessage.mock.calls[0][1].url;
+    expect(mapUrl).toContain('biz_a');
+    expect(mapUrl).toContain('biz_b');
+    expect(mapUrl).not.toContain('biz_c');
   });
 });

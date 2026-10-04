@@ -166,7 +166,7 @@ async function continueAfterLanguagePick(from, lang, session, routing) {
     try {
       const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
       if (locId) await patchSession(from, { pendingDeleteIds: [locId] });
-    } catch { /* awaiting_location handler will show picker on next message */ }
+    } catch { /* awaiting_location handler will re-prompt location on next message */ }
     return;
   }
 
@@ -371,7 +371,7 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
       try {
         const locId = await sendLocationRequest(from, t('locationRequestBody', postLang));
         if (locId) await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [locId] });
-      } catch { /* ignore — awaiting_location handler will show picker on next message */ }
+      } catch { /* ignore — awaiting_location handler will re-prompt location on next message */ }
       return;
     }
     const postInfo = await getBusinessInfo(postBid);
@@ -417,7 +417,7 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
       // One interactive bubble only (welcome folded into location CTA copy).
       const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
       if (locId) await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: [locId] });
-    } catch { /* ignore — awaiting_location handler will show the picker on next message */ }
+    } catch { /* ignore — awaiting_location handler will re-prompt location on next message */ }
     return;
   }
 

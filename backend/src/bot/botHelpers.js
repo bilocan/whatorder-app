@@ -482,8 +482,8 @@ async function presentRestaurantPickerForLocation(from, businessIds, customerLat
   return sendRestaurantPickerWithMap(from, pickList, lang, customerLat, customerLng);
 }
 
+/** Multi-restaurant discovery: map CTA only (no WhatsApp list; list max 10 rows). */
 async function sendRestaurantPickerWithMap(to, businesses, lang, customerLat, customerLng) {
-  const pickerId = await sendRestaurantPicker(to, businesses, lang, { numbered: true });
   let interactiveId = null;
   const interactiveUrl = buildOpenMapCtaUrl(
     customerLat,
@@ -504,9 +504,9 @@ async function sendRestaurantPickerWithMap(to, businesses, lang, customerLat, cu
     }
   }
   return {
-    pickerId,
+    pickerId: null,
     interactiveId,
-    pendingDeleteIds: [pickerId, interactiveId].filter(Boolean),
+    pendingDeleteIds: [interactiveId].filter(Boolean),
   };
 }
 

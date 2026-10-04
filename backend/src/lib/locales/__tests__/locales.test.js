@@ -37,6 +37,7 @@ describe('de locale', () => {
   test('multiWelcomeBody', () => expect(str(de.multiWelcomeBody())).toBe(true));
   test('locationRequestBody', () => expect(str(de.locationRequestBody())).toBe(true));
   test('switchLocationRequestBody', () => expect(str(de.switchLocationRequestBody())).toBe(true));
+  test('locationRequiredAgain', () => expect(str(de.locationRequiredAgain())).toBe(true));
   test('restaurantPickerBody', () => expect(str(de.restaurantPickerBody())).toBe(true));
   test('restaurantPickerButton', () => expect(str(de.restaurantPickerButton())).toBe(true));
   test('restaurantPickerFooter', () => expect(str(de.restaurantPickerFooter())).toBe(true));
@@ -76,6 +77,7 @@ describe('tr locale', () => {
   test('multiWelcomeBody', () => expect(str(tr.multiWelcomeBody())).toBe(true));
   test('locationRequestBody', () => expect(str(tr.locationRequestBody())).toBe(true));
   test('switchLocationRequestBody', () => expect(str(tr.switchLocationRequestBody())).toBe(true));
+  test('locationRequiredAgain', () => expect(str(tr.locationRequiredAgain())).toBe(true));
   test('restaurantPickerBody', () => expect(str(tr.restaurantPickerBody())).toBe(true));
   test('restaurantPickerButton', () => expect(str(tr.restaurantPickerButton())).toBe(true));
   test('restaurantPickerFooter', () => expect(str(tr.restaurantPickerFooter())).toBe(true));
@@ -92,6 +94,7 @@ describe('en locale — previously uncovered', () => {
   test('deliveryOutOfZone', () => expect(str(en.deliveryOutOfZone())).toBe(true));
   test('multiWelcomeBody', () => expect(str(en.multiWelcomeBody())).toBe(true));
   test('switchLocationRequestBody', () => expect(str(en.switchLocationRequestBody())).toBe(true));
+  test('locationRequiredAgain', () => expect(str(en.locationRequiredAgain())).toBe(true));
 });
 
 const STATUS_NOTIFY_KEYS = [

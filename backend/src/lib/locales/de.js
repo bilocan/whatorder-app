@@ -331,15 +331,16 @@ module.exports = {
   deliveryPickupOptionDesc: () => 'Statt Lieferung abholen',
 
   multiWelcomeBody: () => '👋 Willkommen bei WhatOrder!',
-  locationRequestBody: () => '👋 Willkommen bei WhatOrder!\n\n📍 Standort teilen → nächste Restaurants auf der Karte.',
-  switchLocationRequestBody: () => '👋 Willkommen bei WhatOrder!\n\n🔄 Restaurant gewechselt — Warenkorb geleert.\n\n📍 Standort teilen → nächste Restaurants auf der Karte.',
+  locationRequestBody: () => '👋 Willkommen bei WhatOrder!\n\n📍 Standort teilen, um nahe Restaurants auf der Karte zu sehen.',
+  switchLocationRequestBody: () => '👋 Willkommen bei WhatOrder!\n\n🔄 Restaurant gewechselt — Warenkorb geleert.\n\n📍 Standort teilen, um nahe Restaurants auf der Karte zu sehen.',
+  locationRequiredAgain: () => '📍 Bitte Standort teilen, um Restaurants auf der Karte zu sehen.',
   restaurantPickerBody: () => 'Bei welchem Restaurant möchten Sie bestellen?',
   restaurantPickerButton: () => 'Restaurants',
   restaurantPickerFooter: () => 'Tippen Sie auf einen Namen um die Karte zu öffnen',
   restaurantPickerFooterNumbered: () => 'Nummern passen zur Karte (Karte öffnen)',
   interactiveMapBody: () => 'Bei welchem Restaurant möchten Sie bestellen?\n\nKarte öffnen → Markierung tippen → „Hier bestellen“.',
   interactiveMapBtn: () => 'Karte öffnen',
-  noNearbyRestaurants: (maxKm) => `Keine Restaurants im Umkreis von ${maxKm} km. Antworten Sie mit *alle*, um alle Restaurants zu sehen.`,
+  noNearbyRestaurants: (maxKm) => `Keine Restaurants im Umkreis von ${maxKm} km. Antworten Sie mit *alle*, um alle Restaurants auf der Karte zu sehen.`,
   switchConfirmed: () => '🔄 Restaurant wird gewechselt. Ihr Warenkorb wurde geleert.',
 
   orderConfirmedWithChoice: (shortId, name, alertPhone, address) => {
