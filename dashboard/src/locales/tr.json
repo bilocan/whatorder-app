@@ -91,6 +91,7 @@
       "failed": "Başarısız",
       "refunded": "İade edildi"
     },
+    "pickup": "Gel-al",
     "delivery": "Teslimat",
     "deliveryFee": "+ €{{fee}} teslimat ücreti",
     "filter": {

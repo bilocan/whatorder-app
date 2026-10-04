@@ -91,6 +91,7 @@
       "failed": "Failed",
       "refunded": "Refunded"
     },
+    "pickup": "Pickup",
     "delivery": "Delivery",
     "deliveryFee": "+ €{{fee}} delivery fee",
     "filter": {
