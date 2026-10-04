@@ -37,7 +37,7 @@ export async function exportRestaurantBundle(businessId: string, profile: Bundle
     body: JSON.stringify({ profile }),
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json() as Promise<{ url: string; checksum: string; counts: Record<string, number> }>;
+  return res.json() as Promise<{ url: string; checksum: string; counts: Record<string, number>; skipped?: string[] }>;
 }
 
 export async function requestImportUpload() {

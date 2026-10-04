@@ -63,6 +63,26 @@ function remapObjectPath(objectPath, sourceBusinessId, targetBusinessId) {
     .split(`businesses/${sourceBusinessId}/`).join(`businesses/${targetBusinessId}/`);
 }
 
+function assertContainedAssetPath(objectPath, targetBusinessId) {
+  const path = String(objectPath || '').replace(/^\/+/, '');
+  const bad = !targetBusinessId
+    || !path
+    || path.includes('..')
+    || path.includes('\\')
+    || path.includes('\0')
+    || path.split('/').some((part) => part === '');
+  const menuPrefix = `menu-photos/${targetBusinessId}/`;
+  const businessPrefix = `businesses/${targetBusinessId}/`;
+  const foreignTenant = path.includes('menu-photos/') || path.includes('businesses/');
+  const allowed = path.startsWith(menuPrefix) || path.startsWith(businessPrefix) || !foreignTenant;
+  if (bad || !allowed) {
+    const err = new Error(`Asset path is outside the target restaurant: ${path || objectPath}`);
+    err.status = 400;
+    throw err;
+  }
+  return path;
+}
+
 function tenantBucket(name) {
   return name ? admin.storage().bucket(name) : admin.storage().bucket();
 }
@@ -80,43 +100,66 @@ async function listMenuPhotoRefs(businessId) {
   }
 }
 
+const ASSET_IO_CONCURRENCY = 8;
+const ASSET_IO_TIMEOUT_MS = 30_000;
+
+async function eachLimit(items, limit, fn) {
+  const list = items || [];
+  if (!list.length) return;
+  let cursor = 0;
+  let failure = null;
+  async function worker() {
+    while (!failure && cursor < list.length) {
+      const index = cursor;
+      cursor += 1;
+      try {
+        await fn(list[index], index);
+      } catch (err) {
+        if (!failure) failure = err;
+        return;
+      }
+    }
+  }
+  const workers = Math.min(limit, list.length);
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+  if (failure) throw failure;
+}
+
 async function downloadAssets(refs) {
   const assets = [];
   const skipped = [];
   const seen = new Set();
+  const unique = [];
   for (const ref of refs || []) {
     if (!ref?.objectPath || seen.has(refKey(ref))) continue;
     seen.add(refKey(ref));
+    unique.push(ref);
+  }
+  await eachLimit(unique, ASSET_IO_CONCURRENCY, async (ref) => {
     try {
       const file = tenantBucket(ref.bucket).file(ref.objectPath);
-      let contentType = contentTypeFor(ref.objectPath);
-      try {
-        const [metadata] = await file.getMetadata();
-        if (metadata?.contentType) contentType = metadata.contentType;
-      } catch {
-        // download may still succeed
-      }
-      const [buffer] = await file.download();
+      // Skip the extra metadata round trip. Photos live in us-west1 and Test
+      // Cloud Run is europe-west3, so one call per file already dominates.
+      const [buffer] = await file.download({
+        validation: false,
+        timeout: ASSET_IO_TIMEOUT_MS,
+      });
       assets.push({
         name: zipAssetName(ref.objectPath),
         objectPath: ref.objectPath,
-        contentType,
+        contentType: contentTypeFor(ref.objectPath),
         buffer,
       });
-    } catch (err) {
-      const code = err.code || err.statusCode;
-      if (code === 404 || code === '404') {
-        skipped.push(ref.objectPath);
-        continue;
-      }
+    } catch {
       skipped.push(ref.objectPath);
     }
-  }
+  });
   return { assets, skipped };
 }
 
 async function uploadAssets(assets, { sourceBusinessId, targetBusinessId } = {}) {
   const uploaded = [];
+  const jobs = [];
   for (const asset of assets || []) {
     const objectPath = remapObjectPath(
       asset.objectPath || objectPathFromZipName(asset.name),
@@ -124,12 +167,19 @@ async function uploadAssets(assets, { sourceBusinessId, targetBusinessId } = {})
       targetBusinessId,
     );
     if (!objectPath || !asset.buffer) continue;
+    jobs.push({
+      objectPath: assertContainedAssetPath(objectPath, targetBusinessId),
+      asset,
+    });
+  }
+  await eachLimit(jobs, ASSET_IO_CONCURRENCY, async ({ objectPath, asset }) => {
     await tenantBucket().file(objectPath).save(asset.buffer, {
       contentType: asset.contentType || contentTypeFor(objectPath),
       resumable: false,
+      timeout: ASSET_IO_TIMEOUT_MS,
     });
     uploaded.push(objectPath);
-  }
+  });
   return uploaded;
 }
 
@@ -139,6 +189,7 @@ module.exports = {
   objectPathFromZipName,
   collectStorageRefs,
   remapObjectPath,
+  assertContainedAssetPath,
   listMenuPhotoRefs,
   downloadAssets,
   uploadAssets,

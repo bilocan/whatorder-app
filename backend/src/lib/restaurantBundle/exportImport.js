@@ -29,13 +29,16 @@ async function exportRestaurantBundle({ businessId, profile, adminUid }) {
     err.status = 400;
     throw err;
   }
+  const started = Date.now();
   const firestore = await loadTenant(businessId, profile);
+  const loadedAt = Date.now();
   const env = currentEnv();
   const listed = await listMenuPhotoRefs(businessId);
   const { assets, skipped } = await downloadAssets([
     ...collectStorageRefs(firestore, { profile }),
     ...listed,
   ]);
+  const downloadedAt = Date.now();
   const bundle = {
     manifest: {
       schemaVersion: 1,
@@ -60,7 +63,12 @@ async function exportRestaurantBundle({ businessId, profile, adminUid }) {
     },
   });
   await packBundleToStream(bundle, writeStream);
+  const packedAt = Date.now();
   const url = await signedReadUrl(objectKey);
+  console.log(
+    `[restaurant-bundle] export ${businessId} profile=${profile} assets=${assets.length} skipped=${skipped.length} `
+    + `loadMs=${loadedAt - started} downloadMs=${downloadedAt - loadedAt} packMs=${packedAt - downloadedAt} totalMs=${Date.now() - started}`,
+  );
   return {
     url,
     objectKey,
@@ -69,6 +77,7 @@ async function exportRestaurantBundle({ businessId, profile, adminUid }) {
       ...countsFromFirestore(firestore, profile),
       assets: assets.length,
     },
+    skipped,
   };
 }
 
@@ -94,6 +103,10 @@ function previewWarnings(bundle, { exists, targetEnv }) {
     || Object.values(bundle.firestore?.menu || {}).some((d) => d.photoUrl);
   if (hasPhotos && !(bundle.assets || []).length) {
     warnings.push('ZIP has no photo files; rewritten image URLs may 404 on the target bucket.');
+  }
+  const skipped = Array.isArray(bundle.manifest?.skippedAssets) ? bundle.manifest.skippedAssets : [];
+  if (skipped.length && (bundle.assets || []).length) {
+    warnings.push(`ZIP is missing ${skipped.length} photo file(s); those image URLs may 404 on the target bucket.`);
   }
   return warnings;
 }
@@ -201,4 +214,5 @@ module.exports = {
   startImportUpload,
   previewImportBundle,
   runImportBundle,
+  previewWarnings,
 };
