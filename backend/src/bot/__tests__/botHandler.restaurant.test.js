@@ -611,7 +611,7 @@ describe('Multi-restaurant: selecting_restaurant state handling', () => {
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining(BIZ_B_INFO.name),
       buttons: [
-        expect.objectContaining({ id: 'btn_welcome_menu' }),
+        expect.objectContaining({ id: 'btn_welcome_menu', title: 'Start order' }),
         expect.objectContaining({ id: 'btn_switch_restaurant' }),
       ],
     }));
@@ -820,7 +820,7 @@ describe('Multi-restaurant: newly added restaurant appears on map', () => {
     }));
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: [
-        expect.objectContaining({ id: 'btn_welcome_menu' }),
+        expect.objectContaining({ id: 'btn_welcome_menu', title: 'Start order' }),
         expect.objectContaining({ id: 'btn_switch_restaurant' }),
       ],
     }));
