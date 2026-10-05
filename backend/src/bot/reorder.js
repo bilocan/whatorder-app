@@ -87,7 +87,7 @@ async function tryOfferReorder({ from, session, lang, businessId, basket, busine
 
 async function handleReorderButtons({ from, session, lang, businessId, basket, id, onReorderCheckout }) {
   if (id === 'btn_welcome_menu') {
-    await openFreshCatalog(from, lang, businessId);
+    await openFreshCatalog(from, lang, businessId, t('catalogBodyAfterWelcome', lang));
     return true;
   }
 
@@ -143,8 +143,8 @@ async function handleReorderButtons({ from, session, lang, businessId, basket, i
 }
 
 // First visit / no reorder history: open catalog (Menü anzeigen), not Suche / Volles Menü.
-async function openFreshCatalog(from, lang, businessId) {
-  const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
+async function openFreshCatalog(from, lang, businessId, bodyOverride) {
+  const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId, bodyOverride);
   // Empty-basket menu reopen is a fresh order: drop sticky Lieferung / address so
   // Mindestbestellwert does not fire before Prüfen (Profil / prior gate leftover).
   await patchSession(from, {
@@ -202,7 +202,7 @@ async function offerWelcomeMenuOrCatalog({
   const msgId = await sendButtonMessage(from, {
     body: appendDealMarketingLine(lang, t('greeting', lang, name), info),
     buttons: [
-      { id: 'btn_welcome_menu', title: t('viewMenuBtn', lang) },
+      { id: 'btn_welcome_menu', title: t('welcomeStartBtn', lang) },
       { id: 'btn_switch_restaurant', title: t('menuFlowSwitchRestaurant', lang) },
     ],
   });

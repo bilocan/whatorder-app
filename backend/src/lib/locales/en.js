@@ -1,7 +1,7 @@
 module.exports = {
   categories: { mains: 'Mains', sides: 'Sides', drinks: 'Drinks' },
 
-  greeting: (name) => `👋 Welcome to ${name}!\n\nOpen the menu below.`,
+  greeting: (name) => `👋 Welcome to ${name}!\n\nContinue below.`,
   langChanged: () => '✅ Language changed to English.',
   languagePickBody: () => 'Which language? / Welche Sprache? / Hangi dil?',
   langBtnDe: () => '🇩🇪 Deutsch',
@@ -16,6 +16,7 @@ module.exports = {
   menuListBody: () => 'What would you like to order?\nTap an item to select.',
   menuListFooter: () => 'Tap to select',
   viewMenuBtn: () => 'View Menu',
+  welcomeStartBtn: () => 'Start order',
   menuCategoryBody: () => 'Choose a category to browse the menu. A numbered text list follows each category.',
   menuCategoriesSection: () => 'Categories',
   menuCategoryCount: (count) => `${count} item${count !== 1 ? 's' : ''}`,
@@ -252,6 +253,7 @@ module.exports = {
   menuEmpty: () => 'No items available right now.',
 
   catalogBody: (name) => `👋 Welcome to ${name}!\n\nBrowse the menu and tap "Add to Cart" on items you'd like to order. When you're done, send your cart.`,
+  catalogBodyAfterWelcome: () => 'Open the menu, add items, then send your cart.',
   catalogUnavailable: () => 'Our catalog is not set up yet. Please contact us directly to order.',
 
   askName: () => "What's your name for the order?",

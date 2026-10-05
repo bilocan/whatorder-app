@@ -406,7 +406,13 @@ describe('Layer 0: reorder-first for returning customers', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_welcome_menu' }));
 
-    expectCatalogPrompt();
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowAction: 'data_exchange',
+      body: 'Menü öffnen, Artikel hinzufügen, Warenkorb senden.',
+      flowCta: 'Menü anzeigen',
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 });
 

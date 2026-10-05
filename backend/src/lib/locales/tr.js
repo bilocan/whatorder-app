@@ -1,7 +1,7 @@
 module.exports = {
   categories: { mains: 'Ana Yemekler', sides: 'Garnitürler', drinks: 'İçecekler' },
 
-  greeting: (name) => `👋 ${name}'a hoş geldiniz!\n\nAşağıdan menüyü açabilirsiniz.`,
+  greeting: (name) => `👋 ${name}'a hoş geldiniz!\n\nAşağıdan devam edebilirsiniz.`,
   langChanged: () => '✅ Dil Türkçe olarak değiştirildi.',
   languagePickBody: () => 'Which language? / Welche Sprache? / Hangi dil?',
   langBtnDe: () => '🇩🇪 Deutsch',
@@ -16,6 +16,7 @@ module.exports = {
   menuListBody: () => 'Ne sipariş etmek istersiniz?\nBir ürüne dokunun.',
   menuListFooter: () => 'Seçmek için dokunun',
   viewMenuBtn: () => 'Menüyü Gör',
+  welcomeStartBtn: () => 'Siparişe başla',
   menuCategoryBody: () => 'Bir kategori seçin. Ardından numaralı metin listesi gelir.',
   menuCategoriesSection: () => 'Kategoriler',
   menuCategoryCount: (count) => `${count} ürün`,
@@ -252,6 +253,7 @@ module.exports = {
   menuEmpty: () => 'Şu an menümüzde ürün yok.',
 
   catalogBody: (name) => `👋 ${name}'a hoş geldiniz!\n\nMenüye göz atın ve istediğiniz ürünleri sepete ekleyin. Hazır olduğunuzda sepetinizi gönderin.`,
+  catalogBodyAfterWelcome: () => 'Menüyü açın, ürün ekleyin, sepeti gönderin.',
   catalogUnavailable: () => 'Kataloğumuz henüz hazır değil. Sipariş için lütfen bize doğrudan ulaşın.',
 
   askName: () => 'Sipariş için adınızı yazar mısınız?',

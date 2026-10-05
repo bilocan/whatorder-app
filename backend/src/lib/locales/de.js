@@ -1,7 +1,7 @@
 module.exports = {
   categories: { mains: 'Hauptgerichte', sides: 'Beilagen', drinks: 'Getränke' },
 
-  greeting: (name) => `👋 Willkommen bei ${name}!\n\nÖffne unten die Speisekarte.`,
+  greeting: (name) => `👋 Willkommen bei ${name}!\n\nUnten weiter.`,
   langChanged: () => '✅ Sprache auf Deutsch geändert.',
   languagePickBody: () => 'Which language? / Welche Sprache? / Hangi dil?',
   langBtnDe: () => '🇩🇪 Deutsch',
@@ -16,6 +16,7 @@ module.exports = {
   menuListBody: () => 'Was möchten Sie bestellen?\nTippen Sie auf einen Artikel.',
   menuListFooter: () => 'Tippen zum Auswählen',
   viewMenuBtn: () => 'Menü anzeigen',
+  welcomeStartBtn: () => 'Bestellung starten',
   menuCategoryBody: () => 'Wählen Sie eine Kategorie. Danach folgt eine nummerierte Textliste.',
   menuCategoriesSection: () => 'Kategorien',
   menuCategoryCount: (count) => `${count} Artikel`,
@@ -252,6 +253,7 @@ module.exports = {
   menuEmpty: () => 'Aktuell keine Artikel verfügbar.',
 
   catalogBody: (name) => `👋 Willkommen bei ${name}!\n\nStöbern Sie im Menü und tippen Sie auf "In den Warenkorb". Wenn Sie fertig sind, senden Sie Ihren Warenkorb.`,
+  catalogBodyAfterWelcome: () => 'Menü öffnen, Artikel hinzufügen, Warenkorb senden.',
   catalogUnavailable: () => 'Unser Katalog ist noch nicht eingerichtet. Bitte kontaktieren Sie uns direkt.',
 
   askName: () => 'Wie lautet Ihr Name für die Bestellung?',
