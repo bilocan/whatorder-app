@@ -78,6 +78,64 @@ describe('optionLabelEmoji', () => {
     expect(optionLabelEmoji('', 'reis')).toBe('🌾');
   });
 
+  test('maps Pizza Favori Beilage catalog', () => {
+    const cases = [
+      ['mit Knoblauch', '🧄'],
+      ['mit Ananas', '🍍'],
+      ['mit Artischocken', '🌿'],
+      ['mit Basilikum', '🌿'],
+      ['mit Broccoli', '🥦'],
+      ['mit Champignons', '🍄'],
+      ['mit Ei', '🥚'],
+      ['mit Fleischsauce', '🫙'],
+      ['mit Hühnerstreifen', '🍗'],
+      ['mit Joghurt-Dressing', '🫙'],
+      ['mit Kapern', '🟢'],
+      ['mit Knoblauchwurst', '🌭'],
+      ['mit Lachs', '🍣'],
+      ['mit Mais', '🌽'],
+      ['mit Meeresfrüchten', '🦐'],
+      ['mit Melanzani', '🍆'],
+      ['mit Mozzarella', '🧀'],
+      ['mit Oliven', '🫒'],
+      ['mit Oregano', '🌿'],
+      ['mit Österkron', '🧀'],
+      ['mit Paprika', '🫑'],
+      ['mit Parmesan', '🧀'],
+      ['mit Pfefferoni, mild', '🌶️'],
+      ['mit Pfefferoni, scharf', '🌶️'],
+      ['mit Putenblockschinken', '🥓'],
+      ['mit Putensalami', '🌭'],
+      ['mit Rucola', '🥬'],
+      ['mit Salat', '🥬'],
+      ['mit Sardellen', '🐟'],
+      ['mit Shrimps', '🦐'],
+      ['mit Speck', '🥓'],
+      ['mit Spinat', '🥬'],
+      ['mit Thunfisch', '🐟'],
+      ['mit Tomaten', '🍅'],
+      ['mit Weißkäse', '🧀'],
+      ['mit Zwiebeln', '🧅'],
+    ];
+    for (const [label, emoji] of cases) {
+      expect(optionLabelEmoji(label)).toBe(emoji);
+    }
+  });
+
+  test('maps other Beilage / dressing / ohne options', () => {
+    expect(optionLabelEmoji('mit Potato Wedges')).toBe('🥔');
+    expect(optionLabelEmoji('mit Kartoffelsalat')).toBe('🥬');
+    expect(optionLabelEmoji('mit American-Dressing')).toBe('🫙');
+    expect(optionLabelEmoji('mit Kräuter-Dressing')).toBe('🫙');
+    expect(optionLabelEmoji('mit Knoblauch-Dressing')).toBe('🫙');
+    expect(optionLabelEmoji('mit Staubzucker')).toBe('🍬');
+    expect(optionLabelEmoji('mit doppeltem Boden')).toBe('🍕');
+    expect(optionLabelEmoji('als American Pizza, Doppelboden gefüllt mit Käse')).toBe('🍕');
+    expect(optionLabelEmoji('ohne Beilage')).toBe('🚫');
+    expect(optionLabelEmoji('ohne Dressing')).toBe('🚫');
+    expect(optionLabelEmoji('mit Spaghetti')).toBe('🍝');
+  });
+
   test('returns empty when unknown', () => {
     expect(optionLabelEmoji('Extra whatever')).toBe('');
   });
@@ -94,6 +152,14 @@ describe('formatFlowOptionTitle', () => {
 
   test('leaves unknown labels without emoji', () => {
     expect(formatFlowOptionTitle('Mystery', 0)).toBe('Mystery');
+  });
+
+  test('strips leading mit so mild/scharf stay readable within 30 chars', () => {
+    expect(formatFlowOptionTitle('mit Pfefferoni, mild', 3)).toBe('🌶️ Pfefferoni, mild +€3.00');
+    expect(formatFlowOptionTitle('mit Pfefferoni, scharf', 3)).toBe('🌶️ Pfefferoni, scharf +€3.00');
+    expect(formatFlowOptionTitle('mit Putenblockschinken', 4)).toBe('🥓 Putenblockschinken +€4.00');
+    expect(formatFlowOptionTitle('mit Knoblauch', 0)).toBe('🧄 Knoblauch');
+    expect(formatFlowOptionTitle('ohne Beilage', 0)).toBe('🚫 ohne Beilage');
   });
 
   test('truncates long labels to fit 30 char Flow limit', () => {
