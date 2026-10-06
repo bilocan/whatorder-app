@@ -875,3 +875,218 @@ describe('Multi-restaurant: removed restaurant absent from map', () => {
     expect(mapUrl).not.toContain('biz_c');
   });
 });
+
+describe('Multi-restaurant: delivery district gate on restaurant pick', () => {
+  beforeEach(() => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-maps-key';
+    process.env.NGROK_DOMAIN = 'tunnel.ngrok-free.dev';
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_MAPS_API_KEY;
+    delete process.env.NGROK_DOMAIN;
+  });
+
+  test('location share stores customerPlz from reverse geocode', async () => {
+    reverseGeocode.mockResolvedValue('Favoritenstraße 1, 1100 Wien');
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a'
+        ? { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 }
+        : { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 }),
+    );
+    getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'selecting_restaurant',
+      customerPlz: '1100',
+    }));
+  });
+
+  test('ORDER deep link outside restaurant districts offers Abholung or other restaurant', async () => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve({
+        ...(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO),
+        lat: id === 'biz_a' ? 48.2093 : 48.1974,
+        lng: id === 'biz_a' ? 16.3621 : 16.3734,
+        deliveryEnabled: true,
+        minimumOrderByDistrict: [
+          { postalCodes: ['1100'], minimumOrderValue: 13 },
+        ],
+      }),
+    );
+    getSession.mockResolvedValue({
+      state: 'selecting_restaurant',
+      language: 'en',
+      basket: [],
+      businessId: null,
+      lat: 48.1980,
+      lng: 16.3730,
+      customerPlz: '1060',
+    });
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'ORDER biz_b' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/does not deliver to your location[\s\S]*Delivery area: 1100/i),
+      buttons: [
+        expect.objectContaining({ id: 'btn_outzone_pickup', title: 'Pickup' }),
+        expect.objectContaining({ id: 'btn_outzone_other', title: 'Other restaurant' }),
+      ],
+    }));
+    expect(sendCtaUrlMessage).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'selecting_restaurant',
+      businessId: null,
+      customerPlz: '1060',
+      pendingOutOfZoneBusinessId: 'biz_b',
+    }));
+  });
+
+  test('out-of-zone Abholung button enters restaurant as pickup', async () => {
+    getLastOrderForCustomer.mockResolvedValue(null);
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve({
+        ...(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO),
+        lat: id === 'biz_a' ? 48.2093 : 48.1974,
+        lng: id === 'biz_a' ? 16.3621 : 16.3734,
+        deliveryEnabled: true,
+        minimumOrderByDistrict: [
+          { postalCodes: ['1100'], minimumOrderValue: 13 },
+        ],
+      }),
+    );
+    getSession.mockResolvedValue({
+      state: 'selecting_restaurant',
+      language: 'en',
+      basket: [],
+      businessId: null,
+      lat: 48.1980,
+      lng: 16.3730,
+      customerPlz: '1060',
+      pendingOutOfZoneBusinessId: 'biz_b',
+    });
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_outzone_pickup' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      businessId: 'biz_b',
+      orderType: 'pickup',
+      fulfillmentIntent: 'pickup',
+    }));
+    const browsingWrite = setSession.mock.calls.find(([, payload]) => payload.state === 'browsing' && payload.businessId === 'biz_b');
+    expect(browsingWrite[1].pendingOutOfZoneBusinessId).toBeUndefined();
+  });
+
+  test('out-of-zone other restaurant button re-opens map without refused venue', async () => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-maps-key';
+    process.env.NGROK_DOMAIN = 'tunnel.ngrok-free.dev';
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve({
+        ...(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO),
+        lat: id === 'biz_a' ? 48.2093 : 48.1974,
+        lng: id === 'biz_a' ? 16.3621 : 16.3734,
+        deliveryEnabled: true,
+        minimumOrderByDistrict: [
+          { postalCodes: ['1100'], minimumOrderValue: 13 },
+        ],
+      }),
+    );
+    getSession.mockResolvedValue({
+      state: 'selecting_restaurant',
+      language: 'en',
+      basket: [],
+      businessId: null,
+      lat: 48.1980,
+      lng: 16.3730,
+      customerPlz: '1060',
+      pendingOutOfZoneBusinessId: 'biz_b',
+    });
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'button_reply', id: 'btn_outzone_other' }));
+
+    expect(sendCtaUrlMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttonLabel: 'Open map',
+      url: expect.stringMatching(/ids=biz_a(?:&|$)/),
+    }));
+    expect(sendCtaUrlMessage.mock.calls[0][1].url).not.toContain('biz_b');
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'selecting_restaurant',
+      businessId: null,
+      pendingOutOfZoneBusinessId: null,
+    }));
+  });
+
+  test('ORDER deep link inside district districts proceeds to browsing', async () => {
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve({
+        ...(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO),
+        deliveryEnabled: true,
+        minimumOrderByDistrict: [
+          { postalCodes: ['1100'], minimumOrderValue: 13 },
+        ],
+      }),
+    );
+    getSession.mockResolvedValue({
+      state: 'selecting_restaurant',
+      language: 'en',
+      basket: [],
+      businessId: null,
+      lat: 48.1980,
+      lng: 16.3730,
+      customerPlz: '1100',
+    });
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'ORDER biz_b' }));
+
+    expect(sendText).not.toHaveBeenCalledWith(
+      FROM,
+      expect.stringMatching(/does not deliver/i),
+    );
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      businessId: 'biz_b',
+    }));
+  });
+
+  test('pickup intent outside districts still enters restaurant (PLZ gate skipped)', async () => {
+    getLastOrderForCustomer.mockResolvedValue(null);
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve({
+        ...(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO),
+        lat: id === 'biz_a' ? 48.2093 : 48.1974,
+        lng: id === 'biz_a' ? 16.3621 : 16.3734,
+        deliveryEnabled: true,
+        minimumOrderByDistrict: [
+          { postalCodes: ['1100'], minimumOrderValue: 13 },
+        ],
+      }),
+    );
+    getSession.mockResolvedValue({
+      state: 'selecting_restaurant',
+      language: 'en',
+      basket: [],
+      businessId: null,
+      lat: 48.1980,
+      lng: 16.3730,
+      customerPlz: '1060',
+      fulfillmentIntent: 'pickup',
+    });
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'ORDER biz_b' }));
+
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(
+      FROM,
+      expect.objectContaining({
+        buttons: expect.arrayContaining([
+          expect.objectContaining({ id: 'btn_outzone_pickup' }),
+        ]),
+      }),
+    );
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      businessId: 'biz_b',
+    }));
+  });
+});

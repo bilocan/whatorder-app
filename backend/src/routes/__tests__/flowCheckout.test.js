@@ -2137,3 +2137,65 @@ test('manage_confirm_reject returns to edit with original fields', async () => {
   expect(response.data[F.DELIVERY_APARTMENT]).toBe('Top 4');
   expect(response.data[F.MANAGE_ADDRESS_CHOICE]).toBe('addr_new');
 });
+
+test('Favoriten: select_order_type delivery uses district min for 1040 (fee 0)', async () => {
+  mockSession({
+    orderType: 'pickup',
+    deliveryAddress: 'Wiedner Gürtel 1, 1040 Wien',
+    basket: [{ name: 'Pizza Margherita', qty: 1, price: 15 }],
+    confirmFlowDraft: null,
+  });
+  getBusinessInfo.mockResolvedValue({
+    name: 'Favoriten Pizza',
+    deliveryEnabled: true,
+    deliveryOpen: true,
+    deliveryFee: 0,
+    minimumOrderByDistrict: [
+      { postalCodes: ['1100'], minimumOrderValue: 13 },
+      { postalCodes: ['1040', '1050'], minimumOrderValue: 30 },
+    ],
+  });
+
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.CHECKOUT_NOTE]: '',
+  });
+
+  expect(response.screen).toBe(S.CHECKOUT_REVIEW);
+  expect(response.data[F.ORDER_TYPE]).toBe('delivery');
+  expect(response.data[F.PLACE_ORDER_ENABLED]).toBe(false);
+  expect(response.data[F.CHECKOUT_BLOCK_REASON]).toContain('Minimum order €30.00');
+  expect(response.data[F.RECEIPT_TEXT]).not.toMatch(/Liefergebühr|Delivery fee/i);
+});
+
+test('Favoriten: 1100 address meets €13 district min with fee 0', async () => {
+  mockSession({
+    orderType: 'pickup',
+    deliveryAddress: 'Favoritenstraße 88, 1100 Wien',
+    basket: [{ name: 'Pizza Margherita', qty: 1, price: 15 }],
+    confirmFlowDraft: null,
+  });
+  getBusinessInfo.mockResolvedValue({
+    name: 'Favoriten Pizza',
+    deliveryEnabled: true,
+    deliveryOpen: true,
+    deliveryFee: 0,
+    minimumOrderByDistrict: [
+      { postalCodes: ['1100'], minimumOrderValue: 13 },
+      { postalCodes: ['1040', '1050'], minimumOrderValue: 30 },
+    ],
+  });
+
+  const response = await exchange(S.CHECKOUT_REVIEW, {
+    checkout_action: 'select_order_type',
+    [F.ORDER_TYPE]: 'delivery',
+    [F.CUSTOMER_NAME]: 'Alex',
+    [F.CHECKOUT_NOTE]: '',
+  });
+
+  expect(response.data[F.ORDER_TYPE]).toBe('delivery');
+  expect(response.data[F.PLACE_ORDER_ENABLED]).toBe(true);
+  expect(response.data[F.CHECKOUT_BLOCK_VISIBLE]).toBe(false);
+});

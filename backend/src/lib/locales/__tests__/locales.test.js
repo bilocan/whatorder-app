@@ -38,9 +38,30 @@ describe('de locale', () => {
   test('locationRequestBody', () => expect(str(de.locationRequestBody())).toBe(true));
   test('switchLocationRequestBody', () => expect(str(de.switchLocationRequestBody())).toBe(true));
   test('locationRequiredAgain', () => expect(str(de.locationRequiredAgain())).toBe(true));
+  test('deliveryNotAvailable buttons max 20', () => {
+    expect(de.deliveryNotAvailablePickupBtn().length).toBeLessThanOrEqual(20);
+    expect(de.deliveryNotAvailableOtherBtn().length).toBeLessThanOrEqual(20);
+    expect(en.deliveryNotAvailablePickupBtn().length).toBeLessThanOrEqual(20);
+    expect(en.deliveryNotAvailableOtherBtn().length).toBeLessThanOrEqual(20);
+    expect(tr.deliveryNotAvailablePickupBtn().length).toBeLessThanOrEqual(20);
+    expect(tr.deliveryNotAvailableOtherBtn().length).toBeLessThanOrEqual(20);
+  });
+  test('deliveryNotAvailableHereChoice includes PLZ list', () => {
+    expect(de.deliveryNotAvailableHereChoice('Bistro', '1100, 1040')).toContain('Liefergebiet: 1100, 1040');
+    expect(en.deliveryNotAvailableHereChoice('Bistro', '1100, 1040')).toContain('Delivery area: 1100, 1040');
+    expect(tr.deliveryNotAvailableHereChoice('Bistro', '1100, 1040')).toContain('Teslimat bölgesi: 1100, 1040');
+  });
   test('restaurantPickerBody', () => expect(str(de.restaurantPickerBody())).toBe(true));
   test('restaurantPickerButton', () => expect(str(de.restaurantPickerButton())).toBe(true));
   test('restaurantPickerFooter', () => expect(str(de.restaurantPickerFooter())).toBe(true));
+  test('interactiveMapBody numbered steps', () => {
+    expect(de.interactiveMapBody()).toContain('📍');
+    expect(de.interactiveMapBody()).toContain('1️⃣ *Karte öffnen*');
+    expect(de.interactiveMapBody()).toContain('3️⃣ *Hier bestellen*');
+    expect(de.interactiveMapBody()).not.toContain('→');
+    expect(en.interactiveMapBody()).toContain('1️⃣ *Open map*');
+    expect(tr.interactiveMapBody()).toContain('1️⃣ *Haritayı aç*');
+  });
   test('switchConfirmed', () => expect(str(de.switchConfirmed())).toBe(true));
   test('orderConfirmedWithChoice', () => expect(str(de.orderConfirmedWithChoice('A1B2', 'Bistro'))).toBe(true));
   test('orderCancelledWithChoice', () => expect(str(de.orderCancelledWithChoice('Bistro'))).toBe(true));
@@ -146,6 +167,10 @@ const MENU_TEXT_INTENT_CALLS = [
   ['textMenuContinuedHint', []],
   ['closedLabel', []],
   ['ordersClosedByOwner', ['Bistro']],
+  ['deliveryNotAvailableHere', ['Bistro']],
+  ['deliveryNotAvailableHerePickOther', ['Bistro']],
+  ['deliveryNotAvailableHereChoice', ['Bistro', '1100, 1040']],
+  ['deliveryNotAvailableHerePickupOnly', ['Bistro', '1100, 1040']],
   ['deliveryClosedByOwner', []],
   ['intentConfirmHeader', []],
   ['intentConfirmPrompt', []],

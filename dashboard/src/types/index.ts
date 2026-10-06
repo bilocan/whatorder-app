@@ -148,6 +148,12 @@ export interface DaySchedule {
 // Key is day-of-week as string ('0'=Sun … '6'=Sat); absence of a key means that day is closed.
 export type BusinessSchedule = Record<string, DaySchedule>;
 
+/** One dashboard row: one or more Austrian PLZs share the same Mindestbestellwert. */
+export interface MinimumOrderDistrictRule {
+  postalCodes: string[];
+  minimumOrderValue: number;
+}
+
 export interface Business {
   id: string;
   name: string;
@@ -163,6 +169,12 @@ export interface Business {
   deliveryFee?: number;
   deliveryZone?: string;
   minimumOrderValue?: number;
+  /**
+   * Per-PLZ delivery coverage + Mindestbestellwert.
+   * When set, these PLZs are the delivery zone (no global fallback min).
+   * When empty/absent, delivery is unrestricted and `minimumOrderValue` applies.
+   */
+  minimumOrderByDistrict?: MinimumOrderDistrictRule[];
   schedule?: BusinessSchedule;
   botLanguage?: 'de' | 'tr' | 'en';
   paymentEnabled?: boolean;

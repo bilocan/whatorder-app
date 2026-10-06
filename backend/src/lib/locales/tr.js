@@ -1,7 +1,11 @@
 module.exports = {
   categories: { mains: 'Ana Yemekler', sides: 'Garnitürler', drinks: 'İçecekler' },
 
-  greeting: (name) => `👋 ${name}'a hoş geldiniz!\n\nAşağıdan devam edebilirsiniz.`,
+  greeting: (name) => `👋 ${name}'a hoş geldiniz!`,
+  greetingStartHint: () => 'Başlamak için aşağıya dokunun.',
+  minOrderWelcomeSingle: (amount) => `*Teslimat* €${amount}'den itibaren.`,
+  minOrderWelcomeByDistrict: (lines) => `*Teslimat (min.)*\n${lines}`,
+  minOrderWelcomeDistrictLine: (plzs, amount) => `• *${plzs}* — €${amount}'den`,
   langChanged: () => '✅ Dil Türkçe olarak değiştirildi.',
   languagePickBody: () => 'Which language? / Welche Sprache? / Hangi dil?',
   langBtnDe: () => '🇩🇪 Deutsch',
@@ -110,6 +114,7 @@ module.exports = {
   confirmFlowBlockName: () => 'Sipariş için ad gerekli.',
   confirmFlowBlockAddress: () => 'Teslimat için adres gerekli.',
   confirmFlowBelowMinimum: (min, more) => `Minimum sipariş €${min}. €${more} daha.`,
+  confirmFlowOutOfDeliveryZone: () => 'Bu posta koduna teslimat yok.',
   confirmFlowProfileNameLabel: () => 'Adın',
   confirmFlowProfileNameHelper: () => 'Siparişte böyle görünür',
   confirmFlowTypeLabel: () => 'Nasıl almak istersin?',
@@ -253,7 +258,7 @@ module.exports = {
   menuEmpty: () => 'Şu an menümüzde ürün yok.',
 
   catalogBody: (name) => `👋 ${name}'a hoş geldiniz!\n\nMenüye göz atın ve istediğiniz ürünleri sepete ekleyin. Hazır olduğunuzda sepetinizi gönderin.`,
-  catalogBodyAfterWelcome: () => 'Menüyü açın, ürün ekleyin, sepeti gönderin.',
+  catalogBodyAfterWelcome: (name) => `👋 ${name}'a hoş geldiniz!\n\nMenüye göz atın ve istediğiniz ürünleri sepete ekleyin. Hazır olduğunuzda sepetinizi gönderin.`,
   catalogUnavailable: () => 'Kataloğumuz henüz hazır değil. Sipariş için lütfen bize doğrudan ulaşın.',
 
   askName: () => 'Sipariş için adınızı yazar mısınız?',
@@ -340,7 +345,7 @@ module.exports = {
   restaurantPickerButton: () => 'Restoranlar',
   restaurantPickerFooter: () => 'Menüyü açmak için bir isme dokunun',
   restaurantPickerFooterNumbered: () => 'Numaralar Haritayı aç ile eşleşir',
-  interactiveMapBody: () => 'Hangi restorandan sipariş vermek istersiniz?\n\nHaritayı aç → işarete dokun → „Buradan sipariş ver“.',
+  interactiveMapBody: () => '📍 Hangi restorandan sipariş vermek istersiniz?\n\n1️⃣ *Haritayı aç*\n2️⃣ *İşarete* dokun\n3️⃣ *Buradan sipariş ver*',
   interactiveMapBtn: () => 'Haritayı aç',
   noNearbyRestaurants: (maxKm) => `${maxKm} km içinde restoran yok. Haritada tüm restoranlar için *hepsi* yazın.`,
   switchConfirmed: () => '🔄 Restoran değiştiriliyor. Sepetiniz temizlendi.',
@@ -367,6 +372,22 @@ module.exports = {
 
   ordersClosedByOwner: (name) => `⏸️ ${name} şu an sipariş almıyor. Lütfen daha sonra tekrar deneyin! 🙏`,
   ordersClosedByOwnerPickOther: (name) => `⏸️ ${name} şu an sipariş almıyor. Lütfen başka bir restoran seçin.`,
+  deliveryNotAvailableHere: (name) => `🚚 ${name} konumunuza teslimat yapmıyor. Lütfen daha sonra tekrar deneyin.`,
+  deliveryNotAvailableHerePickOther: (name) => `🚚 ${name} konumunuza teslimat yapmıyor. Lütfen haritadan başka bir restoran seçin.`,
+  deliveryNotAvailableHereChoice: (name, zones) => {
+    const zoneLine = zones
+      ? `\n\n📍 Teslimat bölgesi: ${zones}.`
+      : '';
+    return `🚚 ${name} konumunuza teslimat yapmıyor.${zoneLine}\n\nGel-al ile devam edebilir veya başka restoran seçebilirsiniz.`;
+  },
+  deliveryNotAvailableHerePickupOnly: (name, zones) => {
+    const zoneLine = zones
+      ? `\n\n📍 Teslimat bölgesi: ${zones}.`
+      : '';
+    return `🚚 ${name} konumunuza teslimat yapmıyor.${zoneLine}\n\nYine de gel-al ile devam edebilirsiniz.`;
+  },
+  deliveryNotAvailablePickupBtn: () => 'Gel al',
+  deliveryNotAvailableOtherBtn: () => 'Başka restoran',
   deliveryClosedByOwner: () => '🚫 Teslimat şu an mevcut değil. Lütfen gel-al seçeneğini seçin.',
 
   intentConfirmHeader: () => 'Anladım:',
@@ -405,7 +426,9 @@ module.exports = {
   intentMultiDefaultHint: () => 'Varsayılanı kullan\'a bas veya all / none / skip yaz (yukarıdaki varsayılan).',
   intentMultiDefaultBtn: () => 'Varsayılan',
 
-  reorderPromptHeader: (name) => `👋 ${name}'a tekrar hoş geldin! Son siparişin:`,
+  reorderWelcomeBack: (name) => `👋 ${name}'a tekrar hoş geldin!`,
+  reorderLastOrderLabel: () => 'Son siparişin:',
+  reorderPromptHeader: (name) => `👋 ${name}'a tekrar hoş geldin!`,
   reorderConfirmPrompt: () => 'Aynısını tekrar sipariş et?',
   reorderConfirmBtn: () => 'Aynısı ✅',
   reorderBrowseBtn: () => 'Başka bir şey',

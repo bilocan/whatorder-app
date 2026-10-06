@@ -1,5 +1,5 @@
 const { ordersRef, stripeEventRef, businessRef } = require('./collections');
-const { admin } = require('./firebase');
+const { admin, db } = require('./firebase');
 const { getStripe } = require('./stripe');
 const { getFeeConfig, calcFeeCents } = require('./feeConfig');
 const { getSettlementConfig, computeHoldEndsAt, computeExpectedPayoutAt } = require('./settlementConfig');
@@ -153,6 +153,23 @@ async function markStripeEventProcessed(eventId, type) {
   });
 }
 
+/**
+ * Atomically claim the right to send post-payment WhatsApp messages.
+ * Webhook + success-page + Prüfen recovery can race; only one writer wins.
+ * @returns {Promise<boolean>} true when this caller should notify
+ */
+async function claimPaymentNotification(orderRef) {
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(orderRef);
+    if (!snap.exists) return false;
+    if (snap.data().paymentNotifiedAt) return false;
+    tx.update(orderRef, {
+      paymentNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return true;
+  });
+}
+
 async function handleCheckoutSessionCompleted(session) {
   const businessId = session.metadata?.business_id;
   const orderId = session.metadata?.order_id;
@@ -232,17 +249,34 @@ async function handleCheckoutSessionCompleted(session) {
 
   if (order.paymentNotifiedAt) return;
 
+  // Resolve routing before claiming so a missing phoneNumberId can still retry later.
+  let phoneNumberId;
   try {
-    const phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);
+    phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);
+  } catch (err) {
+    const msg = err.name === 'WhatsAppRoutingError'
+      ? err.message
+      : formatOrderWhatsAppSendError(err, { orderId, businessId, phoneNumberId: order.whatsappPhoneNumberId, kind: 'Payment confirmation' });
+    console.error(`[stripe] ${msg}`);
+    return;
+  }
+
+  let claimed = false;
+  try {
+    claimed = await claimPaymentNotification(orderRef);
+  } catch (err) {
+    console.error(`[stripe] payment notify claim failed orderId=${orderId}: ${err.message}`);
+    return;
+  }
+  if (!claimed) return;
+
+  try {
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
     const bizSnap = await businessRef(businessId).get();
     await runWithMessageIdentity(PLATFORM_IDENTITY, async () => {
       applyBusinessInfoIdentity(bizSnap.exists ? bizSnap.data() : { name: order.restaurantName });
       await sendText(order.customerPhone, t('paymentConfirmed', lang, shortId), phoneNumberId);
-      await orderRef.update({
-        paymentNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
 
       // Beleg before action buttons so "Was möchtest du tun?" is the last bubble.
       if (beleg?.status === 'ready' && beleg.gcsPath) {
@@ -279,9 +313,8 @@ async function handleCheckoutSessionCompleted(session) {
       }, phoneNumberId);
     });
   } catch (err) {
-    const msg = err.name === 'WhatsAppRoutingError'
-      ? err.message
-      : formatOrderWhatsAppSendError(err, { orderId, businessId, phoneNumberId: order.whatsappPhoneNumberId, kind: 'Payment confirmation' });
+    // Claim stays set: clearing would reopen the webhook/success-page double-send race.
+    const msg = formatOrderWhatsAppSendError(err, { orderId, businessId, phoneNumberId: order.whatsappPhoneNumberId, kind: 'Payment confirmation' });
     console.error(`[stripe] ${msg}`);
   }
 }

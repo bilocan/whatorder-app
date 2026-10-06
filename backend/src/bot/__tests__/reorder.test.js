@@ -49,5 +49,38 @@ describe('buildReorderPromptBody', () => {
       [{ name: 'Döner', qty: 2, price: 8.5 }], [], 'en', 'Döner Palace',
     );
     expect(body).toContain('Döner Palace');
+    expect(body).toContain('Your last order:');
+  });
+
+  test('inserts single delivery minimum after welcome-back', () => {
+    const body = buildReorderPromptBody(
+      [{ name: 'Döner', qty: 1, price: 8.5 }],
+      [],
+      'de',
+      'Pizza Favori',
+      { deliveryEnabled: true, minimumOrderValue: 13 },
+    );
+    expect(body).toMatch(/Willkommen zurück bei Pizza Favori![\s\S]*\*Lieferung\* ab €13/);
+    expect(body).toContain('Deine letzte Bestellung:');
+    expect(body).not.toContain('Tippen Sie unten');
+  });
+
+  test('lists per-PLZ minimums when districts differ', () => {
+    const body = buildReorderPromptBody(
+      [{ name: 'Döner', qty: 1, price: 8.5 }],
+      [],
+      'de',
+      'Pizza Favori',
+      {
+        deliveryEnabled: true,
+        minimumOrderByDistrict: [
+          { postalCodes: ['1100'], minimumOrderValue: 13 },
+          { postalCodes: ['1040', '1050'], minimumOrderValue: 30 },
+        ],
+      },
+    );
+    expect(body).toContain('*Lieferung ab*');
+    expect(body).toContain('• *1100* — ab €13');
+    expect(body).toContain('• *1040, 1050* — ab €30');
   });
 });

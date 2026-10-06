@@ -4,7 +4,8 @@ const LOCALES = ['en', 'tr', 'de'];
 
 // Every key that should exist across all three locales
 const FUNCTION_KEYS = [
-  'greeting', 'langChanged',
+  'greeting', 'greetingStartHint', 'langChanged',
+  'minOrderWelcomeSingle', 'minOrderWelcomeByDistrict', 'minOrderWelcomeDistrictLine',
   'languagePickBody', 'langBtnDe', 'langBtnEn', 'langBtnTr',
   'langOptionDe', 'langOptionEn', 'langOptionTr', 'confirmFlowLanguageLabel',
   'menuListHeader', 'menuListBody', 'menuListFooter', 'viewMenuBtn', 'welcomeStartBtn',
@@ -41,7 +42,7 @@ const FUNCTION_KEYS = [
   'menuFlowAddMore', 'menuFlowPlaceOrder', 'menuFlowClearCart',
   'askNameEdit', 'askOrderTypeFromConfirm',
   'confirmOrderBtn', 'addNoteBtn', 'backToCartBtn', 'addNotePrompt', 'confirmPrompt', 'yesNoOnly',
-  'reorderPromptHeader',
+  'reorderWelcomeBack', 'reorderLastOrderLabel', 'reorderPromptHeader',
   'orderConfirmed', 'orderCancelled', 'checkoutCancelled', 'orderReceipt',
   'menuEmpty',
   'orderReady',

@@ -1038,3 +1038,123 @@ describe('Delivery flow: awaiting_delivery_address_choice', () => {
     }));
   });
 });
+
+describe('Favoriten district Mindestbestellwert (deliveryFee 0)', () => {
+  const FAVORITEN = {
+    ...BIZ_INFO,
+    deliveryEnabled: true,
+    deliveryFee: 0,
+    minimumOrderByDistrict: [
+      { postalCodes: ['1100'], minimumOrderValue: 13 },
+      { postalCodes: ['1040', '1050'], minimumOrderValue: 30 },
+    ],
+  };
+
+  test('btn_delivery without PLZ does not gate on a missing fallback min', async () => {
+    getBusinessInfo.mockResolvedValue(FAVORITEN);
+    getSession.mockResolvedValue({ ...BASE_SESSION, state: 'awaiting_order_type' });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_delivery' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address_choice',
+      orderType: 'delivery',
+    }));
+  });
+
+  test('btn_delivery with 1040 address gates at €30 district min', async () => {
+    getBusinessInfo.mockResolvedValue(FAVORITEN);
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'awaiting_order_type',
+      deliveryAddress: 'Wiedner Gürtel 1, 1040 Wien',
+      customerPlz: '1040',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_delivery' }));
+
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('30.00'),
+      buttons: [expect.objectContaining({ id: 'btn_add_more' })],
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      orderType: 'delivery',
+    }));
+  });
+
+  test('btn_delivery with 1100 address clears the €13 district gate', async () => {
+    getBusinessInfo.mockResolvedValue(FAVORITEN);
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'awaiting_order_type',
+      deliveryAddress: 'Favoritenstraße 88, 1100 Wien',
+      customerPlz: '1100',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_delivery' }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_delivery_address_choice',
+      orderType: 'delivery',
+    }));
+  });
+
+  test('chat btn_place_order blocks delivery outside Favoriten districts', async () => {
+    delete process.env.WHATSAPP_CHECKOUT_FLOW_ID;
+    getBusinessInfo.mockResolvedValue(FAVORITEN);
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      orderType: 'delivery',
+      deliveryAddress: 'Mariahilfer Str. 10, 1060 Wien',
+      customerName: 'Ahmet',
+      customerPlz: '1060',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_place_order' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(FROM, expect.stringMatching(/confirmFlowOutOfDeliveryZone|liefert|deliver/i));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
+  });
+
+  test('chat btn_place_order blocks delivery address without a PLZ when districts are set', async () => {
+    delete process.env.WHATSAPP_CHECKOUT_FLOW_ID;
+    getBusinessInfo.mockResolvedValue(FAVORITEN);
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      orderType: 'delivery',
+      deliveryAddress: 'Hauptstrasse 1, Wien',
+      customerName: 'Ahmet',
+      customerPlz: null,
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_place_order' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
+  });
+
+  test('chat btn_place_order does not use stale pin PLZ when address has no PLZ', async () => {
+    delete process.env.WHATSAPP_CHECKOUT_FLOW_ID;
+    getBusinessInfo.mockResolvedValue(FAVORITEN);
+    getSession.mockResolvedValue({
+      ...BASE_SESSION,
+      state: 'confirming',
+      orderType: 'delivery',
+      deliveryAddress: 'Hauptstrasse 1, Wien',
+      customerName: 'Ahmet',
+      customerPlz: '1100',
+    });
+
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_place_order' }));
+
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({ state: 'browsing' }));
+  });
+});

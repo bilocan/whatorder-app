@@ -1,7 +1,11 @@
 module.exports = {
   categories: { mains: 'Hauptgerichte', sides: 'Beilagen', drinks: 'Getränke' },
 
-  greeting: (name) => `👋 Willkommen bei ${name}!\n\nUnten weiter.`,
+  greeting: (name) => `👋 Willkommen bei ${name}!`,
+  greetingStartHint: () => 'Tippen Sie unten, um zu starten.',
+  minOrderWelcomeSingle: (amount) => `*Lieferung* ab €${amount}.`,
+  minOrderWelcomeByDistrict: (lines) => `*Lieferung ab*\n${lines}`,
+  minOrderWelcomeDistrictLine: (plzs, amount) => `• *${plzs}* — ab €${amount}`,
   langChanged: () => '✅ Sprache auf Deutsch geändert.',
   languagePickBody: () => 'Which language? / Welche Sprache? / Hangi dil?',
   langBtnDe: () => '🇩🇪 Deutsch',
@@ -110,6 +114,7 @@ module.exports = {
   confirmFlowBlockName: () => 'Für die Bestellung fehlt der Name.',
   confirmFlowBlockAddress: () => 'Für die Lieferung fehlt die Adresse.',
   confirmFlowBelowMinimum: (min, more) => `Mindestbestellwert €${min}. Noch €${more}.`,
+  confirmFlowOutOfDeliveryZone: () => 'Lieferung in diese PLZ ist nicht möglich.',
   confirmFlowProfileNameLabel: () => 'Dein Name',
   confirmFlowProfileNameHelper: () => 'Steht auf der Bestellung',
   confirmFlowTypeLabel: () => 'Wie bekommst du sie?',
@@ -253,7 +258,7 @@ module.exports = {
   menuEmpty: () => 'Aktuell keine Artikel verfügbar.',
 
   catalogBody: (name) => `👋 Willkommen bei ${name}!\n\nStöbern Sie im Menü und tippen Sie auf "In den Warenkorb". Wenn Sie fertig sind, senden Sie Ihren Warenkorb.`,
-  catalogBodyAfterWelcome: () => 'Menü öffnen, Artikel hinzufügen, Warenkorb senden.',
+  catalogBodyAfterWelcome: (name) => `👋 Willkommen bei ${name}!\n\nStöbern Sie im Menü und tippen Sie auf "In den Warenkorb". Wenn Sie fertig sind, senden Sie Ihren Warenkorb.`,
   catalogUnavailable: () => 'Unser Katalog ist noch nicht eingerichtet. Bitte kontaktieren Sie uns direkt.',
 
   askName: () => 'Wie lautet Ihr Name für die Bestellung?',
@@ -340,7 +345,7 @@ module.exports = {
   restaurantPickerButton: () => 'Restaurants',
   restaurantPickerFooter: () => 'Tippen Sie auf einen Namen um die Karte zu öffnen',
   restaurantPickerFooterNumbered: () => 'Nummern passen zur Karte (Karte öffnen)',
-  interactiveMapBody: () => 'Bei welchem Restaurant möchten Sie bestellen?\n\nKarte öffnen → Markierung tippen → „Hier bestellen“.',
+  interactiveMapBody: () => '📍 Bei welchem Restaurant möchten Sie bestellen?\n\n1️⃣ *Karte öffnen*\n2️⃣ *Markierung* tippen\n3️⃣ *Hier bestellen*',
   interactiveMapBtn: () => 'Karte öffnen',
   noNearbyRestaurants: (maxKm) => `Keine Restaurants im Umkreis von ${maxKm} km. Antworten Sie mit *alle*, um alle Restaurants auf der Karte zu sehen.`,
   switchConfirmed: () => '🔄 Restaurant wird gewechselt. Ihr Warenkorb wurde geleert.',
@@ -367,6 +372,22 @@ module.exports = {
 
   ordersClosedByOwner: (name) => `⏸️ ${name} nimmt gerade keine Bestellungen entgegen. Bitte versuchen Sie es später! 🙏`,
   ordersClosedByOwnerPickOther: (name) => `⏸️ ${name} nimmt gerade keine Bestellungen entgegen. Bitte wählen Sie ein anderes Restaurant.`,
+  deliveryNotAvailableHere: (name) => `🚚 ${name} liefert nicht an Ihren Standort. Bitte versuchen Sie es später.`,
+  deliveryNotAvailableHerePickOther: (name) => `🚚 ${name} liefert nicht an Ihren Standort. Bitte wählen Sie ein anderes Restaurant auf der Karte.`,
+  deliveryNotAvailableHereChoice: (name, zones) => {
+    const zoneLine = zones
+      ? `\n\n📍 Liefergebiet: ${zones}.`
+      : '';
+    return `🚚 ${name} liefert nicht an Ihren Standort.${zoneLine}\n\nAbholung möglich, oder anderes Restaurant wählen.`;
+  },
+  deliveryNotAvailableHerePickupOnly: (name, zones) => {
+    const zoneLine = zones
+      ? `\n\n📍 Liefergebiet: ${zones}.`
+      : '';
+    return `🚚 ${name} liefert nicht an Ihren Standort.${zoneLine}\n\nSie können trotzdem mit Abholung fortfahren.`;
+  },
+  deliveryNotAvailablePickupBtn: () => 'Abholung',
+  deliveryNotAvailableOtherBtn: () => 'Anderes Restaurant',
   deliveryClosedByOwner: () => '🚫 Lieferung ist derzeit nicht verfügbar. Bitte wählen Sie Abholung.',
 
   intentConfirmHeader: () => 'Verstanden:',
@@ -405,7 +426,9 @@ module.exports = {
   intentMultiDefaultHint: () => 'Tippe Standard verwenden, oder antworte all / none / skip (nutzt Standard oben).',
   intentMultiDefaultBtn: () => 'Standard',
 
-  reorderPromptHeader: (name) => `👋 Willkommen zurück bei ${name}! Deine letzte Bestellung:`,
+  reorderWelcomeBack: (name) => `👋 Willkommen zurück bei ${name}!`,
+  reorderLastOrderLabel: () => 'Deine letzte Bestellung:',
+  reorderPromptHeader: (name) => `👋 Willkommen zurück bei ${name}!`,
   reorderConfirmPrompt: () => 'Gleich nochmal bestellen?',
   reorderConfirmBtn: () => 'Gleich wieder ✅',
   reorderBrowseBtn: () => 'Etwas anderes',

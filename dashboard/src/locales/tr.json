@@ -634,20 +634,31 @@
       "acceptOrders": "Teslimat siparişlerini kabul et",
       "fee": "Teslimat ücreti (€)",
       "zone": "Teslimat bölgesi (posta kodları)",
-      "zoneHint": "Hepsini kabul etmek için boş bırakın.",
+      "zonePlaceholder": "1100, 1040, 1050",
+      "zoneHint": "Hepsini kabul etmek için boş bırakın. PLZ yazınca altta minimum tutarlar görünür.",
       "save": "Teslimat ayarlarını kaydet",
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi",
-      "invalidFee": "Geçersiz ücret değeri"
+      "invalidFee": "Geçersiz ücret, posta kodu veya minimum sipariş tutarı"
     },
     "minimumOrder": {
       "title": "Minimum Sipariş Tutarı",
-      "description": "Teslimat siparişleri için sepetin ulaşması gereken minimum tutarı belirleyin. Gel-al siparişleri bu kuraldan etkilenmez.",
+      "description": "Tüm PLZ için varsayılan; altta tek tek değiştirilebilir. Gel-al etkilenmez.",
       "label": "Minimum sipariş tutarı (€)",
+      "defaultLabel": "Varsayılan minimum sipariş (€)",
+      "defaultHintAllZones": "Teslimat bölgesi boşsa (tüm PLZ) her yerde geçerli.",
+      "defaultHintWithZone": "Yeni PLZ’ler bu değerle başlar. Altta tek tek değiştirebilirsiniz.",
+      "byDistrictTitle": "PLZ başına minimum",
+      "byDistrictHint": "Sadece bu PLZ’lere teslimat yapılır. Aynı tutarlar kaydederken gruplanır.",
+      "postalCodes": "Posta kodları",
+      "postalCodesPlaceholder": "1100 veya 1040, 1050",
+      "districtMin": "Min (€)",
+      "addRow": "Bölge satırı ekle",
+      "removeRow": "Sil",
       "save": "Minimum sipariş tutarını kaydet",
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi",
-      "invalidValue": "Geçersiz değer"
+      "invalidValue": "Geçersiz PLZ, tutar veya tekrarlayan posta kodu"
     },
     "payment": {
       "title": "Kart ile Ödeme",

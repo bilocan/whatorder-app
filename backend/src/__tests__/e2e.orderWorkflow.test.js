@@ -365,7 +365,12 @@ describe('E2E: Delivery order workflow — place → owner notified → mark on_
     makeOrdersRefForCreate();
     makeBusinessRef();
     makeCustomersRef();
-    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryFee: 2.50 });
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+      deliveryFee: 2.50,
+    });
 
     getSession.mockResolvedValue({
       language: 'tr',
@@ -395,7 +400,12 @@ describe('E2E: Delivery order workflow — place → owner notified → mark on_
     makeOrdersRefForCreate();
     makeBusinessRef();
     makeCustomersRef();
-    getBusinessInfo.mockResolvedValue({ ...BIZ_INFO, deliveryFee: 2.50 });
+    getBusinessInfo.mockResolvedValue({
+      ...BIZ_INFO,
+      deliveryEnabled: true,
+      deliveryOpen: true,
+      deliveryFee: 2.50,
+    });
 
     getSession.mockResolvedValue({
       language: 'tr',
