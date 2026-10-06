@@ -1,9 +1,8 @@
-// Multi-restaurant venue switch: clear session venue + re-request location.
+// Multi-restaurant venue switch: clear session venue + request location.
 const { setSession } = require('./sessionStore');
-const { sendLocationRequest } = require('../lib/whatsapp');
 const { setMessageIdentity, PLATFORM_IDENTITY } = require('../lib/messageIdentity');
-const { t } = require('./templates');
 const { phoneRoutingRef } = require('../lib/collections');
+const { promptRestaurantLocation } = require('./states/restaurant');
 
 /**
  * True when this business is on the given WhatsApp line and that line has >1 restaurant.
@@ -33,6 +32,9 @@ function switchSessionPayload(lang, pendingDeleteIds = []) {
     businessId: null,
     lat: null,
     lng: null,
+    customerPlz: null,
+    fulfillmentIntent: null,
+    pendingOutOfZoneBusinessId: null,
     pendingDeleteIds,
     restaurantPickerUnfiltered: false,
     pendingReorderItems: undefined,
@@ -42,17 +44,17 @@ function switchSessionPayload(lang, pendingDeleteIds = []) {
 }
 
 /**
- * Leave the current restaurant: clear basket/venue/pin first, then ask for location.
- * Persist before WhatsApp send so a failed location request cannot leave a live basket
+ * Leave the current restaurant: clear basket/venue/pin first, then request location.
+ * Persist before WhatsApp send so a failed send cannot leave a live basket
  * after a Flow already closed with switch_restaurant.
  */
 async function beginRestaurantSwitch({ from, lang }) {
   setMessageIdentity(PLATFORM_IDENTITY);
   await setSession(from, switchSessionPayload(lang));
   try {
-    const locId = await sendLocationRequest(from, t('switchLocationRequestBody', lang));
-    if (locId) {
-      await setSession(from, switchSessionPayload(lang, [locId]));
+    const pendingDeleteIds = await promptRestaurantLocation(from, lang, { switchMode: true });
+    if (pendingDeleteIds.length) {
+      await setSession(from, switchSessionPayload(lang, pendingDeleteIds));
     }
   } catch (err) {
     console.warn('[restaurantSwitch] location request failed:', err.message);

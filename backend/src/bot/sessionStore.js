@@ -16,7 +16,7 @@ const BASKET_EDIT_FIELDS = [
   'basketPendingLearning',
 ];
 const POST_ORDER_FIELDS = ['pendingAmendOrderId', 'pendingAmendBusinessId', 'pendingAmendPlacedAt', 'consecutiveParseFailures'];
-const MULTI_RESTAURANT_FIELDS = ['restaurantPickerUnfiltered'];
+const MULTI_RESTAURANT_FIELDS = ['restaurantPickerUnfiltered', 'customerPlz', 'fulfillmentIntent', 'pendingOutOfZoneBusinessId'];
 const LANGUAGE_FIELDS = ['pendingDeepBid'];
 
 /** Firestore rejects undefined at any depth — strip before write. */

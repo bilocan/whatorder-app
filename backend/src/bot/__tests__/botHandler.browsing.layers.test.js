@@ -409,8 +409,11 @@ describe('Layer 0: reorder-first for returning customers', () => {
     expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       flowId: 'flow_test_id',
       flowAction: 'data_exchange',
-      body: 'Menü öffnen, Artikel hinzufügen, Warenkorb senden.',
+      body: expect.stringContaining('Stöbern Sie im Menü'),
       flowCta: 'Menü anzeigen',
+    }));
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Willkommen bei Döner Palace'),
     }));
     expect(sendListMessage).not.toHaveBeenCalled();
   });

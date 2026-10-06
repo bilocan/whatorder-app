@@ -1,6 +1,7 @@
 jest.mock('../collections');
 jest.mock('../firebase', () => ({
   admin: { firestore: { FieldValue: { serverTimestamp: jest.fn(() => 'TS') } } },
+  db: { runTransaction: jest.fn() },
 }));
 jest.mock('../stripe');
 jest.mock('../feeConfig');
@@ -47,6 +48,7 @@ jest.mock('../wallboardFeed', () => ({
 }));
 
 const { ordersRef, stripeEventRef, businessRef, receiptRef } = require('../collections');
+const { db } = require('../firebase');
 const { getStripe } = require('../stripe');
 const { getFeeConfig, calcFeeCents } = require('../feeConfig');
 const { sendText, sendButtonMessage, uploadMedia, sendDocument } = require('../whatsapp');
@@ -66,6 +68,30 @@ const {
 
 const mockOrderUpdate = jest.fn();
 const mockOrderGet = jest.fn();
+const mockOrderRef = { get: mockOrderGet, update: mockOrderUpdate };
+
+/** Serialize claim transactions like Firestore so parallel callers cannot both win. */
+function mockClaimTransaction(sharedOrder) {
+  let chain = Promise.resolve();
+  db.runTransaction.mockImplementation((fn) => {
+    const run = chain.then(async () => {
+      const snap = {
+        exists: true,
+        data: () => ({ ...sharedOrder }),
+      };
+      const tx = {
+        get: async () => snap,
+        update: (_ref, patch) => {
+          Object.assign(sharedOrder, patch);
+          mockOrderUpdate(patch);
+        },
+      };
+      return fn(tx);
+    });
+    chain = run.catch(() => {});
+    return run;
+  });
+}
 
 const COMPLETE_LEGAL = {
   legalName: 'Gus Partners GmbH',
@@ -90,7 +116,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   process.env.BACKEND_URL = 'http://localhost:3000';
   ordersRef.mockReturnValue({
-    doc: jest.fn(() => ({ get: mockOrderGet, update: mockOrderUpdate })),
+    doc: jest.fn(() => mockOrderRef),
   });
   mockBusiness({
     name: 'Döner Palace',
@@ -106,6 +132,15 @@ beforeEach(() => {
   });
   getFeeConfig.mockResolvedValue({ feeType: 'fixed', feeValue: 0.5 });
   calcFeeCents.mockReturnValue(50);
+  // Default claim: read current mock order, set paymentNotifiedAt via update.
+  db.runTransaction.mockImplementation(async (fn) => {
+    const snap = await mockOrderGet();
+    const tx = {
+      get: async () => snap,
+      update: (_ref, patch) => mockOrderUpdate(patch),
+    };
+    return fn(tx);
+  });
 });
 
 describe('createCheckoutSessionForOrder', () => {
@@ -491,6 +526,39 @@ describe('handleCheckoutSessionCompleted', () => {
     expect(issueCustomerBeleg).toHaveBeenCalled();
     expect(mockOrderUpdate).not.toHaveBeenCalled();
     expect(sendText).not.toHaveBeenCalled();
+  });
+
+  test('only one concurrent checkout completion notifies the customer', async () => {
+    const sharedOrder = {
+      paymentStatus: 'pending',
+      total: 29,
+      customerPhone: '+431234',
+      language: 'en',
+      whatsappPhoneNumberId: 'prod_phone_id',
+      restaurantName: 'Döner Palace',
+    };
+    mockOrderGet.mockImplementation(async () => ({
+      exists: true,
+      data: () => ({ ...sharedOrder }),
+    }));
+    mockClaimTransaction(sharedOrder);
+
+    const session = {
+      id: 'cs_1',
+      amount_total: 2900,
+      payment_intent: 'pi_1',
+      metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+    };
+    await Promise.all([
+      handleCheckoutSessionCompleted(session),
+      handleCheckoutSessionCompleted(session),
+    ]);
+
+    expect(sendText).toHaveBeenCalledTimes(1);
+    expect(sendText).toHaveBeenCalledWith('+431234', 'paymentConfirmed:ABC123', 'prod_phone_id');
+    expect(sendDocument).toHaveBeenCalledTimes(1);
+    expect(sendButtonMessage).toHaveBeenCalledTimes(1);
+    expect(sharedOrder.paymentNotifiedAt).toBe('TS');
   });
 
   test('logs error and skips notify when order has no whatsappPhoneNumberId', async () => {

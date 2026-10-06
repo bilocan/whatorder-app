@@ -634,20 +634,31 @@
       "acceptOrders": "Accept delivery orders",
       "fee": "Delivery fee (€)",
       "zone": "Delivery zone (postal codes)",
-      "zoneHint": "Leave empty to accept all.",
+      "zonePlaceholder": "1100, 1040, 1050",
+      "zoneHint": "Leave empty to accept all. With PLZs, minimums appear below.",
       "save": "Save delivery settings",
       "saving": "Saving…",
       "saved": "Saved",
-      "invalidFee": "Invalid fee value"
+      "invalidFee": "Invalid fee, postal code, or minimum order value"
     },
     "minimumOrder": {
       "title": "Minimum Order Value",
-      "description": "Set a minimum cart value customers must reach for delivery orders. Pickup orders are not affected.",
+      "description": "Default for all PLZs; override per PLZ below. Pickup is never gated.",
       "label": "Minimum order value (€)",
+      "defaultLabel": "Default minimum order (€)",
+      "defaultHintAllZones": "Applies everywhere when the delivery zone is empty (all PLZs).",
+      "defaultHintWithZone": "New PLZs start with this value. Adjust individual PLZs below.",
+      "byDistrictTitle": "Minimum per postal code",
+      "byDistrictHint": "Only these PLZs get delivery. Same amounts are grouped on save.",
+      "postalCodes": "Postal codes",
+      "postalCodesPlaceholder": "1100 or 1040, 1050",
+      "districtMin": "Min (€)",
+      "addRow": "Add district row",
+      "removeRow": "Remove",
       "save": "Save minimum order value",
       "saving": "Saving…",
       "saved": "Saved",
-      "invalidValue": "Invalid value"
+      "invalidValue": "Invalid PLZ, amount, or duplicate postal code"
     },
     "payment": {
       "title": "Card Payment",

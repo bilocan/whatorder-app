@@ -2,15 +2,12 @@ jest.mock('../../lib/firebase', () => ({ db: {}, admin: {} }));
 jest.mock('../sessionStore', () => ({
   setSession: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../../lib/whatsapp', () => ({
-  sendLocationRequest: jest.fn().mockResolvedValue('loc_1'),
+jest.mock('../states/restaurant', () => ({
+  promptRestaurantLocation: jest.fn().mockResolvedValue(['loc_1']),
 }));
 jest.mock('../../lib/messageIdentity', () => ({
   setMessageIdentity: jest.fn(),
   PLATFORM_IDENTITY: { name: 'WhatOrder' },
-}));
-jest.mock('../templates', () => ({
-  t: jest.fn((_key, _lang, ...args) => `t:${_key}:${args.join(',')}`),
 }));
 jest.mock('../../lib/collections', () => ({
   phoneRoutingRef: jest.fn(),
@@ -19,7 +16,7 @@ jest.mock('../../lib/collections', () => ({
 const { phoneRoutingRef } = require('../../lib/collections');
 const { isMultiRestaurantLine, beginRestaurantSwitch } = require('../restaurantSwitch');
 const { setSession } = require('../sessionStore');
-const { sendLocationRequest } = require('../../lib/whatsapp');
+const { promptRestaurantLocation } = require('../states/restaurant');
 
 describe('isMultiRestaurantLine', () => {
   const prevEnv = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -51,27 +48,19 @@ describe('isMultiRestaurantLine', () => {
     expect(phoneRoutingRef).toHaveBeenCalledWith('phone_multi');
   });
 
-  test('false when line is single-restaurant even if business matches', async () => {
+  test('false when business not on that line even if env id is multi', async () => {
+    process.env.WHATSAPP_PHONE_NUMBER_ID = 'phone_env_multi';
     phoneRoutingRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({
         exists: true,
-        data: () => ({ businessIds: ['biz_a'] }),
+        data: () => ({ businessIds: ['biz_a', 'biz_b'] }),
       }),
     });
-    expect(await isMultiRestaurantLine('biz_a', 'phone_single')).toBe(false);
+    expect(await isMultiRestaurantLine('biz_c', 'phone_other')).toBe(false);
+    expect(phoneRoutingRef).toHaveBeenCalledWith('phone_other');
   });
 
-  test('false when business is not on the current line', async () => {
-    phoneRoutingRef.mockReturnValue({
-      get: jest.fn().mockResolvedValue({
-        exists: true,
-        data: () => ({ businessIds: ['biz_x', 'biz_y'] }),
-      }),
-    });
-    expect(await isMultiRestaurantLine('biz_a', 'phone_other')).toBe(false);
-  });
-
-  test('falls back to WHATSAPP_PHONE_NUMBER_ID when phoneNumberId omitted', async () => {
+  test('falls back to env WHATSAPP_PHONE_NUMBER_ID', async () => {
     process.env.WHATSAPP_PHONE_NUMBER_ID = 'phone_env';
     phoneRoutingRef.mockReturnValue({
       get: jest.fn().mockResolvedValue({
@@ -88,15 +77,16 @@ describe('beginRestaurantSwitch', () => {
   test('persists awaiting_location before location request', async () => {
     const order = [];
     setSession.mockImplementation(async () => { order.push('setSession'); });
-    sendLocationRequest.mockImplementation(async () => {
-      order.push('sendLocationRequest');
-      return 'loc_1';
+    promptRestaurantLocation.mockImplementation(async () => {
+      order.push('promptRestaurantLocation');
+      return ['loc_1'];
     });
 
     await beginRestaurantSwitch({ from: '+43000', lang: 'de' });
 
     expect(order[0]).toBe('setSession');
-    expect(order).toContain('sendLocationRequest');
+    expect(order).toContain('promptRestaurantLocation');
+    expect(promptRestaurantLocation).toHaveBeenCalledWith('+43000', 'de', { switchMode: true });
     expect(setSession).toHaveBeenCalledWith('+43000', expect.objectContaining({
       state: 'awaiting_location',
       businessId: null,
@@ -105,7 +95,7 @@ describe('beginRestaurantSwitch', () => {
   });
 
   test('keeps cleared venue if location request fails', async () => {
-    sendLocationRequest.mockRejectedValueOnce(new Error('meta down'));
+    promptRestaurantLocation.mockRejectedValueOnce(new Error('meta down'));
 
     await beginRestaurantSwitch({ from: '+43000', lang: 'de' });
 

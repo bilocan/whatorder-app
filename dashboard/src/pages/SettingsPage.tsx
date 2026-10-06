@@ -10,10 +10,111 @@ import { evaluateOnboardingChecklist } from '../lib/onboardingChecklist';
 import LegalFieldsForm, { type LegalFormState } from '../components/LegalFieldsForm';
 import { parseSettingsTab, SETTINGS_TABS, type SettingsTab } from '../lib/settingsTabs';
 import PwaInstallHint from '../components/PwaInstallHint';
-import type { Business, DaySchedule, MenuItem } from '../types';
+import type { Business, DaySchedule, MenuItem, MinimumOrderDistrictRule } from '../types';
 
 const DEFAULT_LEGAL_FORM: LegalFormState = { country: 'AT' };
 
+/** Split zone text into tokens (keeps incomplete while typing). */
+function splitZoneTokens(text: string): string[] {
+  return text.split(/[,;\s]+/).map((c) => c.trim()).filter(Boolean);
+}
+
+/** Complete unique PLZs in typed order (for the override list). */
+function extractCompletePlzs(text: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const token of splitZoneTokens(text)) {
+    if (!/^\d{4}$/.test(token) || seen.has(token)) continue;
+    seen.add(token);
+    out.push(token);
+  }
+  return out;
+}
+
+/** Validate zone for save: empty OK; otherwise every token must be a unique 4-digit PLZ. */
+function parseZoneForSave(text: string): string[] | null {
+  const tokens = splitZoneTokens(text);
+  if (!tokens.length) return [];
+  const seen = new Set<string>();
+  for (const token of tokens) {
+    if (!/^\d{4}$/.test(token) || seen.has(token)) return null;
+    seen.add(token);
+  }
+  return tokens;
+}
+
+function parseOptionalMin(text: string): number | null | undefined {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const min = parseFloat(trimmed);
+  if (isNaN(min) || min < 0) return undefined;
+  return min;
+}
+
+/** Group PLZs that share the same min into district rules (stable PLZ order). */
+function groupPlzsByMin(plzs: string[], plzMins: Record<string, string>, defaultMin: string): MinimumOrderDistrictRule[] | null {
+  const groups = new Map<number, string[]>();
+  const order: number[] = [];
+  for (const plz of plzs) {
+    const raw = (plzMins[plz] ?? '').trim() || defaultMin.trim();
+    const min = parseFloat(raw);
+    if (isNaN(min) || min < 0) return null;
+    if (!groups.has(min)) {
+      groups.set(min, []);
+      order.push(min);
+    }
+    groups.get(min)!.push(plz);
+  }
+  return order.map((min) => ({ postalCodes: groups.get(min)!, minimumOrderValue: min }));
+}
+
+function deliveryDraftFromBusiness(data: Pick<Business, 'deliveryZone' | 'minimumOrderValue' | 'minimumOrderByDistrict'>): {
+  zoneText: string;
+  defaultMin: string;
+  plzMins: Record<string, string>;
+} {
+  const rules = Array.isArray(data.minimumOrderByDistrict) ? data.minimumOrderByDistrict : [];
+  if (rules.length) {
+    const plzMins: Record<string, string> = {};
+    const codes: string[] = [];
+    const counts = new Map<number, number>();
+    for (const row of rules) {
+      const min = Number(row.minimumOrderValue);
+      const minText = Number.isFinite(min) ? String(min) : '';
+      for (const code of row.postalCodes || []) {
+        const plz = String(code).trim();
+        if (!/^\d{4}$/.test(plz) || plzMins[plz] != null) continue;
+        codes.push(plz);
+        plzMins[plz] = minText;
+        if (Number.isFinite(min)) counts.set(min, (counts.get(min) || 0) + 1);
+      }
+    }
+    let defaultMin = '';
+    let best = 0;
+    for (const [min, n] of counts) {
+      if (n > best) {
+        best = n;
+        defaultMin = String(min);
+      }
+    }
+    return { zoneText: codes.join(', '), defaultMin, plzMins };
+  }
+  const zoneText = (data.deliveryZone || '').trim();
+  const defaultMin = data.minimumOrderValue != null ? String(data.minimumOrderValue) : '';
+  const plzMins: Record<string, string> = {};
+  for (const plz of extractCompletePlzs(zoneText)) {
+    plzMins[plz] = defaultMin;
+  }
+  return { zoneText, defaultMin, plzMins };
+}
+
+function syncPlzMins(zoneText: string, defaultMin: string, prev: Record<string, string>): Record<string, string> {
+  const next: Record<string, string> = {};
+  for (const plz of extractCompletePlzs(zoneText)) {
+    next[plz] = prev[plz] != null && prev[plz] !== '' ? prev[plz] : defaultMin;
+  }
+  return next;
+}
 /**
  * Stand-in menu used until the real menu loads (or if the read fails): a single rate-less
  * item keeps the payment gate shut rather than claiming VAT completeness we cannot prove.
@@ -42,10 +143,10 @@ export default function SettingsPage() {
   const [geocodeError, setGeocodeError] = useState(false);
   const [deliveryEnabled, setDeliveryEnabled] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState('');
-  const [deliveryZone, setDeliveryZone] = useState('');
+  const [deliveryZoneText, setDeliveryZoneText] = useState('');
+  const [defaultMinText, setDefaultMinText] = useState('');
+  const [plzMins, setPlzMins] = useState<Record<string, string>>({});
   const [deliverySaveStatus, setDeliverySaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [minimumOrderValue, setMinimumOrderValue] = useState('');
-  const [minOrderSaveStatus, setMinOrderSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [paymentEnabled, setPaymentEnabled] = useState(false);
   const [paymentSaveStatus, setPaymentSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [paymentBlocked, setPaymentBlocked] = useState(false);
@@ -76,8 +177,10 @@ export default function SettingsPage() {
         setLng(data.lng != null ? String(data.lng) : '');
         setDeliveryEnabled(data.deliveryEnabled ?? false);
         setDeliveryFee(data.deliveryFee != null ? String(data.deliveryFee) : '');
-        setDeliveryZone(data.deliveryZone ?? '');
-        setMinimumOrderValue(data.minimumOrderValue != null ? String(data.minimumOrderValue) : '');
+        const draft = deliveryDraftFromBusiness(data);
+        setDeliveryZoneText(draft.zoneText);
+        setDefaultMinText(draft.defaultMin);
+        setPlzMins(draft.plzMins);
         setPaymentEnabled(data.paymentEnabled ?? false);
         setLegalForm(data.legal ? { ...data.legal } : DEFAULT_LEGAL_FORM);
         if (data.botLanguage) setBotLanguage(data.botLanguage);
@@ -140,35 +243,74 @@ export default function SettingsPage() {
     }
   }
 
+  function handleZoneTextChange(value: string) {
+    setDeliveryZoneText(value);
+    setPlzMins((prev) => syncPlzMins(value, defaultMinText, prev));
+  }
+
+  function handleDefaultMinChange(value: string) {
+    const prevDefault = defaultMinText.trim();
+    setDefaultMinText(value);
+    setPlzMins((prev) => {
+      const next = { ...prev };
+      for (const plz of extractCompletePlzs(deliveryZoneText)) {
+        const current = (next[plz] ?? '').trim();
+        // Keep true overrides; empty or still-on-default rows follow the new default.
+        if (!current || current === prevDefault) next[plz] = value;
+      }
+      return next;
+    });
+  }
+
   async function handleSaveDelivery() {
     if (!businessId) return;
     const parsedFee = deliveryFee === '' ? 0 : parseFloat(deliveryFee);
     if (isNaN(parsedFee) || parsedFee < 0) { setDeliverySaveStatus('error'); return; }
+    const zoneList = parseZoneForSave(deliveryZoneText);
+    if (zoneList == null) { setDeliverySaveStatus('error'); return; }
+    const defaultMin = parseOptionalMin(defaultMinText);
+    if (defaultMin === undefined) { setDeliverySaveStatus('error'); return; }
+
+    let parsedDistricts: MinimumOrderDistrictRule[] = [];
+    let legacyMin: number | null = null;
+    if (zoneList.length) {
+      const grouped = groupPlzsByMin(zoneList, plzMins, defaultMinText);
+      if (grouped == null || !grouped.length) { setDeliverySaveStatus('error'); return; }
+      parsedDistricts = grouped;
+    } else {
+      // Empty zone = deliver everywhere; default min becomes the global flat min.
+      legacyMin = defaultMin;
+    }
+
     setDeliverySaveStatus('saving');
     try {
       await updateDoc(doc(db, 'businesses', businessId), {
-        deliveryEnabled, deliveryFee: parsedFee, deliveryZone: deliveryZone.trim() || null,
+        deliveryEnabled,
+        deliveryFee: parsedFee,
+        deliveryZone: zoneList.length ? zoneList.join(', ') : null,
+        minimumOrderByDistrict: parsedDistricts,
+        minimumOrderValue: legacyMin,
       });
-      setBusiness(prev => prev ? { ...prev, deliveryEnabled, deliveryFee: parsedFee, deliveryZone: deliveryZone.trim() || undefined } : prev);
+      setBusiness(prev => prev ? {
+        ...prev,
+        deliveryEnabled,
+        deliveryFee: parsedFee,
+        deliveryZone: zoneList.length ? zoneList.join(', ') : undefined,
+        minimumOrderByDistrict: parsedDistricts,
+        minimumOrderValue: legacyMin ?? undefined,
+      } : prev);
+      const refreshed = deliveryDraftFromBusiness({
+        deliveryZone: zoneList.length ? zoneList.join(', ') : undefined,
+        minimumOrderByDistrict: parsedDistricts,
+        minimumOrderValue: legacyMin ?? undefined,
+      });
+      setDeliveryZoneText(refreshed.zoneText);
+      setDefaultMinText(refreshed.defaultMin);
+      setPlzMins(refreshed.plzMins);
       setDeliverySaveStatus('saved');
       setTimeout(() => setDeliverySaveStatus('idle'), 2500);
     } catch {
       setDeliverySaveStatus('error');
-    }
-  }
-
-  async function handleSaveMinimumOrder() {
-    if (!businessId) return;
-    const parsedMin = minimumOrderValue === '' ? null : parseFloat(minimumOrderValue);
-    if (parsedMin != null && (isNaN(parsedMin) || parsedMin < 0)) { setMinOrderSaveStatus('error'); return; }
-    setMinOrderSaveStatus('saving');
-    try {
-      await updateDoc(doc(db, 'businesses', businessId), { minimumOrderValue: parsedMin });
-      setBusiness(prev => prev ? { ...prev, minimumOrderValue: parsedMin ?? undefined } : prev);
-      setMinOrderSaveStatus('saved');
-      setTimeout(() => setMinOrderSaveStatus('idle'), 2500);
-    } catch {
-      setMinOrderSaveStatus('error');
     }
   }
 
@@ -540,18 +682,66 @@ export default function SettingsPage() {
                   step="0.5"
                 />
               </div>
+
               <div className="settings-field">
                 <label className="settings-label" htmlFor="settings-delivery-zone">{t('settings.delivery.zone')}</label>
                 <input
                   id="settings-delivery-zone"
                   type="text"
                   className="settings-input"
-                  value={deliveryZone}
-                  onChange={e => setDeliveryZone(e.target.value)}
-                  placeholder="1010, 1020, 1030"
+                  value={deliveryZoneText}
+                  onChange={e => handleZoneTextChange(e.target.value)}
+                  placeholder={t('settings.delivery.zonePlaceholder')}
                 />
                 <div className="settings-hint">{t('settings.delivery.zoneHint')}</div>
               </div>
+
+              <div className="settings-field">
+                <label className="settings-label" htmlFor="settings-default-min">{t('settings.minimumOrder.defaultLabel')}</label>
+                <input
+                  id="settings-default-min"
+                  type="number"
+                  className="settings-input"
+                  value={defaultMinText}
+                  onChange={e => handleDefaultMinChange(e.target.value)}
+                  min="0"
+                  step="0.5"
+                  placeholder="0"
+                />
+                <div className="settings-hint">
+                  {extractCompletePlzs(deliveryZoneText).length
+                    ? t('settings.minimumOrder.defaultHintWithZone')
+                    : t('settings.minimumOrder.defaultHintAllZones')}
+                </div>
+              </div>
+
+              {extractCompletePlzs(deliveryZoneText).length > 0 && (
+                <div className="settings-field">
+                  <span className="settings-label">{t('settings.minimumOrder.byDistrictTitle')}</span>
+                  <div className="settings-hint">{t('settings.minimumOrder.byDistrictHint')}</div>
+                  {extractCompletePlzs(deliveryZoneText).map((plz) => (
+                    <div className="settings-district-row" key={`plz-min-${plz}`}>
+                      <span className="settings-district-plz" aria-hidden="true">{plz}</span>
+                      <div className="settings-field settings-district-min">
+                        <label className="settings-label" htmlFor={`settings-plz-min-${plz}`}>
+                          {t('settings.minimumOrder.districtMin')}
+                        </label>
+                        <input
+                          id={`settings-plz-min-${plz}`}
+                          type="number"
+                          className="settings-input"
+                          value={plzMins[plz] ?? ''}
+                          onChange={e => setPlzMins((prev) => ({ ...prev, [plz]: e.target.value }))}
+                          min="0"
+                          step="0.5"
+                          placeholder={defaultMinText || '0'}
+                          aria-label={`${plz} ${t('settings.minimumOrder.districtMin')}`}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
           <div className="settings-actions">
@@ -565,32 +755,6 @@ export default function SettingsPage() {
             </button>
             {deliverySaveStatus === 'saved' && <span className="settings-status-ok">{t('settings.delivery.saved')}</span>}
             {deliverySaveStatus === 'error' && <span className="settings-status-err">{t('settings.delivery.invalidFee')}</span>}
-          </div>
-
-          <div className="settings-field">
-            <label className="settings-label" htmlFor="settings-min-order">{t('settings.minimumOrder.label')}</label>
-            <input
-              id="settings-min-order"
-              type="number"
-              className="settings-input"
-              value={minimumOrderValue}
-              onChange={e => setMinimumOrderValue(e.target.value)}
-              min="0"
-              step="0.5"
-            />
-            <div className="settings-hint">{t('settings.minimumOrder.description')}</div>
-          </div>
-          <div className="settings-actions">
-            <button
-              type="button"
-              className="settings-btn-primary"
-              onClick={handleSaveMinimumOrder}
-              disabled={minOrderSaveStatus === 'saving'}
-            >
-              {minOrderSaveStatus === 'saving' ? t('settings.minimumOrder.saving') : t('settings.minimumOrder.save')}
-            </button>
-            {minOrderSaveStatus === 'saved' && <span className="settings-status-ok">{t('settings.minimumOrder.saved')}</span>}
-            {minOrderSaveStatus === 'error' && <span className="settings-status-err">{t('settings.minimumOrder.invalidValue')}</span>}
           </div>
         </section>
       )}

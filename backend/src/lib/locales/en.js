@@ -1,7 +1,11 @@
 module.exports = {
   categories: { mains: 'Mains', sides: 'Sides', drinks: 'Drinks' },
 
-  greeting: (name) => `👋 Welcome to ${name}!\n\nContinue below.`,
+  greeting: (name) => `👋 Welcome to ${name}!`,
+  greetingStartHint: () => 'Tap below to get started.',
+  minOrderWelcomeSingle: (amount) => `*Delivery* from €${amount}.`,
+  minOrderWelcomeByDistrict: (lines) => `*Delivery from*\n${lines}`,
+  minOrderWelcomeDistrictLine: (plzs, amount) => `• *${plzs}* — from €${amount}`,
   langChanged: () => '✅ Language changed to English.',
   languagePickBody: () => 'Which language? / Welche Sprache? / Hangi dil?',
   langBtnDe: () => '🇩🇪 Deutsch',
@@ -110,6 +114,7 @@ module.exports = {
   confirmFlowBlockName: () => 'This order still needs a name.',
   confirmFlowBlockAddress: () => 'Delivery still needs an address.',
   confirmFlowBelowMinimum: (min, more) => `Minimum order €${min}. Add €${more}.`,
+  confirmFlowOutOfDeliveryZone: () => 'Delivery is not available for this postal code.',
   confirmFlowProfileNameLabel: () => 'Your name',
   confirmFlowProfileNameHelper: () => 'Used on your order',
   confirmFlowTypeLabel: () => 'How do you want it?',
@@ -253,7 +258,7 @@ module.exports = {
   menuEmpty: () => 'No items available right now.',
 
   catalogBody: (name) => `👋 Welcome to ${name}!\n\nBrowse the menu and tap "Add to Cart" on items you'd like to order. When you're done, send your cart.`,
-  catalogBodyAfterWelcome: () => 'Open the menu, add items, then send your cart.',
+  catalogBodyAfterWelcome: (name) => `👋 Welcome to ${name}!\n\nBrowse the menu and tap "Add to Cart" on items you'd like to order. When you're done, send your cart.`,
   catalogUnavailable: () => 'Our catalog is not set up yet. Please contact us directly to order.',
 
   askName: () => "What's your name for the order?",
@@ -340,7 +345,7 @@ module.exports = {
   restaurantPickerButton: () => 'See restaurants',
   restaurantPickerFooter: () => 'Tap a name to open its menu',
   restaurantPickerFooterNumbered: () => 'Numbers match the Open map',
-  interactiveMapBody: () => 'Which restaurant would you like to order from?\n\nOpen map → tap a pin → “Order here”.',
+  interactiveMapBody: () => '📍 Which restaurant would you like to order from?\n\n1️⃣ *Open map*\n2️⃣ Tap a *pin*\n3️⃣ *Order here*',
   interactiveMapBtn: () => 'Open map',
   noNearbyRestaurants: (maxKm) => `No restaurants within ${maxKm} km. Reply *all* to see every restaurant on the map.`,
   switchConfirmed: () => '🔄 Switching restaurants. Your basket has been cleared.',
@@ -367,6 +372,22 @@ module.exports = {
 
   ordersClosedByOwner: (name) => `⏸️ ${name} is not accepting orders right now. Please try again later! 🙏`,
   ordersClosedByOwnerPickOther: (name) => `⏸️ ${name} is not accepting orders right now. Please choose another restaurant.`,
+  deliveryNotAvailableHere: (name) => `🚚 ${name} does not deliver to your location. Please try again later.`,
+  deliveryNotAvailableHerePickOther: (name) => `🚚 ${name} does not deliver to your location. Please pick another restaurant on the map.`,
+  deliveryNotAvailableHereChoice: (name, zones) => {
+    const zoneLine = zones
+      ? `\n\n📍 Delivery area: ${zones}.`
+      : '';
+    return `🚚 ${name} does not deliver to your location.${zoneLine}\n\nContinue with pickup, or choose another restaurant.`;
+  },
+  deliveryNotAvailableHerePickupOnly: (name, zones) => {
+    const zoneLine = zones
+      ? `\n\n📍 Delivery area: ${zones}.`
+      : '';
+    return `🚚 ${name} does not deliver to your location.${zoneLine}\n\nYou can still continue with pickup.`;
+  },
+  deliveryNotAvailablePickupBtn: () => 'Pickup',
+  deliveryNotAvailableOtherBtn: () => 'Other restaurant',
   deliveryClosedByOwner: () => '🚫 Delivery is currently unavailable. Please choose pickup.',
 
   intentConfirmHeader: () => 'Got it:',
@@ -405,7 +426,9 @@ module.exports = {
   intentMultiDefaultHint: () => 'Tap Use default, or reply all / none / skip (uses default above).',
   intentMultiDefaultBtn: () => 'Use default',
 
-  reorderPromptHeader: (name) => `👋 Welcome back to ${name}! Your last order:`,
+  reorderWelcomeBack: (name) => `👋 Welcome back to ${name}!`,
+  reorderLastOrderLabel: () => 'Your last order:',
+  reorderPromptHeader: (name) => `👋 Welcome back to ${name}!`,
   reorderConfirmPrompt: () => 'Order the same again?',
   reorderConfirmBtn: () => 'Same again ✅',
   reorderBrowseBtn: () => 'Something else',
