@@ -449,6 +449,96 @@ describe('OrdersPage', () => {
     )
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('opens the order dialog when a board approve print fails', async () => {
+    mockLocalKitchenShop()
+    mockOrders()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'printer offline' }),
+    }))
+    renderPage()
+    await waitForRestaurant()
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: 'Ali Veli' })).toBeInTheDocument()
+    expect(within(dialog).getByText('printer offline')).toBeInTheDocument()
+  })
+
+  it('does not open the order dialog when the board day changed before the print failed', async () => {
+    mockLocalKitchenShop()
+    mockOrders()
+    let releaseFetch: (value: { ok: boolean; status: number; json: () => Promise<{ error: string }> }) => void = () => {}
+    const pending = new Promise<{ ok: boolean; status: number; json: () => Promise<{ error: string }> }>((resolve) => {
+      releaseFetch = resolve
+    })
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(pending))
+    renderPage()
+    await waitForRestaurant()
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await userEvent.click(screen.getByLabelText('Previous day'))
+    await act(async () => {
+      releaseFetch({ ok: false, status: 500, json: async () => ({ error: 'printer offline' }) })
+      await pending
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByLabelText('Next day'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByText('Ali Veli'))
+    expect(within(screen.getByRole('dialog')).getByText('printer offline')).toBeInTheDocument()
+  })
+
+  it('does not open the order dialog when the kitchen left the active board before the print failed', async () => {
+    mockLocalKitchenShop()
+    mockOrders()
+    let releaseFetch: (value: { ok: boolean; status: number; json: () => Promise<{ error: string }> }) => void = () => {}
+    const pending = new Promise<{ ok: boolean; status: number; json: () => Promise<{ error: string }> }>((resolve) => {
+      releaseFetch = resolve
+    })
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(pending))
+    renderPage()
+    await waitForRestaurant()
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await userEvent.selectOptions(screen.getByLabelText('Show'), 'completed-2w')
+    await act(async () => {
+      releaseFetch({ ok: false, status: 500, json: async () => ({ error: 'printer offline' }) })
+      await pending
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await userEvent.selectOptions(screen.getByLabelText('Show'), 'active')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps another open order when a board approve print fails', async () => {
+    mockLocalKitchenShop()
+    mockOrders()
+    let releaseFetch: (value: { ok: boolean; status: number; json: () => Promise<{ error: string }> }) => void = () => {}
+    const pending = new Promise<{ ok: boolean; status: number; json: () => Promise<{ error: string }> }>((resolve) => {
+      releaseFetch = resolve
+    })
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(pending))
+    renderPage()
+    await waitForRestaurant()
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await userEvent.click(screen.getByText('Max Muster'))
+    const maxDialog = screen.getByRole('dialog')
+    expect(within(maxDialog).getByRole('heading', { name: 'Max Muster' })).toBeInTheDocument()
+    await act(async () => {
+      releaseFetch({ ok: false, status: 500, json: async () => ({ error: 'printer offline' }) })
+      await pending
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: 'Max Muster' })).toBeInTheDocument()
+    expect(within(dialog).queryByText('printer offline')).not.toBeInTheDocument()
   })
 
   it('does not print locally when accept fails', async () => {
