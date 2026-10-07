@@ -45,29 +45,48 @@ function optionLabelEmoji(label, id = '') {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+  // Order matters: more specific tokens before broader ones (e.g. dressing before krauter/knoblauch).
   const rules = [
-    [/knoblauch|garlic|sarimsak/, '🧄'],
-    [/zwiebel|onion|sogan/, '🧅'],
-    [/tomaten?|tomato/, '🍅'],
+    [/\bohne\b|\bwithout\b/, '🚫'],
+    [/doppelboden|doppeltem boden|american pizza/, '🍕'],
+    [/ananas|pineapple/, '🍍'],
+    [/artischock|artichoke/, '🌿'],
+    [/broccoli|brokkoli/, '🥦'],
+    [/champignon|pilz|mushroom|mantar/, '🍄'],
+    [/kapern|caper/, '🟢'],
+    [/melanzan|aubergine|eggplant|patlican/, '🍆'],
+    [/rucola|arugula|rocket|spinat|spinach/, '🥬'],
     [/salat|salad|lettuce/, '🥬'],
     [/gurke|cucumber|salatalik/, '🥒'],
+    [/zwiebel|onion|sogan/, '🧅'],
+    [/tomaten?|tomato/, '🍅'],
     [/paprika|pepper|biber/, '🫑'],
-    [/pilz|mushroom|mantar/, '🍄'],
     [/oliv|zeytin/, '🫒'],
     [/mais|corn|misir/, '🌽'],
-    [/kaese|kase|cheese|peynir|mozarella|mozzarella/, '🧀'],
-    // Sauce before generic food words; 🥣 often missing on older WhatsApp — use 🫙.
-    [/sauce|sosse|soße|specialsauce|cocktailsauce|joghurtsauce|\bsos\b|mayo|ketchup|joghurt|yogurt|ayran/, '🫙'],
-    [/scharf|chili|spicy|aci|harissa/, '🌶️'],
+    // Sauce/dressing before garlic/herbs so "Knoblauch-Dressing" / "Kräuter-Dressing" → jar.
+    // 🥣 often missing on older WhatsApp — use 🫙.
+    [/sauce|sosse|soße|dressing|specialsauce|cocktailsauce|joghurtsauce|\bsos\b|mayo|ketchup|joghurt|yogurt|ayran/, '🫙'],
+    [/basilikum|basil|oregano|\bkrauter\b|\bherb\b/, '🌿'],
+    // Wurst/salami before knoblauch so Knoblauchwurst → sausage, not garlic.
+    [/salami|wurst|sausage|sucuk/, '🌭'],
+    [/knoblauch|garlic|sarimsak/, '🧄'],
+    [/schinken|ham|prosciutto|bacon|speck/, '🥓'],
+    [/parmesan|osterkron|kaese|kase|cheese|peynir|mozarella|mozzarella/, '🧀'],
+    [/pfefferoni|peperoni|pepperoni|scharf|chili|spicy|aci|harissa/, '🌶️'],
     // Reis before Pommes so "Reis oder Pommes" maps to rice. 🍚 often missing on WhatsApp — use 🌾.
     [/reis|rice|pilav|pilaw|pirinc/, '🌾'],
     [/pommes|fries|patates/, '🍟'],
+    [/potato|wedges|kartoffel/, '🥔'],
+    [/gnocchi|penne|spaghetti|tagliatelle|tortellini|pasta|nudel/, '🍝'],
     [/ei\b|egg|yumurta/, '🥚'],
     [/huhn|chicken|tavuk/, '🍗'],
     [/rind|beef|dana/, '🥩'],
     [/lamm|lamb|kuzu/, '🍖'],
     [/falafel/, '🧆'],
-    [/fisch|fish|balik/, '🐟'],
+    [/lachs|salmon|salmone/, '🍣'],
+    [/shrimp|garnele|prawn|meeresfrucht|seafood/, '🦐'],
+    [/sardell|anchov|thunfisch|tuna|fisch|fish|balik/, '🐟'],
+    [/staubzucker|\bzucker\b|sugar/, '🍬'],
   ];
   for (const [re, emoji] of rules) {
     if (re.test(s)) return emoji;
@@ -75,11 +94,15 @@ function optionLabelEmoji(label, id = '') {
   return '';
 }
 
-/** WhatsApp Flow option titles — max 30 chars including price suffix. */
+/**
+ * WhatsApp Flow option titles — max 30 chars including price suffix.
+ * Strip leading "mit " so emoji + name + " +€x.xx" fit (e.g. Pfefferoni mild/scharf).
+ */
 function formatFlowOptionTitle(label, price, id = '') {
-  const text = label || '';
-  const emoji = optionLabelEmoji(text, id);
-  const named = emoji ? `${emoji} ${text}` : String(text);
+  const raw = label || '';
+  const emoji = optionLabelEmoji(raw, id);
+  const text = String(raw).replace(/^mit\s+/i, '');
+  const named = emoji ? `${emoji} ${text}` : text;
   const extra = parseOptionPrice(price);
   const suffix = extra != null ? ` +€${extra.toFixed(2)}` : '';
   const full = `${named}${suffix}`;

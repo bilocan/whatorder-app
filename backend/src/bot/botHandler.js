@@ -17,7 +17,7 @@ const {
 const { t } = require('./templates');
 const { isOrderingOpen, getTodayOrderWindow } = require('../lib/schedule');
 const { isAcceptingOrders } = require('../lib/presence');
-const { handleAwaitingLocation, handleSelectingRestaurant, refuseClosedRestaurant } = require('./states/restaurant');
+const { handleAwaitingLocation, handleSelectingRestaurant, refuseClosedRestaurant, refuseIfOutOfDeliveryZone, promptRestaurantLocation } = require('./states/restaurant');
 const { handleAwaitingConfirmNote, handleAwaitingOrderType, handleAwaitingDeliveryAddressChoice, handleAwaitingDeliveryAddress, handleAwaitingDeliveryAddressConfirm, handleAwaitingDeliveryAddressUnit, handleAwaitingName, handleConfirming, handlePaymentBack, isPaymentBackButtonId } = require('./states/checkout');
 const { handleSelecting, handleBrowsing } = require('./states/browsing');
 const { startRestaurantBrowsing } = require('./reorder');
@@ -117,7 +117,10 @@ async function enterRestaurantDirect(from, bid, lang, session, routing) {
       from, session, lang, routing, selectedBid: bid, selectedInfo: bidInfo, gate: 'hours',
     });
     if (!continued) {
-      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
+      await setSession(from, {
+        state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [],
+        lat: session?.lat ?? null, lng: session?.lng ?? null, customerPlz: session?.customerPlz ?? null,
+      });
     }
     return;
   }
@@ -126,11 +129,31 @@ async function enterRestaurantDirect(from, bid, lang, session, routing) {
       from, session, lang, routing, selectedBid: bid, selectedInfo: bidInfo, gate: 'orders',
     });
     if (!continued) {
-      await setSession(from, { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] });
+      await setSession(from, {
+        state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [],
+        lat: session?.lat ?? null, lng: session?.lng ?? null, customerPlz: session?.customerPlz ?? null,
+      });
     }
     return;
   }
-  const freshSession = { state: 'browsing', language: lang, basket: [], businessId: bid, pendingDeleteIds: [] };
+  if (await refuseIfOutOfDeliveryZone({
+    from, session, lang, routing, selectedBid: bid, selectedInfo: bidInfo,
+  })) {
+    return;
+  }
+  const preferPickup = session?.fulfillmentIntent === 'pickup';
+  const freshSession = {
+    state: 'browsing',
+    language: lang,
+    basket: [],
+    businessId: bid,
+    pendingDeleteIds: [],
+    lat: session?.lat ?? null,
+    lng: session?.lng ?? null,
+    customerPlz: session?.customerPlz ?? null,
+    fulfillmentIntent: session?.fulfillmentIntent ?? null,
+    ...(preferPickup ? { orderType: 'pickup' } : {}),
+  };
   await startRestaurantBrowsing({
     from, session: freshSession, lang, businessId: bid, type: 'text', text: '', norm: '', businessName: bidInfo.name,
     isMulti: routing.businessIds.length > 1,
@@ -162,11 +185,14 @@ async function continueAfterLanguagePick(from, lang, session, routing) {
       businessId: null,
       pendingDeleteIds: [],
       pendingDeepBid: null,
+      fulfillmentIntent: null,
+      customerPlz: null,
+      pendingOutOfZoneBusinessId: null,
     });
     try {
-      const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
-      if (locId) await patchSession(from, { pendingDeleteIds: [locId] });
-    } catch { /* awaiting_location handler will show picker on next message */ }
+      const pendingDeleteIds = await promptRestaurantLocation(from, lang);
+      if (pendingDeleteIds.length) await patchSession(from, { pendingDeleteIds });
+    } catch { /* awaiting_location handler will re-prompt on next message */ }
     return;
   }
 
@@ -366,12 +392,19 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
       return;
     }
     if (id === 'btn_post_restaurant' && isMulti) {
-      // Post-order copy uses welcome location body (not switchLocationRequestBody).
-      await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [] });
+      await setSession(from, {
+        state: 'awaiting_location', language: postLang, basket: [], businessId: null,
+        fulfillmentIntent: null, customerPlz: null, pendingOutOfZoneBusinessId: null, pendingDeleteIds: [],
+      });
       try {
-        const locId = await sendLocationRequest(from, t('locationRequestBody', postLang));
-        if (locId) await setSession(from, { state: 'awaiting_location', language: postLang, basket: [], businessId: null, pendingDeleteIds: [locId] });
-      } catch { /* ignore — awaiting_location handler will show picker on next message */ }
+        const pendingDeleteIds = await promptRestaurantLocation(from, postLang);
+        if (pendingDeleteIds.length) {
+          await setSession(from, {
+            state: 'awaiting_location', language: postLang, basket: [], businessId: null,
+            fulfillmentIntent: null, customerPlz: null, pendingOutOfZoneBusinessId: null, pendingDeleteIds,
+          });
+        }
+      } catch { /* ignore — awaiting_location handler will re-prompt */ }
       return;
     }
     const postInfo = await getBusinessInfo(postBid);
@@ -410,14 +443,20 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
       }
     }
 
-    // Set state before the API call so a failed sendLocationRequest can't leave the bot looping;
-    // if the call succeeds, update pendingDeleteIds so the message is cleaned up next turn.
-    await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: [] });
+    // Set state before the API call so a failed send can't leave the bot looping.
+    await setSession(from, {
+      state: 'awaiting_location', language: lang, basket: [], businessId: null,
+      fulfillmentIntent: null, customerPlz: null, pendingOutOfZoneBusinessId: null, pendingDeleteIds: [],
+    });
     try {
-      // One interactive bubble only (welcome folded into location CTA copy).
-      const locId = await sendLocationRequest(from, t('locationRequestBody', lang));
-      if (locId) await setSession(from, { state: 'awaiting_location', language: lang, basket: [], businessId: null, pendingDeleteIds: [locId] });
-    } catch { /* ignore — awaiting_location handler will show the picker on next message */ }
+      const pendingDeleteIds = await promptRestaurantLocation(from, lang);
+      if (pendingDeleteIds.length) {
+        await setSession(from, {
+          state: 'awaiting_location', language: lang, basket: [], businessId: null,
+          fulfillmentIntent: null, customerPlz: null, pendingOutOfZoneBusinessId: null, pendingDeleteIds,
+        });
+      }
+    } catch { /* ignore — awaiting_location handler will re-prompt */ }
     return;
   }
 

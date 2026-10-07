@@ -4,6 +4,7 @@ const { orderTotals, basketSubtotal } = require('./orderTotals');
 const { isDeliveryOffered } = require('./checkoutSlots');
 const { isPaymentEnabled } = require('./paymentGate');
 const { checkoutReviewCopy } = require('./menuFlowCopy');
+const { resolveMinimumOrderValue, resolveCheckoutPostalCode, deliversToPostalCode } = require('../lib/minimumOrder');
 const {
   splitDeliveryAddressFields,
   parseDeliveryUnit,
@@ -532,14 +533,27 @@ async function buildCheckoutReviewData({
   // Pickup sends an empty body so the hidden address row does not keep a gap.
   const addressDisplay = orderType === 'delivery' ? addressLine : '';
   const subtotal = basketSubtotal(basket);
-  const minimumOrderValue = Number(info.minimumOrderValue) || 0;
-  const deliveryBelowMinimum = minimumOrderValue > 0 && subtotal < minimumOrderValue;
+  const addressForZone = displayAddress || reviewDeliveryAddress || deliveryAddress;
+  const checkoutPlz = resolveCheckoutPostalCode(session, addressForZone);
+  // Evaluate zone only once we have an address or a pin PLZ; empty review still asks for address first.
+  const hasZoneHint = Boolean(trimmed(addressForZone) || checkoutPlz);
+  const deliveryOutOfZone = Boolean(
+    orderType === 'delivery'
+    && info.deliveryEnabled
+    && hasZoneHint
+    && !deliversToPostalCode(info, checkoutPlz || addressForZone),
+  );
+  const minimumOrderValue = resolveMinimumOrderValue(info, checkoutPlz);
+  const deliveryBelowMinimum = !deliveryOutOfZone
+    && minimumOrderValue > 0
+    && subtotal < minimumOrderValue;
   const minimumLabel = minimumOrderValue.toFixed(2);
   const remainingLabel = Math.max(0, minimumOrderValue - subtotal).toFixed(2);
   const blockReason = reviewBlockReason({
     customerName,
     orderType,
     deliveryAddress: displayAddress,
+    deliveryOutOfZone,
     deliveryBelowMinimum,
     minimumLabel,
     remainingLabel,
@@ -550,6 +564,7 @@ async function buildCheckoutReviewData({
     deliverySelectable,
     deliveryFee: info.deliveryFee,
     address: displayAddress,
+    deliveryOutOfZone,
     deliveryBelowMinimum,
     minimumLabel,
     remainingLabel,
@@ -561,6 +576,7 @@ async function buildCheckoutReviewData({
     orderType,
     deliveryAddress: displayAddress,
     belowMinimum: orderType === 'delivery' && deliveryBelowMinimum,
+    outOfZone: orderType === 'delivery' && deliveryOutOfZone,
   });
 
   return {
@@ -749,15 +765,17 @@ function profileManageLink({
   return t('confirmFlowProfileLinkAddName', lang);
 }
 
-/** Name is always required. Lieferung also needs an address and the minimum subtotal. */
+/** Name is always required. Lieferung also needs an address, in-zone PLZ, and the minimum subtotal. */
 function canPlaceCheckoutOrder({
   customerName = '',
   orderType = 'pickup',
   deliveryAddress = '',
   belowMinimum = false,
+  outOfZone = false,
 } = {}) {
   if (trimmed(customerName).length < 2) return false;
   if (orderType === 'delivery' && !trimmed(deliveryAddress)) return false;
+  if (orderType === 'delivery' && outOfZone) return false;
   if (orderType === 'delivery' && belowMinimum) return false;
   return true;
 }
@@ -766,6 +784,7 @@ function reviewBlockReason({
   customerName,
   orderType,
   deliveryAddress,
+  deliveryOutOfZone,
   deliveryBelowMinimum,
   minimumLabel,
   remainingLabel,
@@ -774,6 +793,9 @@ function reviewBlockReason({
 }) {
   if (trimmed(customerName).length < 2) return t('confirmFlowBlockName', lang);
   if (orderType === 'delivery' && !trimmed(deliveryAddress)) return t('confirmFlowBlockAddress', lang);
+  if (orderType === 'delivery' && deliveryOutOfZone) {
+    return t('confirmFlowOutOfDeliveryZone', lang);
+  }
   if (orderType === 'delivery' && deliveryBelowMinimum) {
     return t('confirmFlowBelowMinimum', lang, minimumLabel, remainingLabel);
   }
@@ -784,6 +806,7 @@ function buildOrderTypeOptions({
   deliverySelectable,
   deliveryFee,
   address,
+  deliveryOutOfZone,
   deliveryBelowMinimum,
   minimumLabel,
   remainingLabel,
@@ -796,7 +819,9 @@ function buildOrderTypeOptions({
 
   const delivery = { id: 'delivery', title: t('confirmFlowTypeDelivery', lang) };
   // The full address is the Lieferadresse line. Repeating it here wraps the row.
-  if (deliveryBelowMinimum) {
+  if (deliveryOutOfZone) {
+    delivery.description = clipFlowOption(t('confirmFlowOutOfDeliveryZone', lang), 300);
+  } else if (deliveryBelowMinimum) {
     delivery.description = clipFlowOption(
       t('confirmFlowBelowMinimum', lang, minimumLabel, remainingLabel),
       300,

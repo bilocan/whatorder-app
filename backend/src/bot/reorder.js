@@ -4,6 +4,7 @@ const { applyBusinessInfoIdentity } = require('../lib/messageIdentity');
 const { t } = require('./templates');
 const { sendCatalog } = require('./botHelpers');
 const { appendDealMarketingLine } = require('./dealMarketing');
+const { buildRestaurantGreetingBody, formatDeliveryMinOrderBlurb } = require('./minimumOrderCopy');
 const { getMenu, getBusinessInfo } = require('./menuService');
 const { getLastOrderForCustomer } = require('./orderService');
 const { matchMenuItem } = require('./menuMatch');
@@ -35,10 +36,13 @@ function buildReorderBasket(orderItems, menu) {
   return { matched, unmatched };
 }
 
-function buildReorderPromptBody(matched, unmatched, lang, restaurantName) {
+function buildReorderPromptBody(matched, unmatched, lang, restaurantName, businessInfo = null) {
   const lines = matched.map(i => `• ${i.qty}x ${i.name} — €${(i.price * i.qty).toFixed(2)}`);
   const total = matched.reduce((s, i) => s + i.price * i.qty, 0);
-  let body = t('reorderPromptHeader', lang, restaurantName) + '\n\n' + lines.join('\n') + '\n\n' + t('orderTotal', lang, total.toFixed(2));
+  let body = t('reorderWelcomeBack', lang, restaurantName);
+  const minBlurb = formatDeliveryMinOrderBlurb(businessInfo, lang);
+  if (minBlurb) body += `\n\n${minBlurb}`;
+  body += `\n\n${t('reorderLastOrderLabel', lang)}\n${lines.join('\n')}\n\n${t('orderTotal', lang, total.toFixed(2))}`;
   if (unmatched.length) {
     body += '\n\n' + t('reorderUnmatched', lang, unmatched.join(', '));
   }
@@ -76,8 +80,9 @@ async function tryOfferReorder({ from, session, lang, businessId, basket, busine
     buttons.push({ id: 'btn_switch_restaurant', title: t('menuFlowSwitchRestaurant', lang) });
   }
 
+  const info = await getBusinessInfo(businessId);
   const msgId = await sendButtonMessage(from, {
-    body: buildReorderPromptBody(matched, unmatched, lang, businessName),
+    body: buildReorderPromptBody(matched, unmatched, lang, businessName || info.name, info),
     buttons,
   });
 
@@ -87,7 +92,8 @@ async function tryOfferReorder({ from, session, lang, businessId, basket, busine
 
 async function handleReorderButtons({ from, session, lang, businessId, basket, id, onReorderCheckout }) {
   if (id === 'btn_welcome_menu') {
-    await openFreshCatalog(from, lang, businessId);
+    const info = await getBusinessInfo(businessId);
+    await openFreshCatalog(from, lang, businessId, t('catalogBody', lang, info.name), session);
     return true;
   }
 
@@ -143,10 +149,12 @@ async function handleReorderButtons({ from, session, lang, businessId, basket, i
 }
 
 // First visit / no reorder history: open catalog (Menü anzeigen), not Suche / Volles Menü.
-async function openFreshCatalog(from, lang, businessId) {
-  const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId);
+async function openFreshCatalog(from, lang, businessId, bodyOverride, session = null) {
+  const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId, bodyOverride);
   // Empty-basket menu reopen is a fresh order: drop sticky Lieferung / address so
   // Mindestbestellwert does not fire before Prüfen (Profil / prior gate leftover).
+  // Keep Abholung when the customer already chose pickup (out-of-zone continue).
+  const keepPickup = session?.orderType === 'pickup' || session?.fulfillmentIntent === 'pickup';
   await patchSession(from, {
     state: 'browsing',
     language: lang,
@@ -156,7 +164,9 @@ async function openFreshCatalog(from, lang, businessId) {
     textMenuCategory,
     menuId,
     specialRequests: undefined,
-    orderType: undefined,
+    orderType: keepPickup ? 'pickup' : undefined,
+    fulfillmentIntent: keepPickup ? 'pickup' : undefined,
+    pendingOutOfZoneBusinessId: undefined,
     deliveryAddress: undefined,
     pendingPaymentMethod: undefined,
     confirmFlowDraft: undefined,
@@ -176,19 +186,22 @@ async function offerWelcomeMenuOrCatalog({
   from, session, lang, businessId, businessName, isMulti = false,
 }) {
   if (!isMulti) {
-    await openFreshCatalog(from, lang, businessId);
+    await openFreshCatalog(from, lang, businessId, undefined, session);
     return;
   }
 
   const info = await getBusinessInfo(businessId);
   const name = businessName || info.name;
+  const keepPickup = session?.orderType === 'pickup' || session?.fulfillmentIntent === 'pickup';
   await patchSession(from, {
     state: 'browsing',
     language: lang,
     businessId,
     basket: [],
     specialRequests: undefined,
-    orderType: undefined,
+    orderType: keepPickup ? 'pickup' : undefined,
+    fulfillmentIntent: keepPickup ? 'pickup' : undefined,
+    pendingOutOfZoneBusinessId: undefined,
     deliveryAddress: undefined,
     pendingPaymentMethod: undefined,
     confirmFlowDraft: undefined,
@@ -200,9 +213,9 @@ async function offerWelcomeMenuOrCatalog({
   }, session);
 
   const msgId = await sendButtonMessage(from, {
-    body: appendDealMarketingLine(lang, t('greeting', lang, name), info),
+    body: appendDealMarketingLine(lang, buildRestaurantGreetingBody(lang, name, info), info),
     buttons: [
-      { id: 'btn_welcome_menu', title: t('viewMenuBtn', lang) },
+      { id: 'btn_welcome_menu', title: t('welcomeStartBtn', lang) },
       { id: 'btn_switch_restaurant', title: t('menuFlowSwitchRestaurant', lang) },
     ],
   });
@@ -231,7 +244,7 @@ async function startRestaurantBrowsing({ from, session, lang, businessId, type, 
   const greetingPrefix = businessName ? t('greeting', lang, businessName) + '\n\n' : '';
 
   if (type === 'text' && isMenuRequest(norm)) {
-    await openFreshCatalog(from, lang, businessId);
+    await openFreshCatalog(from, lang, businessId, undefined, freshSession);
     return;
   }
 

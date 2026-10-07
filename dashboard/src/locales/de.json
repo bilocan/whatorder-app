@@ -634,20 +634,31 @@
       "acceptOrders": "Lieferbestellungen annehmen",
       "fee": "Liefergebühr (€)",
       "zone": "Liefergebiet (Postleitzahlen)",
-      "zoneHint": "Leer lassen, um alle zu akzeptieren.",
+      "zonePlaceholder": "1100, 1040, 1050",
+      "zoneHint": "Leer lassen, um alle zu akzeptieren. Mit PLZ erscheinen darunter die Mindestbestellwerte.",
       "save": "Liefereinstellungen speichern",
       "saving": "Speichern…",
       "saved": "Gespeichert",
-      "invalidFee": "Ungültiger Gebührenwert"
+      "invalidFee": "Ungültige Gebühr, PLZ oder Mindestbestellwert"
     },
     "minimumOrder": {
       "title": "Mindestbestellwert",
-      "description": "Legen Sie einen Mindestwert für den Warenkorb fest, den Kunden bei Lieferbestellungen erreichen müssen. Abholbestellungen sind davon nicht betroffen.",
+      "description": "Standardwert für alle PLZ; einzelne PLZ können abweichen. Abholung ist nie betroffen.",
       "label": "Mindestbestellwert (€)",
+      "defaultLabel": "Standard-Mindestbestellwert (€)",
+      "defaultHintAllZones": "Gilt überall, wenn das Liefergebiet leer ist (alle PLZ).",
+      "defaultHintWithZone": "Neue PLZ starten mit diesem Wert. Einzelne PLZ unten anpassen.",
+      "byDistrictTitle": "Mindestbestellwert pro PLZ",
+      "byDistrictHint": "Nur diese PLZ werden beliefert. Gleicher Betrag wird beim Speichern gruppiert.",
+      "postalCodes": "Postleitzahlen",
+      "postalCodesPlaceholder": "1100 oder 1040, 1050",
+      "districtMin": "Min (€)",
+      "addRow": "Bezirkzeile hinzufügen",
+      "removeRow": "Entfernen",
       "save": "Mindestbestellwert speichern",
       "saving": "Speichern…",
       "saved": "Gespeichert",
-      "invalidValue": "Ungültiger Wert"
+      "invalidValue": "Ungültige PLZ, Betrag oder doppelte Postleitzahl"
     },
     "payment": {
       "title": "Kartenzahlung",

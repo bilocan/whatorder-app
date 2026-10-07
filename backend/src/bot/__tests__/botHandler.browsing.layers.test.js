@@ -406,7 +406,16 @@ describe('Layer 0: reorder-first for returning customers', () => {
 
     await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_welcome_menu' }));
 
-    expectCatalogPrompt();
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      flowId: 'flow_test_id',
+      flowAction: 'data_exchange',
+      body: expect.stringContaining('Stöbern Sie im Menü'),
+      flowCta: 'Menü anzeigen',
+    }));
+    expect(sendFlowMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringContaining('Willkommen bei Döner Palace'),
+    }));
+    expect(sendListMessage).not.toHaveBeenCalled();
   });
 });
 

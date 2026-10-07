@@ -482,8 +482,8 @@ async function presentRestaurantPickerForLocation(from, businessIds, customerLat
   return sendRestaurantPickerWithMap(from, pickList, lang, customerLat, customerLng);
 }
 
+/** Multi-restaurant discovery: map CTA only (no WhatsApp list; list max 10 rows). */
 async function sendRestaurantPickerWithMap(to, businesses, lang, customerLat, customerLng) {
-  const pickerId = await sendRestaurantPicker(to, businesses, lang, { numbered: true });
   let interactiveId = null;
   const interactiveUrl = buildOpenMapCtaUrl(
     customerLat,
@@ -503,10 +503,18 @@ async function sendRestaurantPickerWithMap(to, businesses, lang, customerLat, cu
       console.error('[maps] interactive map CTA failed:', err.response?.data ?? err.message);
     }
   }
+  // No list fallback. A missing CTA would leave selecting_restaurant with silence.
+  if (!interactiveId) {
+    try {
+      interactiveId = await sendText(to, t('mapPickerUnavailable', lang));
+    } catch (err) {
+      console.error('[maps] map picker fallback failed:', err.response?.data ?? err.message);
+    }
+  }
   return {
-    pickerId,
+    pickerId: null,
     interactiveId,
-    pendingDeleteIds: [pickerId, interactiveId].filter(Boolean),
+    pendingDeleteIds: [interactiveId].filter(Boolean),
   };
 }
 

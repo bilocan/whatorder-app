@@ -1184,3 +1184,144 @@ describe('checkoutConfirmFlow', () => {
     expect(parseCheckoutFlowToken('+431234|biz-7|unknown')).toBeNull();
   });
 });
+
+describe('Favoriten per-district Mindestbestellwert (deliveryFee 0)', () => {
+  const favoriten = {
+    name: 'Favoriten Pizza',
+    deliveryEnabled: true,
+    deliveryOpen: true,
+    deliveryFee: 0,
+    minimumOrderByDistrict: [
+      { postalCodes: ['1100'], minimumOrderValue: 13 },
+      { postalCodes: ['1040', '1050'], minimumOrderValue: 30 },
+    ],
+  };
+  const pizzaBasket = [{ name: 'Pizza Margherita', qty: 1, price: 15 }];
+
+  test('1100 Wien with €15 basket places; receipt has no Liefergebühr', async () => {
+    const data = await buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Favoritenstraße 88, 1100 Wien',
+      },
+      basket: pizzaBasket,
+      info: favoriten,
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(true);
+    expect(data[F.CHECKOUT_BLOCK_VISIBLE]).toBe(false);
+    expect(data[F.RECEIPT_TEXT]).toContain('orderTotal:en:15.00');
+    expect(data[F.RECEIPT_TEXT]).not.toContain('checkoutDeliveryFee');
+  });
+
+  test('1040 Wien with €15 basket stays blocked at €30 district min', async () => {
+    const data = await buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Wiedner Gürtel 1, 1040 Wien',
+      },
+      basket: pizzaBasket,
+      info: favoriten,
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(false);
+    expect(data[F.CHECKOUT_BLOCK_VISIBLE]).toBe(true);
+    expect(data[F.CHECKOUT_BLOCK_REASON]).toContain('30.00');
+    expect(data[F.ORDER_TYPE_OPTIONS]).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'delivery',
+        description: 'confirmFlowBelowMinimum:en:30.00|15.00',
+      }),
+    ]));
+  });
+
+  test('1050 Wien uses the same €30 rule as 1040', async () => {
+    const data = await buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Margaretenstraße 1, 1050 Wien',
+      },
+      basket: [{ name: 'Pizza', qty: 2, price: 15 }],
+      info: favoriten,
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(true);
+    expect(data[F.CHECKOUT_BLOCK_VISIBLE]).toBe(false);
+  });
+
+  test('without address yet, delivery asks for address (no fallback min)', async () => {
+    const data = await buildCheckoutReviewData({
+      session: { customerName: 'Alex', orderType: 'delivery', deliveryAddress: '' },
+      basket: pizzaBasket,
+      info: favoriten,
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(false);
+    const deliveryOpt = data[F.ORDER_TYPE_OPTIONS].find((o) => o.id === 'delivery');
+    expect(deliveryOpt.description).toBe('confirmFlowDeliveryNeedsAddress:en:');
+    expect(deliveryOpt.metadata).toBeUndefined();
+  });
+
+  test('1060 address is out of Favoriten delivery zone', async () => {
+    const data = await buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Mariahilfer Str. 1, 1060 Wien',
+      },
+      basket: pizzaBasket,
+      info: favoriten,
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(false);
+    expect(data[F.CHECKOUT_BLOCK_REASON]).toBe('confirmFlowOutOfDeliveryZone:en:');
+  });
+
+  test('address without PLZ is out of zone when districts are configured', async () => {
+    const data = await buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Hauptstrasse 1, Wien',
+      },
+      basket: pizzaBasket,
+      info: favoriten,
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(false);
+    expect(data[F.CHECKOUT_BLOCK_REASON]).toBe('confirmFlowOutOfDeliveryZone:en:');
+  });
+
+  test('stale pin PLZ does not authorize an address without PLZ', async () => {
+    const data = await buildCheckoutReviewData({
+      session: {
+        customerName: 'Alex',
+        orderType: 'delivery',
+        deliveryAddress: 'Hauptstrasse 1, Wien',
+        customerPlz: '1100',
+      },
+      basket: pizzaBasket,
+      info: favoriten,
+      lang: 'en',
+      t: translate,
+    });
+
+    expect(data[F.PLACE_ORDER_ENABLED]).toBe(false);
+    expect(data[F.CHECKOUT_BLOCK_REASON]).toBe('confirmFlowOutOfDeliveryZone:en:');
+  });
+});
