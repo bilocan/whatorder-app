@@ -68,6 +68,8 @@ export default function OrdersPage() {
   const [printingTick, setPrintingTick] = useState(0);
   const printingRef = useRef(new Set<string>());
   const reloadRestaurantRef = useRef<(() => void) | null>(null);
+  const ordersRef = useRef(orders);
+  const boardViewRef = useRef({ active: true, day: '' });
   const [nowMs, setNowMs] = useState(() => Date.now());
   const optimisticRef = useRef(new Map<string, OrderOptimisticPatch>());
   const activePhoneNumberId = getActivePhoneNumberId();
@@ -80,6 +82,8 @@ export default function OrdersPage() {
   const todayKey = localDayKey(nowMs);
   const dayParam = searchParams.get('day') ?? '';
   const selectedDay = DAY_PARAM_RE.test(dayParam) ? dayParam : todayKey;
+  ordersRef.current = orders;
+  boardViewRef.current = { active: isActiveBoard, day: selectedDay };
 
   function setOrderLoading(orderId: string, loading: boolean) {
     setLoadingIds((prev) => {
@@ -331,9 +335,18 @@ export default function OrdersPage() {
         setPrintErrors((current) => ({ ...current, [orderId]: message }));
         // The reason is rendered only inside the order dialog. A board-card
         // Approve leaves that dialog closed, so open this order when nothing
-        // else is already open. Do not replace another order's dialog.
+        // else is already open and it is still on the day being viewed.
+        // A day change or leaving the active board during the print must not
+        // reopen it afterward.
         if (message) {
-          setOpenOrderId((current) => current ?? orderId);
+          setOpenOrderId((current) => {
+            if (current) return current;
+            const view = boardViewRef.current;
+            if (!view.active) return current;
+            const failed = ordersRef.current.find((item) => item.id === orderId);
+            if (!failed || !belongsToBoardDay(failed, view.day)) return current;
+            return orderId;
+          });
         }
       } finally {
         releaseKitchenJob(printingRef.current, orderId);
