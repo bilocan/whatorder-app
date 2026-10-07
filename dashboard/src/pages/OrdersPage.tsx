@@ -9,6 +9,13 @@ import { toDate } from '../types';
 import { paymentBadge } from '../lib/paymentBadge';
 import { shortId } from '../lib/shortId';
 import { belegFulfillmentLine, belegPaymentLine, printOrderBeleg, restaurantSlipLines } from '../lib/printOrderBeleg';
+import {
+  claimKitchenJob,
+  parseKitchenPrint,
+  postKitchenBon,
+  releaseKitchenJob,
+  type KitchenPrint,
+} from '../lib/kitchenPrint';
 import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
 import { getActivePhoneNumberId } from '../lib/activePhoneNumberId';
 import {
@@ -38,16 +45,29 @@ import PaymentBadge from '../components/PaymentBadge';
 
 const TERMINAL_STATUSES = new Set<OrderStatus>(['delivered', 'picked_up', 'rejected', 'cancelled', 'completed']);
 const DAY_PARAM_RE = /^\d{4}-\d{2}-\d{2}$/;
+const RESTAURANT_RETRY_MS = 2_000;
+const RESTAURANT_RETRY_MAX_MS = 30_000;
+
+type RestaurantBoard = {
+  name?: string;
+  address?: string;
+  phone?: string;
+  kitchenPrint: KitchenPrint;
+};
 
 export default function OrdersPage() {
   const { t } = useTranslation();
   const { businessId } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [restaurant, setRestaurant] = useState<{ name?: string; address?: string; phone?: string } | null>(null);
+  const [restaurant, setRestaurant] = useState<RestaurantBoard | null>(null);
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
   const [loadingIds, setLoadingIds] = useState<Set<string>>(() => new Set());
   const [actionError, setActionError] = useState('');
+  const [printErrors, setPrintErrors] = useState<Record<string, string>>({});
+  const [printingTick, setPrintingTick] = useState(0);
+  const printingRef = useRef(new Set<string>());
+  const reloadRestaurantRef = useRef<(() => void) | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const optimisticRef = useRef(new Map<string, OrderOptimisticPatch>());
   const activePhoneNumberId = getActivePhoneNumberId();
@@ -78,15 +98,45 @@ export default function OrdersPage() {
   useEffect(() => {
     if (!businessId) {
       setRestaurant(null);
+      setPrintErrors({});
       return;
     }
+    // Drop the previous business so its kitchenPrint is never used before this doc loads.
+    // Printer errors belong to that shop too: a not-yet-loaded doc is not "program down".
+    setRestaurant(null);
+    setPrintErrors({});
     let cancelled = false;
-    getDoc(doc(db, 'businesses', businessId)).then((snap) => {
-      if (cancelled || !snap.exists()) return;
-      setRestaurant(restaurantSlipLines(snap.data()));
-    }).catch(() => {});
+    let inFlight = false;
+    let retryTimer: number | undefined;
+    let delayMs = RESTAURANT_RETRY_MS;
+
+    const load = () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      window.clearTimeout(retryTimer);
+      getDoc(doc(db, 'businesses', businessId)).then((snap) => {
+        inFlight = false;
+        if (cancelled || !snap.exists()) return;
+        const data = snap.data();
+        setRestaurant({
+          ...restaurantSlipLines(data),
+          kitchenPrint: parseKitchenPrint(data.kitchenPrint),
+        });
+        reloadRestaurantRef.current = null;
+      }).catch(() => {
+        inFlight = false;
+        if (cancelled) return;
+        retryTimer = window.setTimeout(load, delayMs);
+        delayMs = Math.min(delayMs * 2, RESTAURANT_RETRY_MAX_MS);
+      });
+    };
+
+    reloadRestaurantRef.current = load;
+    load();
     return () => {
       cancelled = true;
+      window.clearTimeout(retryTimer);
+      reloadRestaurantRef.current = null;
     };
   }, [businessId]);
 
@@ -205,7 +255,7 @@ export default function OrdersPage() {
         fee: order.deliveryFee.toFixed(2),
       }));
     }
-    printOrderBeleg({
+    const slip = {
       code: shortId(order.id),
       restaurantName: restaurant?.name,
       restaurantAddress: restaurant?.address,
@@ -241,7 +291,49 @@ export default function OrdersPage() {
         failed: t('orders.payment.failed'),
         refunded: t('orders.payment.refunded'),
       }),
+    };
+    if (!restaurant) {
+      // The business doc has not loaded, so the printer mode is unknown. Never guess Chrome:
+      // a kitchen PC in local mode would open the browser print dialog instead.
+      // Do not show the not-reachable copy. That line is only for a local send that failed.
+      reloadRestaurantRef.current?.();
+      return;
+    }
+    const kitchenPrint = restaurant.kitchenPrint;
+    if (kitchenPrint.mode !== 'local') {
+      setPrintErrors((current) => {
+        if (!(order.id in current)) return current;
+        const next = { ...current };
+        delete next[order.id];
+        return next;
+      });
+      printOrderBeleg(slip);
+      return;
+    }
+    if (!claimKitchenJob(printingRef.current, order.id)) return;
+    const orderId = order.id;
+    setPrintErrors((current) => {
+      if (!(orderId in current)) return current;
+      const next = { ...current };
+      delete next[orderId];
+      return next;
     });
+    setPrintingTick((tick) => tick + 1);
+    void (async () => {
+      try {
+        const result = await postKitchenBon(kitchenPrint, slip);
+        if (result.ok) return;
+        const message = result.kind === 'missing'
+          ? t('orders.board.printerMissing')
+          : result.kind === 'unreachable'
+            ? t('orders.board.printerUnreachable')
+            : (result.message ?? '');
+        setPrintErrors((current) => ({ ...current, [orderId]: message }));
+      } finally {
+        releaseKitchenJob(printingRef.current, orderId);
+        setPrintingTick((tick) => tick + 1);
+      }
+    })();
   }
 
   async function runAction(order: Order, action: string) {
@@ -256,12 +348,12 @@ export default function OrdersPage() {
         setActionError(result.error);
         return;
       }
-      if (action === 'approve') printKitchenBeleg(order);
       const patch = stampTerminalFields(result.nextStatus, new Date().toISOString());
       optimisticRef.current.set(order.id, patch);
       setOrders((prev) =>
         prev.map((o) => (o.id === order.id ? { ...o, ...patch } : o)),
       );
+      if (action === 'approve') void printKitchenBeleg(order);
       if (TERMINAL_STATUSES.has(result.nextStatus) && openOrderId === order.id) {
         setOpenOrderId(null);
       }
@@ -665,10 +757,14 @@ export default function OrdersPage() {
             {showKitchenPaymentHint(openOrder) && (
               <p className="order-detail-error">{t('orderDetail.paymentRequiredHint')}</p>
             )}
+            {printErrors[openOrder.id] && (
+              <p className="order-detail-error">{printErrors[openOrder.id]}</p>
+            )}
             <div className="kitchen-modal-footer">
               <button
                 type="button"
                 className="kitchen-beleg-print"
+                disabled={printingRef.current.has(openOrder.id) ? printingTick >= 0 : false}
                 onClick={() => printKitchenBeleg(openOrder)}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">

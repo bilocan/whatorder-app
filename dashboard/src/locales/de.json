@@ -58,6 +58,8 @@
       "waitingSince": "Wartet seit Bestellung",
       "openFull": "Vollständige Bestelldetails öffnen",
       "printBeleg": "Beleg drucken",
+      "printerUnreachable": "Das Küchenprogramm läuft auf diesem Computer nicht.",
+      "printerMissing": "Trag in den Einstellungen einen Druckernamen oder eine IP ein.",
       "paidViaCard": "Bezahlt per Karte",
       "terminal": "Diese Bestellung ist {{status}} — keine weitere Aktion.",
       "col": {
@@ -585,6 +587,25 @@
     "profile": {
       "title": "Restaurant",
       "description": "Name und Alert-Nummer sind fest. Adresse für Nearby-Suche und Lieferung bearbeiten."
+    },
+    "kitchenPrint": {
+      "title": "Küchendrucker",
+      "description": "Leg fest, wie dieses Lokal den Küchenbon druckt.",
+      "modeChrome": "Chrome",
+      "modeLocal": "Programm auf diesem PC",
+      "targetWindows": "Windows-Druckername",
+      "targetIp": "Drucker-IP",
+      "valueName": "Druckername",
+      "valueIp": "IP-Adresse",
+      "namePlaceholder": "So wie in den Windows-Druckern",
+      "ipPlaceholder": "192.168.1.50 oder 192.168.1.50:9100",
+      "save": "Speichern",
+      "saving": "Speichern...",
+      "saved": "Gespeichert",
+      "errName": "Trag den Windows-Druckernamen ein.",
+      "errIp": "Trag eine IPv4-Adresse ein. :Port nur, wenn es nicht 9100 ist.",
+      "errSave": "Der Drucker wurde nicht gespeichert. Versuch es nochmal.",
+      "targetLabel": "Druckeranschluss"
     },
     "ordering": {
       "title": "Bestellung",
