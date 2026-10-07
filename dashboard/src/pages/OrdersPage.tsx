@@ -329,6 +329,12 @@ export default function OrdersPage() {
             ? t('orders.board.printerUnreachable')
             : (result.message ?? '');
         setPrintErrors((current) => ({ ...current, [orderId]: message }));
+        // The reason is rendered only inside the order dialog. A board-card
+        // Approve leaves that dialog closed, so open this order when nothing
+        // else is already open. Do not replace another order's dialog.
+        if (message) {
+          setOpenOrderId((current) => current ?? orderId);
+        }
       } finally {
         releaseKitchenJob(printingRef.current, orderId);
         setPrintingTick((tick) => tick + 1);
