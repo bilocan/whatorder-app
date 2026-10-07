@@ -301,3 +301,67 @@ describe('SettingsPage — legal profile and payment gate', () => {
     })
   })
 })
+
+describe('SettingsPage — kitchen printer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUpdateDoc.mockResolvedValue(undefined)
+    mockUseAuth.mockReturnValue({ businessId: 'biz-1' })
+    mockMenu([{ vatRate: 10 }, { vatRate: 20 }])
+    mockBusiness()
+  })
+
+  it('rejects a local IP target that is not an IPv4 address and does not save', async () => {
+    renderSettings('/settings')
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Kitchen printer' })).toBeInTheDocument()
+    })
+
+    const user = userEvent.setup()
+    await user.selectOptions(screen.getByLabelText('Kitchen printer'), 'local')
+    await user.selectOptions(screen.getByLabelText('Printer connection'), 'ip')
+    await user.type(screen.getByLabelText('IP address'), 'not-an-ip')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(screen.getByText('Enter an IPv4 address. Add :port only when it is not 9100.')).toBeInTheDocument()
+    expect(mockUpdateDoc).not.toHaveBeenCalled()
+  })
+
+  it('saves Chrome mode with the Windows printer name', async () => {
+    renderSettings('/settings')
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Kitchen printer' })).toBeInTheDocument()
+    })
+
+    const user = userEvent.setup()
+    await user.selectOptions(screen.getByLabelText('Kitchen printer'), 'local')
+    await user.selectOptions(screen.getByLabelText('Printer connection'), 'windows')
+    await user.type(screen.getByLabelText('Printer name'), 'EPSON TM-T20II')
+    await user.selectOptions(screen.getByLabelText('Kitchen printer'), 'chrome')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(mockUpdateDoc).toHaveBeenCalledWith('mock-doc-ref', {
+        kitchenPrint: { mode: 'chrome', target: 'windows', value: 'EPSON TM-T20II' },
+      })
+    })
+  })
+
+  it('shows an error when the kitchen printer save fails', async () => {
+    mockUpdateDoc.mockRejectedValueOnce(new Error('offline'))
+    renderSettings('/settings')
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Kitchen printer' })).toBeInTheDocument()
+    })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Could not save the printer. Try again.')).toBeInTheDocument()
+    })
+  })
+})

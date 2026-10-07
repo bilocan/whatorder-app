@@ -58,6 +58,8 @@
       "waitingSince": "Siparişten beri bekliyor",
       "openFull": "Tam sipariş detayını aç",
       "printBeleg": "Fişi yazdır",
+      "printerUnreachable": "Mutfak programı bu bilgisayarda çalışmıyor.",
+      "printerMissing": "Ayarlara bir yazıcı adı veya IP yaz.",
       "paidViaCard": "Kartla ödendi",
       "terminal": "Bu sipariş {{status}} — başka işlem yok.",
       "col": {
@@ -585,6 +587,25 @@
     "profile": {
       "title": "Restoran",
       "description": "Ad ve uyarı numarası sabittir. Yakındaki arama ve teslimat için adresi düzenleyin."
+    },
+    "kitchenPrint": {
+      "title": "Mutfak yazıcısı",
+      "description": "Bu restoranın mutfak fişini nasıl yazdıracağını seç.",
+      "modeChrome": "Chrome",
+      "modeLocal": "Bu bilgisayardaki program",
+      "targetWindows": "Windows yazıcı adı",
+      "targetIp": "Yazıcı IP",
+      "valueName": "Yazıcı adı",
+      "valueIp": "IP adresi",
+      "namePlaceholder": "Windows yazıcılar listesindeki ad",
+      "ipPlaceholder": "192.168.1.50 veya 192.168.1.50:9100",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor...",
+      "saved": "Kaydedildi",
+      "errName": "Windows yazıcı adını yaz.",
+      "errIp": "Bir IPv4 adresi yaz. Port yalnızca 9100 değilse :port ekle.",
+      "errSave": "Yazıcı kaydedilemedi. Tekrar dene.",
+      "targetLabel": "Yazıcı bağlantısı"
     },
     "ordering": {
       "title": "Sipariş",

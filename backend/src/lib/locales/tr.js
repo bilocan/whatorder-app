@@ -75,12 +75,14 @@ module.exports = {
   checkoutDeliveryFee: (amount) => `🚚 Teslimat ücreti: €${amount}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Tahmini hazırlık: ~${prepMins} dk (saat ${pickupTime} civarı)\n\nAdınızı yazar mısınız?`,
   finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod, discountLine) => {
+    const raw = name == null ? '' : String(name).trim();
+    const displayName = raw && raw !== 'undefined' ? raw : 'Henüz ad yok.';
     const detail = deliveryAddress
       ? `🚚 Teslimat adresi: ${deliveryAddress}`
       : `⏱️ Hazır saat: ~${pickupTime}`;
     const notesLine = notes ? `\n📝 Not: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Ödeme: Kart' : '';
-    return `✅ Neredeyse bitti!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nAşağıdan Kontrol’a dokunun.`;
+    return `✅ Neredeyse bitti!\n\n👤 ${displayName}${discountLine ? `\n${discountLine}` : ''}\n💶 Toplam: €${total}\n${detail}${paymentLine}${notesLine}\n\nAşağıdan Kontrol’a dokunun.`;
   },
   confirmListHeader: () => 'Siparişi kontrol et',
   confirmListBtn: () => 'Onayla / düzenle',

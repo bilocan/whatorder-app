@@ -75,12 +75,14 @@ module.exports = {
   checkoutDeliveryFee: (amount) => `🚚 Delivery fee: €${amount}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Ready in ~${prepMins} min (around ${pickupTime})\n\nWhat's your name for the order?`,
   finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod, discountLine) => {
+    const raw = name == null ? '' : String(name).trim();
+    const displayName = raw && raw !== 'undefined' ? raw : 'No name yet.';
     const detail = deliveryAddress
       ? `🚚 Delivery to: ${deliveryAddress}`
       : `⏱️ Ready around ${pickupTime}`;
     const notesLine = notes ? `\n📝 Note: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Payment: Card' : '';
-    return `✅ Almost done!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Total: €${total}\n${detail}${paymentLine}${notesLine}\n\nTap Review below.`;
+    return `✅ Almost done!\n\n👤 ${displayName}${discountLine ? `\n${discountLine}` : ''}\n💶 Total: €${total}\n${detail}${paymentLine}${notesLine}\n\nTap Review below.`;
   },
   confirmListHeader: () => 'Review order',
   confirmListBtn: () => 'Confirm or edit',

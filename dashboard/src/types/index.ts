@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { KitchenPrint } from '../lib/kitchenPrint';
 
 export type VatRate = 0 | 10 | 20;
 
@@ -181,6 +182,7 @@ export interface Business {
   legal?: BusinessLegal;
   imageUrl?: string;
   menuMatch?: MenuMatch;
+  kitchenPrint?: KitchenPrint;
 }
 
 export interface MenuMatchCategory {

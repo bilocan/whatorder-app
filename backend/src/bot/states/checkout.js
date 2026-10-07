@@ -801,12 +801,19 @@ async function sendConfirmList(from, session, lang, businessId, basket, name) {
   });
 }
 
+function resolveConfirmDisplayName(lang, name, session) {
+  const raw = String(name || session?.customerName || '').trim();
+  // Match Flow empty-name copy (confirmFlowNameEmpty). Never pass undefined into the CTA.
+  if (raw.length >= 2 && raw !== 'undefined') return raw;
+  return t('confirmFlowNameEmpty', lang);
+}
+
 function buildFinalConfirmBody(session, lang, name, info, totals) {
   const discountLine = checkoutDealLines(t, lang, totals);
   return t(
     'finalConfirmBody',
     lang,
-    name || session.customerName,
+    resolveConfirmDisplayName(lang, name, session),
     totals.total.toFixed(2),
     session.pickupTime,
     session.deliveryAddress ?? null,
@@ -2035,4 +2042,6 @@ module.exports = {
   paymentBackButtonId,
   parsePaymentBackButtonId,
   isPaymentBackButtonId,
+  buildFinalConfirmBody,
+  resolveConfirmDisplayName,
 };

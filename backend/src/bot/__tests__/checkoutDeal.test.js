@@ -94,6 +94,17 @@ describe.each([
     expect(body).toContain(`👤 Alex\n🏷️ Deal: −€2.50\n💶 ${totalLabel}: €17.50`);
   });
 
+  test('never renders undefined when the confirm name is missing', () => {
+    const emptyLabel = locale.confirmFlowNameEmpty();
+    for (const bad of [undefined, null, '', 'undefined']) {
+      const body = locale.finalConfirmBody(
+        bad, '17.50', '18:30', null, '', 'cash', '',
+      );
+      expect(body).not.toMatch(/\bundefined\b/);
+      expect(body).toContain(`👤 ${emptyLabel}`);
+    }
+  });
+
   test('places the optional deal block immediately above receipt totals', () => {
     const receipt = locale.orderReceipt(
       'ABC123', 'Bistro', '1× Döner', '17.50', '18:30', 'Alex',
