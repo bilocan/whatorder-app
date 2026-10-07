@@ -75,12 +75,15 @@ module.exports = {
   checkoutDeliveryFee: (amount) => `🚚 Liefergebühr: €${amount}`,
   confirmSummary: (basketText, prepMins, pickupTime) => `${basketText}\n⏱️ Fertig in ~${prepMins} Min. (gegen ${pickupTime})\n\nWie lautet Ihr Name?`,
   finalConfirmBody: (name, total, pickupTime, deliveryAddress, notes, paymentMethod, discountLine) => {
+    const raw = name == null ? '' : String(name).trim();
+    // Caller should pass confirmFlowNameEmpty; keep a local guard against "undefined".
+    const displayName = raw && raw !== 'undefined' ? raw : 'Noch kein Name.';
     const detail = deliveryAddress
       ? `🚚 Lieferung an: ${deliveryAddress}`
       : `⏱️ Fertig gegen ${pickupTime}`;
     const notesLine = notes ? `\n📝 Notiz: ${notes}` : '';
     const paymentLine = paymentMethod === 'stripe' ? '\n💳 Zahlung: Karte' : '';
-    return `✅ Fast fertig!\n\n👤 ${name}${discountLine ? `\n${discountLine}` : ''}\n💶 Gesamt: €${total}\n${detail}${paymentLine}${notesLine}\n\nUnten auf Prüfen tippen.`;
+    return `✅ Fast fertig!\n\n👤 ${displayName}${discountLine ? `\n${discountLine}` : ''}\n💶 Gesamt: €${total}\n${detail}${paymentLine}${notesLine}\n\nUnten auf Prüfen tippen.`;
   },
   confirmListHeader: () => 'Bestellung prüfen',
   confirmListBtn: () => 'Optionen',
