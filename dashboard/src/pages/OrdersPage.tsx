@@ -98,10 +98,13 @@ export default function OrdersPage() {
   useEffect(() => {
     if (!businessId) {
       setRestaurant(null);
+      setPrintErrors({});
       return;
     }
     // Drop the previous business so its kitchenPrint is never used before this doc loads.
+    // Printer errors belong to that shop too: a not-yet-loaded doc is not "program down".
     setRestaurant(null);
+    setPrintErrors({});
     let cancelled = false;
     let inFlight = false;
     let retryTimer: number | undefined;
@@ -292,8 +295,8 @@ export default function OrdersPage() {
     if (!restaurant) {
       // The business doc has not loaded, so the printer mode is unknown. Never guess Chrome:
       // a kitchen PC in local mode would open the browser print dialog instead.
+      // Do not show the not-reachable copy. That line is only for a local send that failed.
       reloadRestaurantRef.current?.();
-      setPrintErrors((current) => ({ ...current, [order.id]: t('orders.board.printerUnreachable') }));
       return;
     }
     const kitchenPrint = restaurant.kitchenPrint;

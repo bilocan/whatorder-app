@@ -476,7 +476,39 @@ describe('OrdersPage', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
     expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(within(dialog).getByText('The kitchen program is not running on this computer.')).toBeInTheDocument()
+    expect(within(dialog).queryByText('The kitchen program is not running on this computer.')).not.toBeInTheDocument()
+  })
+
+  it('does not show a not-loaded printer error after the business doc arrives', async () => {
+    let resolveDoc: (value: { exists: () => boolean; data: () => object }) => void = () => {}
+    mockGetDoc.mockReturnValue(new Promise((resolve) => {
+      resolveDoc = resolve
+    }))
+    mockOrders()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await userEvent.click(screen.getByText('Ali Veli'))
+    const dialog = screen.getByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
+    expect(within(dialog).queryByText('The kitchen program is not running on this computer.')).not.toBeInTheDocument()
+    await act(async () => {
+      resolveDoc({
+        exists: () => true,
+        data: () => ({
+          name: 'Enes Kebap',
+          kitchenPrint: { mode: 'local', target: 'windows', value: 'EPSON TM-T20II' },
+        }),
+      })
+    })
+    expect(within(dialog).queryByText('The kitchen program is not running on this computer.')).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
   })
 
   it('retries the business doc after a failed load so local mode applies later', async () => {
@@ -527,6 +559,29 @@ describe('OrdersPage', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
     expect(fetchMock).not.toHaveBeenCalled()
     expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
-    expect(within(dialog).getByText('The kitchen program is not running on this computer.')).toBeInTheDocument()
+    expect(within(dialog).queryByText('The kitchen program is not running on this computer.')).not.toBeInTheDocument()
+  })
+
+  it('drops a printer error from the previous business when businessId changes', async () => {
+    mockLocalKitchenShop()
+    mockOrders()
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    const view = renderPage()
+    await userEvent.click(screen.getByText('Ali Veli'))
+    const dialog = screen.getByRole('dialog')
+    await waitForRestaurant()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
+    await waitFor(() => {
+      expect(within(dialog).getByText('The kitchen program is not running on this computer.')).toBeInTheDocument()
+    })
+
+    mockUseAuth.mockReturnValue({ businessId: 'biz-2' })
+    mockGetDoc.mockReturnValue(new Promise(() => {}))
+    view.rerender(
+      <MemoryRouter initialEntries={['/orders']}>
+        <OrdersPage />
+      </MemoryRouter>,
+    )
+    expect(screen.queryByText('The kitchen program is not running on this computer.')).not.toBeInTheDocument()
   })
 })
