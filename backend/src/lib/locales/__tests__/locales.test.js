@@ -38,6 +38,7 @@ describe('de locale', () => {
   test('locationRequestBody', () => expect(str(de.locationRequestBody())).toBe(true));
   test('switchLocationRequestBody', () => expect(str(de.switchLocationRequestBody())).toBe(true));
   test('locationRequiredAgain', () => expect(str(de.locationRequiredAgain())).toBe(true));
+  test('mapPickerUnavailable', () => expect(str(de.mapPickerUnavailable())).toBe(true));
   test('deliveryNotAvailable buttons max 20', () => {
     expect(de.deliveryNotAvailablePickupBtn().length).toBeLessThanOrEqual(20);
     expect(de.deliveryNotAvailableOtherBtn().length).toBeLessThanOrEqual(20);
@@ -99,6 +100,7 @@ describe('tr locale', () => {
   test('locationRequestBody', () => expect(str(tr.locationRequestBody())).toBe(true));
   test('switchLocationRequestBody', () => expect(str(tr.switchLocationRequestBody())).toBe(true));
   test('locationRequiredAgain', () => expect(str(tr.locationRequiredAgain())).toBe(true));
+  test('mapPickerUnavailable', () => expect(str(tr.mapPickerUnavailable())).toBe(true));
   test('restaurantPickerBody', () => expect(str(tr.restaurantPickerBody())).toBe(true));
   test('restaurantPickerButton', () => expect(str(tr.restaurantPickerButton())).toBe(true));
   test('restaurantPickerFooter', () => expect(str(tr.restaurantPickerFooter())).toBe(true));
@@ -116,6 +118,7 @@ describe('en locale — previously uncovered', () => {
   test('multiWelcomeBody', () => expect(str(en.multiWelcomeBody())).toBe(true));
   test('switchLocationRequestBody', () => expect(str(en.switchLocationRequestBody())).toBe(true));
   test('locationRequiredAgain', () => expect(str(en.locationRequiredAgain())).toBe(true));
+  test('mapPickerUnavailable', () => expect(str(en.mapPickerUnavailable())).toBe(true));
 });
 
 const STATUS_NOTIFY_KEYS = [

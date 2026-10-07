@@ -503,6 +503,14 @@ async function sendRestaurantPickerWithMap(to, businesses, lang, customerLat, cu
       console.error('[maps] interactive map CTA failed:', err.response?.data ?? err.message);
     }
   }
+  // No list fallback. A missing CTA would leave selecting_restaurant with silence.
+  if (!interactiveId) {
+    try {
+      interactiveId = await sendText(to, t('mapPickerUnavailable', lang));
+    } catch (err) {
+      console.error('[maps] map picker fallback failed:', err.response?.data ?? err.message);
+    }
+  }
   return {
     pickerId: null,
     interactiveId,

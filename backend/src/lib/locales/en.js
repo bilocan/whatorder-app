@@ -347,6 +347,7 @@ module.exports = {
   restaurantPickerFooterNumbered: () => 'Numbers match the Open map',
   interactiveMapBody: () => '📍 Which restaurant would you like to order from?\n\n1️⃣ *Open map*\n2️⃣ Tap a *pin*\n3️⃣ *Order here*',
   interactiveMapBtn: () => 'Open map',
+  mapPickerUnavailable: () => 'The map could not be opened. Send a message and we will try again.',
   noNearbyRestaurants: (maxKm) => `No restaurants within ${maxKm} km. Reply *all* to see every restaurant on the map.`,
   switchConfirmed: () => '🔄 Switching restaurants. Your basket has been cleared.',
 

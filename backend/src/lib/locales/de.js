@@ -347,6 +347,7 @@ module.exports = {
   restaurantPickerFooterNumbered: () => 'Nummern passen zur Karte (Karte öffnen)',
   interactiveMapBody: () => '📍 Bei welchem Restaurant möchten Sie bestellen?\n\n1️⃣ *Karte öffnen*\n2️⃣ *Markierung* tippen\n3️⃣ *Hier bestellen*',
   interactiveMapBtn: () => 'Karte öffnen',
+  mapPickerUnavailable: () => 'Die Karte konnte nicht geöffnet werden. Schreiben Sie eine Nachricht, dann versuchen wir es erneut.',
   noNearbyRestaurants: (maxKm) => `Keine Restaurants im Umkreis von ${maxKm} km. Antworten Sie mit *alle*, um alle Restaurants auf der Karte zu sehen.`,
   switchConfirmed: () => '🔄 Restaurant wird gewechselt. Ihr Warenkorb wurde geleert.',
 

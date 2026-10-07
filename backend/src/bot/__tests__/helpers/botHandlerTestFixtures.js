@@ -180,6 +180,7 @@ function resetBotHandlerMocks() {
   sendFlowMessage.mockResolvedValue(null);
   sendLocationRequest.mockResolvedValue();
   sendImage.mockResolvedValue('map_msg_id');
+  sendCtaUrlMessage.mockResolvedValue('cta_msg_id');
   resolvePhotoUrl.mockImplementation((url) => url ?? null);
   reverseGeocode.mockResolvedValue(null);
   mockCustomerProfile(null);
