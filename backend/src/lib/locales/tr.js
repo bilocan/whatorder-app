@@ -347,6 +347,7 @@ module.exports = {
   restaurantPickerFooterNumbered: () => 'Numaralar Haritayı aç ile eşleşir',
   interactiveMapBody: () => '📍 Hangi restorandan sipariş vermek istersiniz?\n\n1️⃣ *Haritayı aç*\n2️⃣ *İşarete* dokun\n3️⃣ *Buradan sipariş ver*',
   interactiveMapBtn: () => 'Haritayı aç',
+  mapPickerUnavailable: () => 'Harita açılamadı. Bir mesaj yazın, tekrar deneyelim.',
   noNearbyRestaurants: (maxKm) => `${maxKm} km içinde restoran yok. Haritada tüm restoranlar için *hepsi* yazın.`,
   switchConfirmed: () => '🔄 Restoran değiştiriliyor. Sepetiniz temizlendi.',
 

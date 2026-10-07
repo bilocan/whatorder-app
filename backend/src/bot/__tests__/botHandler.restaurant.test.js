@@ -300,6 +300,27 @@ describe('Multi-restaurant: awaiting_location state', () => {
     }));
   });
 
+  test('failed map CTA tells the customer to retry and still waits for a pick', async () => {
+    sendCtaUrlMessage.mockRejectedValue(new Error('meta down'));
+    sendText.mockResolvedValue('map_fail_text');
+    getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
+
+    expect(sendListMessage).not.toHaveBeenCalled();
+    expect(sendCtaUrlMessage).toHaveBeenCalled();
+    expect(sendText).toHaveBeenCalledWith(
+      FROM,
+      expect.stringMatching(/could not be opened|konnte nicht geöffnet|Harita açılamadı/),
+    );
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'selecting_restaurant',
+      lat: 48.1980,
+      lng: 16.3730,
+      pendingDeleteIds: ['map_fail_text'],
+    }));
+  });
+
   test('location message with null coords re-prompts location', async () => {
     getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
 
