@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { geocodeAddress } from '../lib/geocode';
+import { parseKitchenPrint, validateKitchenPrint } from '../lib/kitchenPrint';
+import type { KitchenPrintMode, KitchenPrintTarget } from '../lib/kitchenPrint';
 import { isLegalComplete, missingLegalFields, withCompleteFlag } from '../lib/legalProfile';
 import { evaluateOnboardingChecklist } from '../lib/onboardingChecklist';
 import LegalFieldsForm, { type LegalFormState } from '../components/LegalFieldsForm';
@@ -61,6 +63,11 @@ export default function SettingsPage() {
   const [scheduleSaveStatus, setScheduleSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [botLanguage, setBotLanguage] = useState<'de' | 'tr' | 'en'>('de');
   const [langSaveStatus, setLangSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [kitchenMode, setKitchenMode] = useState<KitchenPrintMode>('chrome');
+  const [kitchenTarget, setKitchenTarget] = useState<KitchenPrintTarget>('windows');
+  const [kitchenValue, setKitchenValue] = useState('');
+  const [kitchenSaveStatus, setKitchenSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [kitchenError, setKitchenError] = useState<'name' | 'ip' | null>(null);
   /** Session-only; rare fields stay unmounted until expanded. */
   const [coordsAdvancedOpen, setCoordsAdvancedOpen] = useState(false);
   const [orderWindowAdvancedOpen, setOrderWindowAdvancedOpen] = useState(false);
@@ -80,6 +87,10 @@ export default function SettingsPage() {
         setMinimumOrderValue(data.minimumOrderValue != null ? String(data.minimumOrderValue) : '');
         setPaymentEnabled(data.paymentEnabled ?? false);
         setLegalForm(data.legal ? { ...data.legal } : DEFAULT_LEGAL_FORM);
+        const kitchen = parseKitchenPrint(data.kitchenPrint);
+        setKitchenMode(kitchen.mode);
+        setKitchenTarget(kitchen.target);
+        setKitchenValue(kitchen.value);
         if (data.botLanguage) setBotLanguage(data.botLanguage);
         if (data.schedule) {
           setDayMap(prev => {
@@ -226,6 +237,30 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleSaveKitchenPrint() {
+    if (!businessId) return;
+    const error = validateKitchenPrint({ mode: kitchenMode, target: kitchenTarget, value: kitchenValue });
+    if (error) {
+      setKitchenError(error);
+      setKitchenSaveStatus('idle');
+      return;
+    }
+    const value = kitchenValue.trim();
+    setKitchenError(null);
+    setKitchenSaveStatus('saving');
+    try {
+      await updateDoc(doc(db, 'businesses', businessId), {
+        kitchenPrint: { mode: kitchenMode, target: kitchenTarget, value },
+      });
+      setKitchenValue(value);
+      setBusiness(prev => prev ? { ...prev, kitchenPrint: { mode: kitchenMode, target: kitchenTarget, value } } : prev);
+      setKitchenSaveStatus('saved');
+      setTimeout(() => setKitchenSaveStatus('idle'), 2500);
+    } catch {
+      setKitchenSaveStatus('error');
+    }
+  }
+
   async function handleSaveSchedule() {
     if (!businessId) return;
     setScheduleSaveStatus('saving');
@@ -292,7 +327,7 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === 'restaurant' && (
-        <div role="tabpanel" aria-labelledby="settings-tab-restaurant">
+        <div className="settings-payments-stack" role="tabpanel" aria-labelledby="settings-tab-restaurant">
           <PwaInstallHint />
           <section className="settings-card">
           <h3 className="settings-card-title">{t('settings.profile.title')}</h3>
@@ -394,6 +429,76 @@ export default function SettingsPage() {
             {saveStatus === 'error' && <span className="settings-status-err">{t('settings.location.invalidCoords')}</span>}
           </div>
         </section>
+          <section className="settings-card">
+            <h3 id="settings-kitchen-print-title" className="settings-card-title">{t('settings.kitchenPrint.title')}</h3>
+            <p className="settings-card-desc">{t('settings.kitchenPrint.description')}</p>
+            <div className="settings-field">
+              <select
+                id="settings-kitchen-mode"
+                className="settings-select"
+                aria-labelledby="settings-kitchen-print-title"
+                value={kitchenMode}
+                onChange={e => {
+                  setKitchenMode(e.target.value as KitchenPrintMode);
+                  setKitchenError(null);
+                }}
+              >
+                <option value="chrome">{t('settings.kitchenPrint.modeChrome')}</option>
+                <option value="local">{t('settings.kitchenPrint.modeLocal')}</option>
+              </select>
+            </div>
+            {kitchenMode === 'local' && (
+              <>
+                <div className="settings-field">
+                  <label className="settings-label" htmlFor="settings-kitchen-target">
+                    {t('settings.kitchenPrint.targetLabel')}
+                  </label>
+                  <select
+                    id="settings-kitchen-target"
+                    className="settings-select"
+                    value={kitchenTarget}
+                    onChange={e => {
+                      setKitchenTarget(e.target.value as KitchenPrintTarget);
+                      setKitchenError(null);
+                    }}
+                  >
+                    <option value="windows">{t('settings.kitchenPrint.targetWindows')}</option>
+                    <option value="ip">{t('settings.kitchenPrint.targetIp')}</option>
+                  </select>
+                </div>
+                <div className="settings-field">
+                  <label className="settings-label" htmlFor="settings-kitchen-value">
+                    {kitchenTarget === 'ip' ? t('settings.kitchenPrint.valueIp') : t('settings.kitchenPrint.valueName')}
+                  </label>
+                  <input
+                    id="settings-kitchen-value"
+                    type="text"
+                    className="settings-input"
+                    value={kitchenValue}
+                    placeholder={kitchenTarget === 'ip' ? t('settings.kitchenPrint.ipPlaceholder') : t('settings.kitchenPrint.namePlaceholder')}
+                    onChange={e => {
+                      setKitchenValue(e.target.value);
+                      setKitchenError(null);
+                    }}
+                  />
+                </div>
+              </>
+            )}
+            <div className="settings-actions">
+              <button
+                type="button"
+                className="settings-btn-primary"
+                onClick={handleSaveKitchenPrint}
+                disabled={kitchenSaveStatus === 'saving'}
+              >
+                {kitchenSaveStatus === 'saving' ? t('settings.kitchenPrint.saving') : t('settings.kitchenPrint.save')}
+              </button>
+              {kitchenSaveStatus === 'saved' && <span className="settings-status-ok">{t('settings.kitchenPrint.saved')}</span>}
+              {kitchenError === 'name' && <span className="settings-status-err">{t('settings.kitchenPrint.errName')}</span>}
+              {kitchenError === 'ip' && <span className="settings-status-err">{t('settings.kitchenPrint.errIp')}</span>}
+              {kitchenSaveStatus === 'error' && <span className="settings-status-err">{t('settings.kitchenPrint.errSave')}</span>}
+            </div>
+          </section>
         </div>
       )}
 

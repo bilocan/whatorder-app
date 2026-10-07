@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import OrdersPage from '../pages/OrdersPage'
 import { localDayKey } from '../lib/orderBoardColumns'
 
@@ -97,6 +97,32 @@ function renderPage(initialEntry = '/orders') {
   )
 }
 
+function mockOrders() {
+  mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+    cb({ docs: ORDERS.map(({ id, ...data }) => ({ id, data: () => data })) })
+    return vi.fn()
+  })
+}
+
+function mockLocalKitchenShop() {
+  mockGetDoc.mockResolvedValue({
+    exists: () => true,
+    data: () => ({
+      name: 'Enes Kebap',
+      address: 'Huttengasse 41, 1160 Wien',
+      alertPhone: '+43 660 111111',
+      kitchenPrint: { mode: 'local', target: 'windows', value: 'EPSON TM-T20II' },
+    }),
+  })
+}
+
+async function waitForRestaurant() {
+  await waitFor(() => expect(mockGetDoc).toHaveBeenCalled())
+  await act(async () => {
+    await mockGetDoc.mock.results[0]?.value
+  })
+}
+
 describe('OrdersPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -111,6 +137,11 @@ describe('OrdersPage', () => {
         alertPhone: '+43 660 111111',
       }),
     })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
   })
 
   it('shows empty state when there are no orders for the day', () => {
@@ -259,6 +290,7 @@ describe('OrdersPage', () => {
     await act(async () => {
       await mockGetDoc.mock.results[0]?.value
     })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
     await waitFor(() => expect(mockPrintOrderBeleg).toHaveBeenCalledWith(expect.objectContaining({
       code: 'O1',
@@ -271,6 +303,7 @@ describe('OrdersPage', () => {
       fulfillment: 'Pickup',
       payment: 'Cash',
     })))
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it('runs the primary quick action from a card', async () => {
@@ -279,6 +312,7 @@ describe('OrdersPage', () => {
       return vi.fn()
     })
     renderPage()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
     expect(mockPostOrderAction).toHaveBeenCalledWith(
       'biz-1',
@@ -291,6 +325,7 @@ describe('OrdersPage', () => {
       customerName: 'Ali Veli',
       fulfillment: 'Pickup',
     })))
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it('does not print a bon when accept fails', async () => {
@@ -303,5 +338,195 @@ describe('OrdersPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
     await waitFor(() => expect(screen.getByText('nope')).toBeInTheDocument())
     expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+  })
+
+  it('posts a local kitchen bon and does not use the browser print dialog', async () => {
+    mockLocalKitchenShop()
+    mockOrders()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await userEvent.click(screen.getByText('Ali Veli'))
+    const dialog = screen.getByRole('dialog')
+    await waitForRestaurant()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:17341/print', expect.any(Object))
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    const body = JSON.parse(String(init.body)) as { target: string; slip: { code: string } }
+    expect(body.target).toBe('windows')
+    expect(body.slip.code).toBe('O1')
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+  })
+
+  it('shows a remote printer error in the order dialog', async () => {
+    mockLocalKitchenShop()
+    mockOrders()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'printer offline' }),
+    }))
+    renderPage()
+    await userEvent.click(screen.getByText('Ali Veli'))
+    const dialog = screen.getByRole('dialog')
+    await waitForRestaurant()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
+    await waitFor(() => expect(within(dialog).getByText('printer offline')).toBeInTheDocument())
+    expect(screen.getByText('printer offline').closest('[role="dialog"]')).toBe(dialog)
+  })
+
+  it('does not show one order printer error in another order dialog', async () => {
+    mockLocalKitchenShop()
+    mockOrders()
+    let releaseFetch: (value: { ok: boolean; status: number; json: () => Promise<{ error: string }> }) => void = () => {}
+    const pending = new Promise<{ ok: boolean; status: number; json: () => Promise<{ error: string }> }>((resolve) => {
+      releaseFetch = resolve
+    })
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(pending))
+    renderPage()
+    await userEvent.click(screen.getByText('Ali Veli'))
+    const aliDialog = screen.getByRole('dialog')
+    await waitForRestaurant()
+    await userEvent.click(within(aliDialog).getByRole('button', { name: 'Print receipt' }))
+    await userEvent.click(within(aliDialog).getByRole('button', { name: '✕ Close' }))
+    await userEvent.click(screen.getByText('Max Muster'))
+    const maxDialog = screen.getByRole('dialog')
+    await act(async () => {
+      releaseFetch({ ok: false, status: 500, json: async () => ({ error: 'printer offline' }) })
+      await pending
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(within(maxDialog).queryByText('printer offline')).not.toBeInTheDocument()
+    await userEvent.click(within(maxDialog).getByRole('button', { name: '✕ Close' }))
+    await userEvent.click(screen.getByText('Ali Veli'))
+    expect(within(screen.getByRole('dialog')).getByText('printer offline')).toBeInTheDocument()
+  })
+
+  it('does not send a second print while the first local job is in flight', async () => {
+    mockLocalKitchenShop()
+    mockOrders()
+    let releaseFetch: (value: { ok: boolean; status: number; json: () => Promise<{ ok: boolean }> }) => void = () => {}
+    const pending = new Promise<{ ok: boolean; status: number; json: () => Promise<{ ok: boolean }> }>((resolve) => {
+      releaseFetch = resolve
+    })
+    const fetchMock = vi.fn().mockReturnValue(pending)
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await userEvent.click(screen.getByText('Ali Veli'))
+    const dialog = screen.getByRole('dialog')
+    await waitForRestaurant()
+    const printButton = within(dialog).getByRole('button', { name: 'Print receipt' })
+    await userEvent.click(printButton)
+    await userEvent.click(printButton)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    releaseFetch({ ok: true, status: 200, json: async () => ({ ok: true }) })
+    await pending
+  })
+
+  it('prints locally after accept succeeds', async () => {
+    mockLocalKitchenShop()
+    mockOrders()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await waitForRestaurant()
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    expect(mockPostOrderAction).toHaveBeenCalledWith(
+      'biz-1',
+      'o1',
+      'approve',
+      expect.objectContaining({ etaMinutes: 30 }),
+    )
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+  })
+
+  it('does not print locally when accept fails', async () => {
+    mockPostOrderAction.mockResolvedValue({ ok: false, error: 'nope' })
+    mockLocalKitchenShop()
+    mockOrders()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await waitForRestaurant()
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() => expect(screen.getByText('nope')).toBeInTheDocument())
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+  })
+
+  it('does not print or fall back to Chrome while the business doc has not loaded', async () => {
+    mockGetDoc.mockReturnValue(new Promise(() => {}))
+    mockOrders()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await userEvent.click(screen.getByText('Ali Veli'))
+    const dialog = screen.getByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(within(dialog).getByText('The kitchen program is not running on this computer.')).toBeInTheDocument()
+  })
+
+  it('retries the business doc after a failed load so local mode applies later', async () => {
+    mockGetDoc
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          name: 'Enes Kebap',
+          kitchenPrint: { mode: 'local', target: 'windows', value: 'EPSON TM-T20II' },
+        }),
+      })
+    mockOrders()
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true }) })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await userEvent.click(screen.getByText('Ali Veli'))
+    const dialog = screen.getByRole('dialog')
+    await waitFor(() => expect(mockGetDoc).toHaveBeenCalledTimes(1))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+    await waitFor(() => expect(mockGetDoc).toHaveBeenCalledTimes(2))
+    await act(async () => {
+      await mockGetDoc.mock.results[1]?.value
+    })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+  })
+
+  it('drops the previous business kitchenPrint when businessId changes before the new doc loads', async () => {
+    mockLocalKitchenShop()
+    mockOrders()
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true }) })
+    vi.stubGlobal('fetch', fetchMock)
+    const view = renderPage()
+    await waitForRestaurant()
+
+    mockUseAuth.mockReturnValue({ businessId: 'biz-2' })
+    mockGetDoc.mockReturnValue(new Promise(() => {}))
+    view.rerender(
+      <MemoryRouter initialEntries={['/orders']}>
+        <OrdersPage />
+      </MemoryRouter>,
+    )
+    await userEvent.click(screen.getByText('Ali Veli'))
+    const dialog = screen.getByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Print receipt' }))
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+    expect(within(dialog).getByText('The kitchen program is not running on this computer.')).toBeInTheDocument()
   })
 })

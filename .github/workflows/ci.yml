@@ -95,6 +95,32 @@ jobs:
         working-directory: dashboard
         run: npm test
 
+  # kitchen-print is the local kitchen printer program (Go). The Windows build is the
+  # only coverage of send_windows.go, which the Linux test run does not compile.
+  kitchen-print:
+    name: Kitchen Print Test & Windows Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: kitchen-print/go.mod
+          cache-dependency-path: kitchen-print/go.sum
+
+      - name: Tests
+        working-directory: kitchen-print
+        run: go test ./...
+
+      - name: Windows build
+        working-directory: kitchen-print
+        env:
+          GOOS: windows
+          GOARCH: amd64
+        run: go build -ldflags "-H windowsgui" -o /tmp/kitchen-print.exe .
+
   # Enforces the promotion flow: master only accepts PRs whose source branch is
   # dev. Required status check in the "master — release branch" ruleset, so a PR
   # from any other branch cannot be merged. Feature branches merge into dev.

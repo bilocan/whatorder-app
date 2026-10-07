@@ -58,6 +58,8 @@
       "waitingSince": "Waiting since order placed",
       "openFull": "Open full order details",
       "printBeleg": "Print receipt",
+      "printerUnreachable": "The kitchen program is not running on this computer.",
+      "printerMissing": "Enter a printer name or IP in Settings.",
       "paidViaCard": "Paid via card",
       "terminal": "This order is {{status}} — no further action.",
       "col": {
@@ -585,6 +587,25 @@
     "profile": {
       "title": "Restaurant",
       "description": "Name and alert number are fixed. Edit the address for nearby search and delivery."
+    },
+    "kitchenPrint": {
+      "title": "Kitchen printer",
+      "description": "Choose how this restaurant prints the kitchen slip.",
+      "modeChrome": "Chrome",
+      "modeLocal": "Program on this PC",
+      "targetWindows": "Windows printer name",
+      "targetIp": "Printer IP",
+      "valueName": "Printer name",
+      "valueIp": "IP address",
+      "namePlaceholder": "As it appears in Windows printers",
+      "ipPlaceholder": "192.168.1.50 or 192.168.1.50:9100",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "errName": "Enter the Windows printer name.",
+      "errIp": "Enter an IPv4 address. Add :port only when it is not 9100.",
+      "errSave": "Could not save the printer. Try again.",
+      "targetLabel": "Printer connection"
     },
     "ordering": {
       "title": "Ordering",
