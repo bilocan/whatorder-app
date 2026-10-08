@@ -83,12 +83,22 @@ export function releaseKitchenJob(jobs: Set<string>, orderId: string): void {
 }
 
 /** Asks the Windows program to send the installed dashboard window to the taskbar. */
-export async function requestDashboardMinimize(fetchImpl: typeof fetch = fetch): Promise<boolean> {
+export async function requestDashboardMinimize(
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = LOCAL_PRINT_TIMEOUT_MS,
+): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchImpl(LOCAL_MINIMIZE_URL, { method: 'POST' });
+    const response = await fetchImpl(LOCAL_MINIMIZE_URL, {
+      method: 'POST',
+      signal: controller.signal,
+    });
     return response.ok;
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

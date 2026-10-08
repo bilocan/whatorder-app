@@ -43,8 +43,24 @@ describe('FullscreenMinimizeButton', () => {
     render(<FullscreenMinimizeButton />)
     fireEvent.click(screen.getByRole('button', { name: 'Minimize' }))
     await vi.waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:17341/minimize', { method: 'POST' })
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://127.0.0.1:17341/minimize',
+        expect.objectContaining({ method: 'POST', signal: expect.any(AbortSignal) }),
+      )
     })
     expect(exitFullscreen).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows an error when the kitchen program does not minimize', async () => {
+    stubDisplayMode('standalone')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
+
+    render(<FullscreenMinimizeButton />)
+    fireEvent.click(screen.getByRole('button', { name: 'Minimize' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't minimize this window. Check the kitchen program on this computer.",
+    )
   })
 })

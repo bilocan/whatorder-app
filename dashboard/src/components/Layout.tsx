@@ -81,14 +81,16 @@ function LayoutContent() {
           ☰
         </button>
         <BrandLogo size="sm" />
-        <FullscreenMinimizeButton compact />
-        {presence && (
-          <span
-            className="presence-dot-header"
-            style={{ '--presence-dot': presenceDot } as React.CSSProperties}
-          />
-        )}
-        {!presence && <span style={{ width: 10 }} />}
+        <div className="layout-mobile-header-end">
+          <FullscreenMinimizeButton compact />
+          {presence && (
+            <span
+              className="presence-dot-header"
+              style={{ '--presence-dot': presenceDot } as React.CSSProperties}
+            />
+          )}
+          {!presence && <span className="layout-mobile-header-balance" />}
+        </div>
       </div>
 
       <div

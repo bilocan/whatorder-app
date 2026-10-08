@@ -27,7 +27,8 @@
     "earnings": "Kazançlar",
     "aiConfig": "AI ayarları",
     "signOut": "Çıkış yap",
-    "minimize": "Küçült"
+    "minimize": "Küçült",
+    "minimizeFailed": "Bu pencere küçültülemedi. Bu bilgisayardaki mutfak programını kontrol et."
   },
   "lang": {
     "label": "Dil",

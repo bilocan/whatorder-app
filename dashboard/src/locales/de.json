@@ -27,7 +27,8 @@
     "earnings": "Erlöse",
     "aiConfig": "KI-Config",
     "signOut": "Abmelden",
-    "minimize": "Minimieren"
+    "minimize": "Minimieren",
+    "minimizeFailed": "Dieses Fenster ließ sich nicht minimieren. Prüf das Küchenprogramm auf diesem Computer."
   },
   "lang": {
     "label": "Sprache",
