@@ -607,7 +607,9 @@
       "errSave": "Could not save the printer. Try again.",
       "targetLabel": "Printer connection",
       "autoPrint": "Print automatically when you accept",
-      "autoPrintHint": "With this off, the slip prints only from Print receipt."
+      "autoPrintHint": "With this off, the slip prints only from Print receipt.",
+      "printOnPaid": "Print the slip when a paid order comes in",
+      "printOnPaidHint": "Cash counts too. Accept does not print it again."
     },
     "ordering": {
       "title": "Ordering",

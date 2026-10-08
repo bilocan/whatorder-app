@@ -607,7 +607,9 @@
       "errSave": "Der Drucker wurde nicht gespeichert. Versuch es nochmal.",
       "targetLabel": "Druckeranschluss",
       "autoPrint": "Beim Annehmen automatisch drucken",
-      "autoPrintHint": "Ohne Haken druckst du den Bon nur über Beleg drucken."
+      "autoPrintHint": "Ohne Haken druckst du den Bon nur über Beleg drucken.",
+      "printOnPaid": "Bon drucken, sobald eine bezahlte Bestellung reinkommt",
+      "printOnPaidHint": "Bar zählt dazu. Annehmen druckt dann nicht noch einmal."
     },
     "ordering": {
       "title": "Bestellung",

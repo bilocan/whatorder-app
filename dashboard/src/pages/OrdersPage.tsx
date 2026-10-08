@@ -11,6 +11,7 @@ import { shortId } from '../lib/shortId';
 import { belegFulfillmentLine, belegPaymentLine, printOrderBeleg, restaurantSlipLines } from '../lib/printOrderBeleg';
 import {
   claimKitchenJob,
+  nextPaidArrivalPrints,
   parseKitchenPrint,
   postKitchenBon,
   releaseKitchenJob,
@@ -67,6 +68,8 @@ export default function OrdersPage() {
   const [printErrors, setPrintErrors] = useState<Record<string, string>>({});
   const [printingTick, setPrintingTick] = useState(0);
   const printingRef = useRef(new Set<string>());
+  const paidArrivalSeenRef = useRef<Set<string> | null>(null);
+  const ordersBusinessRef = useRef<string | null>(null);
   const reloadRestaurantRef = useRef<(() => void) | null>(null);
   const ordersRef = useRef(orders);
   const boardViewRef = useRef({ active: true, day: '' });
@@ -109,6 +112,8 @@ export default function OrdersPage() {
     // Printer errors belong to that shop too: a not-yet-loaded doc is not "program down".
     setRestaurant(null);
     setPrintErrors({});
+    paidArrivalSeenRef.current = null;
+    ordersBusinessRef.current = null;
     let cancelled = false;
     let inFlight = false;
     let retryTimer: number | undefined;
@@ -196,6 +201,7 @@ export default function OrdersPage() {
       orderBy('createdAt', 'desc'),
     );
     return onSnapshot(q, (snap) => {
+      ordersBusinessRef.current = businessId;
       const docs = snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) } as Order));
       docs.sort((a, b) => toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime());
       const remote = filterOrdersByPhoneRouting(docs, activePhoneNumberId);
@@ -355,6 +361,18 @@ export default function OrdersPage() {
     })();
   }
 
+  const printKitchenBelegRef = useRef(printKitchenBeleg);
+  printKitchenBelegRef.current = printKitchenBeleg;
+
+  useEffect(() => {
+    if (!businessId || !restaurant?.kitchenPrint.printOnPaid || ordersBusinessRef.current !== businessId) return;
+    const result = nextPaidArrivalPrints(paidArrivalSeenRef.current, orders);
+    paidArrivalSeenRef.current = result.seen;
+    for (const order of result.toPrint) {
+      void printKitchenBelegRef.current(order);
+    }
+  }, [businessId, orders, restaurant]);
+
   async function runAction(order: Order, action: string) {
     if (!businessId) return;
     setOrderLoading(order.id, true);
@@ -372,7 +390,12 @@ export default function OrdersPage() {
       setOrders((prev) =>
         prev.map((o) => (o.id === order.id ? { ...o, ...patch } : o)),
       );
-      if (action === 'approve' && restaurant?.kitchenPrint.autoPrint !== false) {
+      if (
+        action === 'approve'
+        && restaurant
+        && restaurant.kitchenPrint.autoPrint !== false
+        && !restaurant.kitchenPrint.printOnPaid
+      ) {
         void printKitchenBeleg(order);
       }
       if (TERMINAL_STATUSES.has(result.nextStatus) && openOrderId === order.id) {

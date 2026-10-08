@@ -569,6 +569,66 @@ describe('OrdersPage', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
   })
 
+  it('prints a paid order when it lands and does not print again on accept', async () => {
+    mockGetDoc.mockResolvedValue({
+      exists: () => true,
+      data: () => ({
+        name: 'Pizza Favori',
+        address: 'Laxenburger Straße 85/3, 1100 Wien',
+        alertPhone: '+436604500555',
+        kitchenPrint: { mode: 'local', target: 'windows', value: 'EPSON TM-T20II', autoPrint: true, printOnPaid: true },
+      }),
+    })
+    let pushOrders: (rows: typeof ORDERS) => void = () => {}
+    mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+      const emit = (rows: typeof ORDERS) => {
+        cb({ docs: rows.map(({ id, ...data }) => ({ id, data: () => data })) })
+      }
+      emit(ORDERS)
+      pushOrders = emit
+      return vi.fn()
+    })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await waitForRestaurant()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+
+    const paid = {
+      id: 'o-paid',
+      customerId: 'c9',
+      customerName: 'Cemil Kahramanlar',
+      customerPhone: '+436604500555',
+      items: [{ name: 'Margherita', qty: 1, price: 9 }],
+      total: 9,
+      status: 'pending' as const,
+      orderType: 'pickup' as const,
+      paymentMethod: 'stripe' as const,
+      paymentStatus: 'paid' as const,
+      createdAt: TODAY,
+    }
+    await act(async () => {
+      pushOrders([...ORDERS, paid])
+    })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+
+    const unpaid = { ...paid, id: 'o-unpaid', customerName: 'Unpaid', paymentStatus: 'pending' as const }
+    await act(async () => {
+      pushOrders([...ORDERS, paid, unpaid])
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Approve' })[0])
+    await waitFor(() => expect(mockPostOrderAction).toHaveBeenCalled())
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+  })
+
   it('does not print locally when accept fails', async () => {
     mockPostOrderAction.mockResolvedValue({ ok: false, error: 'nope' })
     mockLocalKitchenShop()

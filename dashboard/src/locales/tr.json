@@ -607,7 +607,9 @@
       "errSave": "Yazıcı kaydedilemedi. Tekrar dene.",
       "targetLabel": "Yazıcı bağlantısı",
       "autoPrint": "Kabul edince otomatik yazdır",
-      "autoPrintHint": "Kapalıyken fişi yalnızca Fişi yazdır ile çıkarırsın."
+      "autoPrintHint": "Kapalıyken fişi yalnızca Fişi yazdır ile çıkarırsın.",
+      "printOnPaid": "Ödenmiş sipariş gelince fişi yazdır",
+      "printOnPaidHint": "Nakit de sayılır. Kabul edince bir daha yazdırmaz."
     },
     "ordering": {
       "title": "Sipariş",
