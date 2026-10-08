@@ -983,6 +983,24 @@
         "saving": "Saving...",
         "cancel": "Cancel"
       },
+      "platformFee": {
+        "title": "WhatOrder fee",
+        "description": "This restaurant uses the platform fee unless you set a rate here. A date keeps that rate through the end of that day in Vienna.",
+        "usePlatform": "Use platform fee",
+        "custom": "Custom rate",
+        "type": "Type",
+        "fixed": "Fixed € per order",
+        "percent": "% of order total",
+        "value": "Amount",
+        "until": "Through (optional)",
+        "untilHint": "Leave empty to keep this rate until you clear it. Date is YYYY-MM-DD, through the end of that day in Vienna.",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Saved",
+        "error": "Could not save",
+        "invalidValue": "Amount must be 0 or more.",
+        "invalidUntil": "Use a date like 2026-12-31."
+      },
       "menu": {
         "noItems": "No menu items yet.",
         "col": {

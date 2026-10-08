@@ -983,6 +983,24 @@
         "saving": "Kaydediliyor...",
         "cancel": "İptal"
       },
+      "platformFee": {
+        "title": "WhatOrder ücreti",
+        "description": "Burada bir oran yoksa platform ücreti geçerli. Bir tarih, Viyana saatiyle o günün sonuna kadar geçerlidir.",
+        "usePlatform": "Platform ücretini kullan",
+        "custom": "Özel oran",
+        "type": "Tür",
+        "fixed": "Sipariş başına sabit €",
+        "percent": "Sipariş tutarının %'si",
+        "value": "Tutar",
+        "until": "Şu tarihe kadar (isteğe bağlı)",
+        "untilHint": "Boş bırakırsan oran sen silene kadar geçerli kalır. Tarih YYYY-MM-DD, Viyana'da o günün sonuna kadar.",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor…",
+        "saved": "Kaydedildi",
+        "error": "Kaydedilemedi",
+        "invalidValue": "Tutar 0 veya daha büyük olmalı.",
+        "invalidUntil": "Tarihi 2026-12-31 biçiminde yaz."
+      },
       "menu": {
         "noItems": "Henüz menü ürünü yok.",
         "col": {

@@ -4,7 +4,14 @@ jest.mock('../firebase', () => ({
   db: { runTransaction: jest.fn() },
 }));
 jest.mock('../stripe');
-jest.mock('../feeConfig');
+jest.mock('../feeConfig', () => {
+  const actual = jest.requireActual('../feeConfig');
+  return {
+    ...actual,
+    getFeeConfig: jest.fn(),
+    calcFeeCents: jest.fn(),
+  };
+});
 jest.mock('../settlementConfig', () => ({
   getSettlementConfig: jest.fn().mockResolvedValue({
     holdDays: 7,
@@ -378,6 +385,41 @@ describe('handleCheckoutSessionCompleted', () => {
     expect(docOrder).toBeLessThan(btnOrder);
     expect(mockOrderUpdate).toHaveBeenCalledTimes(2);
     expect(mockOrderUpdate.mock.calls[1][0]).toEqual({ paymentNotifiedAt: 'TS' });
+  });
+
+  test('snapshots a restaurant 0% override instead of the platform fee', async () => {
+    const { calcFeeCents: realCalcFeeCents } = jest.requireActual('../feeConfig');
+    calcFeeCents.mockImplementation(realCalcFeeCents);
+    getFeeConfig.mockResolvedValue({ feeType: 'percent', feeValue: 10 });
+    mockBusiness({
+      name: 'Pizza Favori',
+      legal: COMPLETE_LEGAL,
+      platformFee: { feeType: 'percent', feeValue: 0 },
+    });
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'pending',
+        total: 29,
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+
+    await handleCheckoutSessionCompleted({
+      id: 'cs_1',
+      amount_total: 2900,
+      payment_intent: 'pi_1',
+      metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+    });
+
+    expect(calcFeeCents).toHaveBeenCalledWith(2900, { feeType: 'percent', feeValue: 0 });
+    expect(mockOrderUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      grossAmountCents: 2900,
+      whatorderFeeCents: 0,
+      restaurantNetCents: 2900,
+    }));
   });
 
   test('refunds a checkout that completes after the customer withdrew the order', async () => {

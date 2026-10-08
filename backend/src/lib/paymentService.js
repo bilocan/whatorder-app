@@ -1,7 +1,7 @@
 const { ordersRef, stripeEventRef, businessRef } = require('./collections');
 const { admin, db } = require('./firebase');
 const { getStripe } = require('./stripe');
-const { getFeeConfig, calcFeeCents } = require('./feeConfig');
+const { getFeeConfig, calcFeeCents, resolveEffectiveFee } = require('./feeConfig');
 const { getSettlementConfig, computeHoldEndsAt, computeExpectedPayoutAt } = require('./settlementConfig');
 const { resolveWhatsAppReturnPhoneDigits, waMeUrl, resolvePaymentLang } = require('./whatsappReturn');
 const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('./whatsappRouting');
@@ -203,7 +203,9 @@ async function handleCheckoutSessionCompleted(session) {
   }
 
   const grossAmountCents = session.amount_total ?? Math.round((order.total || 0) * 100);
-  const feeConfig = await getFeeConfig();
+  const platformFee = await getFeeConfig();
+  const bizSnap = await businessRef(businessId).get();
+  const feeConfig = resolveEffectiveFee(platformFee, bizSnap.exists ? bizSnap.data().platformFee : null);
   const settlementConfig = await getSettlementConfig();
   const whatorderFeeCents = calcFeeCents(grossAmountCents, feeConfig);
   const restaurantNetCents = Math.max(0, grossAmountCents - whatorderFeeCents);

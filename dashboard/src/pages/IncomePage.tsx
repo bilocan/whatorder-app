@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { useFeeConfig, calcFee } from '../hooks/useFeeConfig';
+import { useFeeConfig } from '../hooks/useFeeConfig';
+import { displayFeeEuros } from '../lib/feeCalc';
 import type { Order, Payout } from '../types';
 import { toDate } from '../types';
 import { filterOrdersByPhoneRouting } from '../lib/orderPhoneFilter';
@@ -16,6 +17,7 @@ export default function IncomePage() {
   const { t } = useTranslation();
   const { businessId } = useAuth();
   const feeConfig = useFeeConfig();
+  const [restaurantOverride, setRestaurantOverride] = useState<unknown>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payoutHistory, setPayoutHistory] = useState<Payout[]>([]);
   const [payoutsLoading, setPayoutsLoading] = useState(true);
@@ -29,6 +31,13 @@ export default function IncomePage() {
       setOrders(filterOrdersByPhoneRouting(docs, activePhoneNumberId));
     });
   }, [businessId, activePhoneNumberId]);
+
+  useEffect(() => {
+    if (!businessId) return;
+    return onSnapshot(doc(db, 'businesses', businessId), (snap) => {
+      setRestaurantOverride(snap.exists() ? snap.data().platformFee ?? null : null);
+    });
+  }, [businessId]);
 
   useEffect(() => {
     if (!businessId) return;
@@ -59,7 +68,11 @@ export default function IncomePage() {
   const EARNED_STATUSES = new Set(['completed', 'picked_up', 'delivered']);
   const earned = periodOrders.filter((o) => EARNED_STATUSES.has(o.status)).reduce((s, o) => s + o.total, 0);
   const pending = periodOrders.filter((o) => !EARNED_STATUSES.has(o.status)).reduce((s, o) => s + o.total, 0);
-  const totalFee = periodOrders.reduce((s, o) => s + calcFee(o.total, feeConfig), 0);
+  const feeFor = (order: Order) => displayFeeEuros(order, feeConfig, {
+    applyRestaurantFee: true,
+    restaurantOverride,
+  });
+  const totalFee = periodOrders.reduce((s, o) => s + feeFor(o), 0);
 
   const cards = [
     { label: t('income.earned'),      value: `€${earned.toFixed(2)}` },
@@ -182,7 +195,7 @@ export default function IncomePage() {
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             <span>€{order.total.toFixed(2)}</span>
             <span style={{ fontSize: '0.8rem', color: '#22c55e' }}>
-              {t('income.feeLabel', { fee: calcFee(order.total, feeConfig).toFixed(2) })}
+              {t('income.feeLabel', { fee: feeFor(order).toFixed(2) })}
             </span>
           </div>
         </div>
