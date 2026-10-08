@@ -183,14 +183,25 @@ async function refuseOutOfDeliveryZone({ from, session, lang, routing, selectedB
 
 /**
  * Multi + known PLZ outside districts → refuse with Abholung / other choice.
- * Pickup intent and pickup-only restaurants skip. Unknown PLZ skips.
+ * Pickup intent and pickup-only restaurants skip.
+ * Missing customerPlz with lat/lng: reverse-geocode on the fly (raced ORDER after map CTA).
+ * Still no PLZ → skip (checkout re-checks when an address is set).
  */
 async function refuseIfOutOfDeliveryZone({ from, session, lang, routing, selectedBid, selectedInfo }) {
   if (!routing?.businessIds || routing.businessIds.length <= 1) return false;
   if (session?.fulfillmentIntent === 'pickup') return false;
-  const plz = session?.customerPlz || null;
-  if (!plz) return false;
   if (!selectedInfo?.deliveryEnabled) return false;
+
+  let plz = session?.customerPlz || null;
+  if (!plz && session?.lat != null && session?.lng != null) {
+    plz = await resolveCustomerPlzFromCoords(session.lat, session.lng);
+    if (plz) {
+      // So refuseOutOfDeliveryZone / enterRestaurantDirect keep the pin PLZ.
+      session.customerPlz = plz;
+      await patchSession(from, { customerPlz: plz });
+    }
+  }
+  if (!plz) return false;
   if (deliversToPostalCode(selectedInfo, plz)) return false;
   await refuseOutOfDeliveryZone({
     from, session, lang, routing, selectedBid, selectedInfo,
@@ -288,9 +299,7 @@ async function handleOutOfZoneChoice({ from, session, lang, routing, id, type, t
 async function handleAwaitingLocation({ from, session, lang, routing, type, latitude, longitude }) {
   if (type === 'location' && latitude != null && longitude != null) {
     const customerPlz = await resolveCustomerPlzFromCoords(latitude, longitude);
-    const { pendingDeleteIds } = await presentRestaurantPickerForLocation(
-      from, routing.businessIds, latitude, longitude, lang,
-    );
+    // Persist pin + PLZ before the map CTA so a concurrent ORDER deep link can gate.
     await setSession(from, {
       state: 'selecting_restaurant',
       language: lang,
@@ -301,9 +310,15 @@ async function handleAwaitingLocation({ from, session, lang, routing, type, lati
       customerPlz,
       fulfillmentIntent: null,
       pendingOutOfZoneBusinessId: null,
-      pendingDeleteIds,
+      pendingDeleteIds: [],
       restaurantPickerUnfiltered: false,
     });
+    const { pendingDeleteIds } = await presentRestaurantPickerForLocation(
+      from, routing.businessIds, latitude, longitude, lang,
+    );
+    if (pendingDeleteIds?.length) {
+      await patchSession(from, { pendingDeleteIds });
+    }
     return;
   }
 
@@ -335,18 +350,21 @@ async function handleSelectingRestaurant({ from, session, lang, routing, type, i
 
   if (type === 'location' && latitude != null && longitude != null) {
     const customerPlz = await resolveCustomerPlzFromCoords(latitude, longitude);
-    const { pendingDeleteIds } = await presentRestaurantPickerForLocation(
-      from, routing.businessIds, latitude, longitude, lang,
-    );
-    await setSession(from, {
-      ...session,
+    // Persist before map CTA (same race as awaiting_location).
+    await patchSession(from, {
       lat: latitude,
       lng: longitude,
       customerPlz,
       pendingOutOfZoneBusinessId: null,
-      pendingDeleteIds,
+      pendingDeleteIds: [],
       restaurantPickerUnfiltered: false,
-    });
+    }, session);
+    const { pendingDeleteIds } = await presentRestaurantPickerForLocation(
+      from, routing.businessIds, latitude, longitude, lang,
+    );
+    if (pendingDeleteIds?.length) {
+      await patchSession(from, { pendingDeleteIds });
+    }
     return;
   }
 
