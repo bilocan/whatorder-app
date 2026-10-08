@@ -271,12 +271,21 @@ describe('releaseUnpaidCheckoutSession', () => {
     expect(expire).toHaveBeenCalledWith('cs_1');
   });
 
-  test('reports a completed session as paid without expiring', async () => {
+  test('reports a completed paid session as paid without expiring', async () => {
     const expire = jest.fn();
     const retrieve = jest.fn().mockResolvedValue({ id: 'cs_1', status: 'complete', payment_status: 'paid' });
     getStripe.mockReturnValue({ checkout: { sessions: { retrieve, expire } } });
 
     await expect(releaseUnpaidCheckoutSession('cs_1')).resolves.toEqual({ paid: true, released: false });
+    expect(expire).not.toHaveBeenCalled();
+  });
+
+  test('does not treat a completed unpaid session as paid and does not expire it', async () => {
+    const expire = jest.fn();
+    const retrieve = jest.fn().mockResolvedValue({ id: 'cs_1', status: 'complete', payment_status: 'unpaid' });
+    getStripe.mockReturnValue({ checkout: { sessions: { retrieve, expire } } });
+
+    await expect(releaseUnpaidCheckoutSession('cs_1')).resolves.toEqual({ paid: false, released: false });
     expect(expire).not.toHaveBeenCalled();
   });
 
@@ -861,6 +870,71 @@ describe('processStripeWebhookEvent', () => {
 
     expect(result).toEqual({ duplicate: true });
     expect(mockOrderUpdate).not.toHaveBeenCalled();
+  });
+
+  test('ignores checkout.session.completed while the payment is still unpaid', async () => {
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'pending',
+        status: 'pending',
+        total: 29,
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+
+    const result = await processStripeWebhookEvent({
+      id: 'evt_unpaid',
+      type: 'checkout.session.completed',
+      created: 1_700_000_000,
+      data: {
+        object: {
+          id: 'cs_1',
+          payment_status: 'unpaid',
+          metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+        },
+      },
+    });
+
+    expect(result).toEqual({ duplicate: false });
+    expect(mockOrderUpdate).not.toHaveBeenCalled();
+  });
+
+  test('marks the order paid when a delayed method later succeeds', async () => {
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'pending',
+        status: 'pending',
+        total: 29,
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+
+    const result = await processStripeWebhookEvent({
+      id: 'evt_async',
+      type: 'checkout.session.async_payment_succeeded',
+      created: 1_700_000_100,
+      data: {
+        object: {
+          id: 'cs_1',
+          payment_status: 'paid',
+          amount_total: 2900,
+          payment_intent: 'pi_1',
+          metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+        },
+      },
+    });
+
+    expect(result).toEqual({ duplicate: false });
+    expect(mockOrderUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      paymentStatus: 'paid',
+      whatorderFeeCents: 50,
+    }));
   });
 
   test('handles charge.refunded', async () => {
