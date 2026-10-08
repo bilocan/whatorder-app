@@ -272,8 +272,12 @@ module.exports = {
   orderPickedUp:  (shortId) => `✅ Thanks for picking up order #${shortId}. Enjoy your meal! 🙏`,
   orderDelivered: (shortId) => `✅ Order #${shortId} delivered. Enjoy your meal! 🙏`,
   orderCompletePrompt: () => 'Order something else?',
-  orderRejected:  (shortId) => `❌ Sorry, order #${shortId} could not be accepted. Please contact us.`,
-  orderRejectedRefunded: (shortId) => `❌ Sorry, order #${shortId} could not be accepted. Your card payment will be refunded — usually back on your account within a few business days.`,
+  orderRejected: (shortId, phone) => phone
+    ? `❌ Sorry, order #${shortId} could not be accepted. Please contact us: ${phone}`
+    : `❌ Sorry, order #${shortId} could not be accepted. Please contact us.`,
+  orderRejectedRefunded: (shortId, phone) => phone
+    ? `❌ Sorry, order #${shortId} could not be accepted. Your card payment will be refunded — usually back on your account within a few business days. Questions? Call: ${phone}`
+    : `❌ Sorry, order #${shortId} could not be accepted. Your card payment will be refunded — usually back on your account within a few business days.`,
   orderCancelled: (shortId) => `❌ Order #${shortId} has been cancelled.`,
   orderCancelledRefunded: (shortId) => `✅ Order #${shortId} has been cancelled. Your card payment will be refunded — usually back on your account within a few business days.`,
   paymentRefunded: (shortId) => `💸 Payment for order #${shortId} has been refunded. The money is usually back on your account within a few business days.`,

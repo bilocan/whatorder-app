@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { collection, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../lib/firebase';
-import { useFeeConfig, calcFee } from '../../hooks/useFeeConfig';
+import { useFeeConfig } from '../../hooks/useFeeConfig';
+import { displayFeeEuros } from '../../lib/feeCalc';
 import type { FeeConfig } from '../../hooks/useFeeConfig';
 import type { Order, Business, Payout } from '../../types';
 import { toDate } from '../../types';
@@ -180,7 +181,8 @@ export default function EarningsPage() {
   }
 
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
-  const totalFees = orders.reduce((s, o) => s + calcFee(o.total, feeConfig), 0);
+  const feeFor = (order: typeof orders[number]) => displayFeeEuros(order, feeConfig);
+  const totalFees = orders.reduce((s, o) => s + feeFor(o), 0);
 
   const pendingSettlementCents = orders
     .filter((o) => isPendingSettlement(o))
@@ -352,7 +354,7 @@ export default function EarningsPage() {
                 <td style={{ padding: '0.5rem' }}>{o.customerName}</td>
                 <td style={{ padding: '0.5rem', textAlign: 'right' }}>€{o.total.toFixed(2)}</td>
                 <td style={{ padding: '0.5rem', textAlign: 'right', color: '#22c55e', fontWeight: 600 }}>
-                  €{calcFee(o.total, feeConfig).toFixed(2)}
+                  €{feeFor(o).toFixed(2)}
                 </td>
                 <td style={{
                   padding: '0.5rem',

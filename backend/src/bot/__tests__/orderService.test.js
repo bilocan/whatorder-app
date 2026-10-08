@@ -588,7 +588,7 @@ describe('Order state machine', () => {
     await rejectOrder(BIZ, 'order_abc123');
 
     expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'rejected', rejectedAt: expect.any(String) }));
-    expect(t).toHaveBeenCalledWith('orderRejected', 'tr', 'ABC123');
+    expect(t).toHaveBeenCalledWith('orderRejected', 'tr', 'ABC123', null);
     expect(t).toHaveBeenCalledWith('orderCompletePrompt', 'tr');
     expect(sendButtonMessage).toHaveBeenCalledWith(
       '+43699000001',
@@ -603,6 +603,20 @@ describe('Order state machine', () => {
     );
     expect(sendText).not.toHaveBeenCalled();
     expect(patchSession).toHaveBeenCalledWith('+43699000001', { pendingAmendBusinessId: BIZ });
+  });
+
+  test('rejectOrder: includes restaurant alertPhone in customer message', async () => {
+    makeRef(ORDER('pending'));
+    businessRef.mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({ alertPhone: '+436604500555', name: 'Pizza Favori' }),
+      }),
+    });
+
+    await rejectOrder(BIZ, 'order_abc123');
+
+    expect(t).toHaveBeenCalledWith('orderRejected', 'tr', 'ABC123', '+436604500555');
   });
 
   // ── startPreparation ──────────────────────────────────────────────────────

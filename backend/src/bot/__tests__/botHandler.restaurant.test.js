@@ -20,17 +20,21 @@ jest.mock('../customerLanguage', () => ({
 jest.mock('../sessionStore', () => {
   const actual = jest.requireActual('../sessionStore');
   const getSession = jest.fn();
-  const setSession = jest.fn();
-  const clearSession = jest.fn();
-  const patchSession = jest.fn(async (phone, overrides = {}, baseSession = null) => {
+  // Mirror Firestore: after setSession, patchSession must read the written doc (not a stale seed).
+  const setSession = jest.fn(async (_phone, data) => {
+    getSession.mockResolvedValue({ ...data });
+  });
+  const clearSession = jest.fn(async () => {
+    getSession.mockResolvedValue({ state: 'browsing', language: null, basket: [], businessId: null });
+  });
+  const patchSession = jest.fn(async (phone, overrides = {}) => {
     const fresh = await getSession(phone);
-    const merged = baseSession ? { ...baseSession, ...fresh } : { ...fresh };
     const payload = { ...overrides };
     if ('menuId' in payload) {
       payload.pendingDeleteIds = payload.menuId ? [payload.menuId] : [];
       delete payload.menuId;
     }
-    await setSession(phone, actual.buildSessionWrite(merged, payload));
+    await setSession(phone, actual.buildSessionWrite(fresh, payload));
   });
   return { ...actual, getSession, setSession, clearSession, patchSession };
 });
@@ -922,6 +926,68 @@ describe('Multi-restaurant: delivery district gate on restaurant pick', () => {
     expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
       state: 'selecting_restaurant',
       customerPlz: '1100',
+    }));
+  });
+
+  test('location share persists selecting_restaurant + PLZ before Open map CTA', async () => {
+    reverseGeocode.mockResolvedValue('Mariahilfer Str. 1, 1060 Wien');
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve(id === 'biz_a'
+        ? { ...BIZ_A_INFO, lat: 48.2093, lng: 16.3621 }
+        : { ...BIZ_B_INFO, lat: 48.1974, lng: 16.3734 }),
+    );
+    getSession.mockResolvedValue({ state: 'awaiting_location', language: 'en', basket: [], businessId: null });
+
+    await handleMessage(ROUTING_MULTI, msg({ type: 'location', latitude: 48.1980, longitude: 16.3730 }));
+
+    const persistIdx = setSession.mock.calls.findIndex(([, payload]) => (
+      payload.state === 'selecting_restaurant'
+      && payload.customerPlz === '1060'
+      && payload.lat === 48.1980
+    ));
+    expect(persistIdx).toBeGreaterThanOrEqual(0);
+    const mapIdx = sendCtaUrlMessage.mock.invocationCallOrder[0];
+    const persistOrder = setSession.mock.invocationCallOrder[persistIdx];
+    expect(persistOrder).toBeLessThan(mapIdx);
+  });
+
+  test('ORDER deep link with pin coords but missing customerPlz still gates via reverse geocode', async () => {
+    reverseGeocode.mockResolvedValue('Mariahilfer Str. 1, 1060 Wien');
+    getBusinessInfo.mockImplementation(id =>
+      Promise.resolve({
+        ...(id === 'biz_a' ? BIZ_A_INFO : BIZ_B_INFO),
+        lat: id === 'biz_a' ? 48.2093 : 48.1974,
+        lng: id === 'biz_a' ? 16.3621 : 16.3734,
+        deliveryEnabled: true,
+        minimumOrderByDistrict: [
+          { postalCodes: ['1100'], minimumOrderValue: 13 },
+        ],
+      }),
+    );
+    getSession.mockResolvedValue({
+      state: 'selecting_restaurant',
+      language: 'en',
+      basket: [],
+      businessId: null,
+      lat: 48.1980,
+      lng: 16.3730,
+      customerPlz: null,
+    });
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'ORDER biz_b' }));
+
+    expect(reverseGeocode).toHaveBeenCalledWith(48.1980, 16.3730);
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      body: expect.stringMatching(/does not deliver to your location[\s\S]*Delivery area: 1100/i),
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_outzone_pickup' }),
+      ]),
+    }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'selecting_restaurant',
+      businessId: null,
+      customerPlz: '1060',
+      pendingOutOfZoneBusinessId: 'biz_b',
     }));
   });
 

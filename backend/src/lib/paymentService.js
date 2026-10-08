@@ -1,7 +1,7 @@
 const { ordersRef, stripeEventRef, businessRef } = require('./collections');
 const { admin, db } = require('./firebase');
 const { getStripe } = require('./stripe');
-const { getFeeConfig, calcFeeCents } = require('./feeConfig');
+const { getFeeConfig, calcFeeCents, resolveEffectiveFee } = require('./feeConfig');
 const { getSettlementConfig, computeHoldEndsAt, computeExpectedPayoutAt } = require('./settlementConfig');
 const { resolveWhatsAppReturnPhoneDigits, waMeUrl, resolvePaymentLang } = require('./whatsappReturn');
 const { resolvePhoneNumberIdForOrder, formatOrderWhatsAppSendError } = require('./whatsappRouting');
@@ -67,9 +67,24 @@ async function createCheckoutSessionForOrder(businessId, orderId, { totalEuros, 
 }
 
 /**
+ * Paid only when Stripe says the funds are in. A delayed method can leave
+ * Checkout `status: complete` while `payment_status` is still unpaid.
+ * @param {{ payment_status?: string, status?: string }} session
+ * @returns {{ paid: boolean, released: boolean }|null} null when the session is still open
+ */
+function releaseOutcome(session) {
+  if (session.payment_status === 'paid') return { paid: true, released: false };
+  if (session.status === 'expired') return { paid: false, released: true };
+  // Cannot expire a completed session. Caller withdraws; a later
+  // async_payment_succeeded refunds if the customer already went back.
+  if (session.status === 'complete') return { paid: false, released: false };
+  return null;
+}
+
+/**
  * Close an open Stripe Checkout session so the pay link cannot complete after
- * the customer goes back to Bestellung prüfen. A completed session is left
- * alone and reported as paid.
+ * the customer goes back to Bestellung prüfen. A paid session is left alone.
+ * A completed-but-unpaid session is not treated as paid.
  * @param {string|null|undefined} sessionId
  * @returns {Promise<{ paid: boolean, released: boolean }>}
  */
@@ -78,21 +93,19 @@ async function releaseUnpaidCheckoutSession(sessionId) {
   const stripe = getStripe();
   if (!stripe) throw new Error('Stripe is not configured');
 
-  const isPaid = (session) => session.payment_status === 'paid' || session.status === 'complete';
   let session = await stripe.checkout.sessions.retrieve(sessionId);
-  if (isPaid(session)) return { paid: true, released: false };
-  if (session.status === 'expired') return { paid: false, released: true };
+  const early = releaseOutcome(session);
+  if (early) return early;
 
   try {
     session = await stripe.checkout.sessions.expire(sessionId);
   } catch (err) {
     const again = await stripe.checkout.sessions.retrieve(sessionId);
-    if (isPaid(again)) return { paid: true, released: false };
-    if (again.status === 'expired') return { paid: false, released: true };
+    const late = releaseOutcome(again);
+    if (late) return late;
     throw err;
   }
-  if (isPaid(session)) return { paid: true, released: false };
-  return { paid: false, released: true };
+  return releaseOutcome(session) || { paid: false, released: true };
 }
 
 /**
@@ -105,9 +118,13 @@ async function completePaidCheckoutSession(sessionId) {
   if (!sessionId) return false;
   const stripe = getStripe();
   if (!stripe) throw new Error('Stripe is not configured');
-  const session = await stripe.checkout.sessions.retrieve(sessionId);
-  const paid = session.payment_status === 'paid' || session.status === 'complete';
-  if (!paid) return false;
+  const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ['payment_intent.latest_charge'],
+  });
+  // A completed Checkout can still be unpaid for delayed methods. The success
+  // URL and the webhook both wait for payment_status paid. Delayed methods
+  // arrive later as checkout.session.async_payment_succeeded.
+  if (session.payment_status !== 'paid') return false;
   await handleCheckoutSessionCompleted(session);
   return true;
 }
@@ -170,7 +187,18 @@ async function claimPaymentNotification(orderRef) {
   });
 }
 
-async function handleCheckoutSessionCompleted(session) {
+/** Stripe event time, else the charge time, else now. A late handler must not miss a waiver. */
+function feeAsOfDate(session, paidAt) {
+  if (paidAt instanceof Date && !Number.isNaN(paidAt.getTime())) return paidAt;
+  const intent = session?.payment_intent;
+  const charge = intent && typeof intent === 'object' ? intent.latest_charge : null;
+  if (charge && typeof charge === 'object' && typeof charge.created === 'number') {
+    return new Date(charge.created * 1000);
+  }
+  return new Date();
+}
+
+async function handleCheckoutSessionCompleted(session, paidAt) {
   const businessId = session.metadata?.business_id;
   const orderId = session.metadata?.order_id;
   if (!businessId || !orderId) {
@@ -203,7 +231,13 @@ async function handleCheckoutSessionCompleted(session) {
   }
 
   const grossAmountCents = session.amount_total ?? Math.round((order.total || 0) * 100);
-  const feeConfig = await getFeeConfig();
+  const platformFee = await getFeeConfig();
+  const bizSnap = await businessRef(businessId).get();
+  const feeConfig = resolveEffectiveFee(
+    platformFee,
+    bizSnap.exists ? bizSnap.data().platformFee : null,
+    feeAsOfDate(session, paidAt),
+  );
   const settlementConfig = await getSettlementConfig();
   const whatorderFeeCents = calcFeeCents(grossAmountCents, feeConfig);
   const restaurantNetCents = Math.max(0, grossAmountCents - whatorderFeeCents);
@@ -486,13 +520,24 @@ async function handleChargeRefunded(charge) {
   });
 }
 
+const PAID_CHECKOUT_EVENTS = new Set([
+  'checkout.session.completed',
+  'checkout.session.async_payment_succeeded',
+]);
+
+function paidAtFromStripeEvent(event) {
+  return typeof event.created === 'number' && Number.isFinite(event.created)
+    ? new Date(event.created * 1000)
+    : undefined;
+}
+
 async function processStripeWebhookEvent(event) {
   if (await isStripeEventProcessed(event.id)) return { duplicate: true };
 
-  if (event.type === 'checkout.session.completed') {
+  if (PAID_CHECKOUT_EVENTS.has(event.type)) {
     const session = event.data.object;
     if (session.payment_status === 'paid') {
-      await handleCheckoutSessionCompleted(session);
+      await handleCheckoutSessionCompleted(session, paidAtFromStripeEvent(event));
     }
   } else if (event.type === 'charge.refunded') {
     await handleChargeRefunded(event.data.object);

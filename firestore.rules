@@ -38,8 +38,11 @@ service cloud.firestore {
     match /businesses/{businessId} {
       allow read: if isOwnerOf(businessId) || isAdmin();
       allow create, delete: if isAdmin();
-      allow update: if (isOwnerOf(businessId) || isAdmin())
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deals']);
+      // deals stays server-written. platformFee is admin-only so an owner cannot zero their fee.
+      allow update: if (isAdmin()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deals']))
+        || (isOwnerOf(businessId)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deals', 'platformFee']));
 
       // Orders are created and updated by the backend (Admin SDK bypasses rules).
       // Dashboard reads orders; mark-ready goes through the backend API.

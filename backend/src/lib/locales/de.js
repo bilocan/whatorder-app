@@ -273,8 +273,12 @@ module.exports = {
   orderPickedUp:  (shortId) => `✅ Bestellung #${shortId} abgeholt. Guten Appetit! 🙏`,
   orderDelivered: (shortId) => `✅ Bestellung #${shortId} zugestellt. Guten Appetit! 🙏`,
   orderCompletePrompt: () => 'Noch etwas bestellen?',
-  orderRejected:  (shortId) => `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Bitte kontaktieren Sie uns.`,
-  orderRejectedRefunded: (shortId) => `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Die Kartenzahlung wird erstattet — meist in wenigen Werktagen wieder auf dem Konto.`,
+  orderRejected: (shortId, phone) => phone
+    ? `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Bitte kontaktieren Sie uns: ${phone}`
+    : `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Bitte kontaktieren Sie uns.`,
+  orderRejectedRefunded: (shortId, phone) => phone
+    ? `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Die Kartenzahlung wird erstattet — meist in wenigen Werktagen wieder auf dem Konto. Bei Fragen: ${phone}`
+    : `❌ Leider konnte Bestellung #${shortId} nicht angenommen werden. Die Kartenzahlung wird erstattet — meist in wenigen Werktagen wieder auf dem Konto.`,
   orderCancelled: (shortId) => `❌ Bestellung #${shortId} wurde storniert.`,
   orderCancelledRefunded: (shortId) => `✅ Bestellung #${shortId} wurde storniert. Die Kartenzahlung wird erstattet — meist in wenigen Werktagen wieder auf dem Konto.`,
   paymentRefunded: (shortId) => `💸 Zahlung für Bestellung #${shortId} wurde erstattet. Das Geld ist meist in wenigen Werktagen wieder auf dem Konto.`,

@@ -46,6 +46,7 @@ function sanitizeBusinessDoc(business, { profile, source, target } = {}) {
   if (!keepConnect) {
     next = stripStripeKeys(next);
     delete next.catalogId;
+    delete next.platformFee;
   }
   return next;
 }

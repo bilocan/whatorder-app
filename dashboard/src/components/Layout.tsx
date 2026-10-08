@@ -10,6 +10,7 @@ import BrandLogo from './BrandLogo';
 import { usePresence, toggleOrdersOpen, toggleDeliveryOpen } from '../hooks/usePresence';
 import { useNewOrderAlert } from '../hooks/useNewOrderAlert';
 import BuildInfoPanel from './BuildInfoPanel';
+import FullscreenMinimizeButton from './FullscreenMinimizeButton';
 
 const BASE_TITLE = document.title;
 
@@ -80,13 +81,16 @@ function LayoutContent() {
           ☰
         </button>
         <BrandLogo size="sm" />
-        {presence && (
-          <span
-            className="presence-dot-header"
-            style={{ '--presence-dot': presenceDot } as React.CSSProperties}
-          />
-        )}
-        {!presence && <span style={{ width: 10 }} />}
+        <div className="layout-mobile-header-end">
+          <FullscreenMinimizeButton compact />
+          {presence && (
+            <span
+              className="presence-dot-header"
+              style={{ '--presence-dot': presenceDot } as React.CSSProperties}
+            />
+          )}
+          {!presence && <span className="layout-mobile-header-balance" />}
+        </div>
       </div>
 
       <div
@@ -100,6 +104,7 @@ function LayoutContent() {
         <div className="nav-brand">
           <BrandLogo size="md" />
         </div>
+        <FullscreenMinimizeButton />
         {showTenantNav && <RestaurantSwitcher />}
 
         <div style={{ flex: 1 }}>
