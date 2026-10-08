@@ -26,7 +26,9 @@
     "adminMap": "Map",
     "earnings": "Earnings",
     "aiConfig": "AI config",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "minimize": "Minimize",
+    "minimizeFailed": "Couldn't minimize this window. Check the kitchen program on this computer."
   },
   "lang": {
     "label": "Language",
