@@ -60,7 +60,7 @@ function orderShortId(orderId) {
   return orderId.slice(-6).toUpperCase();
 }
 
-function buildStatusReply(order, lang) {
+function buildStatusReply(order, lang, contactPhone = null) {
   const shortId = orderShortId(order.id);
   switch (order.status) {
     case 'pending':
@@ -80,7 +80,7 @@ function buildStatusReply(order, lang) {
     case 'cancelled':
       return t('orderCancelled', lang, shortId);
     case 'rejected':
-      return t('orderRejected', lang, shortId);
+      return t('orderRejected', lang, shortId, contactPhone);
     default:
       return t('orderStatusPending', lang, shortId);
   }
@@ -129,7 +129,16 @@ async function tryReplyOrderStatus({ from, session, lang, businessId, text }) {
   const order = await resolveRecentOrder(businessId, from, session);
   if (!order?.id) return false;
   const phoneNumberId = session.whatsappPhoneNumberId || null;
-  await sendText(from, buildStatusReply(order, lang), phoneNumberId);
+  let contactPhone = null;
+  if (order.status === 'rejected') {
+    try {
+      const info = await getBusinessInfo(businessId);
+      contactPhone = info?.alertPhone || info?.phone || null;
+    } catch (err) {
+      console.error('[postOrder] contact phone lookup failed:', err.message);
+    }
+  }
+  await sendText(from, buildStatusReply(order, lang, contactPhone), phoneNumberId);
   return true;
 }
 

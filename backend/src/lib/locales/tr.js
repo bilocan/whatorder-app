@@ -272,8 +272,12 @@ module.exports = {
   orderPickedUp:  (shortId) => `✅ Sipariş #${shortId} teslim alındı. Afiyet olsun! 🙏`,
   orderDelivered: (shortId) => `✅ Sipariş #${shortId} teslim edildi. Afiyet olsun! 🙏`,
   orderCompletePrompt: () => 'Başka bir şey sipariş etmek ister misin?',
-  orderRejected:  (shortId) => `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Lütfen bize ulaşın.`,
-  orderRejectedRefunded: (shortId) => `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Kart ödemeniz iade edilecek — genellikle birkaç iş günü içinde hesabınıza döner.`,
+  orderRejected: (shortId, phone) => phone
+    ? `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Lütfen bize ulaşın: ${phone}`
+    : `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Lütfen bize ulaşın.`,
+  orderRejectedRefunded: (shortId, phone) => phone
+    ? `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Kart ödemeniz iade edilecek — genellikle birkaç iş günü içinde hesabınıza döner. Sorularınız için: ${phone}`
+    : `❌ Üzgünüz, sipariş #${shortId} kabul edilemedi. Kart ödemeniz iade edilecek — genellikle birkaç iş günü içinde hesabınıza döner.`,
   orderCancelled: (shortId) => `❌ Sipariş #${shortId} iptal edildi.`,
   orderCancelledRefunded: (shortId) => `✅ Sipariş #${shortId} iptal edildi. Kart ödemeniz iade edilecek — genellikle birkaç iş günü içinde hesabınıza döner.`,
   paymentRefunded: (shortId) => `💸 #${shortId} sipariş ödemesi iade edildi. Para genellikle birkaç iş günü içinde hesabınıza döner.`,

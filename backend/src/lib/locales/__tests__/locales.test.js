@@ -137,6 +137,14 @@ describe('order status notification keys — all locales', () => {
   test.each(STATUS_NOTIFY_KEYS)('tr.%s(shortId)', (key) => {
     expect(str(tr[key]('ABC123'))).toBe(true);
   });
+  test('orderRejected includes phone when provided', () => {
+    expect(en.orderRejected('ABC123', '+43660')).toContain('+43660');
+    expect(de.orderRejected('ABC123', '+43660')).toContain('+43660');
+    expect(tr.orderRejected('ABC123', '+43660')).toContain('+43660');
+    expect(en.orderRejectedRefunded('ABC123', '+43660')).toContain('+43660');
+    expect(de.orderRejectedRefunded('ABC123', '+43660')).toContain('+43660');
+    expect(tr.orderRejectedRefunded('ABC123', '+43660')).toContain('+43660');
+  });
 });
 
 describe('post-complete re-entry keys — all locales', () => {
