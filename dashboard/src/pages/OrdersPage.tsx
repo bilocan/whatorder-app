@@ -69,7 +69,11 @@ export default function OrdersPage() {
   const [printingTick, setPrintingTick] = useState(0);
   const printingRef = useRef(new Set<string>());
   const paidArrivalSeenRef = useRef<Set<string> | null>(null);
+  const paidArrivalQueueRef = useRef<Order[]>([]);
   const ordersBusinessRef = useRef<string | null>(null);
+  const restaurantRef = useRef<RestaurantBoard | null>(null);
+  const printKitchenBelegRef = useRef<(order: Order) => void>(() => {});
+  restaurantRef.current = restaurant;
   const reloadRestaurantRef = useRef<(() => void) | null>(null);
   const ordersRef = useRef(orders);
   const boardViewRef = useRef({ active: true, day: '' });
@@ -106,6 +110,9 @@ export default function OrdersPage() {
     if (!businessId) {
       setRestaurant(null);
       setPrintErrors({});
+      paidArrivalSeenRef.current = null;
+      paidArrivalQueueRef.current = [];
+      ordersBusinessRef.current = null;
       return;
     }
     // Drop the previous business so its kitchenPrint is never used before this doc loads.
@@ -113,6 +120,7 @@ export default function OrdersPage() {
     setRestaurant(null);
     setPrintErrors({});
     paidArrivalSeenRef.current = null;
+    paidArrivalQueueRef.current = [];
     ordersBusinessRef.current = null;
     let cancelled = false;
     let inFlight = false;
@@ -208,6 +216,19 @@ export default function OrdersPage() {
       const { orders: merged, clearedIds } = mergeOrdersWithOptimistic(remote, optimisticRef.current);
       for (const id of clearedIds) optimisticRef.current.delete(id);
       setOrders(merged);
+      const arrival = nextPaidArrivalPrints(paidArrivalSeenRef.current, merged);
+      paidArrivalSeenRef.current = arrival.seen;
+      const shop = restaurantRef.current;
+      if (!shop) {
+        paidArrivalQueueRef.current.push(...arrival.toPrint);
+        return;
+      }
+      const waiting = paidArrivalQueueRef.current;
+      paidArrivalQueueRef.current = [];
+      if (!shop.kitchenPrint.printOnPaid) return;
+      for (const order of [...waiting, ...arrival.toPrint]) {
+        void printKitchenBelegRef.current(order);
+      }
     });
   }, [businessId, activePhoneNumberId]);
 
@@ -361,17 +382,17 @@ export default function OrdersPage() {
     })();
   }
 
-  const printKitchenBelegRef = useRef(printKitchenBeleg);
   printKitchenBelegRef.current = printKitchenBeleg;
 
   useEffect(() => {
-    if (!businessId || !restaurant?.kitchenPrint.printOnPaid || ordersBusinessRef.current !== businessId) return;
-    const result = nextPaidArrivalPrints(paidArrivalSeenRef.current, orders);
-    paidArrivalSeenRef.current = result.seen;
-    for (const order of result.toPrint) {
+    if (!businessId || !restaurant || ordersBusinessRef.current !== businessId) return;
+    const waiting = paidArrivalQueueRef.current;
+    paidArrivalQueueRef.current = [];
+    if (!restaurant.kitchenPrint.printOnPaid) return;
+    for (const order of waiting) {
       void printKitchenBelegRef.current(order);
     }
-  }, [businessId, orders, restaurant]);
+  }, [businessId, restaurant]);
 
   async function runAction(order: Order, action: string) {
     if (!businessId) return;
