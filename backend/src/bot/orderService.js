@@ -293,13 +293,19 @@ async function transitionOrder(businessId, orderId, toStatus, options = {}) {
     const phoneNumberId = resolvePhoneNumberIdForOrder(order, businessId, orderId);
     const shortId = orderId.slice(-6).toUpperCase();
     const lang = order.language || 'en';
-    const notifyArgs = toStatus === 'approved' ? [shortId, etaTime] : [shortId];
     const bizSnap = await businessRef(businessId).get();
+    const bizData = bizSnap.exists ? bizSnap.data() : {};
+    const contactPhone = bizData.alertPhone || bizData.phone || null;
+    const notifyArgs = toStatus === 'approved'
+      ? [shortId, etaTime]
+      : toStatus === 'rejected'
+        ? [shortId, contactPhone]
+        : [shortId];
     let notifyKey = STATUS_NOTIFY_KEY[toStatus];
     if (options.paymentRefunded && toStatus === 'rejected') notifyKey = 'orderRejectedRefunded';
     if (options.paymentRefunded && toStatus === 'cancelled') notifyKey = 'orderCancelledRefunded';
     await runWithMessageIdentity(PLATFORM_IDENTITY, async () => {
-      applyBusinessInfoIdentity(bizSnap.exists ? bizSnap.data() : { name: order.restaurantName });
+      applyBusinessInfoIdentity(bizSnap.exists ? bizData : { name: order.restaurantName });
       const statusText = t(notifyKey, lang, ...notifyArgs);
       // Self-serve cancel already restarts browsing — skip buttons to avoid double CTA.
       if (TERMINAL_REENTRY_STATUSES.has(toStatus) && !options.skipReentry) {
