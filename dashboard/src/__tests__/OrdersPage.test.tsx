@@ -629,6 +629,111 @@ describe('OrdersPage', () => {
     expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
   })
 
+  it('prints a paid order that lands while the business doc is still loading', async () => {
+    let resolveDoc: (value: { exists: () => boolean; data: () => object }) => void = () => {}
+    mockGetDoc.mockReturnValue(new Promise((resolve) => {
+      resolveDoc = resolve
+    }))
+    let pushOrders: (rows: typeof ORDERS) => void = () => {}
+    mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+      const emit = (rows: typeof ORDERS) => {
+        cb({ docs: rows.map(({ id, ...data }) => ({ id, data: () => data })) })
+      }
+      emit(ORDERS)
+      pushOrders = emit
+      return vi.fn()
+    })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    expect(await screen.findByText('Ali Veli')).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    const paid = {
+      id: 'o-paid',
+      customerId: 'c9',
+      customerName: 'Cemil Kahramanlar',
+      customerPhone: '+436604500555',
+      items: [{ name: 'Margherita', qty: 1, price: 9 }],
+      total: 9,
+      status: 'pending' as const,
+      orderType: 'pickup' as const,
+      paymentMethod: 'stripe' as const,
+      paymentStatus: 'paid' as const,
+      createdAt: TODAY,
+    }
+    await act(async () => {
+      pushOrders([...ORDERS, paid])
+    })
+    expect(await screen.findByText('Cemil Kahramanlar')).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveDoc({
+        exists: () => true,
+        data: () => ({
+          name: 'Pizza Favori',
+          address: 'Laxenburger Straße 85/3, 1100 Wien',
+          alertPhone: '+436604500555',
+          kitchenPrint: { mode: 'local', target: 'windows', value: 'EPSON TM-T20II', autoPrint: false, printOnPaid: true },
+        }),
+      })
+    })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(String(fetchMock.mock.calls[0][1]?.body)).toContain('Cemil Kahramanlar')
+  })
+
+  it('does not print a paid order that lands during load when print on paid is off', async () => {
+    let resolveDoc: (value: { exists: () => boolean; data: () => object }) => void = () => {}
+    mockGetDoc.mockReturnValue(new Promise((resolve) => {
+      resolveDoc = resolve
+    }))
+    let pushOrders: (rows: typeof ORDERS) => void = () => {}
+    mockOnSnapshot.mockImplementation((_q: unknown, cb: (s: object) => void) => {
+      const emit = (rows: typeof ORDERS) => {
+        cb({ docs: rows.map(({ id, ...data }) => ({ id, data: () => data })) })
+      }
+      emit(ORDERS)
+      pushOrders = emit
+      return vi.fn()
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    expect(await screen.findByText('Ali Veli')).toBeInTheDocument()
+    await act(async () => {
+      pushOrders([...ORDERS, {
+        id: 'o-paid',
+        customerId: 'c9',
+        customerName: 'Cemil Kahramanlar',
+        customerPhone: '+436604500555',
+        items: [{ name: 'Margherita', qty: 1, price: 9 }],
+        total: 9,
+        status: 'pending' as const,
+        orderType: 'pickup' as const,
+        paymentMethod: 'stripe' as const,
+        paymentStatus: 'paid' as const,
+        createdAt: TODAY,
+      }])
+    })
+    await act(async () => {
+      resolveDoc({
+        exists: () => true,
+        data: () => ({
+          name: 'Pizza Favori',
+          kitchenPrint: { mode: 'local', target: 'windows', value: 'EPSON TM-T20II', autoPrint: true, printOnPaid: false },
+        }),
+      })
+    })
+    await waitFor(() => expect(mockGetDoc).toHaveBeenCalled())
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+  })
+
   it('does not print locally when accept fails', async () => {
     mockPostOrderAction.mockResolvedValue({ ok: false, error: 'nope' })
     mockLocalKitchenShop()
