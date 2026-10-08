@@ -181,6 +181,13 @@ export interface Business {
   paymentEnabled?: boolean;
   legal?: BusinessLegal;
   imageUrl?: string;
+  /** Optional override of config/whatorder. Missing means the platform fee. */
+  platformFee?: {
+    feeType: 'fixed' | 'percent';
+    feeValue: number;
+    /** YYYY-MM-DD inclusive through the end of that day in Europe/Vienna. */
+    until?: string;
+  };
   menuMatch?: MenuMatch;
   kitchenPrint?: KitchenPrint;
 }

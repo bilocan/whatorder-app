@@ -15,6 +15,7 @@ import { useConfirm } from '../../components/ConfirmDialog';
 import { useAdminPhoneLine } from '../../contexts/AdminPhoneLineContext';
 import { isLegalComplete, withCompleteFlag } from '../../lib/legalProfile';
 import LegalFieldsForm, { type LegalFormState } from '../../components/LegalFieldsForm';
+import PlatformFeeEditor from '../../components/PlatformFeeEditor';
 import type { Business, MenuItem, Owner, VatRate } from '../../types';
 
 const VAT_RATES: VatRate[] = [0, 10, 20];
@@ -545,6 +546,8 @@ const EMPTY_MENU: MenuFormState = {
             </form>
           )}
         </div>
+
+        <PlatformFeeEditor businessId={business.id} platformFee={business.platformFee} />
 
         <section className="settings-card" style={{ maxWidth: 560, marginTop: '1.5rem' }}>
           <h3 className="settings-card-title">{t('settings.legal.title')}</h3>

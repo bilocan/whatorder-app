@@ -139,6 +139,23 @@ describe('B2 Stripe fields survive paymentEnabled=false', () => {
     expect(next.business.paymentEnabled).toBe(false);
   });
 
+  test('cross-env import strips a restaurant fee override', () => {
+    const sanitized = sanitizeBusinessDoc(
+      { name: 'Pizza Favori', platformFee: { feeType: 'percent', feeValue: 0, until: '2026-12-31' } },
+      { profile: 'full', source: PROD_ENV, target: PREPROD_ENV },
+    );
+    expect(sanitized.platformFee).toBeUndefined();
+    expect(sanitized.name).toBe('Pizza Favori');
+  });
+
+  test('same-env full restore keeps a restaurant fee override', () => {
+    const sanitized = sanitizeBusinessDoc(
+      { platformFee: { feeType: 'percent', feeValue: 0 } },
+      { profile: 'full', source: PROD_ENV, target: PROD_ENV },
+    );
+    expect(sanitized.platformFee).toEqual({ feeType: 'percent', feeValue: 0 });
+  });
+
   test('same-env full restore may keep Connect fields', () => {
     const sanitized = sanitizeBusinessDoc(
       { paymentEnabled: true, stripeConnectAccountId: 'acct_1', stripeConnectOnboardingComplete: true },

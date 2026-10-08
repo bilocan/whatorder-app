@@ -983,6 +983,24 @@
         "saving": "Speichern...",
         "cancel": "Abbrechen"
       },
+      "platformFee": {
+        "title": "WhatOrder-Gebühr",
+        "description": "Ohne eigenen Satz gilt die Plattformgebühr. Ein Datum gilt bis zum Ende dieses Tages in Wien.",
+        "usePlatform": "Plattformgebühr verwenden",
+        "custom": "Eigener Satz",
+        "type": "Art",
+        "fixed": "Festbetrag € pro Bestellung",
+        "percent": "% vom Bestellwert",
+        "value": "Wert",
+        "until": "Gilt bis (optional)",
+        "untilHint": "Leer lassen, dann gilt der Satz bis du ihn löschst. Format JJJJ-MM-TT, inklusive dieses Tages in Wien.",
+        "save": "Gebühr speichern",
+        "saving": "Gebühr wird gespeichert…",
+        "saved": "Gespeichert",
+        "error": "Speichern fehlgeschlagen",
+        "invalidValue": "Der Wert muss 0 oder größer sein.",
+        "invalidUntil": "Datum als JJJJ-MM-TT, zum Beispiel 2026-12-31."
+      },
       "menu": {
         "noItems": "Noch keine Menüpunkte.",
         "col": {

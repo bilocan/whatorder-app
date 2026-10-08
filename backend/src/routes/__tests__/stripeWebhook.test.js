@@ -2,12 +2,12 @@ jest.mock('../../lib/firebase', () => ({ db: {}, admin: {} }));
 jest.mock('../../lib/stripe');
 jest.mock('../../lib/paymentService', () => ({
   processStripeWebhookEvent: jest.fn().mockResolvedValue({ duplicate: false }),
-  handleCheckoutSessionCompleted: jest.fn().mockResolvedValue(undefined),
+  completePaidCheckoutSession: jest.fn().mockResolvedValue(true),
 }));
 
 const request = require('supertest');
 const { getStripe } = require('../../lib/stripe');
-const { processStripeWebhookEvent, handleCheckoutSessionCompleted } = require('../../lib/paymentService');
+const { processStripeWebhookEvent, completePaidCheckoutSession } = require('../../lib/paymentService');
 
 describe('Stripe webhook route', () => {
   const originalSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -22,11 +22,7 @@ describe('Stripe webhook route', () => {
           return JSON.parse(body.toString());
         }),
       },
-      checkout: {
-        sessions: {
-          retrieve: jest.fn().mockResolvedValue({ id: 'cs_test', payment_status: 'paid' }),
-        },
-      },
+      checkout: { sessions: { retrieve: jest.fn() } },
     });
   });
 
@@ -58,37 +54,26 @@ describe('Stripe webhook route', () => {
     expect(res.text).toContain('Zu WhatsApp zurück');
   });
 
-  test('GET /payments/success with session_id confirms payment when paid', async () => {
+  test('GET /payments/success with session_id confirms via the paid checkout path', async () => {
     const app = require('../../index');
     const res = await request(app).get('/payments/success?session_id=cs_test');
     expect(res.status).toBe(200);
-    expect(getStripe().checkout.sessions.retrieve).toHaveBeenCalledWith('cs_test');
-    expect(handleCheckoutSessionCompleted).toHaveBeenCalledWith({ id: 'cs_test', payment_status: 'paid' });
+    expect(completePaidCheckoutSession).toHaveBeenCalledWith('cs_test');
   });
 
-  test('GET /payments/success with session_id skips confirmation when not paid', async () => {
-    getStripe().checkout.sessions.retrieve.mockResolvedValue({ id: 'cs_test', payment_status: 'unpaid' });
-    const app = require('../../index');
-    const res = await request(app).get('/payments/success?session_id=cs_test');
-    expect(res.status).toBe(200);
-    expect(handleCheckoutSessionCompleted).not.toHaveBeenCalled();
-  });
-
-  test('GET /payments/success still renders when Stripe session lookup fails', async () => {
-    getStripe().checkout.sessions.retrieve.mockRejectedValue(new Error('boom'));
+  test('GET /payments/success still renders when confirmation throws', async () => {
+    completePaidCheckoutSession.mockRejectedValue(new Error('boom'));
     const app = require('../../index');
     const res = await request(app).get('/payments/success?session_id=cs_test');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Payment received');
-    expect(handleCheckoutSessionCompleted).not.toHaveBeenCalled();
   });
 
-  test('GET /payments/success without session_id does not call Stripe', async () => {
+  test('GET /payments/success without session_id does not confirm', async () => {
     const app = require('../../index');
     const res = await request(app).get('/payments/success');
     expect(res.status).toBe(200);
-    expect(getStripe().checkout.sessions.retrieve).not.toHaveBeenCalled();
-    expect(handleCheckoutSessionCompleted).not.toHaveBeenCalled();
+    expect(completePaidCheckoutSession).not.toHaveBeenCalled();
   });
 
   test('POST /webhooks/stripe with invalid signature → 400', async () => {
