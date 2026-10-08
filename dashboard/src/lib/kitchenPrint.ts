@@ -1,3 +1,4 @@
+import { isKitchenPaymentBlocked } from './orderActions';
 import type { OrderBelegPrintInput } from './printOrderBeleg';
 
 /** Local kitchen-print program on this machine. */
@@ -13,6 +14,8 @@ export interface KitchenPrint {
   value: string;
   /** Printing the bon when the kitchen accepts. Missing on the business doc means on. */
   autoPrint: boolean;
+  /** Printing the bon when a paid order lands, before accept. Missing means off. Accept does not print again. */
+  printOnPaid: boolean;
 }
 
 export type LocalPrintResult =
@@ -21,7 +24,7 @@ export type LocalPrintResult =
 
 export function parseKitchenPrint(raw: unknown): KitchenPrint {
   if (!raw || typeof raw !== 'object') {
-    return { mode: 'chrome', target: 'windows', value: '', autoPrint: true };
+    return { mode: 'chrome', target: 'windows', value: '', autoPrint: true, printOnPaid: false };
   }
   const record = raw as Record<string, unknown>;
   return {
@@ -29,7 +32,34 @@ export function parseKitchenPrint(raw: unknown): KitchenPrint {
     target: record.target === 'ip' ? 'ip' : 'windows',
     value: typeof record.value === 'string' ? record.value : '',
     autoPrint: record.autoPrint !== false,
+    printOnPaid: record.printOnPaid === true,
   };
+}
+
+type PaidArrivalOrder = {
+  id: string;
+  status?: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+};
+
+/** First call remembers orders already on the board and prints none. Later calls return newly payable pending orders. */
+export function nextPaidArrivalPrints<T extends PaidArrivalOrder>(
+  seen: Set<string> | null,
+  orders: T[],
+): { seen: Set<string>; toPrint: T[] } {
+  const printable = orders.filter((order) => order.status === 'pending' && !isKitchenPaymentBlocked(order));
+  if (seen === null) {
+    return { seen: new Set(printable.map((order) => order.id)), toPrint: [] };
+  }
+  const next = new Set(seen);
+  const toPrint: T[] = [];
+  for (const order of printable) {
+    if (next.has(order.id)) continue;
+    next.add(order.id);
+    toPrint.push(order);
+  }
+  return { seen: next, toPrint };
 }
 
 /** Null when the value is usable. Chrome always passes. */

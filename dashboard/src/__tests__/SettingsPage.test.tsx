@@ -344,7 +344,7 @@ describe('SettingsPage — kitchen printer', () => {
 
     await waitFor(() => {
       expect(mockUpdateDoc).toHaveBeenCalledWith('mock-doc-ref', {
-        kitchenPrint: { mode: 'chrome', target: 'windows', value: 'EPSON TM-T20II', autoPrint: true },
+        kitchenPrint: { mode: 'chrome', target: 'windows', value: 'EPSON TM-T20II', autoPrint: true, printOnPaid: false },
       })
     })
   })
@@ -364,7 +364,30 @@ describe('SettingsPage — kitchen printer', () => {
 
     await waitFor(() => {
       expect(mockUpdateDoc).toHaveBeenCalledWith('mock-doc-ref', {
-        kitchenPrint: { mode: 'chrome', target: 'windows', value: '', autoPrint: false },
+        kitchenPrint: { mode: 'chrome', target: 'windows', value: '', autoPrint: false, printOnPaid: false },
+      })
+    })
+  })
+
+  it('saves print on paid and turns off print on accept', async () => {
+    renderSettings('/settings')
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Kitchen printer' })).toBeInTheDocument()
+    })
+
+    const user = userEvent.setup()
+    const onPaid = screen.getByRole('checkbox', { name: 'Print the slip when a paid order comes in' })
+    const onAccept = screen.getByRole('checkbox', { name: 'Print automatically when you accept' })
+    expect(onPaid).not.toBeChecked()
+    await user.click(onPaid)
+    expect(onAccept).not.toBeChecked()
+    expect(onAccept).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(mockUpdateDoc).toHaveBeenCalledWith('mock-doc-ref', {
+        kitchenPrint: { mode: 'chrome', target: 'windows', value: '', autoPrint: false, printOnPaid: true },
       })
     })
   })
