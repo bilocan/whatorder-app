@@ -105,7 +105,9 @@ async function completePaidCheckoutSession(sessionId) {
   if (!sessionId) return false;
   const stripe = getStripe();
   if (!stripe) throw new Error('Stripe is not configured');
-  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ['payment_intent.latest_charge'],
+  });
   const paid = session.payment_status === 'paid' || session.status === 'complete';
   if (!paid) return false;
   await handleCheckoutSessionCompleted(session);
@@ -170,7 +172,18 @@ async function claimPaymentNotification(orderRef) {
   });
 }
 
-async function handleCheckoutSessionCompleted(session) {
+/** Stripe event time, else the charge time, else now. A late handler must not miss a waiver. */
+function feeAsOfDate(session, paidAt) {
+  if (paidAt instanceof Date && !Number.isNaN(paidAt.getTime())) return paidAt;
+  const intent = session?.payment_intent;
+  const charge = intent && typeof intent === 'object' ? intent.latest_charge : null;
+  if (charge && typeof charge === 'object' && typeof charge.created === 'number') {
+    return new Date(charge.created * 1000);
+  }
+  return new Date();
+}
+
+async function handleCheckoutSessionCompleted(session, paidAt) {
   const businessId = session.metadata?.business_id;
   const orderId = session.metadata?.order_id;
   if (!businessId || !orderId) {
@@ -205,7 +218,11 @@ async function handleCheckoutSessionCompleted(session) {
   const grossAmountCents = session.amount_total ?? Math.round((order.total || 0) * 100);
   const platformFee = await getFeeConfig();
   const bizSnap = await businessRef(businessId).get();
-  const feeConfig = resolveEffectiveFee(platformFee, bizSnap.exists ? bizSnap.data().platformFee : null);
+  const feeConfig = resolveEffectiveFee(
+    platformFee,
+    bizSnap.exists ? bizSnap.data().platformFee : null,
+    feeAsOfDate(session, paidAt),
+  );
   const settlementConfig = await getSettlementConfig();
   const whatorderFeeCents = calcFeeCents(grossAmountCents, feeConfig);
   const restaurantNetCents = Math.max(0, grossAmountCents - whatorderFeeCents);
@@ -494,7 +511,10 @@ async function processStripeWebhookEvent(event) {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
     if (session.payment_status === 'paid') {
-      await handleCheckoutSessionCompleted(session);
+      const paidAt = typeof event.created === 'number' && Number.isFinite(event.created)
+        ? new Date(event.created * 1000)
+        : undefined;
+      await handleCheckoutSessionCompleted(session, paidAt);
     }
   } else if (event.type === 'charge.refunded') {
     await handleChargeRefunded(event.data.object);

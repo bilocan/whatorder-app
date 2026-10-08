@@ -422,6 +422,69 @@ describe('handleCheckoutSessionCompleted', () => {
     }));
   });
 
+  test('a waiver uses the payment time, not when the handler runs', async () => {
+    const { calcFeeCents: realCalcFeeCents } = jest.requireActual('../feeConfig');
+    calcFeeCents.mockImplementation(realCalcFeeCents);
+    getFeeConfig.mockResolvedValue({ feeType: 'percent', feeValue: 10 });
+    mockBusiness({
+      name: 'Pizza Favori',
+      legal: COMPLETE_LEGAL,
+      platformFee: { feeType: 'percent', feeValue: 0, until: '2026-12-31' },
+    });
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'pending',
+        total: 29,
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+
+    const session = {
+      id: 'cs_1',
+      payment_status: 'paid',
+      amount_total: 2900,
+      payment_intent: 'pi_1',
+      metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+    };
+    const paidOnLastDay = new Date('2026-12-31T22:59:00.000Z');
+    await processStripeWebhookEvent({
+      id: 'evt_waiver',
+      type: 'checkout.session.completed',
+      created: Math.floor(paidOnLastDay.getTime() / 1000),
+      data: { object: session },
+    });
+    expect(mockOrderUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      whatorderFeeCents: 0,
+      restaurantNetCents: 2900,
+    }));
+
+    mockOrderUpdate.mockClear();
+    mockOrderGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        paymentStatus: 'pending',
+        total: 29,
+        customerPhone: '+431234',
+        language: 'en',
+        whatsappPhoneNumberId: 'prod_phone_id',
+      }),
+    });
+    const paidNextDay = new Date('2026-12-31T23:00:00.000Z');
+    await processStripeWebhookEvent({
+      id: 'evt_after',
+      type: 'checkout.session.completed',
+      created: Math.floor(paidNextDay.getTime() / 1000),
+      data: { object: { ...session, id: 'cs_2' } },
+    });
+    expect(mockOrderUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      whatorderFeeCents: 290,
+      restaurantNetCents: 2610,
+    }));
+  });
+
   test('refunds a checkout that completes after the customer withdrew the order', async () => {
     const create = jest.fn().mockResolvedValue({ id: 're_1' });
     getStripe.mockReturnValue({ refunds: { create } });
