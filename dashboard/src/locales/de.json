@@ -605,7 +605,9 @@
       "errName": "Trag den Windows-Druckernamen ein.",
       "errIp": "Trag eine IPv4-Adresse ein. :Port nur, wenn es nicht 9100 ist.",
       "errSave": "Der Drucker wurde nicht gespeichert. Versuch es nochmal.",
-      "targetLabel": "Druckeranschluss"
+      "targetLabel": "Druckeranschluss",
+      "autoPrint": "Beim Annehmen automatisch drucken",
+      "autoPrintHint": "Ohne Haken druckst du den Bon nur über Beleg drucken."
     },
     "ordering": {
       "title": "Bestellung",

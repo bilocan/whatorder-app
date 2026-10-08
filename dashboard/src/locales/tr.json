@@ -605,7 +605,9 @@
       "errName": "Windows yazıcı adını yaz.",
       "errIp": "Bir IPv4 adresi yaz. Port yalnızca 9100 değilse :port ekle.",
       "errSave": "Yazıcı kaydedilemedi. Tekrar dene.",
-      "targetLabel": "Yazıcı bağlantısı"
+      "targetLabel": "Yazıcı bağlantısı",
+      "autoPrint": "Kabul edince otomatik yazdır",
+      "autoPrintHint": "Kapalıyken fişi yalnızca Fişi yazdır ile çıkarırsın."
     },
     "ordering": {
       "title": "Sipariş",

@@ -11,6 +11,8 @@ export interface KitchenPrint {
   mode: KitchenPrintMode;
   target: KitchenPrintTarget;
   value: string;
+  /** Printing the bon when the kitchen accepts. Missing on the business doc means on. */
+  autoPrint: boolean;
 }
 
 export type LocalPrintResult =
@@ -19,13 +21,14 @@ export type LocalPrintResult =
 
 export function parseKitchenPrint(raw: unknown): KitchenPrint {
   if (!raw || typeof raw !== 'object') {
-    return { mode: 'chrome', target: 'windows', value: '' };
+    return { mode: 'chrome', target: 'windows', value: '', autoPrint: true };
   }
   const record = raw as Record<string, unknown>;
   return {
     mode: record.mode === 'local' ? 'local' : 'chrome',
     target: record.target === 'ip' ? 'ip' : 'windows',
     value: typeof record.value === 'string' ? record.value : '',
+    autoPrint: record.autoPrint !== false,
   };
 }
 
