@@ -26,7 +26,8 @@
     "adminMap": "Map",
     "earnings": "Earnings",
     "aiConfig": "AI config",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "minimize": "Minimize"
   },
   "lang": {
     "label": "Language",

@@ -109,6 +109,57 @@ body {
 .nav-brand {
   margin-bottom: 1rem;
 }
+.fullscreen-minimize {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 44px;
+  margin: 0 0 0.75rem;
+  padding: 0.4rem 0.6rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #111;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.fullscreen-minimize-icon {
+  width: 12px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+.fullscreen-minimize-compact {
+  width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+}
+.fullscreen-minimize-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 640px) {
+  .layout-nav .fullscreen-minimize {
+    display: none;
+  }
+}
+@media (min-width: 641px) {
+  .layout-mobile-header .fullscreen-minimize {
+    display: none;
+  }
+}
 .nav-link {
   display: block;
   padding: 0.5rem 0;

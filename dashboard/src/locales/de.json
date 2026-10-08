@@ -26,7 +26,8 @@
     "adminMap": "Karte",
     "earnings": "Erlöse",
     "aiConfig": "KI-Config",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "minimize": "Minimieren"
   },
   "lang": {
     "label": "Sprache",
