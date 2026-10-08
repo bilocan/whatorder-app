@@ -26,6 +26,7 @@ describe('parseKitchenPrint', () => {
       mode: 'chrome',
       target: 'windows',
       value: '',
+      autoPrint: true,
     })
   })
 
@@ -34,28 +35,35 @@ describe('parseKitchenPrint', () => {
       mode: 'chrome',
       target: 'windows',
       value: 'EPSON',
+      autoPrint: true,
     })
+  })
+
+  it('keeps auto print on unless the saved value is false', () => {
+    expect(parseKitchenPrint({ mode: 'local', autoPrint: false }).autoPrint).toBe(false)
+    expect(parseKitchenPrint({ mode: 'local', autoPrint: true }).autoPrint).toBe(true)
+    expect(parseKitchenPrint({ mode: 'local' }).autoPrint).toBe(true)
   })
 })
 
 describe('validateKitchenPrint', () => {
   it('accepts chrome when the value is EPSON', () => {
-    const print: KitchenPrint = { mode: 'chrome', target: 'windows', value: 'EPSON' }
+    const print: KitchenPrint = { mode: 'chrome', target: 'windows', value: 'EPSON', autoPrint: true }
     expect(validateKitchenPrint(print)).toBeNull()
   })
 
   it('accepts chrome when the value is empty', () => {
-    const print: KitchenPrint = { mode: 'chrome', target: 'windows', value: '' }
+    const print: KitchenPrint = { mode: 'chrome', target: 'windows', value: '', autoPrint: true }
     expect(validateKitchenPrint(print)).toBeNull()
   })
 
   it('returns name when the local windows name is empty', () => {
-    const print: KitchenPrint = { mode: 'local', target: 'windows', value: '' }
+    const print: KitchenPrint = { mode: 'local', target: 'windows', value: '', autoPrint: true }
     expect(validateKitchenPrint(print)).toBe('name')
   })
 
   it('accepts a local IPv4 address with no port', () => {
-    const print: KitchenPrint = { mode: 'local', target: 'ip', value: '192.168.0.5' }
+    const print: KitchenPrint = { mode: 'local', target: 'ip', value: '192.168.0.5', autoPrint: true }
     expect(validateKitchenPrint(print)).toBeNull()
   })
 
@@ -71,7 +79,7 @@ describe('validateKitchenPrint', () => {
   })
 
   it('returns ip for a hostname', () => {
-    const print: KitchenPrint = { mode: 'local', target: 'ip', value: 'printer.local' }
+    const print: KitchenPrint = { mode: 'local', target: 'ip', value: 'printer.local', autoPrint: true }
     expect(validateKitchenPrint(print)).toBe('ip')
   })
 

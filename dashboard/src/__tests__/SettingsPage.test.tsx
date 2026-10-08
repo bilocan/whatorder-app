@@ -344,7 +344,27 @@ describe('SettingsPage — kitchen printer', () => {
 
     await waitFor(() => {
       expect(mockUpdateDoc).toHaveBeenCalledWith('mock-doc-ref', {
-        kitchenPrint: { mode: 'chrome', target: 'windows', value: 'EPSON TM-T20II' },
+        kitchenPrint: { mode: 'chrome', target: 'windows', value: 'EPSON TM-T20II', autoPrint: true },
+      })
+    })
+  })
+
+  it('saves auto print off without clearing the printer', async () => {
+    renderSettings('/settings')
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Kitchen printer' })).toBeInTheDocument()
+    })
+
+    const user = userEvent.setup()
+    const autoPrint = screen.getByRole('checkbox', { name: 'Print automatically when you accept' })
+    expect(autoPrint).toBeChecked()
+    await user.click(autoPrint)
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(mockUpdateDoc).toHaveBeenCalledWith('mock-doc-ref', {
+        kitchenPrint: { mode: 'chrome', target: 'windows', value: '', autoPrint: false },
       })
     })
   })

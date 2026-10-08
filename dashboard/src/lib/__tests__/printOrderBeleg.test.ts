@@ -37,6 +37,10 @@ describe('buildOrderBelegHtml', () => {
     expect(html).toContain('€17.50')
     expect(html).toContain('Huttengasse 41')
     expect(html).toContain('ohne Zwiebel')
+    expect(html).toContain('class="addr"')
+    expect(html).toContain('class="item"')
+    expect(html).toContain('.addr { margin-top: 2mm; font-size: 22px;')
+    expect(html).toContain('tr.item td { font-size: 22px;')
   })
 
   it('escapes customer text so it cannot break the receipt markup', () => {

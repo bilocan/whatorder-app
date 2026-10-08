@@ -77,7 +77,7 @@ export function buildOrderBelegHtml(input: OrderBelegPrintInput): string {
   const rows = input.lines
     .map(
       (line) =>
-        `<tr><td>${esc(line.label)}</td><td class="amt">${esc(line.amount)}</td></tr>`,
+        `<tr class="item"><td>${esc(line.label)}</td><td class="amt">${esc(line.amount)}</td></tr>`,
     )
     .join('');
   const adjustments = input.adjustments
@@ -86,7 +86,7 @@ export function buildOrderBelegHtml(input: OrderBelegPrintInput): string {
   const fulfillment = input.fulfillment
     ? `<div>${esc(input.fulfillment)}</div>`
     : '';
-  const address = input.address ? `<div>${esc(input.address)}</div>` : '';
+  const address = input.address ? `<div class="addr">${esc(input.address)}</div>` : '';
   const notes = input.notes ? `<p class="note">${esc(input.notes)}</p>` : '';
   const payment = input.payment ? `<p class="pay">${esc(input.payment)}</p>` : '';
   const shopName = input.restaurantName
@@ -120,8 +120,10 @@ export function buildOrderBelegHtml(input: OrderBelegPrintInput): string {
   .shop { margin: 0 0 3mm; text-align: center; }
   .shop-name { font-size: 15px; font-weight: 700; margin-bottom: 1mm; }
   .meta { margin: 0 0 3mm; text-align: center; }
+  .addr { margin-top: 2mm; font-size: 22px; font-weight: 700; line-height: 1.15; text-align: right; }
   table { width: 100%; border-collapse: collapse; }
   td { vertical-align: top; padding: 0.6mm 0; }
+  tr.item td { font-size: 22px; font-weight: 700; line-height: 1.15; padding: 2.4mm 0; }
   td.amt { text-align: right; white-space: nowrap; padding-left: 2mm; font-weight: 700; }
   .rule { border: 0; border-top: 1px dashed #000; margin: 2mm 0; }
   .total td { font-size: 14px; font-weight: 700; padding-top: 1mm; }
