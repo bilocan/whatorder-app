@@ -372,7 +372,9 @@ export default function OrdersPage() {
       setOrders((prev) =>
         prev.map((o) => (o.id === order.id ? { ...o, ...patch } : o)),
       );
-      if (action === 'approve') void printKitchenBeleg(order);
+      if (action === 'approve' && restaurant?.kitchenPrint.autoPrint !== false) {
+        void printKitchenBeleg(order);
+      }
       if (TERMINAL_STATUSES.has(result.nextStatus) && openOrderId === order.id) {
         setOpenOrderId(null);
       }

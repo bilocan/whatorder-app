@@ -605,7 +605,9 @@
       "errName": "Enter the Windows printer name.",
       "errIp": "Enter an IPv4 address. Add :port only when it is not 9100.",
       "errSave": "Could not save the printer. Try again.",
-      "targetLabel": "Printer connection"
+      "targetLabel": "Printer connection",
+      "autoPrint": "Print automatically when you accept",
+      "autoPrintHint": "With this off, the slip prints only from Print receipt."
     },
     "ordering": {
       "title": "Ordering",

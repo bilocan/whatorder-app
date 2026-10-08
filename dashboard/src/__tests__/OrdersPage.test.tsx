@@ -541,6 +541,34 @@ describe('OrdersPage', () => {
     expect(within(dialog).queryByText('printer offline')).not.toBeInTheDocument()
   })
 
+  it('does not print on accept when auto print is off, and still prints from the receipt button', async () => {
+    mockGetDoc.mockResolvedValue({
+      exists: () => true,
+      data: () => ({
+        name: 'Enes Kebap',
+        address: 'Huttengasse 41, 1160 Wien',
+        alertPhone: '+43 660 111111',
+        kitchenPrint: { mode: 'local', target: 'windows', value: 'EPSON TM-T20II', autoPrint: false },
+      }),
+    })
+    mockOrders()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await waitForRestaurant()
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() => expect(mockPostOrderAction).toHaveBeenCalled())
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mockPrintOrderBeleg).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByText('Ali Veli'))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Print receipt' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+  })
+
   it('does not print locally when accept fails', async () => {
     mockPostOrderAction.mockResolvedValue({ ok: false, error: 'nope' })
     mockLocalKitchenShop()
