@@ -108,8 +108,9 @@ async function completePaidCheckoutSession(sessionId) {
   const session = await stripe.checkout.sessions.retrieve(sessionId, {
     expand: ['payment_intent.latest_charge'],
   });
-  const paid = session.payment_status === 'paid' || session.status === 'complete';
-  if (!paid) return false;
+  // A completed Checkout can still be unpaid for delayed methods. The success
+  // URL and the webhook both wait for payment_status paid.
+  if (session.payment_status !== 'paid') return false;
   await handleCheckoutSessionCompleted(session);
   return true;
 }

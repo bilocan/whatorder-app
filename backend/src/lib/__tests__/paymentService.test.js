@@ -337,6 +337,19 @@ describe('completePaidCheckoutSession', () => {
     expect(sendText).not.toHaveBeenCalled();
   });
 
+  test('does nothing when Checkout is complete but the payment is still unpaid', async () => {
+    const retrieve = jest.fn().mockResolvedValue({
+      id: 'cs_1',
+      status: 'complete',
+      payment_status: 'unpaid',
+      metadata: { business_id: 'biz1', order_id: 'order_abc123' },
+    });
+    getStripe.mockReturnValue({ checkout: { sessions: { retrieve } } });
+
+    await expect(completePaidCheckoutSession('cs_1')).resolves.toBe(false);
+    expect(sendText).not.toHaveBeenCalled();
+  });
+
   test('uses the charge time so a late success page keeps a waiver that was active when the customer paid', async () => {
     const { calcFeeCents: realCalcFeeCents } = jest.requireActual('../feeConfig');
     calcFeeCents.mockImplementation(realCalcFeeCents);
