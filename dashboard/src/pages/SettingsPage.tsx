@@ -168,6 +168,7 @@ export default function SettingsPage() {
   const [kitchenTarget, setKitchenTarget] = useState<KitchenPrintTarget>('windows');
   const [kitchenValue, setKitchenValue] = useState('');
   const [kitchenAutoPrint, setKitchenAutoPrint] = useState(true);
+  const [kitchenPrintOnPaid, setKitchenPrintOnPaid] = useState(false);
   const [kitchenSaveStatus, setKitchenSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [kitchenError, setKitchenError] = useState<'name' | 'ip' | null>(null);
   /** Session-only; rare fields stay unmounted until expanded. */
@@ -195,7 +196,8 @@ export default function SettingsPage() {
         setKitchenMode(kitchen.mode);
         setKitchenTarget(kitchen.target);
         setKitchenValue(kitchen.value);
-        setKitchenAutoPrint(kitchen.autoPrint);
+        setKitchenAutoPrint(kitchen.printOnPaid ? false : kitchen.autoPrint);
+        setKitchenPrintOnPaid(kitchen.printOnPaid);
         if (data.botLanguage) setBotLanguage(data.botLanguage);
         if (data.schedule) {
           setDayMap(prev => {
@@ -383,11 +385,13 @@ export default function SettingsPage() {
 
   async function handleSaveKitchenPrint() {
     if (!businessId) return;
+    const autoPrint = kitchenPrintOnPaid ? false : kitchenAutoPrint;
     const error = validateKitchenPrint({
       mode: kitchenMode,
       target: kitchenTarget,
       value: kitchenValue,
-      autoPrint: kitchenAutoPrint,
+      autoPrint,
+      printOnPaid: kitchenPrintOnPaid,
     });
     if (error) {
       setKitchenError(error);
@@ -399,10 +403,11 @@ export default function SettingsPage() {
     setKitchenSaveStatus('saving');
     try {
       await updateDoc(doc(db, 'businesses', businessId), {
-        kitchenPrint: { mode: kitchenMode, target: kitchenTarget, value, autoPrint: kitchenAutoPrint },
+        kitchenPrint: { mode: kitchenMode, target: kitchenTarget, value, autoPrint, printOnPaid: kitchenPrintOnPaid },
       });
       setKitchenValue(value);
-      setBusiness(prev => prev ? { ...prev, kitchenPrint: { mode: kitchenMode, target: kitchenTarget, value, autoPrint: kitchenAutoPrint } } : prev);
+      setKitchenAutoPrint(autoPrint);
+      setBusiness(prev => prev ? { ...prev, kitchenPrint: { mode: kitchenMode, target: kitchenTarget, value, autoPrint, printOnPaid: kitchenPrintOnPaid } } : prev);
       setKitchenSaveStatus('saved');
       setTimeout(() => setKitchenSaveStatus('idle'), 2500);
     } catch {
@@ -584,12 +589,28 @@ export default function SettingsPage() {
             <label className="settings-check">
               <input
                 type="checkbox"
+                checked={kitchenPrintOnPaid}
+                onChange={e => {
+                  const on = e.target.checked;
+                  setKitchenPrintOnPaid(on);
+                  if (on) setKitchenAutoPrint(false);
+                }}
+              />
+              <span>{t('settings.kitchenPrint.printOnPaid')}</span>
+            </label>
+            <p className="settings-card-desc">{t('settings.kitchenPrint.printOnPaidHint')}</p>
+            <label className="settings-check">
+              <input
+                type="checkbox"
                 checked={kitchenAutoPrint}
+                disabled={kitchenPrintOnPaid}
                 onChange={e => setKitchenAutoPrint(e.target.checked)}
               />
               <span>{t('settings.kitchenPrint.autoPrint')}</span>
             </label>
-            <p className="settings-card-desc">{t('settings.kitchenPrint.autoPrintHint')}</p>
+            {!kitchenPrintOnPaid && (
+              <p className="settings-card-desc">{t('settings.kitchenPrint.autoPrintHint')}</p>
+            )}
             <div className="settings-field">
               <select
                 id="settings-kitchen-mode"

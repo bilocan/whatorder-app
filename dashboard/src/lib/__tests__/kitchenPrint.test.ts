@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { OrderBelegPrintInput } from '../printOrderBeleg'
 import {
   claimKitchenJob,
+  nextPaidArrivalPrints,
   parseKitchenPrint,
   postKitchenBon,
   releaseKitchenJob,
@@ -27,6 +28,7 @@ describe('parseKitchenPrint', () => {
       target: 'windows',
       value: '',
       autoPrint: true,
+      printOnPaid: false,
     })
   })
 
@@ -36,7 +38,14 @@ describe('parseKitchenPrint', () => {
       target: 'windows',
       value: 'EPSON',
       autoPrint: true,
+      printOnPaid: false,
     })
+  })
+
+  it('turns print on paid on only when the saved value is true', () => {
+    expect(parseKitchenPrint({ printOnPaid: true }).printOnPaid).toBe(true)
+    expect(parseKitchenPrint({ printOnPaid: false }).printOnPaid).toBe(false)
+    expect(parseKitchenPrint({}).printOnPaid).toBe(false)
   })
 
   it('keeps auto print on unless the saved value is false', () => {
@@ -46,24 +55,55 @@ describe('parseKitchenPrint', () => {
   })
 })
 
+describe('nextPaidArrivalPrints', () => {
+  const pending = (id: string, paymentStatus?: string, paymentMethod?: string) => ({
+    id,
+    status: 'pending',
+    paymentMethod,
+    paymentStatus,
+  })
+
+  it('remembers orders already on the board and prints none', () => {
+    const first = nextPaidArrivalPrints(null, [pending('a', 'paid', 'stripe'), pending('b', 'cash', 'cash')])
+    expect(first.toPrint).toEqual([])
+    expect([...first.seen]).toEqual(['a', 'b'])
+  })
+
+  it('prints a card order when it becomes paid, and a cash order when it lands', () => {
+    const first = nextPaidArrivalPrints(null, [pending('waiting', 'pending', 'stripe')])
+    const paid = nextPaidArrivalPrints(first.seen, [pending('waiting', 'paid', 'stripe'), pending('cash', 'cash', 'cash')])
+    expect(paid.toPrint.map((order) => order.id)).toEqual(['waiting', 'cash'])
+  })
+
+  it('does not print an unpaid card order or an order that already printed', () => {
+    const first = nextPaidArrivalPrints(null, [])
+    const unpaid = nextPaidArrivalPrints(first.seen, [pending('card', 'pending', 'stripe'), { id: 'done', status: 'approved', paymentMethod: 'stripe', paymentStatus: 'paid' }])
+    expect(unpaid.toPrint).toEqual([])
+    const again = nextPaidArrivalPrints(unpaid.seen, [pending('card', 'paid', 'stripe')])
+    expect(again.toPrint.map((order) => order.id)).toEqual(['card'])
+    const duplicate = nextPaidArrivalPrints(again.seen, [pending('card', 'paid', 'stripe')])
+    expect(duplicate.toPrint).toEqual([])
+  })
+})
+
 describe('validateKitchenPrint', () => {
   it('accepts chrome when the value is EPSON', () => {
-    const print: KitchenPrint = { mode: 'chrome', target: 'windows', value: 'EPSON', autoPrint: true }
+    const print: KitchenPrint = { mode: 'chrome', target: 'windows', value: 'EPSON', autoPrint: true, printOnPaid: false }
     expect(validateKitchenPrint(print)).toBeNull()
   })
 
   it('accepts chrome when the value is empty', () => {
-    const print: KitchenPrint = { mode: 'chrome', target: 'windows', value: '', autoPrint: true }
+    const print: KitchenPrint = { mode: 'chrome', target: 'windows', value: '', autoPrint: true, printOnPaid: false }
     expect(validateKitchenPrint(print)).toBeNull()
   })
 
   it('returns name when the local windows name is empty', () => {
-    const print: KitchenPrint = { mode: 'local', target: 'windows', value: '', autoPrint: true }
+    const print: KitchenPrint = { mode: 'local', target: 'windows', value: '', autoPrint: true, printOnPaid: false }
     expect(validateKitchenPrint(print)).toBe('name')
   })
 
   it('accepts a local IPv4 address with no port', () => {
-    const print: KitchenPrint = { mode: 'local', target: 'ip', value: '192.168.0.5', autoPrint: true }
+    const print: KitchenPrint = { mode: 'local', target: 'ip', value: '192.168.0.5', autoPrint: true, printOnPaid: false }
     expect(validateKitchenPrint(print)).toBeNull()
   })
 
@@ -79,7 +119,7 @@ describe('validateKitchenPrint', () => {
   })
 
   it('returns ip for a hostname', () => {
-    const print: KitchenPrint = { mode: 'local', target: 'ip', value: 'printer.local', autoPrint: true }
+    const print: KitchenPrint = { mode: 'local', target: 'ip', value: 'printer.local', autoPrint: true, printOnPaid: false }
     expect(validateKitchenPrint(print)).toBe('ip')
   })
 

@@ -11,6 +11,7 @@ import { shortId } from '../lib/shortId';
 import { belegFulfillmentLine, belegPaymentLine, printOrderBeleg, restaurantSlipLines } from '../lib/printOrderBeleg';
 import {
   claimKitchenJob,
+  nextPaidArrivalPrints,
   parseKitchenPrint,
   postKitchenBon,
   releaseKitchenJob,
@@ -67,6 +68,12 @@ export default function OrdersPage() {
   const [printErrors, setPrintErrors] = useState<Record<string, string>>({});
   const [printingTick, setPrintingTick] = useState(0);
   const printingRef = useRef(new Set<string>());
+  const paidArrivalSeenRef = useRef<Set<string> | null>(null);
+  const paidArrivalQueueRef = useRef<Order[]>([]);
+  const ordersBusinessRef = useRef<string | null>(null);
+  const restaurantRef = useRef<RestaurantBoard | null>(null);
+  const printKitchenBelegRef = useRef<(order: Order) => void>(() => {});
+  restaurantRef.current = restaurant;
   const reloadRestaurantRef = useRef<(() => void) | null>(null);
   const ordersRef = useRef(orders);
   const boardViewRef = useRef({ active: true, day: '' });
@@ -103,12 +110,18 @@ export default function OrdersPage() {
     if (!businessId) {
       setRestaurant(null);
       setPrintErrors({});
+      paidArrivalSeenRef.current = null;
+      paidArrivalQueueRef.current = [];
+      ordersBusinessRef.current = null;
       return;
     }
     // Drop the previous business so its kitchenPrint is never used before this doc loads.
     // Printer errors belong to that shop too: a not-yet-loaded doc is not "program down".
     setRestaurant(null);
     setPrintErrors({});
+    paidArrivalSeenRef.current = null;
+    paidArrivalQueueRef.current = [];
+    ordersBusinessRef.current = null;
     let cancelled = false;
     let inFlight = false;
     let retryTimer: number | undefined;
@@ -196,12 +209,26 @@ export default function OrdersPage() {
       orderBy('createdAt', 'desc'),
     );
     return onSnapshot(q, (snap) => {
+      ordersBusinessRef.current = businessId;
       const docs = snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) } as Order));
       docs.sort((a, b) => toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime());
       const remote = filterOrdersByPhoneRouting(docs, activePhoneNumberId);
       const { orders: merged, clearedIds } = mergeOrdersWithOptimistic(remote, optimisticRef.current);
       for (const id of clearedIds) optimisticRef.current.delete(id);
       setOrders(merged);
+      const arrival = nextPaidArrivalPrints(paidArrivalSeenRef.current, merged);
+      paidArrivalSeenRef.current = arrival.seen;
+      const shop = restaurantRef.current;
+      if (!shop) {
+        paidArrivalQueueRef.current.push(...arrival.toPrint);
+        return;
+      }
+      const waiting = paidArrivalQueueRef.current;
+      paidArrivalQueueRef.current = [];
+      if (!shop.kitchenPrint.printOnPaid) return;
+      for (const order of [...waiting, ...arrival.toPrint]) {
+        void printKitchenBelegRef.current(order);
+      }
     });
   }, [businessId, activePhoneNumberId]);
 
@@ -355,6 +382,18 @@ export default function OrdersPage() {
     })();
   }
 
+  printKitchenBelegRef.current = printKitchenBeleg;
+
+  useEffect(() => {
+    if (!businessId || !restaurant || ordersBusinessRef.current !== businessId) return;
+    const waiting = paidArrivalQueueRef.current;
+    paidArrivalQueueRef.current = [];
+    if (!restaurant.kitchenPrint.printOnPaid) return;
+    for (const order of waiting) {
+      void printKitchenBelegRef.current(order);
+    }
+  }, [businessId, restaurant]);
+
   async function runAction(order: Order, action: string) {
     if (!businessId) return;
     setOrderLoading(order.id, true);
@@ -372,7 +411,12 @@ export default function OrdersPage() {
       setOrders((prev) =>
         prev.map((o) => (o.id === order.id ? { ...o, ...patch } : o)),
       );
-      if (action === 'approve' && restaurant?.kitchenPrint.autoPrint !== false) {
+      if (
+        action === 'approve'
+        && restaurant
+        && restaurant.kitchenPrint.autoPrint !== false
+        && !restaurant.kitchenPrint.printOnPaid
+      ) {
         void printKitchenBeleg(order);
       }
       if (TERMINAL_STATUSES.has(result.nextStatus) && openOrderId === order.id) {
