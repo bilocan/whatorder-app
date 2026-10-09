@@ -479,6 +479,32 @@ function isGreetingOnly(norm) {
   return GREETINGS.has(cleaned);
 }
 
+const LEADING_GREETING_RE = /^\s*(?:merhaba|selam|hallo|hello|hi|hey|moin|servus|guten\s+tag|guten\s+morgen|grüß\s+gott|gruss\s+gott)\s*[!.,:;-]*\s*/i;
+
+function hasExplicitOrderSignal(text) {
+  const candidate = stripPolitePrefix(stripOrderTypePrefix((text ?? '').trim()));
+  if (!candidate) return false;
+  if (parseTurkishQtyItems(candidate).length) return true;
+  if (/^(?:noch\s+)?jeweils\b/i.test(candidate)) return true;
+  if (ORDER_SIGNAL_RE.test(candidate)) return true;
+  if (parseGermanQtyItems(candidate)?.length) return true;
+  if (parseGermanLeadingQty(candidate)?.length) return true;
+  return false;
+}
+
+/** Info question ("… bilgi alabilir miyim", "more information"), not a dish. */
+function isNonOrderOpener(text, norm) {
+  const raw = (text ?? '').trim();
+  if (!raw || isGreetingOnly(norm) || isFreshStartCommand(norm)) return false;
+  const rest = raw.replace(LEADING_GREETING_RE, '').trim();
+  const body = rest.length < raw.length ? rest : raw;
+  if (!body || hasExplicitOrderSignal(body)) return false;
+  const asks = /[?？]/.test(body)
+    || /\b(?:miyim|miyiz|misiniz|mısınız|musunuz|alabilir|kann ich|can i|could i)\b/i.test(body);
+  const aboutInfo = /\b(?:bilgi|information|infos?|hakkında|hakkinda|mehr dazu|more info|about this)\b/i.test(body);
+  return asks && aboutInfo;
+}
+
 function isFreshStartCommand(norm) {
   const cleaned = (norm ?? '').replace(/[!?.]+/g, '').trim();
   return FRESH_START_COMMANDS.has(cleaned);
@@ -516,6 +542,7 @@ function looksLikeOrderText(text, norm) {
   if (!text || text.length < 2) return false;
   if (isBotCommandPhrase(text, norm)) return false;
   if (isGreetingOnly(norm) || isFreshStartCommand(norm)) return false;
+  if (isNonOrderOpener(text, norm)) return false;
   if (parseOrderText(text).length) return true;
   if (parseTurkishQtyItems(text).length) return true;
   if (/^(?:noch\s+)?jeweils\b/i.test(text.trim())) return true;
@@ -852,6 +879,7 @@ module.exports = {
   looksLikeOrderText,
   isStrongOrderText,
   isGreetingOnly,
+  isNonOrderOpener,
   isFreshStartCommand,
   extractPartySize,
   rulesParseQuality,
