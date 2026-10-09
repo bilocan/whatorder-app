@@ -276,7 +276,7 @@ describe('Layer 0: reorder-first for returning customers', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
-  test('explicit new order text skips reorder and uses intent parser', async () => {
+  test('first message order text still starts at the restaurant, not intent', async () => {
     const { getPreferredLanguage } = require('../customerLanguage');
     getPreferredLanguage.mockResolvedValue('de');
     getLastOrderForCustomer.mockResolvedValue(LAST_ORDER);
@@ -287,8 +287,12 @@ describe('Layer 0: reorder-first for returning customers', () => {
     expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
       body: expect.stringContaining('Döner'),
       buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_intent_confirm' }),
+        expect.objectContaining({ id: 'btn_reorder_confirm' }),
+        expect.objectContaining({ id: 'btn_reorder_browse' }),
       ]),
+    }));
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_confirm' })]),
     }));
   });
 

@@ -48,11 +48,11 @@ function switchSessionPayload(lang, pendingDeleteIds = []) {
  * Persist before WhatsApp send so a failed send cannot leave a live basket
  * after a Flow already closed with switch_restaurant.
  */
-async function beginRestaurantSwitch({ from, lang }) {
+async function beginRestaurantSwitch({ from, lang, switchMode = true }) {
   setMessageIdentity(PLATFORM_IDENTITY);
   await setSession(from, switchSessionPayload(lang));
   try {
-    const pendingDeleteIds = await promptRestaurantLocation(from, lang, { switchMode: true });
+    const pendingDeleteIds = await promptRestaurantLocation(from, lang, { switchMode });
     if (pendingDeleteIds.length) {
       await setSession(from, switchSessionPayload(lang, pendingDeleteIds));
     }

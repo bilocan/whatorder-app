@@ -484,7 +484,7 @@ describe('Edge cases', () => {
   });
 
   test('default text in browsing state shows order entry prompt', async () => {
-    getSession.mockResolvedValue({ language: 'en', state: 'browsing' });
+    getSession.mockResolvedValue({ language: 'en', state: 'browsing', businessId: BIZ, basket: [] });
 
     await handleMessage(ROUTING, msg({ text: 'something random' }));
 
