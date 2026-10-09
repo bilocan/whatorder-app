@@ -3,6 +3,7 @@ const { businessRef } = require('../lib/collections');
 const { sortByDistance } = require('../lib/distance');
 const { resolvePhotoUrl } = require('../bot/menuService');
 const { marketingDealLabel } = require('../lib/dealResolve');
+const { getPublicHours } = require('../lib/schedule');
 
 const router = express.Router();
 
@@ -23,6 +24,10 @@ function toPin(b) {
     distanceKm: b.distanceKm ?? null,
     durationMin: b.durationMin ?? null,
     dealLabel: b.dealLabel ?? null,
+    isOpen: b.isOpen ?? null,
+    openTime: b.openTime ?? null,
+    closeTime: b.closeTime ?? null,
+    closedToday: b.closedToday ?? false,
   };
 }
 
@@ -44,15 +49,22 @@ router.get('/maps/restaurants', async (req, res) => {
     let restaurants = docs
       .map((d) => (d.exists ? { id: d.id, ...d.data() } : null))
       .filter(Boolean)
-      .map((b) => ({
-        id: b.id,
-        name: b.name,
-        lat: parseCoord(b.lat),
-        lng: parseCoord(b.lng),
-        address: b.address ?? null,
-        imageUrl: resolvePhotoUrl(b.imageUrl) ?? null,
-        dealLabel: marketingDealLabel(b),
-      }))
+      .map((b) => {
+        const hours = getPublicHours(b.schedule, b.timezone || 'Europe/Vienna');
+        return {
+          id: b.id,
+          name: b.name,
+          lat: parseCoord(b.lat),
+          lng: parseCoord(b.lng),
+          address: b.address ?? null,
+          imageUrl: resolvePhotoUrl(b.imageUrl) ?? null,
+          dealLabel: marketingDealLabel(b),
+          isOpen: hours ? hours.isOpen : null,
+          openTime: hours?.openTime ?? null,
+          closeTime: hours?.closeTime ?? null,
+          closedToday: hours?.closedToday ?? false,
+        };
+      })
       .filter((b) => b.lat != null && b.lng != null);
 
     const clat = parseCoord(req.query.clat);

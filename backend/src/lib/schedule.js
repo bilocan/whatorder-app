@@ -81,4 +81,35 @@ function getTodayOrderWindow(schedule, timezone = 'Europe/Vienna') {
   return { firstOrderTime: dayConfig.firstOrderTime, lastOrderTime: dayConfig.lastOrderTime };
 }
 
-module.exports = { isOpenNow, isOrderingOpen, getTodayOrderWindow };
+// Customer map: today's shop hours plus whether the restaurant is open now.
+// null when no schedule is configured (hours unknown; do not invent "open").
+// closedToday: this weekday has no entry. Overnight from yesterday still sets isOpen.
+function getPublicHours(schedule, timezone = 'Europe/Vienna') {
+  if (!schedule || !Object.keys(schedule).length) return null;
+
+  const dow = localDayOfWeek(timezone);
+  const today = schedule[String(dow)];
+  const open = isOpenNow(schedule, timezone);
+
+  if (!today) {
+    if (open) {
+      const prev = schedule[String((dow + 6) % 7)];
+      return {
+        isOpen: true,
+        openTime: prev?.openTime || null,
+        closeTime: prev?.closeTime || null,
+        closedToday: false,
+      };
+    }
+    return { isOpen: false, openTime: null, closeTime: null, closedToday: true };
+  }
+
+  return {
+    isOpen: open,
+    openTime: today.openTime || null,
+    closeTime: today.closeTime || null,
+    closedToday: false,
+  };
+}
+
+module.exports = { isOpenNow, isOrderingOpen, getTodayOrderWindow, getPublicHours };
