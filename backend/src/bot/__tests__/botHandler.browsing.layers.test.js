@@ -512,6 +512,34 @@ describe('Layer 1: disambiguation for ambiguous item names', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
+  test('menu keyword on a first visit stores the restaurant before the menu is sent', async () => {
+    const { getPreferredLanguage } = require('../customerLanguage');
+    getPreferredLanguage.mockResolvedValue('de');
+    getSession.mockResolvedValue({});
+
+    const events = [];
+    const patchImpl = patchSession.getMockImplementation();
+    patchSession.mockImplementation(async (...args) => {
+      events.push({ type: 'patch', businessId: args[1]?.businessId });
+      return patchImpl(...args);
+    });
+    sendFlowMessage.mockImplementation(async () => {
+      events.push({ type: 'flow' });
+      return null;
+    });
+
+    await handleMessage(ROUTING, msg({ text: 'menü' }));
+
+    const bind = events.findIndex(event => event.type === 'patch' && event.businessId === BIZ);
+    const flow = events.findIndex(event => event.type === 'flow');
+    expect(bind).toBeGreaterThanOrEqual(0);
+    expect(flow).toBeGreaterThan(bind);
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      businessId: BIZ,
+    }));
+  });
+
   test('typed cola pick during disambiguation completes intent proposal', async () => {
     const COLA_MENU = [
       { id: 'd1', name: 'Döner', price: 8.5, category: 'mains', available: true },

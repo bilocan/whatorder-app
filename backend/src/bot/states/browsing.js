@@ -140,17 +140,17 @@ async function clearBasketAndOpenCatalog(from, session, lang, businessId, bodyOv
 }
 
 async function openCatalog(from, session, lang, businessId, bodyOverride, sessionOverrides = {}) {
-  const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId, bodyOverride);
+  // Bind the restaurant before the menu goes out. A reply during the Flow send
+  // must already belong to this restaurant, including a first-visit menu keyword.
   await patchSession(from, {
     state: 'browsing',
     language: lang,
     businessId,
-    menuId,
-    textMenuIndex,
-    textMenuCategory,
     ...INTENT_PROPOSAL_CLEAR,
     ...sessionOverrides,
   }, session);
+  const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId, bodyOverride);
+  await patchSession(from, { menuId, textMenuIndex, textMenuCategory });
 }
 
 async function openCategoryMenu(from, session, lang, businessId, category) {
