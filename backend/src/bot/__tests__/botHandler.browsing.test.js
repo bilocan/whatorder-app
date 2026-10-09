@@ -22,6 +22,12 @@ jest.mock('../sessionStore', () => {
   const getSession = jest.fn();
   const setSession = jest.fn();
   const clearSession = jest.fn();
+  // A later patch must see the previous write, same as the Firestore transaction.
+  // Only pin that when getSession returns one stable object. A live-session
+  // implementation that returns a new object each time stays in charge.
+  let wrappedImpl = null;
+  let originSnap = null;
+  let latestWrite = null;
   const patchSession = jest.fn(async (phone, overrides = {}, baseSession = null) => {
     const fresh = await getSession(phone);
     const merged = baseSession ? { ...baseSession, ...fresh } : { ...fresh };
@@ -30,7 +36,19 @@ jest.mock('../sessionStore', () => {
       payload.pendingDeleteIds = payload.menuId ? [payload.menuId] : [];
       delete payload.menuId;
     }
-    await setSession(phone, actual.buildSessionWrite(merged, payload));
+    const written = actual.buildSessionWrite(merged, payload);
+    await setSession(phone, written);
+    if (getSession.getMockImplementation() !== wrappedImpl) {
+      const prior = getSession.getMockImplementation();
+      originSnap = fresh;
+      wrappedImpl = async (...args) => {
+        const snap = await prior(...args);
+        if (latestWrite && snap === originSnap) return latestWrite;
+        return snap;
+      };
+      getSession.mockImplementation(wrappedImpl);
+    }
+    latestWrite = written;
   });
   return { ...actual, getSession, setSession, clearSession, patchSession };
 });
