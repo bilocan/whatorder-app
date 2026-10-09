@@ -95,28 +95,17 @@ afterEach(clearBotHandlerEnv);
 // ─── Tier A intent ordering ──────────────────────────────────────────────────
 
 describe('Intent ordering (Tier A)', () => {
-  test('first message with order text shows intent confirm instead of menu', async () => {
+  test('first message with order text starts the restaurant, not intent', async () => {
     const { getPreferredLanguage } = require('../customerLanguage');
     getPreferredLanguage.mockResolvedValue('de');
     getSession.mockResolvedValue({});
 
     await handleMessage(ROUTING, msg({ text: '2x Döner und Ayran' }));
 
-    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      body: expect.stringContaining('Döner'),
-      buttons: expect.arrayContaining([
-        expect.objectContaining({ id: 'btn_intent_confirm' }),
-        expect.objectContaining({ id: 'btn_intent_change' }),
-      ]),
+    expectCatalogPrompt();
+    expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_confirm' })]),
     }));
-    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
-      state: 'browsing',
-      pendingIntentItems: expect.arrayContaining([
-        expect.objectContaining({ name: 'Döner', qty: 2 }),
-        expect.objectContaining({ name: 'Ayran', qty: 1 }),
-      ]),
-    }));
-    expect(sendListMessage).not.toHaveBeenCalled();
   });
 
   test('browsing text intent shows confirm prompt', async () => {
@@ -659,6 +648,31 @@ describe('Intent ordering (Tier A)', () => {
       businessId: null,
       basket: [],
     }));
+  });
+
+  test('greeting that names a dish stays an order after a restaurant is selected', async () => {
+    getSession.mockResolvedValue({
+      language: 'en', state: 'browsing', businessId: 'biz_a', basket: [],
+    });
+
+    await handleMessage(ROUTING_MULTI, msg({ text: 'Hey I want a pizza please' }));
+
+    expect(sendLocationRequest).not.toHaveBeenCalled();
+  });
+
+  test('english info question on multi asks for Standort', async () => {
+    const { getPreferredLanguage } = require('../customerLanguage');
+    getPreferredLanguage.mockResolvedValue('de');
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: 'biz_a', basket: [],
+    });
+
+    await handleMessage(ROUTING_MULTI, msg({
+      text: 'Hello, can I get more information about this?',
+    }));
+
+    expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.stringContaining('Standort'));
+    expect(sendButtonMessage).not.toHaveBeenCalled();
   });
 
   test('greeting first message shows catalog', async () => {

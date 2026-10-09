@@ -617,9 +617,19 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
     }
   }
 
-  // Greeting or "tell me more" is not a dish. Multi starts at Standort; single uses the greeting catalog below.
+  // No restaurant in this session yet: the first text always starts ordering.
+  // Multi asks for Standort. Single uses the greeting catalog below, not intent.
+  const isOpeningMessage = type === 'text' && !!text?.trim()
+    && !session.businessId && !basket.length && !session.pendingIntentItems?.length;
+  if (isOpeningMessage && isMulti) {
+    await beginRestaurantSwitch({ from, lang, switchMode: false });
+    return;
+  }
+
+  // Info question is not a dish. Multi starts at Standort; single uses the greeting catalog below.
   if (
-    type === 'text' && text?.trim() && isNonOrderOpener(text, norm)
+    !isOpeningMessage
+    && type === 'text' && text?.trim() && isNonOrderOpener(text, norm)
     && !basket.length && isMulti && !session.pendingIntentItems?.length
   ) {
     await beginRestaurantSwitch({ from, lang, switchMode: false });
@@ -627,7 +637,7 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
   }
 
   // Text: natural-language order (clears stale proposals before AI/rules parse)
-  if (type === 'text' && text?.trim() && looksLikeOrderText(text, norm)) {
+  if (!isOpeningMessage && type === 'text' && text?.trim() && looksLikeOrderText(text, norm)) {
     const info = await getBusinessInfo(businessId);
     let foodText = text;
     if (isConversationalBasket(info)) {
@@ -680,7 +690,7 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
   }
 
   // Text: fresh start or greeting with empty basket — reorder if history, else catalog
-  if (type === 'text' && text?.trim() && (isGreetingOnly(norm) || isFreshStartCommand(norm) || isNonOrderOpener(text, norm)) && !basket.length) {
+  if (type === 'text' && text?.trim() && (isGreetingOnly(norm) || isFreshStartCommand(norm) || isNonOrderOpener(text, norm) || isOpeningMessage) && !basket.length) {
     // Drop sticky checkout type + post-order amend so food text is a new order, not call-restaurant.
     await patchSession(from, {
       orderType: undefined,

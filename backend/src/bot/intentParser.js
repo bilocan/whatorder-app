@@ -481,27 +481,28 @@ function isGreetingOnly(norm) {
 
 const LEADING_GREETING_RE = /^\s*(?:merhaba|selam|hallo|hello|hi|hey|moin|servus|guten\s+tag|guten\s+morgen|grüß\s+gott|gruss\s+gott)\s*[!.,:;-]*\s*/i;
 
-/** "Merhaba! … bilgi alabilir miyim" is a chat opener, not a dish. */
+function hasExplicitOrderSignal(text) {
+  const candidate = stripPolitePrefix(stripOrderTypePrefix((text ?? '').trim()));
+  if (!candidate) return false;
+  if (parseTurkishQtyItems(candidate).length) return true;
+  if (/^(?:noch\s+)?jeweils\b/i.test(candidate)) return true;
+  if (ORDER_SIGNAL_RE.test(candidate)) return true;
+  if (parseGermanQtyItems(candidate)?.length) return true;
+  if (parseGermanLeadingQty(candidate)?.length) return true;
+  return false;
+}
+
+/** Info question ("… bilgi alabilir miyim", "more information"), not a dish. */
 function isNonOrderOpener(text, norm) {
   const raw = (text ?? '').trim();
   if (!raw || isGreetingOnly(norm) || isFreshStartCommand(norm)) return false;
-
   const rest = raw.replace(LEADING_GREETING_RE, '').trim();
-  const startedWithGreeting = rest.length < raw.length;
-  const infoQuestion = /\b(?:bilgi|information|hakkında|hakkinda|mehr infos?|more info)\b/i.test(raw)
-    && /\b(?:miyim|miyiz|misiniz|mısınız|musunuz|alabilir|kann ich|can i)\b/i.test(raw);
-  if (!startedWithGreeting && !infoQuestion) return false;
-
-  const candidate = stripPolitePrefix(stripOrderTypePrefix(startedWithGreeting ? rest : raw));
-  if (!candidate) return startedWithGreeting;
-  if (parseTurkishQtyItems(candidate).length) return false;
-  if (/^(?:noch\s+)?jeweils\b/i.test(candidate)) return false;
-  if (ORDER_SIGNAL_RE.test(candidate) || ORDER_SIGNAL_RE.test(raw)) return false;
-  if (parseGermanQtyItems(candidate)?.length) return false;
-  if (parseGermanLeadingQty(candidate)?.length) return false;
-  const words = candidate.split(/\s+/).filter(Boolean);
-  if (words.length > 0 && words.length <= 3 && !/[?？]/.test(candidate)) return false;
-  return true;
+  const body = rest.length < raw.length ? rest : raw;
+  if (!body || hasExplicitOrderSignal(body)) return false;
+  const asks = /[?？]/.test(body)
+    || /\b(?:miyim|miyiz|misiniz|mısınız|musunuz|alabilir|kann ich|can i|could i)\b/i.test(body);
+  const aboutInfo = /\b(?:bilgi|information|infos?|hakkında|hakkinda|mehr dazu|more info|about this)\b/i.test(body);
+  return asks && aboutInfo;
 }
 
 function isFreshStartCommand(norm) {

@@ -281,6 +281,9 @@ describe('looksLikeOrderText', () => {
     const norm = text.toLowerCase();
     expect(isNonOrderOpener(text, norm)).toBe(true);
     expect(looksLikeOrderText(text, norm)).toBe(false);
+    const english = 'Hello, can I get more information about this?';
+    expect(isNonOrderOpener(english, english.toLowerCase())).toBe(true);
+    expect(looksLikeOrderText(english, english.toLowerCase())).toBe(false);
   });
 
   test('keeps a greeting that names a dish', () => {
@@ -288,6 +291,12 @@ describe('looksLikeOrderText', () => {
     expect(looksLikeOrderText('Merhaba döner', 'merhaba döner')).toBe(true);
     expect(isNonOrderOpener('Hallo ich hätte gerne einen döner', 'hallo ich hätte gerne einen döner')).toBe(false);
     expect(looksLikeOrderText('Hallo ich hätte gerne einen döner', 'hallo ich hätte gerne einen döner')).toBe(true);
+    expect(isNonOrderOpener('Hey I want a pizza please', 'hey i want a pizza please')).toBe(false);
+    expect(looksLikeOrderText('Hey I want a pizza please', 'hey i want a pizza please')).toBe(true);
+    expect(isNonOrderOpener('Hi can I get a döner', 'hi can i get a döner')).toBe(false);
+    expect(looksLikeOrderText('Hi can I get a döner', 'hi can i get a döner')).toBe(true);
+    expect(isNonOrderOpener('Hallo kann ich einen Döner bestellen', 'hallo kann ich einen döner bestellen')).toBe(false);
+    expect(looksLikeOrderText('Hallo kann ich einen Döner bestellen', 'hallo kann ich einen döner bestellen')).toBe(true);
   });
 
   test('rejects fresh start commands', () => {
