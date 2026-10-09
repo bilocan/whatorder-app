@@ -479,6 +479,31 @@ function isGreetingOnly(norm) {
   return GREETINGS.has(cleaned);
 }
 
+const LEADING_GREETING_RE = /^\s*(?:merhaba|selam|hallo|hello|hi|hey|moin|servus|guten\s+tag|guten\s+morgen|grüß\s+gott|gruss\s+gott)\s*[!.,:;-]*\s*/i;
+
+/** "Merhaba! … bilgi alabilir miyim" is a chat opener, not a dish. */
+function isNonOrderOpener(text, norm) {
+  const raw = (text ?? '').trim();
+  if (!raw || isGreetingOnly(norm) || isFreshStartCommand(norm)) return false;
+
+  const rest = raw.replace(LEADING_GREETING_RE, '').trim();
+  const startedWithGreeting = rest.length < raw.length;
+  const infoQuestion = /\b(?:bilgi|information|hakkında|hakkinda|mehr infos?|more info)\b/i.test(raw)
+    && /\b(?:miyim|miyiz|misiniz|mısınız|musunuz|alabilir|kann ich|can i)\b/i.test(raw);
+  if (!startedWithGreeting && !infoQuestion) return false;
+
+  const candidate = stripPolitePrefix(stripOrderTypePrefix(startedWithGreeting ? rest : raw));
+  if (!candidate) return startedWithGreeting;
+  if (parseTurkishQtyItems(candidate).length) return false;
+  if (/^(?:noch\s+)?jeweils\b/i.test(candidate)) return false;
+  if (ORDER_SIGNAL_RE.test(candidate) || ORDER_SIGNAL_RE.test(raw)) return false;
+  if (parseGermanQtyItems(candidate)?.length) return false;
+  if (parseGermanLeadingQty(candidate)?.length) return false;
+  const words = candidate.split(/\s+/).filter(Boolean);
+  if (words.length > 0 && words.length <= 3 && !/[?？]/.test(candidate)) return false;
+  return true;
+}
+
 function isFreshStartCommand(norm) {
   const cleaned = (norm ?? '').replace(/[!?.]+/g, '').trim();
   return FRESH_START_COMMANDS.has(cleaned);
@@ -516,6 +541,7 @@ function looksLikeOrderText(text, norm) {
   if (!text || text.length < 2) return false;
   if (isBotCommandPhrase(text, norm)) return false;
   if (isGreetingOnly(norm) || isFreshStartCommand(norm)) return false;
+  if (isNonOrderOpener(text, norm)) return false;
   if (parseOrderText(text).length) return true;
   if (parseTurkishQtyItems(text).length) return true;
   if (/^(?:noch\s+)?jeweils\b/i.test(text.trim())) return true;
@@ -852,6 +878,7 @@ module.exports = {
   looksLikeOrderText,
   isStrongOrderText,
   isGreetingOnly,
+  isNonOrderOpener,
   isFreshStartCommand,
   extractPartySize,
   rulesParseQuality,

@@ -11,7 +11,7 @@ const { tryProposalEdit, parseProposalEdit } = require('../proposalEdit');
 const { handleReorderButtons, tryOfferReorder } = require('../reorder');
 const { beginRestaurantSwitch } = require('../restaurantSwitch');
 const { isMenuRequest, sendOrderEntryPrompt } = require('../orderEntry');
-const { isGreetingOnly, looksLikeOrderText, isFreshStartCommand } = require('../intentParser');
+const { isGreetingOnly, isNonOrderOpener, looksLikeOrderText, isFreshStartCommand } = require('../intentParser');
 const { tryNumberSelectionOrder } = require('../textMenuOrder');
 const { publishTextMenu, buildNumberedMenuChunks, sendPreparedTextMenu } = require('../textMenu');
 const { resumeDeliveryCheckout, showDeliveryBasketGate, proceedFromConfirmedBasket } = require('./checkout');
@@ -617,6 +617,15 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
     }
   }
 
+  // Greeting or "tell me more" is not a dish. Multi starts at Standort; single uses the greeting catalog below.
+  if (
+    type === 'text' && text?.trim() && isNonOrderOpener(text, norm)
+    && !basket.length && isMulti && !session.pendingIntentItems?.length
+  ) {
+    await beginRestaurantSwitch({ from, lang, switchMode: false });
+    return;
+  }
+
   // Text: natural-language order (clears stale proposals before AI/rules parse)
   if (type === 'text' && text?.trim() && looksLikeOrderText(text, norm)) {
     const info = await getBusinessInfo(businessId);
@@ -671,7 +680,7 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
   }
 
   // Text: fresh start or greeting with empty basket — reorder if history, else catalog
-  if (type === 'text' && text?.trim() && (isGreetingOnly(norm) || isFreshStartCommand(norm)) && !basket.length) {
+  if (type === 'text' && text?.trim() && (isGreetingOnly(norm) || isFreshStartCommand(norm) || isNonOrderOpener(text, norm)) && !basket.length) {
     // Drop sticky checkout type + post-order amend so food text is a new order, not call-restaurant.
     await patchSession(from, {
       orderType: undefined,

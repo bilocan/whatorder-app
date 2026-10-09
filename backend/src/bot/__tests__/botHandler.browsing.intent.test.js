@@ -641,6 +641,26 @@ describe('Intent ordering (Tier A)', () => {
     expect(sendListMessage).not.toHaveBeenCalled();
   });
 
+  test('info-request greeting on multi asks for Standort, not a menu miss', async () => {
+    const { getPreferredLanguage } = require('../customerLanguage');
+    getPreferredLanguage.mockResolvedValue('de');
+    getSession.mockResolvedValue({
+      language: 'de', state: 'browsing', businessId: 'biz_a', basket: [],
+    });
+
+    await handleMessage(ROUTING_MULTI, msg({
+      text: 'Merhaba! Bunun hakkında daha faza bilgi alabilir miyim',
+    }));
+
+    expect(sendLocationRequest).toHaveBeenCalledWith(FROM, expect.stringContaining('Standort'));
+    expect(sendButtonMessage).not.toHaveBeenCalled();
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_location',
+      businessId: null,
+      basket: [],
+    }));
+  });
+
   test('greeting first message shows catalog', async () => {
     const { getPreferredLanguage } = require('../customerLanguage');
     getPreferredLanguage.mockResolvedValue('tr');

@@ -1,4 +1,4 @@
-const { parseIntent, looksLikeOrderText, isStrongOrderText, extractPartySize, applyJeweilsBasketContext, rulesParseQuality } = require('../intentParser');
+const { parseIntent, looksLikeOrderText, isNonOrderOpener, isStrongOrderText, extractPartySize, applyJeweilsBasketContext, rulesParseQuality } = require('../intentParser');
 
 describe('parseIntent', () => {
   test('pizza and cola for 2', () => {
@@ -274,6 +274,20 @@ describe('looksLikeOrderText', () => {
   test('rejects greetings', () => {
     expect(looksLikeOrderText('Merhaba', 'merhaba')).toBe(false);
     expect(looksLikeOrderText('Hello', 'hello')).toBe(false);
+  });
+
+  test('rejects a greeting that asks for information', () => {
+    const text = 'Merhaba! Bunun hakkında daha faza bilgi alabilir miyim';
+    const norm = text.toLowerCase();
+    expect(isNonOrderOpener(text, norm)).toBe(true);
+    expect(looksLikeOrderText(text, norm)).toBe(false);
+  });
+
+  test('keeps a greeting that names a dish', () => {
+    expect(isNonOrderOpener('Merhaba döner', 'merhaba döner')).toBe(false);
+    expect(looksLikeOrderText('Merhaba döner', 'merhaba döner')).toBe(true);
+    expect(isNonOrderOpener('Hallo ich hätte gerne einen döner', 'hallo ich hätte gerne einen döner')).toBe(false);
+    expect(looksLikeOrderText('Hallo ich hätte gerne einen döner', 'hallo ich hätte gerne einen döner')).toBe(true);
   });
 
   test('rejects fresh start commands', () => {
