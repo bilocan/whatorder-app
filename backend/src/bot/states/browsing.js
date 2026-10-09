@@ -142,6 +142,9 @@ async function clearBasketAndOpenCatalog(from, session, lang, businessId, bodyOv
 async function openCatalog(from, session, lang, businessId, bodyOverride, sessionOverrides = {}) {
   const { menuId, textMenuIndex, textMenuCategory } = await sendCatalog(from, lang, businessId, bodyOverride);
   await patchSession(from, {
+    state: 'browsing',
+    language: lang,
+    businessId,
     menuId,
     textMenuIndex,
     textMenuCategory,
@@ -693,6 +696,7 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
   if (type === 'text' && text?.trim() && (isGreetingOnly(norm) || isFreshStartCommand(norm) || isNonOrderOpener(text, norm) || isOpeningMessage) && !basket.length) {
     // Drop sticky checkout type + post-order amend so food text is a new order, not call-restaurant.
     await patchSession(from, {
+      ...(isOpeningMessage ? { state: 'browsing', language: lang, businessId } : {}),
       orderType: undefined,
       deliveryAddress: undefined,
       pendingPaymentMethod: undefined,
@@ -704,6 +708,7 @@ async function handleBrowsing({ from, contactName, session, lang, businessId, ba
     }, session);
     const cleared = {
       ...session,
+      ...(isOpeningMessage ? { state: 'browsing', language: lang, businessId } : {}),
       orderType: undefined,
       deliveryAddress: undefined,
       pendingPaymentMethod: undefined,

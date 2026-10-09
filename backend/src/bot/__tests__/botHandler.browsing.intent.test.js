@@ -106,6 +106,29 @@ describe('Intent ordering (Tier A)', () => {
     expect(sendButtonMessage).not.toHaveBeenCalledWith(FROM, expect.objectContaining({
       buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_confirm' })]),
     }));
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'browsing',
+      businessId: BIZ,
+    }));
+  });
+
+  test('order text after the first catalog open is an order', async () => {
+    const { getPreferredLanguage } = require('../customerLanguage');
+    getPreferredLanguage.mockResolvedValue('de');
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ text: 'Hallo' }));
+
+    const bound = setSession.mock.calls.map(([, data]) => data).reverse().find(data => data.businessId === BIZ);
+    expect(bound).toEqual(expect.objectContaining({ state: 'browsing', businessId: BIZ }));
+
+    getSession.mockResolvedValue({ ...bound, language: 'de', basket: bound.basket ?? [] });
+    sendButtonMessage.mockClear();
+    await handleMessage(ROUTING, msg({ text: '2x Döner und Ayran' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([expect.objectContaining({ id: 'btn_intent_confirm' })]),
+    }));
   });
 
   test('browsing text intent shows confirm prompt', async () => {
