@@ -1,6 +1,6 @@
 'use strict';
 
-const { sleep } = require('./helpers');
+const { openRestaurant, sleep } = require('./helpers');
 
 /**
  * Restaurant not accepting orders (ordersOpen=false).
@@ -11,11 +11,8 @@ async function run(session) {
   const log = (...a) => console.log('[neg_closed]', ...a);
 
   return session.withBusinessPatch({ ordersOpen: false }, async () => {
-    log('reset customer session');
-    await session.resetCustomerSession();
-
     log('ordersOpen=false; ORDER+ deep link should refuse');
-    await session.sendText(`ORDER+${session.cfg.businessId}`);
+    await openRestaurant(session, { log });
 
     await session.waitForReply({
       includes: /geschlossen|closed|nicht|pause|online|bestellungen|accepting|vorübergehend|entgegen|sipariş almıyor/i,

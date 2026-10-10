@@ -1,6 +1,6 @@
 'use strict';
 
-const { clickAny, confirmOrder } = require('./helpers');
+const { clickAny, confirmOrder, openRestaurant } = require('./helpers');
 
 async function startCheckoutFromBrowsing(session, sess, log = () => {}) {
   if (sess?.state !== 'browsing') return sess;
@@ -44,20 +44,7 @@ async function startCheckoutFromBrowsing(session, sess, log = () => {}) {
 async function run(session) {
   const log = (...a) => console.log('[happy_stripe_pickup]', ...a);
 
-  log('reset customer session (avoid stuck awaiting_location)');
-  await session.resetCustomerSession();
-
-  log('select restaurant context');
-  await session.sendText(`ORDER+${session.cfg.businessId}`);
-  await session.waitForReply({
-    includes: /bestell|menü|menu|döner|hallo|was möchtest|what would you like|welcome/i,
-    timeoutMs: 45_000,
-  }).catch(() => {});
-  await session.waitForSession(
-    (s) => s?.businessId === session.cfg.businessId,
-    { timeoutMs: 45_000 },
-  );
-  await new Promise((r) => setTimeout(r, 2500));
+  await openRestaurant(session, { log });
 
   log('place pickup order phrase (no-option SKU; payment is Stripe at confirm)');
   // Prefer a no-option SKU (ayran) so we skip customizing_intent.

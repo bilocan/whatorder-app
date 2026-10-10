@@ -1,6 +1,7 @@
 'use strict';
 
 const { hasUnitPattern } = require('../../src/bot/deliveryAddress');
+const { setPreferredLanguage } = require('../../src/bot/customerLanguage');
 
 // Keep Top in the same comma segment as the street. extractCheckoutSlotsRules
 // splits on commas, so "Hauptstraße 5, Top 1" stores only "Hauptstraße 5".
@@ -50,8 +51,69 @@ async function clickAny(session, titles) {
   return null;
 }
 
+function restaurantBound(session, businessId) {
+  return session?.businessId === businessId && session?.state !== 'awaiting_language';
+}
+
 /**
- * Reset customer session and bind restaurant context via ORDER+deep link.
+ * First-touch language picker stashes ORDER+ as pendingDeepBid and does not
+ * set businessId until Deutsch / English / Türkçe (or de / en / tr) is chosen.
+ * Pin German first so a returning E2E customer skips the picker. If the gate
+ * is still up, answer it with the de keyword (WA Web buttons often do not fire).
+ * @param {import('../lib/session').WaE2eSession} session
+ * @param {(...a: any[]) => void} log
+ */
+async function passLanguageGate(session, log) {
+  const businessId = session.cfg.businessId;
+  const ready = (s) => restaurantBound(s, businessId);
+  let sess;
+  try {
+    sess = await session.waitForSession(
+      (s) => ready(s) || s?.state === 'awaiting_language',
+      { timeoutMs: 45_000 },
+    );
+  } catch (err) {
+    log('restaurant not bound, sending de for language gate', err.message);
+    await session.sendText('de');
+    return session.waitForSession(ready, { timeoutMs: 45_000 });
+  }
+  if (ready(sess)) return sess;
+
+  log('language gate, choosing Deutsch');
+  const clicked = await clickAny(session, ['🇩🇪 Deutsch', 'Deutsch']);
+  if (!clicked) {
+    log('language button not clickable, sending de');
+    await session.sendText('de');
+    return session.waitForSession(ready, { timeoutMs: 45_000 });
+  }
+  log('clicked', clicked);
+  try {
+    return await session.waitForSession(ready, { timeoutMs: 15_000 });
+  } catch (err) {
+    log('language click did not bind restaurant, sending de', err.message);
+    await session.sendText('de');
+    return session.waitForSession(ready, { timeoutMs: 45_000 });
+  }
+}
+
+/**
+ * Pin Deutsch and open the restaurant from the ORDER+ deep link.
+ * Does not reset the session.
+ * @param {import('../lib/session').WaE2eSession} session
+ * @param {{ log?: (...a: any[]) => void }} [opts]
+ */
+async function bindRestaurant(session, opts = {}) {
+  const log = opts.log || (() => {});
+  log('pin preferred language de');
+  await setPreferredLanguage(session.cfg.customerDisplay, 'de');
+
+  log('select restaurant context');
+  await session.sendText(`ORDER+${session.cfg.businessId}`);
+  return passLanguageGate(session, log);
+}
+
+/**
+ * Reset customer session and bind restaurant context via ORDER+ deep link.
  * @param {import('../lib/session').WaE2eSession} session
  * @param {{ log?: (...a: any[]) => void }} [opts]
  */
@@ -59,17 +121,7 @@ async function openRestaurant(session, opts = {}) {
   const log = opts.log || (() => {});
   log('reset customer session');
   await session.resetCustomerSession();
-
-  log('select restaurant context');
-  await session.sendText(`ORDER+${session.cfg.businessId}`);
-  await session.waitForReply({
-    includes: /bestell|menü|menu|döner|hallo|was möchtest|what would you like|welcome|entgegen/i,
-    timeoutMs: 45_000,
-  }).catch(() => {});
-  await session.waitForSession(
-    (s) => s?.businessId === session.cfg.businessId,
-    { timeoutMs: 45_000 },
-  );
+  await bindRestaurant(session, { log });
   await sleep(2500);
 }
 
@@ -475,6 +527,7 @@ module.exports = {
   DELIVERY_PHRASE_NO_ADDRESS,
   E2E_DONER_GROUPS,
   clickAny,
+  bindRestaurant,
   openRestaurant,
   addAyranToBasket,
   startCheckoutFromBasket,
