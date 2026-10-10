@@ -3,7 +3,7 @@ import { collection, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../lib/firebase';
 import { useFeeConfig } from '../../hooks/useFeeConfig';
-import { displayFeeEuros } from '../../lib/feeCalc';
+import { orderEarningsFeeEuros, restaurantRevenueEuros, whatorderEarningsEuros } from '../../lib/earningsTotals';
 import type { FeeConfig } from '../../hooks/useFeeConfig';
 import type { Order, Business, Payout } from '../../types';
 import { toDate } from '../../types';
@@ -180,9 +180,9 @@ export default function EarningsPage() {
     }
   }
 
-  const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
-  const feeFor = (order: typeof orders[number]) => displayFeeEuros(order, feeConfig);
-  const totalFees = orders.reduce((s, o) => s + feeFor(o), 0);
+  const totalRevenue = restaurantRevenueEuros(orders);
+  const feeFor = (order: typeof orders[number]) => orderEarningsFeeEuros(order, feeConfig);
+  const totalFees = whatorderEarningsEuros(orders, feeConfig);
 
   const pendingSettlementCents = orders
     .filter((o) => isPendingSettlement(o))
