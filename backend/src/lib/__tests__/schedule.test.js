@@ -237,4 +237,32 @@ describe('getPublicHours', () => {
       closedToday: false,
     });
   });
+
+  test('keeps yesterday hours when today has a later window and overnight still covers', () => {
+    setNow('2024-06-11T01:00:00Z'); // Tuesday 01:00
+    const schedule = {
+      '1': makeDayConfig({ openTime: '18:00', closeTime: '02:00' }),
+      '2': makeDayConfig({ openTime: '09:00', closeTime: '22:00' }),
+    };
+    expect(getPublicHours(schedule, TZ)).toEqual({
+      isOpen: true,
+      openTime: '18:00',
+      closeTime: '02:00',
+      closedToday: false,
+    });
+  });
+
+  test('uses today hours after an overnight window has ended', () => {
+    setNow('2024-06-11T10:00:00Z'); // Tuesday 10:00
+    const schedule = {
+      '1': makeDayConfig({ openTime: '18:00', closeTime: '02:00' }),
+      '2': makeDayConfig({ openTime: '09:00', closeTime: '22:00' }),
+    };
+    expect(getPublicHours(schedule, TZ)).toEqual({
+      isOpen: true,
+      openTime: '09:00',
+      closeTime: '22:00',
+      closedToday: false,
+    });
+  });
 });
