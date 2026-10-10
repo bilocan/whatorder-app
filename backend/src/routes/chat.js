@@ -5,14 +5,14 @@ const {
   resolveWhatsAppReturnPhoneDigits,
   buildPaymentReturnHtml,
 } = require('../lib/whatsappReturn');
-const { chatPrefillFromQuery } = require('../lib/chatDeepLink');
+const { chatPrefillFromQuery, appendWallboardChannel } = require('../lib/chatDeepLink');
 
 const router = express.Router();
 
 function chatPrefillText(query = {}) {
   const fromQuery = chatPrefillFromQuery(query);
-  if (fromQuery) return fromQuery;
-  return process.env.WHATSAPP_CHAT_PREFILL || 'Hallo';
+  const base = fromQuery || process.env.WHATSAPP_CHAT_PREFILL || 'Hallo';
+  return appendWallboardChannel(base, query.ch);
 }
 async function resolveChatWaUrl(query) {
   const fromQuery = digitsOnly(query.wa);

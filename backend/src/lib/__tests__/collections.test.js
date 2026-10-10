@@ -15,7 +15,8 @@ const {
   receiptsRef, receiptRef, receiptCounterRef, dealsRef, dealRef,
   ownerRef, ownersCollectionRef, ownersByBusinessIdsQuery, ownersByLegacyBusinessIdQuery, adminRef, processedMessageRef, stripeEventRef, configRef,
   settlementConfigRef, payoutsRef, payoutRef, intentLearningRef, intentLearningsRef, commandLearningRef,
-  seededIntentRef, seededIntentsRef, seedOverridesRef, wallboardFeedRef, customerPrefsRef,
+  seededIntentRef, seededIntentsRef, seedOverridesRef, wallboardFeedRef, wallboardChatRef,
+  wallboardChatKeyRef, customerPrefsRef,
 } = require('../collections');
 
 beforeEach(() => {
@@ -290,5 +291,21 @@ describe('wallboardFeedRef', () => {
     wallboardFeedRef('ord_1');
     expect(db.collection).toHaveBeenCalledWith('wallboardFeed');
     expect(db.doc).toHaveBeenCalledWith('ord_1');
+  });
+});
+
+describe('wallboardChatRef', () => {
+  test('builds path: wallboardChats/{chatId}', () => {
+    wallboardChatRef('chat_1');
+    expect(db.collection).toHaveBeenCalledWith('wallboardChats');
+    expect(db.doc).toHaveBeenCalledWith('chat_1');
+  });
+});
+
+describe('wallboardChatKeyRef', () => {
+  test('builds path: wallboardChatKeys/{keyId}', () => {
+    wallboardChatKeyRef('hmac_1');
+    expect(db.collection).toHaveBeenCalledWith('wallboardChatKeys');
+    expect(db.doc).toHaveBeenCalledWith('hmac_1');
   });
 });
