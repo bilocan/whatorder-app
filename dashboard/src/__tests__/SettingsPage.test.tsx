@@ -89,6 +89,8 @@ describe('SettingsPage — tabs and Advanced', () => {
 
     expect(screen.queryByRole('checkbox', { name: 'Accept card payments' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Latitude')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'New order sound' })).toBeInTheDocument()
+    expect(screen.getByText(/Not saved for the restaurant/)).toBeInTheDocument()
   })
 
   it('opens Hours from ?tab=hours and hides order-window until Advanced expands', async () => {
@@ -99,6 +101,7 @@ describe('SettingsPage — tabs and Advanced', () => {
     })
 
     expect(screen.queryByLabelText('Monday First order')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'New order sound' })).not.toBeInTheDocument()
 
     const user = userEvent.setup()
     await user.click(screen.getByText('Advanced — last order times (bot cutoff)'))

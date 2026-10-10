@@ -590,6 +590,14 @@
       "title": "Restaurant",
       "description": "Name und Alert-Nummer sind fest. Adresse für Nearby-Suche und Lieferung bearbeiten."
     },
+    "orderAlert": {
+      "title": "Ton bei neuer Bestellung",
+      "description": "Nur in diesem Browser auf diesem PC. Wird nicht fürs Restaurant gespeichert.",
+      "test": "Ton testen",
+      "started": "Ton gestartet. Wenn du nichts hörst, prüf die Lautsprecher.",
+      "blocked": "Der Browser blockiert den Ton noch. Klick die Seite an und versuch es nochmal.",
+      "unsupported": "Dieser Browser kann keinen Ton abspielen."
+    },
     "kitchenPrint": {
       "title": "Küchendrucker",
       "description": "Leg fest, wie dieses Lokal den Küchenbon druckt.",
