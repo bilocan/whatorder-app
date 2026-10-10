@@ -7,6 +7,7 @@ type EarningsOrder = {
   paymentStatus?: string;
   settlementStatus?: string;
   whatorderFeeCents?: number;
+  restaurantFee?: unknown;
 };
 
 const WITHDRAWN = new Set(['cancelled', 'rejected']);
@@ -24,13 +25,16 @@ export function restaurantRevenueEuros(orders: Array<{ status?: string; total: n
 
 /**
  * WhatOrder earnings are fees on orders that were not cancelled or rejected
- * and were not refunded. Unpaid withdrawn rows must not pick up the live
- * platform rate. A paid order keeps the fee stored at checkout.
+ * and were not refunded. A paid order keeps the fee stored at checkout.
+ * An unpaid card order uses the restaurant rate when one is set.
  */
 export function orderEarningsFeeEuros(order: EarningsOrder, platform: unknown): number {
   if (!countsTowardRestaurantRevenue(order)) return 0;
   if (order.paymentStatus === 'refunded' || order.settlementStatus === 'refunded') return 0;
-  return displayFeeEuros(order, platform as FeeConfig);
+  return displayFeeEuros(order, platform as FeeConfig, {
+    applyRestaurantFee: true,
+    restaurantOverride: order.restaurantFee,
+  });
 }
 
 export function whatorderEarningsEuros(orders: EarningsOrder[], platform: unknown): number {

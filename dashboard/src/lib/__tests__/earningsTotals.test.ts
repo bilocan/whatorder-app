@@ -58,4 +58,15 @@ describe('admin earnings totals', () => {
     expect(restaurantRevenueEuros([order])).toBe(20);
     expect(whatorderEarningsEuros([order], platform)).toBe(2);
   });
+
+  test('an unpaid order on a zero percent restaurant does not pick up the platform rate', () => {
+    const order = {
+      status: 'preparing' as const,
+      total: 20,
+      paymentMethod: 'stripe' as const,
+      paymentStatus: 'pending' as const,
+      restaurantFee: { feeType: 'percent' as const, feeValue: 0 },
+    };
+    expect(whatorderEarningsEuros([order], platform)).toBe(0);
+  });
 });
