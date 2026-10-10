@@ -41,8 +41,8 @@ describe('GET /api/maps/restaurants', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.restaurants).toEqual([
-      { id: 'biz_a', name: 'Near', lat: 48.2, lng: 16.37, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: null },
-      { id: 'biz_b', name: 'Far', lat: 41, lng: 28.97, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: null },
+      { id: 'biz_a', name: 'Near', lat: 48.2, lng: 16.37, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: null, isOpen: null, openTime: null, closeTime: null, closedToday: false },
+      { id: 'biz_b', name: 'Far', lat: 41, lng: 28.97, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: null, isOpen: null, openTime: null, closeTime: null, closedToday: false },
     ]);
     expect(sortByDistance).not.toHaveBeenCalled();
   });
@@ -88,8 +88,8 @@ describe('GET /api/maps/restaurants', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.restaurants).toEqual([
-        { id: 'biz_a', name: 'Near', lat: 48.2, lng: 16.37, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: '10% Rabatt' },
-        { id: 'biz_b', name: 'Far', lat: 41, lng: 28.97, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: null },
+        { id: 'biz_a', name: 'Near', lat: 48.2, lng: 16.37, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: '10% Rabatt', isOpen: null, openTime: null, closeTime: null, closedToday: false },
+        { id: 'biz_b', name: 'Far', lat: 41, lng: 28.97, address: 'Wien', imageUrl: null, distanceKm: null, durationMin: null, dealLabel: null, isOpen: null, openTime: null, closeTime: null, closedToday: false },
       ]);
     });
   });
@@ -142,6 +142,48 @@ describe('GET /api/maps/restaurants', () => {
       distanceKm: 0.5,
       durationMin: 3,
     });
+  });
+
+  test('returns today hours and open status from the restaurant schedule', async () => {
+    jest.useFakeTimers({ now: new Date('2024-06-10T12:00:00Z') }); // Monday 12:00 UTC
+    try {
+      businessRef.mockImplementation((id) => ({
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          id,
+          data: () => ({
+            name: 'Near',
+            lat: 48.2,
+            lng: 16.37,
+            address: 'Wien',
+            timezone: 'UTC',
+            schedule: id === 'biz_a'
+              ? { '1': { openTime: '09:00', closeTime: '22:00' } }
+              : { '2': { openTime: '09:00', closeTime: '22:00' } },
+          }),
+        }),
+      }));
+
+      const res = await request(app).get('/api/maps/restaurants').query({ ids: 'biz_a,biz_b' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.restaurants[0]).toMatchObject({
+        id: 'biz_a',
+        isOpen: true,
+        openTime: '09:00',
+        closeTime: '22:00',
+        closedToday: false,
+      });
+      expect(res.body.restaurants[1]).toMatchObject({
+        id: 'biz_b',
+        isOpen: false,
+        openTime: null,
+        closeTime: null,
+        closedToday: true,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test('skips restaurants without coordinates', async () => {
