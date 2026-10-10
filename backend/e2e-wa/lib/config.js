@@ -1,7 +1,14 @@
 'use strict';
 
-/** Operator test bot (+43 681 20575797 / WhatOrder WABA). Cloud Run Test WHATSAPP_PHONE_NUMBER_ID. */
-const TEST_BUSINESS_PHONE_NUMBER_ID = '1329391920253229';
+/**
+ * Operator test bot (+43 681 20575797). Cloud Run Test WHATSAPP_PHONE_NUMBER_ID
+ * since 2026-10-07 (WhatOrderTest). Graph status on 2026-10-10: DISCONNECTED.
+ * Do not POST /register again before 2026-10-11 07:23 Europe/Vienna (#133016).
+ */
+const TEST_BUSINESS_PHONE_NUMBER_ID = '1351541364709498';
+
+/** Previous id for the same display number. Not readable on Graph. Still allowed so a stale Contabo env does not abort. */
+const TEST_BUSINESS_PHONE_NUMBER_ID_LEGACY = '1329391920253229';
 
 /** Legacy Meta sandbox / BenAT row id from older Test docs — not the e2e default bot. */
 const TEST_BENAT_PHONE_NUMBER_ID = '1056173694256337';
@@ -176,6 +183,7 @@ function assertSafeBusinessLine(phoneNumberId, ctx = {}) {
 
   const known = new Set([
     TEST_BUSINESS_PHONE_NUMBER_ID,
+    TEST_BUSINESS_PHONE_NUMBER_ID_LEGACY,
     TEST_BENAT_PHONE_NUMBER_ID,
     PROD_BUSINESS_PHONE_NUMBER_ID,
   ]);
@@ -277,6 +285,7 @@ function targetFromArgv(argv = []) {
 
 module.exports = {
   TEST_BUSINESS_PHONE_NUMBER_ID,
+  TEST_BUSINESS_PHONE_NUMBER_ID_LEGACY,
   TEST_BENAT_PHONE_NUMBER_ID,
   PROD_BUSINESS_PHONE_NUMBER_ID,
   TEST_FIREBASE_PROJECT_ID,
