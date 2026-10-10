@@ -145,7 +145,7 @@ xvfb-run -a env \
   npm run e2e:wa -- --target test --all-pack-b
 ```
 
-**Hard rule:** default test bot Meta id is `1329391920253229` (`+43 681 20575797`). Runner aborts on prod id unless allowed.
+**Hard rule:** default test bot Meta id is `1351541364709498` (`+43 681 20575797`). Legacy id `1329391920253229` is still accepted. Runner aborts on prod id unless allowed. The line was `DISCONNECTED` on 2026-10-10, so inbound webhooks do not arrive until it is registered again.
 
 ## Nightly / on-demand (GitHub Actions)
 
