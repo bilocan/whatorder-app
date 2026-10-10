@@ -81,4 +81,50 @@ function getTodayOrderWindow(schedule, timezone = 'Europe/Vienna') {
   return { firstOrderTime: dayConfig.firstOrderTime, lastOrderTime: dayConfig.lastOrderTime };
 }
 
-module.exports = { isOpenNow, isOrderingOpen, getTodayOrderWindow };
+function sameDayWindowCovers(openTime, closeTime, time) {
+  if (!openTime || !closeTime) return false;
+  if (closeTime >= openTime) return time >= openTime && time <= closeTime;
+  return time >= openTime;
+}
+
+function yesterdayOvernightCovers(prev, time) {
+  if (!prev?.openTime || !prev?.closeTime) return false;
+  return prev.closeTime < prev.openTime && time <= prev.closeTime;
+}
+
+// Customer map: shop hours for the window that applies now, plus whether it is open.
+// null when no schedule is configured (hours unknown; do not invent "open").
+// A cross-midnight window from yesterday wins until it ends, even if today has later hours.
+function getPublicHours(schedule, timezone = 'Europe/Vienna') {
+  if (!schedule || !Object.keys(schedule).length) return null;
+
+  const dow = localDayOfWeek(timezone);
+  const time = localHHMM(timezone);
+  const today = schedule[String(dow)];
+  const prev = schedule[String((dow + 6) % 7)];
+  const todayCovers = !!today && (
+    (!today.openTime && !today.closeTime) || sameDayWindowCovers(today.openTime, today.closeTime, time)
+  );
+
+  if (yesterdayOvernightCovers(prev, time) && !todayCovers) {
+    return {
+      isOpen: true,
+      openTime: prev.openTime,
+      closeTime: prev.closeTime,
+      closedToday: false,
+    };
+  }
+
+  if (!today) {
+    return { isOpen: false, openTime: null, closeTime: null, closedToday: true };
+  }
+
+  return {
+    isOpen: isOpenNow(schedule, timezone),
+    openTime: today.openTime || null,
+    closeTime: today.closeTime || null,
+    closedToday: false,
+  };
+}
+
+module.exports = { isOpenNow, isOrderingOpen, getTodayOrderWindow, getPublicHours };
