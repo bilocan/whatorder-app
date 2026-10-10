@@ -143,20 +143,31 @@ async function updateRestaurant({ phone, businessId, restaurantName }) {
   }
 }
 
+function restaurantIdFromSession(session) {
+  if (!session) return null;
+  // Language re-prompt keeps the previous businessId. The link they just
+  // opened is pendingDeepBid until they pick a language.
+  if (session.state === 'awaiting_language' && session.pendingDeepBid) {
+    return session.pendingDeepBid;
+  }
+  return session.businessId || null;
+}
+
 async function noteWallboardRestaurant(phone) {
   try {
     const session = await getSession(phone);
-    if (!session || !session.businessId) return;
+    const businessId = restaurantIdFromSession(session);
+    if (!businessId) return;
     let restaurantName = null;
     try {
-      const info = await getBusinessInfo(session.businessId);
+      const info = await getBusinessInfo(businessId);
       restaurantName = info && info.name ? info.name : null;
     } catch (_err) {
       restaurantName = null;
     }
     await updateRestaurant({
       phone,
-      businessId: session.businessId,
+      businessId,
       restaurantName,
     });
   } catch (_err) {

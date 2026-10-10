@@ -394,6 +394,31 @@ describe('noteWallboardRestaurant', () => {
     expectReadsBeforeWrites(orderChecks);
     expectReadsBeforeWrites(fresh.orderChecks);
   });
+
+  test('awaiting_language uses pendingDeepBid instead of the restaurant the re-prompt kept', async () => {
+    const { store, tx } = harness();
+    await recordWallboardInbound({
+      phone: PHONE,
+      channel: 'qr',
+      businessIds: ['biz_old', 'biz_new'],
+      businessId: 'biz_new',
+      restaurantName: 'New Place',
+    });
+    const setsAfterRecord = tx.set.mock.calls.length;
+    getSession.mockResolvedValue({
+      state: 'awaiting_language',
+      businessId: 'biz_old',
+      pendingDeepBid: 'biz_new',
+    });
+    getBusinessInfo.mockImplementation(async (id) => (
+      { name: id === 'biz_new' ? 'New Place' : 'Old Place' }
+    ));
+    await noteWallboardRestaurant(PHONE);
+    expect(tx.set.mock.calls.length).toBe(setsAfterRecord);
+    expect(store.chat.businessId).toBe('biz_new');
+    expect(store.chat.restaurantName).toBe('New Place');
+    expect(getBusinessInfo).toHaveBeenCalledWith('biz_new');
+  });
 });
 
 describe('exports', () => {
