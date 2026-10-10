@@ -590,6 +590,14 @@
       "title": "Restaurant",
       "description": "Name and alert number are fixed. Edit the address for nearby search and delivery."
     },
+    "orderAlert": {
+      "title": "New order sound",
+      "description": "This browser on this PC only. Not saved for the restaurant.",
+      "test": "Test sound",
+      "started": "Beep started. If you heard nothing, check this PC's speakers.",
+      "blocked": "The browser is still blocking sound. Click the page and try again.",
+      "unsupported": "This browser cannot play sound."
+    },
     "kitchenPrint": {
       "title": "Kitchen printer",
       "description": "Choose how this restaurant prints the kitchen slip.",

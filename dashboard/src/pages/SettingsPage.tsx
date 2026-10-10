@@ -12,6 +12,7 @@ import { evaluateOnboardingChecklist } from '../lib/onboardingChecklist';
 import LegalFieldsForm, { type LegalFormState } from '../components/LegalFieldsForm';
 import { parseSettingsTab, SETTINGS_TABS, type SettingsTab } from '../lib/settingsTabs';
 import PwaInstallHint from '../components/PwaInstallHint';
+import OrderAlertSoundCard from '../components/OrderAlertSoundCard';
 import type { Business, DaySchedule, MenuItem, MinimumOrderDistrictRule } from '../types';
 
 const DEFAULT_LEGAL_FORM: LegalFormState = { country: 'AT' };
@@ -583,6 +584,7 @@ export default function SettingsPage() {
             {saveStatus === 'error' && <span className="settings-status-err">{t('settings.location.invalidCoords')}</span>}
           </div>
         </section>
+          <OrderAlertSoundCard />
           <section className="settings-card">
             <h3 id="settings-kitchen-print-title" className="settings-card-title">{t('settings.kitchenPrint.title')}</h3>
             <p className="settings-card-desc">{t('settings.kitchenPrint.description')}</p>
