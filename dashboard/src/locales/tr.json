@@ -799,8 +799,12 @@
       "saving": "Kaydediliyor…",
       "cards": {
         "totalOrders": "Toplam Siparişler",
+        "cancelled": "İptal edildi",
+        "rejected": "Reddedildi",
+        "orderCount": "{{count}} sipariş",
         "restaurantRevenue": "Restoran Geliri",
-        "whatorderEarnings": "WhatOrder Kazancı"
+        "whatorderEarnings": "WhatOrder Kazancı",
+        "byFee": "Ücrete göre"
       },
       "allOrders": "Tüm Siparişler",
       "loading": "Yükleniyor…",

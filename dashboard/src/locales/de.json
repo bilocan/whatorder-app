@@ -799,8 +799,12 @@
       "saving": "Speichern…",
       "cards": {
         "totalOrders": "Gesamtbestellungen",
+        "cancelled": "Storniert",
+        "rejected": "Abgelehnt",
+        "orderCount": "{{count}} Bestellungen",
         "restaurantRevenue": "Restaurantumsatz",
-        "whatorderEarnings": "WhatOrder-Einnahmen"
+        "whatorderEarnings": "WhatOrder-Einnahmen",
+        "byFee": "Nach Gebühr"
       },
       "allOrders": "Alle Bestellungen",
       "loading": "Lade…",
