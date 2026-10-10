@@ -202,6 +202,17 @@ async function createOrder(businessId, { customerPhone, customerName, restaurant
     console.error(`[wallboard] feed create failed orderId=${ref.id}: ${err.message}`);
   }
 
+  const { markWallboardChatOrdered } = require('../lib/wallboardChat');
+  try {
+    await markWallboardChatOrdered({
+      phone,
+      businessId,
+      restaurantName: doc.restaurantName || null,
+    });
+  } catch (err) {
+    console.error('[wallboard] chat write failed');
+  }
+
   // Upsert customer profile
   try {
     await customerDoc.set({

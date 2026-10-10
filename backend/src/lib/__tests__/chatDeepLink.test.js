@@ -1,4 +1,6 @@
 const {
+  stripWallboardChannel,
+  appendWallboardChannel,
   parseOrderDeepLink,
   buildOrderDeepLinkPrefill,
   chatPrefillFromQuery,
@@ -35,5 +37,33 @@ describe('chatDeepLink', () => {
     expect(isOrderDeepLink('ORDER biz_hamat_abc')).toBe(true);
     expect(isOrderDeepLink('ORDER+biz_hamat_abc')).toBe(true);
     expect(isOrderDeepLink('Bestellen')).toBe(false);
+  });
+
+  test('stripWallboardChannel removes a trailing tag and keeps the draft', () => {
+    expect(stripWallboardChannel('Hallo #wo:qr')).toEqual({ text: 'Hallo', channel: 'qr' });
+    expect(stripWallboardChannel('Hallo #wo:map\n')).toEqual({ text: 'Hallo', channel: 'map' });
+    expect(stripWallboardChannel('ORDER biz_hamat_abc #wo:web')).toEqual({
+      text: 'ORDER biz_hamat_abc',
+      channel: 'web',
+    });
+    expect(stripWallboardChannel('Hallo #wo:qr please')).toEqual({
+      text: 'Hallo #wo:qr please',
+      channel: null,
+    });
+    expect(stripWallboardChannel('Hallo')).toEqual({ text: 'Hallo', channel: null });
+  });
+
+  test('stripped ORDER text still parses', () => {
+    const { text } = stripWallboardChannel('ORDER biz_hamat_abc #wo:qr');
+    expect(parseOrderDeepLink(text, ['biz_hamat_abc'])).toBe('biz_hamat_abc');
+  });
+
+  test('appendWallboardChannel tags qr, map, and web, and skips unknown ch', () => {
+    expect(appendWallboardChannel('Hallo', undefined)).toBe('Hallo #wo:qr');
+    expect(appendWallboardChannel('Hallo', '')).toBe('Hallo #wo:qr');
+    expect(appendWallboardChannel('Hallo', 'qr')).toBe('Hallo #wo:qr');
+    expect(appendWallboardChannel('Hallo', 'MAP')).toBe('Hallo #wo:map');
+    expect(appendWallboardChannel('ORDER biz_hamat_abc', 'web')).toBe('ORDER biz_hamat_abc #wo:web');
+    expect(appendWallboardChannel('Hallo', 'flyer')).toBe('Hallo');
   });
 });

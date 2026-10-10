@@ -45,6 +45,10 @@ jest.mock('../../lib/stripe', () => ({
 jest.mock('../../lib/paymentService', () => ({
   createCheckoutSessionForOrder: jest.fn(),
 }));
+jest.mock('../../lib/wallboardChat', () => ({
+  recordWallboardInbound: jest.fn().mockResolvedValue(undefined),
+  noteWallboardRestaurant: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../../lib/collections', () => ({
   customersRef: jest.fn(),
   customerPrefsRef: jest.fn(() => ({ get: jest.fn().mockResolvedValue({ exists: false }), set: jest.fn().mockResolvedValue(undefined) })),
@@ -102,6 +106,7 @@ const {
 const { menuRef } = require('../../lib/collections');
 const { createCheckoutSessionForOrder } = require('../../lib/paymentService');
 const { getPreferredLanguage, setPreferredLanguage } = require('../customerLanguage');
+const { recordWallboardInbound, noteWallboardRestaurant } = require('../../lib/wallboardChat');
 
 beforeEach(() => {
   resetBotHandlerMocks();
@@ -252,6 +257,18 @@ describe('Language picker', () => {
     expect(sendFlowMessage).not.toHaveBeenCalled();
   });
 
+  test('channel tag on Hallo still shows the language picker', async () => {
+    getSession.mockResolvedValue({});
+
+    await handleMessage(ROUTING, msg({ text: 'Hallo #wo:web' }));
+
+    expect(sendButtonMessage).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      buttons: expect.arrayContaining([
+        expect.objectContaining({ id: 'btn_lang_de' }),
+      ]),
+    }));
+  });
+
   test('returning customer with preferredLanguage skips picker', async () => {
     getPreferredLanguage.mockResolvedValue('tr');
     getSession.mockResolvedValue({});
@@ -385,6 +402,27 @@ describe('Language picker', () => {
     await handleMessage(ROUTING, msg({ text: 'naber ja' }));
 
     expect(setSession).not.toHaveBeenCalledWith(FROM, expect.objectContaining({ language: 'de' }));
+  });
+});
+
+describe('Wallboard chat recording', () => {
+  test('first tagged text records the website channel', async () => {
+    getSession.mockResolvedValue({});
+    await handleMessage(ROUTING, msg({ text: 'Hallo #wo:web' }));
+    expect(recordWallboardInbound).toHaveBeenCalledWith(expect.objectContaining({
+      phone: FROM,
+      channel: 'web',
+      businessId: null,
+    }));
+    expect(noteWallboardRestaurant).toHaveBeenCalledWith(FROM);
+  });
+
+  test('button reply records a direct chat', async () => {
+    getSession.mockResolvedValue({ state: 'awaiting_language', language: null, basket: [], businessId: null });
+    await handleMessage(ROUTING, msg({ type: 'button_reply', id: 'btn_lang_de' }));
+    expect(recordWallboardInbound).toHaveBeenCalledWith(expect.objectContaining({
+      channel: 'direct',
+    }));
   });
 });
 
@@ -529,6 +567,18 @@ describe('Deep link: returning customer (single restaurant)', () => {
       pendingDeepBid: BIZ,
     }));
     expect(sendButtonMessage).toHaveBeenCalled();
+  });
+
+  test('ORDER deep link with a channel tag still stashes the bid', async () => {
+    getSession.mockResolvedValue({});
+    getLastOrderForCustomer.mockResolvedValue(null);
+
+    await handleMessage(ROUTING, msg({ text: `ORDER ${BIZ} #wo:qr` }));
+
+    expect(setSession).toHaveBeenCalledWith(FROM, expect.objectContaining({
+      state: 'awaiting_language',
+      pendingDeepBid: BIZ,
+    }));
   });
 
   test('QR deep link with preferredLanguage opens catalog', async () => {

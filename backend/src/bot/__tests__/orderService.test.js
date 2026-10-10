@@ -20,6 +20,9 @@ jest.mock('../../lib/wallboardFeed', () => ({
   writeWallboardFeedOnCreate: jest.fn().mockResolvedValue(undefined),
   updateWallboardFeedIfExists: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('../../lib/wallboardChat', () => ({
+  markWallboardChatOrdered: jest.fn().mockResolvedValue(undefined),
+}));
 
 const { createOrder, getLastOrderForCustomer, getOrder, amendOrderAddItems, approveOrder, rejectOrder, startPreparation, markReady, markOnTheWay, markPickedUp, markDelivered, cancelOrder } = require('../orderService');
 const { ordersRef, businessRef, customersRef } = require('../../lib/collections');
@@ -27,6 +30,7 @@ const { sendText, sendButtonMessage } = require('../../lib/whatsapp');
 const { t } = require('../templates');
 const { patchSession } = require('../sessionStore');
 const { writeWallboardFeedOnCreate, updateWallboardFeedIfExists } = require('../../lib/wallboardFeed');
+const { markWallboardChatOrdered } = require('../../lib/wallboardChat');
 
 const BIZ = 'biz_test';
 
@@ -459,6 +463,11 @@ describe('createOrder', () => {
       expect.objectContaining({ paymentMethod: 'cash', paymentStatus: 'cash', total: 17 }),
       true,
     );
+    expect(markWallboardChatOrdered).toHaveBeenCalledWith({
+      phone: '43699000001',
+      businessId: BIZ,
+      restaurantName: null,
+    });
   });
 
   test('writes feed firstOrder false when orderCount is already at least 1', async () => {

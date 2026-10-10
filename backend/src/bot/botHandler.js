@@ -25,7 +25,8 @@ const { beginRestaurantSwitch } = require('./restaurantSwitch');
 const { isGreetingOnly, isFreshStartCommand } = require('./intentParser');
 const { handleIntentCustomize } = require('./intentCustomize');
 const { handleDisambiguatingIntent } = require('./intentDisambiguate');
-const { parseOrderDeepLink } = require('../lib/chatDeepLink');
+const { parseOrderDeepLink, stripWallboardChannel } = require('../lib/chatDeepLink');
+const { recordWallboardInbound, noteWallboardRestaurant } = require('../lib/wallboardChat');
 const { redactPhone } = require('../lib/logRedact');
 const {
   tryReplyOrderStatus,
@@ -230,6 +231,31 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
     console.warn(`[bot] no restaurants routed for this WhatsApp number — ignoring message from ${redactPhone(from)}`);
     return;
   }
+
+  let channel = 'direct';
+  let deepBid = null;
+  let deepName = null;
+  if (type === 'text') {
+    const stripped = stripWallboardChannel(text);
+    text = stripped.text;
+    channel = stripped.channel || 'direct';
+    deepBid = parseOrderDeepLink(text, routing.businessIds);
+    if (deepBid) {
+      try {
+        const info = await getBusinessInfo(deepBid);
+        deepName = info && info.name ? info.name : null;
+      } catch (_err) {
+        deepName = null;
+      }
+    }
+  }
+  await recordWallboardInbound({
+    phone: from,
+    channel,
+    businessIds: routing.businessIds,
+    businessId: deepBid,
+    restaurantName: deepName,
+  });
 
   let session = await getSession(from);
   if (routing.phoneNumberId) {
@@ -551,7 +577,11 @@ async function handleMessageInner(routing, { from, contactName, type, text, id, 
 //   { type: 'cart_submitted', items: [{ productId, qty, price, currency }] } — catalog flow
 //   { type: 'flow_completion', data: { item_id, protein, quantity, sauces_text, special_requests, total, unit_price } }
 async function handleMessage(routing, message) {
-  return runWithMessageIdentity(PLATFORM_IDENTITY, () => handleMessageInner(routing, message));
+  try {
+    return await runWithMessageIdentity(PLATFORM_IDENTITY, () => handleMessageInner(routing, message));
+  } finally {
+    if (message && message.from) await noteWallboardRestaurant(message.from);
+  }
 }
 
 module.exports = { handleMessage };

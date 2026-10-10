@@ -164,5 +164,13 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.token.wallboard == true;
       allow write: if false;
     }
+
+    match /wallboardChats/{chatId} {
+      allow read: if request.auth != null && request.auth.token.wallboard == true;
+      allow write: if false;
+    }
+    match /wallboardChatKeys/{keyId} {
+      allow read, write: if false;
+    }
   }
 }
