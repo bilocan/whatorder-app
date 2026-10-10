@@ -27,34 +27,34 @@ describe('GET /chat', () => {
     resolveWhatsAppReturnPhoneDigits.mockResolvedValue('436601234567');
     const res = await request(app).get('/chat');
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('https://wa.me/436601234567?text=Hallo');
+    expect(res.headers.location).toBe('https://wa.me/436601234567?text=Hallo%20%23wo%3Aqr');
   });
 
   test('uses custom prefill when WHATSAPP_CHAT_PREFILL is set', async () => {
     process.env.WHATSAPP_CHAT_PREFILL = 'Bestellen';
     resolveWhatsAppReturnPhoneDigits.mockResolvedValue('436601234567');
     const res = await request(app).get('/chat');
-    expect(res.headers.location).toBe('https://wa.me/436601234567?text=Bestellen');
+    expect(res.headers.location).toBe('https://wa.me/436601234567?text=Bestellen%20%23wo%3Aqr');
   });
 
   test('?wa= overrides resolved phone', async () => {
     resolveWhatsAppReturnPhoneDigits.mockResolvedValue('436601111111');
     const res = await request(app).get('/chat?wa=436609999999');
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('https://wa.me/436609999999?text=Hallo');
+    expect(res.headers.location).toBe('https://wa.me/436609999999?text=Hallo%20%23wo%3Aqr');
     expect(resolveWhatsAppReturnPhoneDigits).not.toHaveBeenCalled();
   });
 
   test('?text= overrides default prefill', async () => {
     resolveWhatsAppReturnPhoneDigits.mockResolvedValue('436601234567');
     const res = await request(app).get('/chat?text=Bestellen');
-    expect(res.headers.location).toBe('https://wa.me/436601234567?text=Bestellen');
+    expect(res.headers.location).toBe('https://wa.me/436601234567?text=Bestellen%20%23wo%3Aqr');
   });
 
   test('?wa= and ?text= combine for restaurant marketing QR', async () => {
     const res = await request(app).get('/chat?wa=436609999999&text=Bestellen');
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('https://wa.me/436609999999?text=Bestellen');
+    expect(res.headers.location).toBe('https://wa.me/436609999999?text=Bestellen%20%23wo%3Aqr');
     expect(resolveWhatsAppReturnPhoneDigits).not.toHaveBeenCalled();
   });
 
@@ -62,7 +62,7 @@ describe('GET /chat', () => {
     resolveWhatsAppReturnPhoneDigits.mockResolvedValue('436601234567');
     const res = await request(app).get('/chat?bid=biz_hamat_abc');
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('https://wa.me/436601234567?text=ORDER%20biz_hamat_abc');
+    expect(res.headers.location).toBe('https://wa.me/436601234567?text=ORDER%20biz_hamat_abc%20%23wo%3Aqr');
   });
 
   test('returns 503 HTML when no phone is configured', async () => {
@@ -75,7 +75,25 @@ describe('GET /chat', () => {
     resolveWhatsAppReturnPhoneDigits.mockResolvedValue('436601234567');
     const res = await request(app).get('/chat?html=1');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('https://wa.me/436601234567?text=Hallo');
+    expect(res.text).toContain('https://wa.me/436601234567?text=Hallo%20%23wo%3Aqr');
     expect(res.text).toContain('Weiter zu WhatsApp');
+  });
+
+  test('?ch=web appends the website tag', async () => {
+    resolveWhatsAppReturnPhoneDigits.mockResolvedValue('436601234567');
+    const res = await request(app).get('/chat?ch=web');
+    expect(res.headers.location).toBe('https://wa.me/436601234567?text=Hallo%20%23wo%3Aweb');
+  });
+
+  test('?ch=map and ?bid= append the map tag after ORDER', async () => {
+    resolveWhatsAppReturnPhoneDigits.mockResolvedValue('436601234567');
+    const res = await request(app).get('/chat?bid=biz_hamat_abc&ch=map');
+    expect(res.headers.location).toBe('https://wa.me/436601234567?text=ORDER%20biz_hamat_abc%20%23wo%3Amap');
+  });
+
+  test('unknown ch appends no tag', async () => {
+    resolveWhatsAppReturnPhoneDigits.mockResolvedValue('436601234567');
+    const res = await request(app).get('/chat?ch=flyer');
+    expect(res.headers.location).toBe('https://wa.me/436601234567?text=Hallo');
   });
 });

@@ -117,6 +117,14 @@ const commandLearningRef = (keyHash) =>
 const wallboardFeedRef = (orderId) =>
   db.collection('wallboardFeed').doc(orderId);
 
+// wallboardChats/{chatId}. Sanitized office TV chat row. No phone, no hash.
+const wallboardChatRef = (chatId) =>
+  db.collection('wallboardChats').doc(chatId);
+
+// wallboardChatKeys/{hmac}. Private per-phone dedupe key. Admin SDK only.
+const wallboardChatKeyRef = (keyId) =>
+  db.collection('wallboardChatKeys').doc(keyId);
+
 module.exports = {
   businessesCollectionRef,
   businessRef, menuRef, optionGroupsRef, ordersRef, dealsRef, dealRef, customersRef,
@@ -138,4 +146,6 @@ module.exports = {
   seedOverridesRef,
   commandLearningRef,
   wallboardFeedRef,
+  wallboardChatRef,
+  wallboardChatKeyRef,
 };
