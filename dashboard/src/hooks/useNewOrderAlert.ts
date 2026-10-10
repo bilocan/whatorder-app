@@ -15,9 +15,19 @@ export function useNewOrderAlert(businessId: string | null): { unseenCount: numb
   const [unseenCount, setUnseenCount] = useState(0);
 
   useEffect(() => {
-    const unlock = () => unlockAudioContext();
-    window.addEventListener('pointerdown', unlock, { once: true });
-    return () => window.removeEventListener('pointerdown', unlock);
+    let removed = false;
+    const unlock = () => {
+      void unlockAudioContext().then((result) => {
+        if (removed || result !== 'running') return;
+        removed = true;
+        window.removeEventListener('pointerdown', unlock);
+      });
+    };
+    window.addEventListener('pointerdown', unlock);
+    return () => {
+      removed = true;
+      window.removeEventListener('pointerdown', unlock);
+    };
   }, []);
 
   useEffect(() => {

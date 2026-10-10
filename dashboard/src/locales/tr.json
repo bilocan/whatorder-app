@@ -590,6 +590,14 @@
       "title": "Restoran",
       "description": "Ad ve uyarı numarası sabittir. Yakındaki arama ve teslimat için adresi düzenleyin."
     },
+    "orderAlert": {
+      "title": "Yeni sipariş sesi",
+      "description": "Yalnızca bu tarayıcı ve bu bilgisayar. Restoran için kaydedilmez.",
+      "test": "Sesi dene",
+      "started": "Ses başlatıldı. Duymadıysan bu bilgisayarın hoparlörüne bak.",
+      "blocked": "Tarayıcı sesi hâlâ engelliyor. Sayfaya tıkla ve tekrar dene.",
+      "unsupported": "Bu tarayıcı ses çalamaz."
+    },
     "kitchenPrint": {
       "title": "Mutfak yazıcısı",
       "description": "Bu restoranın mutfak fişini nasıl yazdıracağını seç.",
