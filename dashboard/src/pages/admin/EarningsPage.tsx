@@ -3,7 +3,7 @@ import { collection, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../lib/firebase';
 import { useFeeConfig } from '../../hooks/useFeeConfig';
-import { orderEarningsFeeEuros, restaurantRevenueEuros, whatorderEarningsEuros } from '../../lib/earningsTotals';
+import { earningsByFeeRate, earningsStatusSplit, feeRateLabel, orderEarningsFeeEuros, whatorderEarningsEuros } from '../../lib/earningsTotals';
 import type { FeeConfig } from '../../hooks/useFeeConfig';
 import type { Order, Business, Payout } from '../../types';
 import { toDate } from '../../types';
@@ -59,7 +59,7 @@ function formatPayoutResult(data: PayoutRunResponse, dryRun: boolean, t: (key: s
   return lines.join('\n');
 }
 
-type OrderRow = Order & { businessId: string; businessName: string };
+type OrderRow = Order & { businessId: string; businessName: string; restaurantFee?: unknown };
 
 function settlementStatusKey(status: Order['settlementStatus']): string {
   if (!status || status === 'none') return 'none';
@@ -107,9 +107,11 @@ export default function EarningsPage() {
         );
 
         const nameMap = new Map<string, string>();
+        const feeMap = new Map<string, unknown>();
         businessSnap.docs.forEach((d) => {
           const b = d.data() as Business;
           nameMap.set(d.id, b.name ?? d.id);
+          feeMap.set(d.id, b.platformFee ?? null);
         });
 
         const rows: OrderRow[] = orderDocs.map((d) => {
@@ -119,6 +121,7 @@ export default function EarningsPage() {
             businessId,
             businessName: nameMap.get(businessId) ?? businessId,
             ...(d.data({ serverTimestamps: 'estimate' }) as Omit<Order, 'id'>),
+            restaurantFee: feeMap.get(businessId) ?? null,
           };
         });
 
@@ -180,7 +183,9 @@ export default function EarningsPage() {
     }
   }
 
-  const totalRevenue = restaurantRevenueEuros(orders);
+  const statusSplit = earningsStatusSplit(orders);
+  const feeRates = earningsByFeeRate(orders, feeConfig);
+  const totalRevenue = statusSplit.kept.euros;
   const feeFor = (order: typeof orders[number]) => orderEarningsFeeEuros(order, feeConfig);
   const totalFees = whatorderEarningsEuros(orders, feeConfig);
 
@@ -213,6 +218,7 @@ export default function EarningsPage() {
     letterSpacing: '0.05em',
   };
   const valueStyle: React.CSSProperties = { fontSize: '1.75rem', fontWeight: 700 };
+  const hintStyle: React.CSSProperties = { marginTop: '0.25rem', fontSize: '0.8rem', color: '#666' };
 
   return (
     <div>
@@ -257,20 +263,47 @@ export default function EarningsPage() {
       </div>
 
       {/* Summary cards */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
         <div style={cardStyle}>
           <div style={labelStyle}>{t('admin.earnings.cards.totalOrders')}</div>
-          <div style={valueStyle}>{orders.length}</div>
+          <div style={valueStyle}>{statusSplit.all.count}</div>
+          <div style={hintStyle}>€{statusSplit.all.euros.toFixed(2)}</div>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ ...labelStyle, color: '#6B7280' }}>{t('admin.earnings.cards.cancelled')}</div>
+          <div style={valueStyle}>€{statusSplit.cancelled.euros.toFixed(2)}</div>
+          <div style={hintStyle}>{t('admin.earnings.cards.orderCount', { count: statusSplit.cancelled.count })}</div>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ ...labelStyle, color: '#EF4444' }}>{t('admin.earnings.cards.rejected')}</div>
+          <div style={valueStyle}>€{statusSplit.rejected.euros.toFixed(2)}</div>
+          <div style={hintStyle}>{t('admin.earnings.cards.orderCount', { count: statusSplit.rejected.count })}</div>
         </div>
         <div style={cardStyle}>
           <div style={labelStyle}>{t('admin.earnings.cards.restaurantRevenue')}</div>
           <div style={valueStyle}>€{totalRevenue.toFixed(2)}</div>
+          <div style={hintStyle}>{t('admin.earnings.cards.orderCount', { count: statusSplit.kept.count })}</div>
         </div>
         <div style={{ ...cardStyle, borderColor: '#22c55e' }}>
           <div style={{ ...labelStyle, color: '#22c55e' }}>{t('admin.earnings.cards.whatorderEarnings')}</div>
           <div style={{ ...valueStyle, color: '#22c55e' }}>€{totalFees.toFixed(2)}</div>
         </div>
       </div>
+
+      {feeRates.length > 0 && (
+        <div style={{ marginBottom: '2rem' }}>
+          <div style={{ ...labelStyle, marginBottom: '0.5rem' }}>{t('admin.earnings.cards.byFee')}</div>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            {feeRates.map((bucket) => (
+              <div key={`${bucket.feeType}-${bucket.feeValue}`} style={cardStyle}>
+                <div style={labelStyle}>{feeRateLabel(bucket)}</div>
+                <div style={valueStyle}>{bucket.count}</div>
+                <div style={hintStyle}>€{bucket.euros.toFixed(2)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Settlement / payout status */}
       <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.4rem' }}>{t('admin.earnings.settlement.title')}</h3>

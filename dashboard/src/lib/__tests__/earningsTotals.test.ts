@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { restaurantRevenueEuros, whatorderEarningsEuros } from '../earningsTotals';
+import { earningsByFeeRate, earningsStatusSplit, restaurantRevenueEuros, whatorderEarningsEuros } from '../earningsTotals';
 
 const platform = { feeType: 'percent' as const, feeValue: 10 };
 
@@ -20,6 +20,37 @@ describe('admin earnings totals', () => {
   test('does not invent a platform fee for an unpaid withdrawn order', () => {
     const order = { status: 'rejected' as const, total: 43.6, paymentMethod: 'stripe' as const, paymentStatus: 'pending' as const };
     expect(whatorderEarningsEuros([order], platform)).toBe(0);
+  });
+
+  test('splits every order into all, cancelled, rejected, and kept', () => {
+    const orders = [
+      { status: 'picked_up' as const, total: 10 },
+      { status: 'cancelled' as const, total: 5 },
+      { status: 'rejected' as const, total: 20 },
+      { status: 'preparing' as const, total: 8 },
+    ];
+    expect(earningsStatusSplit(orders)).toEqual({
+      all: { count: 4, euros: 43 },
+      cancelled: { count: 1, euros: 5 },
+      rejected: { count: 1, euros: 20 },
+      kept: { count: 2, euros: 18 },
+    });
+  });
+
+  test('groups kept orders by the restaurant fee and leaves cancelled and rejected out', () => {
+    const zero = { feeType: 'percent' as const, feeValue: 0 };
+    const orders = [
+      { status: 'picked_up' as const, total: 10, restaurantFee: zero },
+      { status: 'cancelled' as const, total: 5, restaurantFee: zero },
+      { status: 'picked_up' as const, total: 20, restaurantFee: { feeType: 'percent' as const, feeValue: 10 } },
+      { status: 'rejected' as const, total: 8 },
+      { status: 'preparing' as const, total: 4, restaurantFee: { feeType: 'fixed' as const, feeValue: 0.5 } },
+    ];
+    expect(earningsByFeeRate(orders, platform)).toEqual([
+      { feeType: 'percent', feeValue: 0, count: 1, euros: 10 },
+      { feeType: 'percent', feeValue: 10, count: 1, euros: 20 },
+      { feeType: 'fixed', feeValue: 0.5, count: 1, euros: 4 },
+    ]);
   });
 
   test('keeps an in-progress order in revenue and still estimates its fee', () => {

@@ -799,8 +799,12 @@
       "saving": "Saving…",
       "cards": {
         "totalOrders": "Total Orders",
+        "cancelled": "Cancelled",
+        "rejected": "Rejected",
+        "orderCount": "{{count}} orders",
         "restaurantRevenue": "Restaurant Revenue",
-        "whatorderEarnings": "WhatOrder Earnings"
+        "whatorderEarnings": "WhatOrder Earnings",
+        "byFee": "By fee"
       },
       "allOrders": "All Orders",
       "loading": "Loading…",
