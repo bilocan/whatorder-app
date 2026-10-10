@@ -265,4 +265,60 @@ describe('getPublicHours', () => {
       closedToday: false,
     });
   });
+
+  test('shows today as closed after overnight ends and before today opens', () => {
+    setNow('2024-06-11T08:00:00Z'); // Tuesday 08:00, overnight ended at 02:00
+    const schedule = {
+      '1': makeDayConfig({ openTime: '18:00', closeTime: '02:00' }),
+      '2': makeDayConfig({ openTime: '09:00', closeTime: '22:00' }),
+    };
+    expect(getPublicHours(schedule, TZ)).toEqual({
+      isOpen: false,
+      openTime: '09:00',
+      closeTime: '22:00',
+      closedToday: false,
+    });
+  });
+
+  test('stays open at the exact end of yesterday overnight window', () => {
+    setNow('2024-06-11T02:00:00Z'); // Tuesday 02:00
+    const schedule = {
+      '1': makeDayConfig({ openTime: '18:00', closeTime: '02:00' }),
+      '2': makeDayConfig({ openTime: '09:00', closeTime: '22:00' }),
+    };
+    expect(getPublicHours(schedule, TZ)).toEqual({
+      isOpen: true,
+      openTime: '18:00',
+      closeTime: '02:00',
+      closedToday: false,
+    });
+  });
+
+  test('keeps today all-day hours instead of yesterday overnight', () => {
+    setNow('2024-06-11T01:00:00Z'); // Tuesday 01:00
+    const schedule = {
+      '1': makeDayConfig({ openTime: '18:00', closeTime: '02:00' }),
+      '2': { openTime: '', closeTime: '' },
+    };
+    expect(getPublicHours(schedule, TZ)).toEqual({
+      isOpen: true,
+      openTime: null,
+      closeTime: null,
+      closedToday: false,
+    });
+  });
+
+  test('uses tonight cross-midnight hours on the evening side', () => {
+    setNow('2024-06-10T23:00:00Z'); // Monday 23:00
+    const schedule = {
+      '1': makeDayConfig({ openTime: '18:00', closeTime: '02:00' }),
+      '2': makeDayConfig({ openTime: '09:00', closeTime: '22:00' }),
+    };
+    expect(getPublicHours(schedule, TZ)).toEqual({
+      isOpen: true,
+      openTime: '18:00',
+      closeTime: '02:00',
+      closedToday: false,
+    });
+  });
 });
